@@ -23,6 +23,8 @@
     <section id="settings-pane" class="users-pane" hidden></section>
   </main>
 </div>
+<button id="assist-fab" class="assist-fab" type="button" hidden>{{ 'עוזר' if lang == 'he' else 'Assistant' }}</button>
+<aside id="assist" class="assist" hidden aria-label="{{ 'עוזר ידע' if lang == 'he' else 'Knowledge assistant' }}"></aside>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <dialog id="cancel-dlg" class="dlg"></dialog>
 <dialog id="confirm-dlg" class="dlg"></dialog>

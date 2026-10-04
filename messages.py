@@ -21,6 +21,17 @@ PROXY = {
     "brand_not_connected": ("המותג הזה עוד לא מחובר למערכת.", "This brand is not connected yet."),
     "bad_request": ("הבקשה לא תקינה.", "Bad request."),
     "bad_note": ("הערה של 2 עד 300 תווים.", "A note of 2 to 300 characters."),
+    # phase 5: assistant + English mode
+    "assistant_off": ("העוזר כבוי (חסר מפתח Anthropic בשרת). לדווח לבעלים.", "The assistant is off (no Anthropic key on the server). Tell the owner."),
+    "assistant_misconfigured": ("מפתח ה-Anthropic בשרת לא תקין. לדווח לבעלים.", "The server's Anthropic key is invalid. Tell the owner."),
+    "assistant_busy": ("שירות ה-AI עמוס כרגע. נסו שוב בעוד דקה.", "The AI service is busy. Try again in a minute."),
+    "assistant_timeout": ("העוזר לא ענה בזמן. נסו שאלה קצרה יותר או שוב בעוד רגע.", "The assistant did not answer in time. Try a shorter question."),
+    "assistant_unreachable": ("אין חיבור לשירות ה-AI. נסו שוב בעוד רגע.", "Cannot reach the AI service. Try again shortly."),
+    "assistant_error": ("תשובה לא תקינה משירות ה-AI. נסו שוב.", "Invalid answer from the AI service. Try again."),
+    "knowledge_unavailable": ("מאגר הידע של המותג עוד לא זמין במנוע — העוזר לא עונה בלעדיו (כדי לא להמציא מדיניות).",
+                              "The brand's knowledge is not available from the engine yet — the assistant will not answer without it."),
+    "translate_failed": ("התרגום נכשל. נסו שוב.", "The translation failed. Try again."),
+    "not_found": ("לא נמצא.", "Not found."),
     "engine_timeout": ("המנוע לא ענה בזמן. נסו שוב בעוד רגע — הפעולה אולי בוצעה, רעננו לפני שחוזרים ענציגה ב.",
                        "The engine did not answer in time. The action may have happened; refresh before repeating it."),
     "engine_unreachable": ("אין חיבור למנוע של המותג. נסו שוב בעוד רגע.", "Cannot reach the brand engine. Try again shortly."),
@@ -78,6 +89,8 @@ ENGINE = {
     "newer_message": ("הלקוח כתב הודעה חדשה מאז שהטיוטה נכתבה. רעננו וקראו אותה לפני שליחה.",
                       "The customer wrote again since the draft was made. Refresh and read it first."),
     "bad_job": ("משימה לא מוכרת.", "Unknown job."),
+    "rate_limited": ("המנוע מגביל קריאות כרגע. נסו שוב בעוד כמה דקות.", "The engine is rate-limiting. Try again in a few minutes."),
+    "bad_since": ("גרסת רשימה לא תקינה.", "Invalid list version."),
 }
 
 # Safety.gs draftProblem() sentences

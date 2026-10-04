@@ -133,14 +133,19 @@ def test_user_without_rozela_gets_403_on_every_rozela_fn(app, pw_hash, transport
     assert call(c, tok, "celesta", "apiBoot").status_code == 200
 
 
+def last(transport, fn):
+    """The newest call of one fn (writes now also trigger a background revalidation call)."""
+    return [b for _, b in transport.calls if b["fn"] == fn][-1]
+
+
 def test_brand_arg_is_forced_and_unknown_args_dropped(app, pw_hash, transport):
     c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
     call(c, tok, "rozela", "apiTicket", {"id": "t1", "brand": "celesta", "user": "admin", "override": True})
     assert transport.calls[-1][1]["args"] == {"id": "t1", "brand": "rozela"}
     call(c, tok, "rozela", "apiSend", {"id": "t1", "text": "hi", "override": "yes"})
-    assert transport.calls[-1][1]["args"] == {"id": "t1", "text": "hi", "brand": "rozela"}       # only literal true passes
+    assert last(transport, "apiSend")["args"] == {"id": "t1", "text": "hi", "brand": "rozela"}       # only literal true passes
     call(c, tok, "rozela", "apiSend", {"id": "t1", "text": "hi", "override": True})
-    assert transport.calls[-1][1]["args"]["override"] is True
+    assert last(transport, "apiSend")["args"]["override"] is True
     assert call(c, tok, "rozela", "apiTicket", {"id": {"$ne": 1}}).status_code == 400
 
 
@@ -189,9 +194,9 @@ def test_agent_may_use_the_auto_cancel_queue(app, pw_hash, transport):
     c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
     assert call(c, tok, "rozela", "apiAutoCancelList").status_code == 200
     assert call(c, tok, "rozela", "apiAutoCancelApprove", {"id": "t1", "replyText": "היי", "contractId": "x"}).status_code == 200
-    assert transport.calls[-1][1]["args"] == {"id": "t1", "replyText": "היי", "brand": "rozela"}
+    assert last(transport, "apiAutoCancelApprove")["args"] == {"id": "t1", "replyText": "היי", "brand": "rozela"}
     assert call(c, tok, "rozela", "apiAutoCancelReject", {"id": "t1", "note": "צריך בדיקה"}).status_code == 200
-    assert transport.calls[-1][1]["args"] == {"id": "t1", "note": "צריך בדיקה", "brand": "rozela"}
+    assert last(transport, "apiAutoCancelReject")["args"] == {"id": "t1", "note": "צריך בדיקה", "brand": "rozela"}
 
 
 @pytest.mark.parametrize("note", ["", "x", "y" * 301])

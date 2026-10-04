@@ -9,8 +9,8 @@ services:
     # rootDir: Systems/CS_Engine/team_screen   # only if the repo root is the whole HQ tree
     buildCommand: pip install -r requirements.txt
     # ONE worker on purpose: the login rate limiter and the users-file lock live in this process.
-    # Threads give concurrency (engine calls block on Apps Script for 1-20s).
-    startCommand: gunicorn --workers 1 --threads 16 --timeout 75 --bind 0.0.0.0:$PORT wsgi:app
+    # Threads give concurrency (engine calls block 1-20s; an assistant turn with tools can take ~60-110s).
+    startCommand: gunicorn --workers 1 --threads 16 --timeout 150 --bind 0.0.0.0:$PORT wsgi:app
     healthCheckPath: /healthz
     disk:
       name: cs-data
@@ -25,7 +25,11 @@ services:
         sync: false
       - key: ADMIN_BOOTSTRAP           # "username:password" for the FIRST admin only — delete after first boot
         sync: false
+      - key: ANTHROPIC_API_KEY         # phase 5: knowledge assistant (claude-opus-5-5) + English mode (claude-sonnet-5-5)
+        sync: false
       - key: USERS_PATH
         value: /var/data/users.json
+      - key: TICKET_CACHE_DIR          # Render-side ticket cache on the private disk (0700)
+        value: /var/data/ticket-cache
       - key: PYTHON_VERSION
         value: 3.12.7

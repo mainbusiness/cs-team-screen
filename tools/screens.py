@@ -41,7 +41,7 @@ def main():
     store = UserStore(users, os.path.join(tmp, "audit.jsonl"))
     pw = secrets.token_urlsafe(12) + "-Aa1"
     h = security.hash_password(pw)
-    allb = ["apexmen", "celesta", "rozela", "velora"]
+    allb = ["apexmen", "celesta", "rozela", "selera", "velora"]
     for name, disp, roles, brands, lang in [("manager", "המנהל", ["admin", "user-manager"], allb, "he"),
                                             ("agent-one", "נציג א", ["agent"], ["rozela", "velora"], "he"),
                                             ("agent-two", "נציגה ב", ["agent"], ["celesta", "apexmen"], "he"),
@@ -49,7 +49,8 @@ def main():
         store.create("preview", name, h, {"display_name": disp, "roles": roles, "brands": brands, "lang": lang}, allb, must_change=False)
 
     port = free_port()
-    env = dict(os.environ, MOCK_ENGINE="1", COOKIE_SECURE="0", USERS_PATH=users, TRUSTED_PROXY_HOPS="0", MOCK_LATENCY_MS="120",
+    os.environ.setdefault("MOCK_LATENCY_MS", "1500")          # a slow engine, so the cache has to earn its keep
+    env = dict(os.environ, MOCK_ENGINE="1", COOKIE_SECURE="0", USERS_PATH=users, TRUSTED_PROXY_HOPS="0",
                ENGINES_JSON="", PYTHONDONTWRITEBYTECODE="1")
     code = ("import logging;logging.basicConfig(level=logging.WARNING);from app import create_app;"
             "create_app().run(host='127.0.0.1', port=%d, threaded=True)" % port)
@@ -185,6 +186,120 @@ def main():
             page.goto(base + "/cs/en#/b/rozela/t/t18f2a03")
             page.wait_for_selector(".msg")
             shot(page, errs, "09_english_ticket", 390)
+            ctx.close()
+            # ---------- performance: a prefetched ticket opens from the Render cache while the engine is slow ----------
+            for width, height in ((390, 844), (1280, 860)):
+                ctx, page, errs = session("agent-one", width, height)
+                page.goto(base + "/cs#/b/rozela/ready")
+                page.wait_for_selector("a.row")
+                page.wait_for_timeout(int(os.environ.get("MOCK_LATENCY_MS", "120")) * 3 + 1500)   # prefetch (cap 3) finishes
+                t0 = time.perf_counter()
+                page.click("a.row >> nth=0")
+                page.wait_for_selector(".tk-head h2")
+                ms_open = (time.perf_counter() - t0) * 1000
+                syncing = page.locator("[data-test=tk-sync]:not([hidden])").count() > 0
+                print("open of a prefetched ticket at %dpx: %.0f ms (engine latency %s ms), revalidating=%s"
+                      % (width, ms_open, os.environ.get("MOCK_LATENCY_MS", "120"), syncing))
+                if ms_open > 300:
+                    problems.append("prefetched ticket took %.0f ms to open (budget 300)" % ms_open)
+                if not syncing:
+                    problems.append("no 'updating' chip while the cached copy revalidates")
+                page.screenshot(path=os.path.join(OUT, "16_cached_open_updating_%d.png" % width))
+                shots.append(os.path.join(OUT, "16_cached_open_updating_%d.png" % width))
+                page.wait_for_selector("[data-test=tk-sync][hidden]", state="attached", timeout=15000)
+                settle(page)
+                if errs:
+                    problems.append("perf: console errors %s" % errs[:2])
+                ctx.close()
+
+            # ---------- optimistic draft save: instant "saved", rollback + sticky error on refusal, text never lost ----------
+            ctx, page, errs = session("agent-one", 390, 844)
+            page.goto(base + "/cs#/b/rozela/t/t18f2a02")
+            page.wait_for_selector(".draft textarea")
+            page.click(".draft textarea")
+            page.keyboard.press("End")
+            page.keyboard.type(" REFUSE-SAVE")
+            t0 = time.perf_counter()
+            page.locator(".draft textarea").blur()
+            page.wait_for_selector(".save-state.opt", timeout=2000)
+            opt_ms = (time.perf_counter() - t0) * 1000
+            page.wait_for_selector(".save-state.bad", timeout=15000)
+            if "REFUSE-SAVE" not in page.input_value(".draft textarea"):
+                problems.append("rollback lost the agent's text")
+            print("optimistic 'saved' shown after %.0f ms; engine refusal -> sticky error, text kept" % opt_ms)
+            if opt_ms > 300:
+                problems.append("optimistic save indicator took %.0f ms" % opt_ms)
+            page.locator(".draft").scroll_into_view_if_needed()
+            shot(page, errs, "17_draft_save_refused_rollback", 390, full=False)
+            ctx.close()
+
+            # ---------- phase 5 ----------
+            def ask(page, q):
+                n = page.locator(".as-msg.bot").count()
+                page.fill("#assist textarea", q)
+                page.click("#assist .as-compose .btn.primary")
+                for _ in range(150):                                   # no wait_for_function: the CSP blocks eval (correctly)
+                    if page.locator(".as-msg.bot .txt").count() > n or page.locator("#assist .err-box").count():
+                        break
+                    page.wait_for_timeout(100)
+
+            for width, height in ((390, 844), (1280, 860)):
+                ctx, page, errs = session("agent-one", width, height)
+                page.goto(base + "/cs#/b/rozela/t/t18f2a04")
+                page.wait_for_selector(".draft textarea")
+                page.click("#assist-fab")
+                ask(page, "מה המדיניות על החזר כספי? מה לענות לה?")
+                ask(page, "תבדוק את yossi.m@example.com")
+                if page.locator(".as-msg.bot .chip").count() < 1:
+                    problems.append("assistant: tool chip missing")
+                shot(page, errs, "10_assistant", width, full=False)
+                if width == 390:
+                    page.click("#assist .as-head .btn.ghost")          # new chat
+                    ask(page, "מה מדיניות ההחזרים של Celesta?")
+                    if "לא זמין כאן" not in page.inner_text("#assist .as-log"):
+                        problems.append("assistant did not refuse another brand")
+                    shot(page, errs, "11_assistant_other_brand", width, full=False)
+                ctx.close()
+
+            for width, height in ((390, 844), (1280, 860)):
+                ctx, page, errs = session("eve", width, height)
+                page.goto(base + "/cs/en#/b/rozela/t/t18f2a03")
+                page.wait_for_selector("[data-test=show-original]")
+                first = page.locator(".msg[data-i='0'] .mbody").inner_text()
+                if "Why did you charge me again" not in first:
+                    problems.append("english mode: message 0 not translated: %r" % first[:80])
+                page.locator(".msg[data-i='2'] [data-test=show-original]").click()
+                if "כן ברור" not in page.locator(".msg[data-i='2'] .mbody").inner_text():
+                    problems.append("show original did not show the Hebrew original")
+                page.locator(".msg[data-i='2']").scroll_into_view_if_needed()
+                shot(page, errs, "12_english_show_original", width, full=False)
+                page.fill("[data-test=en-draft] textarea", "Hi Yossi, I cancelled the subscription right away, so there will be no more charges. "
+                          "Your last order is already on its way to you.\n\nYehuda\nRozela Team")
+                page.click("[data-test=en-review-btn]")
+                page.wait_for_selector("[data-test=en-review] .en-col.out")
+                out = page.inner_text("[data-test=en-review] .en-col.out")
+                if "ביטלתי את המנוי" not in out:
+                    problems.append("send translation not shown: %r" % out[:80])
+                if page.is_disabled("[data-test=en-confirm]"):
+                    problems.append("confirm disabled on a live brand")
+                page.locator("[data-test=en-review]").scroll_into_view_if_needed()
+                shot(page, errs, "13_send_translation_confirm", width, full=False)
+                ctx.close()
+
+            ctx, page, errs = session("manager", 390, 844)
+            page.goto(base + "/cs#/b/selera/t/tsele01")
+            page.wait_for_selector(".draft textarea")
+            settle(page)
+            if page.locator("#subs-card .card").count() or page.locator(".tab.auto").count():
+                problems.append("selera shows subscriptions or the auto-cancel tab")
+            shot(page, errs, "14_selera_no_subscriptions", 390)
+            ctx.close()
+            ctx, page, errs = session("agent-one", 390, 844)
+            page.goto(base + "/cs#/b/velora/ready")
+            page.wait_for_selector("[data-test=not-connected]")
+            if page.locator(".err-box").count():
+                problems.append("velora shows an error instead of 'not connected'")
+            shot(page, errs, "15_brand_not_connected", 390)
             ctx.close()
             browser.close()
     finally:

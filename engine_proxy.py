@@ -49,11 +49,22 @@ FN_TABLE = {
     "apiSettings": (ADMIN_ONLY, ("action", "key", "value")),
 }
 
+# Server-internal only (phase 5 assistant): never reachable from the browser route, only via call(internal=True).
+INTERNAL_FNS = {
+    "apiKnowledge": (WORK_ROLES, ()),
+    "apiCustomerLookup": (WORK_ROLES, ("q",)),
+    # performance (2026-10-05): one-call ticket open + incremental list polling
+    "apiTicketFull": (WORK_ROLES, ("id", "fresh")),
+    "apiChanges": (WORK_ROLES, ("since",)),        # final shape: agent/admin, since = int >= 0
+    "apiTicket": FN_TABLE["apiTicket"],
+    "apiTicketExtras": FN_TABLE["apiTicketExtras"],
+}
+
 # apiSettings: the only actions, keys and values the screen may send. Anything else never leaves Flask.
 SETTINGS_VALUES = {"DRY_RUN": ("on", "off"), "KACHING_WRITES": ("on", "off"), "AUTO_CANCEL": ("off", "shadow", "on")}
 
 ENGINE_URL_RE = re.compile(r"^https://script\.google\.com/(?:a/macros/[A-Za-z0-9.-]+|macros)/s/[A-Za-z0-9_-]{20,200}/exec$")
-KNOWN_BRANDS = ("velora", "rozela", "celesta", "apexmen")
+KNOWN_BRANDS = ("velora", "rozela", "celesta", "apexmen")    # + EXTRA_BRANDS (selera, elevanu, ...) from the environment
 
 CONNECT_TIMEOUT_S = 5
 READ_TIMEOUT_S = 45            # Api.gs holds its lock up to 20s; a Gmail send adds a few seconds
@@ -87,8 +98,8 @@ def parse_engines(raw, url_re=ENGINE_URL_RE):
     return engines, bad
 
 
-def clean_args(fn, args):
-    _, keys = FN_TABLE[fn]
+def clean_args(fn, args, table=None):
+    _, keys = (table or FN_TABLE)[fn]
     if args is None:
         args = {}
     if not isinstance(args, dict):
@@ -97,7 +108,12 @@ def clean_args(fn, args):
     for k in keys:
         if k in args:
             v = args[k]
-            if k == "override":
+            if k == "since":
+                if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+                    raise ProxyError("bad_request", 400)
+                out[k] = v
+                continue
+            if k in ("override", "fresh"):
                 if v is True:
                     out[k] = True
                 continue
@@ -162,10 +178,12 @@ def localize(fn, resp, lang):
     return out
 
 
-def call(engines, transport, secret, user, brand, fn, args, lang, now=None):
-    """Returns (http_status, json). Raises nothing for expected failures."""
+def call(engines, transport, secret, user, brand, fn, args, lang, now=None, internal=False):
+    """Returns (http_status, json). Raises nothing for expected failures.
+    internal=True is used ONLY by server code (assistant.py) to reach INTERNAL_FNS; the browser route never sets it."""
     roles = user.get("roles", [])
-    if fn not in FN_TABLE:
+    table = dict(FN_TABLE, **INTERNAL_FNS) if internal else FN_TABLE
+    if fn not in table:
         return 404, {"ok": False, "error": "forbidden_fn", "msg": messages.proxy_msg("forbidden_fn", lang)}
     if brand not in user.get("brands", []):
         return 403, {"ok": False, "error": "forbidden_brand", "msg": messages.proxy_msg("forbidden_brand", lang)}
@@ -173,13 +191,13 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None):
         role = security.engine_role(roles)
     except ValueError:
         return 403, {"ok": False, "error": "forbidden_role", "msg": messages.proxy_msg("forbidden_role", lang)}
-    if role not in FN_TABLE[fn][0]:
+    if role not in table[fn][0]:
         return 403, {"ok": False, "error": "forbidden_role", "msg": messages.proxy_msg("forbidden_role", lang)}
     url = engines.get(brand)
     if not url:
         return 503, {"ok": False, "error": "brand_not_connected", "msg": messages.proxy_msg("brand_not_connected", lang)}
     try:
-        clean = clean_args(fn, args)
+        clean = clean_args(fn, args, table)
     except ProxyError as e:
         return e.http, {"ok": False, "error": e.code, "msg": messages.proxy_msg(e.code, lang)}
     clean["brand"] = brand

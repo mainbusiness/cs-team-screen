@@ -21,7 +21,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
-MOCK_BRANDS = ("rozela", "celesta", "velora", "apexmen")
+MOCK_BRANDS = ("rozela", "celesta", "apexmen", "selera")      # velora on purpose has NO engine: it previews "not connected"
 CS_ROLES = ("agent", "admin", "user-manager")
 OPEN = ("ready", "action", "health", "delay")
 SUMMARY_COLS = ['id', 'status', 'category', 'name', 'email', 'subject', 'summary', 'action', 'waiting_since',
@@ -35,7 +35,8 @@ WORK = ("agent", "admin")
 TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTicketExtras": WORK, "apiTickets": WORK,
          "apiSearch": WORK, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
          "apiNote": WORK, "apiKachingCancel": WORK, "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
-         "apiAutoCancelReject": WORK, "apiSettings": ("admin",)}
+         "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
+         "apiTicketFull": WORK, "apiChanges": WORK}
 CONTRACT_RE_PREFIX = "gid://shopify/SubscriptionContract/"
 
 
@@ -127,7 +128,8 @@ def _ship(o, now, normal=14, late=21):
 
 def build_brand(brand, now):
     P = {"rozela": ("Rozela", "רוזלה סלק — 60 כמוסות"), "celesta": ("Celesta", "סלסטה קולגן"),
-         "velora": ("Velora", "ולורה — כדורי דלעת לשיער"), "apexmen": ("ApexMen", "אייפקס מן — 60 כמוסות")}[brand]
+         "velora": ("Velora", "ולורה — כדורי דלעת לשיער"), "apexmen": ("ApexMen", "אייפקס מן — 60 כמוסות"),
+         "selera": ("Selera", "סלרה — תה צמחים")}[brand]
     name, product = P
     tickets, snaps, archive = [], {}, []
 
@@ -236,6 +238,8 @@ def build_brand(brand, now):
              "created_at": h(3), "language": "he", "draft_text": "היי אורית, ההזמנה בדרך ונמצאת עדיין בזמן המשלוח הרגיל." + sig},
             _conv(now, ("customer", 3, "היי, מתי ההזמנה מגיעה?")),
             [_order(now, "#2210", 5, [(product, 1)], shipped_days_ago=3, track_no="JY2210000001")])
+        if brand == "selera":
+            return {"name": name, "tickets": tickets, "archive": archive, "snaps": snaps}
         add({"id": "t%s02" % brand[:4], "status": "action", "category": "cancel_subscription", "name": "רמי ק.", "email": "rami.%s@example.com" % brand,
              "channel": "email", "subject": "לא ביקשתי מנוי", "summary": "טוען שלא ביקש מנוי; חויב שוב.",
              "action": "cancel: " + CONTRACT_RE_PREFIX + "5550001112223", "waiting_since": h(9), "created_at": h(9), "language": "he",
@@ -285,16 +289,22 @@ class MockEngines:
         # rozela: live-like switches (send on, cancels on); celesta: like today's real state (dry run, cancels off)
         self.switches = {"rozela": {"dry": False, "writes": True, "frozen": "", "auto": "shadow"},
                          "celesta": {"dry": True, "writes": False, "frozen": "", "auto": "off"},
-                         "velora": {"dry": True, "writes": False, "frozen": "", "auto": "off"},
+                         "selera": {"dry": True, "writes": False, "frozen": "", "auto": "off"},
                          "apexmen": {"dry": True, "writes": True, "frozen": "2026-10-05T09:00:00Z — daily limit of 100 cancellations reached", "auto": "off"}}
         self.auto = {b: build_auto(b, now) for b in MOCK_BRANDS}
+        self.version = {b: 1 for b in MOCK_BRANDS}
+        self.touched = {b: {} for b in MOCK_BRANDS}     # ticket id -> version of its last change
 
     def transport(self, url, body):
         brand = url.split("mock://", 1)[1]
         if self.latency:
             time.sleep(self.latency)
         with self.lock:
-            return self.dispatch(brand, body)
+            out = self.dispatch(brand, body)
+            if out.get("ok") and body.get("fn") in ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel"):
+                self.version[brand] += 1
+                self.touched[brand][(body.get("args") or {}).get("id")] = self.version[brand]
+            return out
 
     def dispatch(self, brand, req):
         fail = lambda e, **kw: dict({"ok": False, "error": e}, **kw)
@@ -343,7 +353,8 @@ class MockEngines:
         sw = self.switches[brand]
         return {"ok": True, "brand": brand, "brandName": b["name"], "user": c["user"], "role": c["role"], "lang": c["lang"],
                 "counts": counts, "tickets": [{k: t[k] for k in SUMMARY_COLS} for t in b["tickets"]], "serverTime": self._now(),
-                "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"])}
+                "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]),
+                "subscriptions": "none" if brand == "selera" else "kaching", "version": self.version[brand]}
 
     def apiStatus(self, brand, a, c):
         sw = self.switches[brand]
@@ -387,6 +398,8 @@ class MockEngines:
             return {"ok": False, "error": "not_found"}
         if t["status"] not in OPEN:
             return {"ok": False, "error": "not_open"}
+        if "REFUSE-SAVE" in text:                  # preview-only trigger: lets the screenshot run prove the rollback path
+            return {"ok": False, "error": "busy"}
         t["draft_text"] = text
         return {"ok": True, "problem": self._problem(text)}
 
@@ -553,3 +566,64 @@ class MockEngines:
         else:
             sw["auto"] = val
         return {"ok": True, "key": key, "from": frm, "to": val}
+
+    # ---------- phase 5: knowledge + customer lookup (FINAL engine shapes, coordinator 2026-10-05) ----------
+    KNOWLEDGE = {
+        "rozela": ("## Rozela — כמוסות סלק\n- 60 כמוסות בבקבוק, 2 ביום עם ארוחה.\n- תוסף תזונה, לא תחליף לתרופה; במקרים מיוחדים להתייעץ עם רופא.\n"
+                   "- משלוח: נקודת איסוף חינם; עד הבית לפי ההזמנה.",
+                   ["1. החזר כספי: אחריות 90 יום לפי עמוד המוצר — החזר מלא, גם על בקבוקים פתוחים, בלי עמלות.",
+                    "2. ביטול מנוי: מיד לפי בקשה, בלי מחזור נוסף.",
+                    "3. ביטול הזמנה: עד 24 שעות אם עוד לא נשלחה.",
+                    "4. מחירי משלוח: לא מצטטים מהאתר — רק מה שמופיע בהזמנה של הלקוח."]),
+        "selera": ("## Selera — תה צמחים\n- שקיק אחד ביום.", ["1. החזר כספי: 30 יום.", "2. אין מנויים במותג הזה."]),
+    }
+
+    def apiKnowledge(self, brand, a, c):
+        k, pol = self.KNOWLEDGE.get(brand, ("## %s\n- (mock)" % self._b(brand)["name"], ["1. החזר כספי: לפי עמוד המוצר."]))
+        return {"ok": True, "brand": brand, "brandName": self._b(brand)["name"], "knowledge": k, "policy": pol,
+                "shippingDays": {"normal": 14, "late": 21}, "subscriptions": "none" if brand == "selera" else "kaching",
+                "updatedAt": "2026-10-05T08:00:00Z"}
+
+    def apiCustomerLookup(self, brand, a, c):
+        q = str(a.get("q", "")).strip().lower()
+        if not (2 <= len(q) <= 100):
+            return {"ok": False, "error": "bad_query"}
+        qtype = "email" if "@" in q else ("order" if q.lstrip("#").isdigit() and len(q.lstrip("#")) <= 7 else ("phone" if q.replace("+", "").isdigit() else "name"))
+        b = self._b(brand)
+        rows = [t for t in b["tickets"] + b["archive"]
+                if q in "\n".join(str(t.get(k, "")) for k in ("email", "name", "phone", "order_no")).lower()]
+        orders, subs, seen = [], [], set()
+        now = datetime.now(timezone.utc)
+        for t in rows:
+            snap = b["snaps"].get(t["id"], {})
+            for o in snap.get("orders", []):
+                if o["name"] in seen:
+                    continue
+                seen.add(o["name"])
+                created = datetime.fromisoformat(o["createdAt"].replace("Z", "+00:00"))
+                orders.append({"name": o["name"], "ordered": o["createdAt"][:10], "daysSinceOrder": (now - created).days,
+                               "payment": o["financialStatus"], "fulfillment": o["fulfillmentStatus"], "customer": t.get("name", ""),
+                               "email": (t.get("email", "")[:2] + "***@" + t.get("email", "").split("@")[-1]) if t.get("email") else "",
+                               "items": o["items"], "tracking": [tr for f in o["fulfillments"] for tr in f["tracking"]]})
+            for s_ in snap.get("subscriptions", []):
+                subs.append({"id": s_["id"], "status": s_["status"], "every": s_["every"], "items": [l["title"] for l in s_["lines"]]})
+        return {"ok": True, "queryType": qtype, "orderLookup": "ok" if orders else "none", "orders": orders[:5],
+                "subscriptions": "none" if brand == "selera" else subs,
+                "tickets": [{"id": t["id"], "status": t["status"], "summary": t["summary"], "created_at": t["created_at"]} for t in rows][:10]}
+
+    # ---------- performance (2026-10-05): one-call ticket + incremental changes ----------
+    def apiTicketFull(self, brand, a, c):
+        t = self._find(brand, a.get("id"))
+        if not t:
+            return {"ok": False, "error": "not_found"}
+        return {"ok": True, "ticket": copy.deepcopy(t), "extras": copy.deepcopy(self._b(brand)["snaps"].get(t["id"], {})),
+                "snapshotAt": self._now()}
+
+    def apiChanges(self, brand, a, c):
+        try:
+            since = int(str(a.get("since") or 0))
+        except ValueError:
+            since = 0
+        ids = [i for i, v in self.touched[brand].items() if v > since]
+        rows = [{k: t[k] for k in SUMMARY_COLS} for t in self._b(brand)["tickets"] if t["id"] in ids]
+        return {"ok": True, "version": self.version[brand], "tickets": rows, "removed": [], "serverMs": 40, "serverTime": self._now()}

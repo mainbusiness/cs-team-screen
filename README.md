@@ -23,7 +23,11 @@ Render disk and in each engine's `audit` sheet.
 | `manage.py` | CLI: `add-user`, `reset-password`, `disable`, `enable`, `list`, `seed-team` |
 | `templates/`, `static/` | the SPA (vanilla JS, no build step, strict CSP — no inline script or style) |
 | `wsgi.py`, `render.yaml`, `requirements*.txt` | deploy |
-| `tests/` | pytest (100 tests) |
+| `assistant.py` | phase 5: knowledge assistant (`/api/<brand>/assistant`) + English mode (`/translate`, `/translate-out`) |
+| `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
+| `mock_llm.py` | deterministic fake Claude for local preview only |
+| `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
+| `tests/` | pytest (151 tests) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
 
 ## Environment (Render)
@@ -35,6 +39,10 @@ Render disk and in each engine's `audit` sheet.
 | `SECRET_KEY` | yes | 32+ random chars, Flask session signing. Render-only; never shared with the engines. The app refuses to start without it. |
 | `ADMIN_BOOTSTRAP` | first boot only | `username:password` (password 10+ chars). Creates the first admin (admin + user-manager, all brands, must change password) **only if the users file is empty**. **Remove it from the Render environment right after the first boot.** The app ignores it once users exist, logs a warning, and shows admins a red banner while it is still set. |
 | `USERS_PATH` | no | default `/var/data/users.json` (the persistent disk). The audit log goes next to it (`users-audit.jsonl`), or to `AUDIT_PATH`. |
+| `ANTHROPIC_API_KEY` | phase 5 | Knowledge assistant (`claude-opus-5-5`) and English-mode translation (`claude-sonnet-5-5`). Without it the assistant answers "off" and English mode cannot translate. Render-only. |
+| `TICKET_CACHE_DIR` | no | default `/var/data/ticket-cache` (0700, files 0600). In-memory first; the disk copy only makes restarts warm. |
+| `TRANSLATE_CACHE_DIR` | no | default `/var/data/translate-cache` (next to the users file). Translations cached by content hash, 30 days. |
+| `ASSISTANT_MODEL`, `TRANSLATE_MODEL` | no | override the two model ids. |
 | `TRUSTED_PROXY_HOPS` | no | default `1` (Render's proxy). Used for the client IP in the login rate limit. |
 | `EXTRA_BRANDS` | no | comma list of extra brand ids the user manager may assign before they have an engine (for example a future brand). |
 | `MOCK_ENGINE`, `COOKIE_SECURE`, `MOCK_LATENCY_MS` | local only | preview mode. `MOCK_ENGINE=1` refuses to start if `ENGINES_JSON` is set; `COOKIE_SECURE=0` is refused outside mock mode. |
@@ -115,3 +123,56 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && .venv/
   and offers only "move to manual handling". The badge counts items that are not in flight.
 - `apiSettings` uses `action` (not `op`). A refusal shows the Hebrew line plus the engine's `error`,
   `reason` and `allowed`, verbatim.
+
+## Phase 5 — knowledge assistant + English mode
+
+- **Assistant** (`POST /api/<brand>/assistant {messages, ticketId?}`): same session, CSRF, brand and role gate as the
+  proxy, agent and admin roles only. The system prompt is the brand's `apiKnowledge`, cached 10 minutes per brand and
+  sent with `cache_control: ephemeral`, plus the rule "answer only about this brand". The two read-only tools are
+  `search_customer` (→ `apiCustomerLookup`) and `get_ticket` (→ `apiTicket` + `apiTicketExtras`). Neither has a brand
+  argument: both call the brand in the URL, with a token that names only that brand, so another brand's data has no
+  path in. `apiKnowledge` and `apiCustomerLookup` are **server-internal**, and the browser route answers 404 for them.
+  An open ticket goes in as a second, uncached system block inside `<customer_data>`. Every tool call is audited to
+  the disk log with tool, brand, ok, ticket id or query length (never the query text). Limits: 20 messages per user
+  per 10 min, 4 tool rounds, ~110 s per turn. If `apiKnowledge` is unavailable, the assistant refuses instead of
+  answering from nothing.
+- **English mode** (`/cs/en`, users with `lang: en`): the conversation, summary and AI draft are translated to English
+  in one Sonnet call with the whole conversation as context, cached on disk per message hash. Each block has a
+  "Show original" toggle. The agent writes in English. "Translate for the customer" shows the English and the
+  customer-language text side by side, and only "Confirm translation and send" calls `apiSend`, with the
+  **translated** text (the engine's `draftProblem` still checks it). Editing the English after translating
+  invalidates the review. If the model skips items, the response says `incomplete: n` and the screen shows it.
+  The Hebrew UI at `/cs` is unchanged.
+- **Brands without subscriptions** (`apiBoot.subscriptions == 'none'`, e.g. selera): no subscriptions panel, no
+  auto-cancel tab, no Kaching chip. Both stay hidden until `apiBoot` answers, so they are never shown first.
+- **Brands with no engine** (in `EXTRA_BRANDS` but not in `ENGINES_JSON`): a neutral "המותג עוד לא מחובר" state, no
+  tabs, no assistant.
+- `render.yaml` gunicorn timeout is 150 s, because an assistant turn with tools can take ~1-2 minutes.
+
+## Performance layer (2026-10-05)
+
+Measured live before it: Render answered in 0.2-0.8 s, apiBoot took 2-3 s, and opening a ticket took **17-18 s**.
+
+- `POST /api/<brand>/list` serves the cached list at once and refreshes it in the background if it is older than
+  10 s. `POST /api/<brand>/ticket {id}` serves the cached `{ticket, extras}` at once. `{revalidate:true}` goes to the
+  engine. `{fresh:true}` (only from the explicit Refresh click) asks the engine to re-read the store and Kaching,
+  which is rate-limited there to 30 per 10 min.
+- Engine calls: `apiTicketFull` when the engine has it, otherwise `apiTicket` and `apiTicketExtras` **in parallel**.
+  "The engine lacks it" is only recorded after the fallback works, so an auth failure never switches it off.
+- `POST /api/<brand>/prefetch {ids}`: the first 15 ids of the visible tab. **At most 3 background engine calls run at
+  once in the whole process**, enforced by a semaphore that also covers both halves of a fallback pair. A user's own
+  click never queues behind prefetch.
+- `POST /api/<brand>/changes {since}`: every 20 s from the browser. It uses `apiChanges` (agent/admin, int `since`,
+  `removed`, `reset`). If the engine lacks it, on `reset`/`bad_since`, or for user-managers, it does one `apiBoot`
+  and diffs here. Only changed rows go back, and the browser merges them in place.
+- Writes through the screen patch the cached ticket and list row at once (draft, status, handled_by, counts), mark
+  the ticket stale, and revalidate it in the background. A refused write invalidates the ticket.
+- Browser: a ticket opened this session paints from memory immediately. Otherwise it comes from the Render cache
+  (~200 ms measured with a 1.5 s engine), with a "מתעדכן…" chip until the revalidation lands. If the agent is
+  typing, the newer copy is offered ("show") instead of replacing the pane. Draft saves are optimistic: "saved"
+  shows in ~5 ms. A refusal rolls the screen's server copy back and shows a sticky error. The agent's text stays
+  in the box and in localStorage until the engine confirms.
+- Isolation: every cache key starts with the brand, brand and id are regex-checked before any path, the routes use
+  the same brand/role gate as the proxy, and per-user fields (user, role, lang) are stripped before a list is cached.
+- `Server-Timing` on every `/api/` response: `cache;desc=hit|miss`, `engine;dur` per engine fn, `gas;dur` (the
+  engine's `serverMs`), and `app;dur`. Durations and hit/miss only, never data.

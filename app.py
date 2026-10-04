@@ -28,7 +28,10 @@ from urllib.parse import urlparse
 from flask import Flask, abort, g, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import assistant
 import engine_proxy
+import ticket_cache
+import llm
 import messages
 import security
 from users_store import ROLES, UserStore, UserStoreError, public_user
@@ -104,9 +107,19 @@ def create_app(overrides=None):
         import mock_engine
         mock_state = mock_engine.MockEngines(token_secret)
         engines = {b: "mock://" + b for b in mock_engine.MOCK_BRANDS}
+        valid_brands = sorted(set(valid_brands) | set(engines))
         transport = o.get("TRANSPORT") or mock_state.transport
     else:
         transport = o.get("TRANSPORT") or engine_proxy.http_transport()
+
+    api_key = o.get("ANTHROPIC_API_KEY", os.environ.get("ANTHROPIC_API_KEY", ""))
+    if o.get("LLM"):
+        llm_call = o["LLM"]
+    elif mock and not api_key:
+        import mock_llm
+        llm_call = mock_llm.MockClaude()
+    else:
+        llm_call = llm.anthropic_transport(api_key)
 
     store = UserStore(users_path, audit_path)
     limiter = o.get("LIMITER") or security.LoginLimiter()
@@ -181,6 +194,11 @@ def create_app(overrides=None):
     # ---------- per request ----------
 
     @app.before_request
+    def start_timer():
+        g.t0 = time.perf_counter()
+        g.timings = []
+
+    @app.before_request
     def load_user():
         g.user = None
         uname = session.get("u")
@@ -229,6 +247,18 @@ def create_app(overrides=None):
             resp.headers["Strict-Transport-Security"] = "max-age=31536000"
         if not request.path.startswith("/cs/static/"):
             resp.headers["Cache-Control"] = "no-store"
+        if request.path.startswith("/api/") and hasattr(g, "t0"):
+            # debug timing for the browser's Network panel (durations and cache hit/miss only — no data)
+            parts = []
+            for name, dur, desc in getattr(g, "timings", []):
+                p = name
+                if desc:
+                    p += ';desc="%s"' % str(desc).replace('"', "")[:40]
+                if dur is not None:
+                    p += ";dur=%.1f" % dur
+                parts.append(p)
+            parts.append("app;dur=%.1f" % ((time.perf_counter() - g.t0) * 1000))
+            resp.headers["Server-Timing"] = ", ".join(parts)
         return resp
 
     # ---------- pages ----------
@@ -365,7 +395,7 @@ def create_app(overrides=None):
             "brands": [{"id": b, "connected": b in engines} for b in u.get("brands", [])],
             "can_manage_users": is_manager(u), "is_admin": "admin" in u.get("roles", []),
             "valid_brands": valid_brands if is_manager(u) else [], "roles": list(ROLES),
-            "mock": mock, "warnings": warnings,
+            "mock": mock, "warnings": warnings, "assistant": bool(api_key) or mock or bool(o.get("LLM")),
         })
 
     @app.post("/api/<brand>/<fn>")
@@ -378,8 +408,12 @@ def create_app(overrides=None):
             body = {}
         if not isinstance(body, dict):
             return json_error("bad_request", 400)
+        t0 = time.perf_counter()
         status, out = engine_proxy.call(engines, transport, app.config["TOKEN_SECRET"], u, str(brand).lower(), fn,
                                         body.get("args", {}), u.get("lang", "he"))
+        ticket_cache.timing("engine", (time.perf_counter() - t0) * 1000, fn)
+        if status == 200 and fn in ticket_cache.WRITE_FNS and isinstance(body.get("args"), dict):
+            app.extensions["cs"]["ticket_cache"].after_write(u, str(brand).lower(), fn, body["args"], out)
         return jsonify(out), status
 
     # ---------- user manager ----------
@@ -496,6 +530,21 @@ def create_app(overrides=None):
             code = 403 if e.code in ("only_admin_grants_admin", "self_lockout", "last_admin") else 400
             return jsonify({"ok": False, "error": e.code, "msg": messages.proxy_msg(e.code, lang)}), code
         return jsonify({"ok": True, "user": public_user(rec), "temp_password": temp})
+
+    tcache = o.get("TICKET_CACHE") or ticket_cache.TicketCache(
+        o.get("TICKET_CACHE_DIR", os.environ.get("TICKET_CACHE_DIR", os.path.join(os.path.dirname(users_path), "ticket-cache"))),
+        engines, transport, lambda: app.config["TOKEN_SECRET"])
+    app.extensions["cs"]["ticket_cache"] = tcache
+    ticket_cache.register(app, {"api_user": api_user, "json_error": json_error, "engines": engines, "cache": tcache})
+
+    assistant.register(app, {
+        "ticket_cache": tcache,
+        "api_user": api_user, "json_error": json_error, "engines": engines, "transport": transport, "store": store,
+        "llm_call": llm_call,
+        "cache_dir": o.get("TRANSLATE_CACHE_DIR", os.environ.get("TRANSLATE_CACHE_DIR", os.path.join(os.path.dirname(users_path), "translate-cache"))),
+        "assist_limiter": o.get("ASSIST_LIMITER"), "translate_limiter": o.get("TRANSLATE_LIMITER"),
+        "knowledge_cache": o.get("KNOWLEDGE_CACHE"),
+    })
 
     @app.errorhandler(404)
     def nf(_e):

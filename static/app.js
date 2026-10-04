@@ -31,7 +31,7 @@
       frozen: 'ביטולי מנויים מוקפאים במותג הזה — רק אדמין יכול לשחרר.',
       mock: 'תצוגה מקומית — נתונים מדומים, שום דבר לא נשלח.',
       bootstrap_env: 'ADMIN_BOOTSTRAP עדיין מוגדר בשרת. הסירו אותו מ-Render.',
-      no_brands: 'לא הוגדרו לך מותגים. פנו למנהל.', not_connected: 'המותג {b} עוד לא מחובר למערכת.',
+      no_brands: 'לא הוגדרו לך מותגים. פנו למנהל.', not_connected: 'המותג {b} עוד לא מחובר',
       loading: 'טוען…', empty_ready: 'אין פניות חדשות', empty_action: 'אין פניות שמחכות להחלטה', empty_health: 'אין פניות בריאות',
       empty_delay: 'אין עיכובים', empty_sent: 'אין פניות שממתינות ללקוח', empty_today: 'עוד לא טופלו פניות היום',
       empty_hint: 'הרשימה מתרעננת לבד כל דקה.', search_ph: 'שם, מייל, טלפון או מספר הזמנה', search_min: 'לפחות 2 תווים',
@@ -95,6 +95,12 @@
       set_AUTO_CANCEL: 'ביטול אוטומטי', set_AUTO_CANCEL_help: 'כבוי / צל: רק מציע / פעיל: מבטל ועונה לבד אחרי כמה דקות',
       val_on: 'פועל', val_off: 'כבוי', val_shadow: 'צל', set_confirm_q: 'לשנות "{k}" ל"{v}" במותג {b}?', set_ok: 'עודכן', set_noop: 'לא השתנה — כבר היה במצב הזה', set_refused: 'המנוע סירב לשינוי:',
       mode_test: 'מצב ניסיון — שליחה כבויה', mode_is_live: 'מצב חי — תשובות נשלחות ללקוחות', mode_kaching: "ביטולי קאצ'ינג: {v}", mode_auto: 'ביטול אוטומטי: {v}',
+      as_title: 'עוזר ידע', as_open: 'עוזר', as_ph: 'שאלו על המדיניות, המוצר או הלקוח…', as_send: 'שאל', as_clear: 'שיחה חדשה',
+      as_ctx: 'כולל את הפנייה הפתוחה', as_thinking: 'חושב…', as_hello: 'אפשר לשאול כאן על המדיניות והמוצרים של {b}, או "מה לענות כאן?" כשפנייה פתוחה. העוזר רק קורא — הוא לא שולח ולא משנה כלום.',
+      as_me: 'אני', as_bot: 'עוזר', tool_search_customer: 'חיפש לקוח', tool_get_ticket: 'קרא פנייה', as_close: 'סגירה', as_na: 'העוזר לא זמין בשרת הזה.',
+      not_connected_hint: 'כשהמנוע של המותג יחובר, הפניות יופיעו כאן אוטומטית.',
+      syncing: 'מתעדכן…', sync_failed: 'לא עודכן ({m}) — מוצג עותק מ{when}', tk_updated: 'יש גרסה חדשה של הפנייה', apply_update: 'הצג',
+      orders_err: 'בדיקת ההזמנות נכשלה: {m}', subs_err: 'בדיקת המנויים נכשלה: {m}',
       // users
       u_title: 'ניהול משתמשים', u_new: 'משתמש חדש', u_username: 'שם משתמש (לועזית)', u_display: 'שם תצוגה', u_roles: 'תפקיד', u_brands: 'מותגים',
       u_lang: 'שפה', u_disabled: 'מושבת', u_active: 'פעיל', u_create: 'יצירה', u_save: 'שמירה', u_edit: 'עריכה', u_cancel: 'ביטול',
@@ -176,6 +182,18 @@
       set_AUTO_CANCEL: 'Automatic cancel', set_AUTO_CANCEL_help: 'Off / shadow: only proposes / on: cancels and replies by itself after a few minutes',
       val_on: 'On', val_off: 'Off', val_shadow: 'Shadow', set_confirm_q: 'Change "{k}" to "{v}" for {b}?', set_ok: 'Updated', set_noop: 'No change — it was already so', set_refused: 'The engine refused the change:',
       mode_test: 'Test mode — sending is off', mode_is_live: 'Live — replies reach customers', mode_kaching: 'Kaching cancels: {v}', mode_auto: 'Auto-cancel: {v}',
+      as_title: 'Knowledge assistant', as_open: 'Assistant', as_ph: 'Ask about the policy, the product or the customer…', as_send: 'Ask', as_clear: 'New chat',
+      as_ctx: 'Include the open ticket', as_thinking: 'Thinking…', as_hello: 'Ask about {b} policy and products here, or "what should I answer?" while a ticket is open. The assistant only reads — it never sends or changes anything.',
+      as_me: 'Me', as_bot: 'Assistant', tool_search_customer: 'searched customer', tool_get_ticket: 'read ticket', as_close: 'Close', as_na: 'The assistant is not available on this server.',
+      not_connected_hint: 'Tickets will appear here once the brand engine is connected.',
+      syncing: 'Updating…', sync_failed: 'Not updated ({m}) — showing a copy from {when}', tk_updated: 'A newer version of this ticket is ready', apply_update: 'Show',
+      orders_err: 'Order lookup failed: {m}', subs_err: 'Subscription lookup failed: {m}',
+      tr_loading: 'Translating…', tr_failed: 'Translation failed: {m}', show_orig: 'Show original', show_en: 'Show English', tr_from: 'translated from {l}',
+      en_draft: 'Your reply (write in English)', en_draft_loading: 'Translating the AI draft into English…', en_draft_ai: 'Prefilled with the AI draft, translated to English. Edit freely.',
+      en_review: 'Translate for the customer', en_reviewing: 'Translating…', en_side_en: 'Your English', en_side_out: 'What the customer gets ({l})',
+      en_confirm: 'Confirm translation and send', en_edit: 'Back to edit', en_same: 'The customer writes English — sent as written.',
+      en_stale: 'You changed the English text — translate again before sending.', tr_incomplete: '{n} not translated (original shown)',
+      lang_name_he: 'Hebrew', lang_name_ru: 'Russian', lang_name_en: 'English', lang_name_ar: 'Arabic', lang_name_fr: 'French',
       u_title: 'Users', u_new: 'New user', u_username: 'Username', u_display: 'Display name', u_roles: 'Role', u_brands: 'Brands',
       u_lang: 'Language', u_disabled: 'Disabled', u_active: 'Active', u_create: 'Create', u_save: 'Save', u_edit: 'Edit', u_cancel: 'Cancel',
       u_reset: 'Reset password', u_reset_arm: 'Click again to reset', u_temp: 'Temporary password:', u_temp_note: 'Shown once. Send it privately; the user picks their own at first sign-in.',
@@ -188,6 +206,26 @@
     let s = (STR[LANG] && STR[LANG][k] !== undefined) ? STR[LANG][k] : (STR.he[k] !== undefined ? STR.he[k] : k);
     if (vars) Object.keys(vars).forEach(function (a) { s = s.split('{' + a + '}').join(String(vars[a])); });
     return s;
+  }
+
+  /** Like t(), but returns nodes: every inserted value sits in its own <bdi>, so an English name or an id inside a
+   *  Hebrew sentence cannot reorder the sentence around it (measured: "$30→$25" read as a price rise). */
+  function tx(k, vars) {
+    const tmpl = t(k);
+    const frag = document.createDocumentFragment();
+    const re = /\{([a-z_]+)\}/g;
+    let last = 0;
+    let m;
+    while ((m = re.exec(tmpl)) !== null) {
+      frag.append(tmpl.slice(last, m.index));
+      const v = vars && vars[m[1]] !== undefined ? vars[m[1]] : m[0];
+      const b = document.createElement('bdi');
+      if (v && v.nodeType) b.append(v); else b.textContent = String(v);
+      frag.append(b);
+      last = re.lastIndex;
+    }
+    frag.append(tmpl.slice(last));
+    return frag;
   }
 
   // ---------------------------------------------------------------- DOM helpers
@@ -329,12 +367,15 @@
   // ---------------------------------------------------------------- state
   const S = {
     me: null, brand: null, view: 'list', tab: 'ready', ticketId: null,
-    boots: {}, bootErr: {}, auto: {}, autoEdits: {}, autoMsg: {}, settings: {}, listSig: '', tk: null, search: { q: '', res: null, err: null, seq: 0 }, menuOpen: false
+    boots: {}, bootErr: {}, tkMemo: {}, prefetchedAt: {}, assist: {}, auto: {}, autoEdits: {}, autoMsg: {}, settings: {}, listSig: '', tk: null, search: { q: '', res: null, err: null, seq: 0 }, menuOpen: false
   };
   const OPEN = ['ready', 'action', 'health', 'delay'];
   const TABS = ['ready', 'action', 'auto', 'health', 'delay', 'sent', 'today', 'search'];
   const brandName = function (b) { const bt = S.boots[b]; return (bt && bt.brandName) || (b.charAt(0).toUpperCase() + b.slice(1)); };
   const boot = function () { return S.boots[S.brand] || null; };
+  /** apiBoot.subscriptions === 'none' (e.g. selera): no subscriptions panel, no auto-cancel queue. */
+  function noSubs(brand) { const b = S.boots[brand || S.brand]; return !!(b && String(b.subscriptions || '').toLowerCase() === 'none'); }
+  function connected(brand) { const c = S.me.brands.filter(function (x) { return x.id === (brand || S.brand); })[0]; return !!(c && c.connected); }
 
   // ---------------------------------------------------------------- routing
   function parseHash() {
@@ -364,7 +405,7 @@
       S.view = 'users';
       $('settings-pane').hidden = true;
       document.body.className = 'view-users';
-      renderTop(); renderBanners(); Users.show();
+      renderTop(); renderBanners(); Users.show(); Assist.sync();
       return;
     }
     $('users-pane').hidden = true;
@@ -375,7 +416,7 @@
       if (!sb) return go('#/', true);
       S.brand = sb; S.view = 'settings';
       document.body.className = 'view-settings';
-      renderTop(); renderBanners(); Settings.show();
+      renderTop(); renderBanners(); Settings.show(); Assist.sync();
       return;
     }
     if (!canWork()) {                       // a pure user-manager has no ticket access
@@ -395,12 +436,14 @@
     } else {
       S.view = 'list';
       S.tab = r.tab || 'ready';
+      setTimeout(function () { prefetchTab(S.brand); }, 0);
       if (window.matchMedia('(max-width: 999px)').matches) { S.ticketId = null; S.tk = null; }
     }
     document.body.className = S.view === 'ticket' ? 'view-ticket' : 'view-list';
     renderTop(); renderBanners(); renderTabs(); renderList(true);
     if (S.view !== 'ticket' && !S.ticketId) renderTicketPlaceholder();
     if (brandChanged || !S.boots[brand]) loadBoot(brand);
+    Assist.sync();
   }
 
   // ---------------------------------------------------------------- top / banners / tabs
@@ -471,7 +514,7 @@
     const auto = autoMode();
     const p = h('div', { class: 'banner mode ' + (live ? 'live' : 'warn') + (auto === 'on' ? ' auto-on' : ''), 'data-test': live ? 'mode-live' : 'dry-run' },
       h('span', { class: 'mode-main', text: live ? t('mode_is_live') : t('dry_run') }));
-    p.append(h('span', { class: 'chip ' + (b.cancelEnabled ? 'bad' : ''), text: t('mode_kaching', { v: b.cancelEnabled ? t('val_on') : t('val_off') }) }));
+    if (!noSubs()) p.append(h('span', { class: 'chip ' + (b.cancelEnabled ? 'bad' : ''), text: t('mode_kaching', { v: b.cancelEnabled ? t('val_on') : t('val_off') }) }));
     if (auto) p.append(h('span', { class: 'chip ' + (auto === 'on' ? 'bad' : auto === 'shadow' ? 'st-sent' : ''), text: t('mode_auto', { v: t('val_' + auto) }) }));
     return p;
   }
@@ -493,7 +536,9 @@
     const el = $('tabs');
     clear(el);
     const b = boot();
+    if (!connected()) return;                       // nothing to list yet: no tabs, no counts
     TABS.forEach(function (id) {
+      if (id === 'auto' && (!b || noSubs())) return;     // unknown until apiBoot answers: hidden, not guessed
       const n = tabCount(id, b);
       const a = h('a', { class: 'tab ' + id, href: listHash(id), role: 'tab', 'aria-selected': (S.view !== 'ticket' || window.innerWidth >= 1000) && S.tab === id ? 'true' : 'false' },
         t('tab_' + id), n !== '' ? h('span', { class: 'n', text: String(n) }) : null);
@@ -512,22 +557,63 @@
   // ---------------------------------------------------------------- boot + polling
   async function loadBoot(brand) {
     const conn = S.me.brands.filter(function (b) { return b.id === brand; })[0];
-    if (conn && !conn.connected) { S.bootErr[brand] = t('not_connected', { b: brandName(brand) }); renderList(true); return; }
-    const r = await engine('apiBoot', {}, brand);
-    if (canWork()) loadAuto(brand);
+    if (conn && !conn.connected) { renderTabs(); renderList(true); return; }
+    const r = await api('/api/' + encodeURIComponent(brand) + '/list', {});     // Render cache: instant when warm
+    if (r.ok && canWork() && String(r.subscriptions || '').toLowerCase() !== 'none') loadAuto(brand);
     if (r.ok) { S.boots[brand] = r; delete S.bootErr[brand]; } else { S.bootErr[brand] = r.msg || r.error; }
     if (brand !== S.brand) return;
-    renderTop(); renderBanners(); renderTabs(); renderList(false); checkStale(); Draft.refreshSend();
+    renderTop(); renderBanners(); renderTabs(); renderList(false); checkStale(); Draft.refreshSend(); EnDraft.refresh(); Assist.sync(); paintSubs(brand);
+    prefetchTab(brand);
+  }
+
+  /** Warm the first 15 tickets of the visible tab on the server (it caps engine concurrency at 3). */
+  function prefetchTab(brand) {
+    if (!canWork() || brand !== S.brand || S.tab === 'search' || S.tab === 'auto') return;
+    const rows = rowsFor(S.tab) || [];
+    const key = brand + '|' + S.tab;
+    if (!rows.length || Date.now() - (S.prefetchedAt[key] || 0) < 60000) return;
+    S.prefetchedAt[key] = Date.now();
+    api('/api/' + encodeURIComponent(brand) + '/prefetch', { ids: rows.slice(0, 15).map(function (x) { return x.id; }) });
+  }
+
+  /** Every 20 s: only what changed since our version, merged into the list in place (no full reload). */
+  let polling = false;
+  async function pollChanges(brand) {
+    const b = S.boots[brand];
+    if (!b) return loadBoot(brand);
+    if (polling || !connected(brand)) return;
+    polling = true;
+    let r;
+    try { r = await api('/api/' + encodeURIComponent(brand) + '/changes', { since: b.version }); } finally { polling = false; }
+    if (!r.ok || S.boots[brand] !== b) return;
+    const byId = {};
+    b.tickets.forEach(function (x, i) { byId[x.id] = i; });
+    let touched = false;
+    (r.changed || []).forEach(function (row) {
+      if (!row || !row.id) return;
+      touched = true;
+      if (byId[row.id] !== undefined) b.tickets[byId[row.id]] = Object.assign({}, b.tickets[byId[row.id]], row);
+      else { b.tickets.push(row); byId[row.id] = b.tickets.length - 1; }
+      delete S.tkMemo[brand + '|' + row.id];                       // its full copy is now old
+    });
+    if ((r.removed || []).length) { touched = true; b.tickets = b.tickets.filter(function (x) { return r.removed.indexOf(x.id) < 0; }); }
+    if (r.counts) b.counts = r.counts;
+    if (r.version !== undefined) b.version = r.version;
+    if (r.serverTime) b.serverTime = r.serverTime;
+    if (brand !== S.brand) return;
+    renderTabs();
+    renderList(false);                                              // signature-compared: zero DOM work when nothing changed
+    if (touched) { checkStale(); prefetchTab(brand); }
   }
 
   setInterval(function () {
     if (document.hidden || !S.brand || S.view === 'users' || S.view === 'settings') return;
-    loadBoot(S.brand);
-  }, 60000);
+    pollChanges(S.brand);
+  }, 20000);
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && S.brand && S.view !== 'users') {
       const b = boot();
-      if (!b || Date.now() - ms(b.serverTime) > 30000) loadBoot(S.brand);
+      if (!b) loadBoot(S.brand); else pollChanges(S.brand);
     }
   });
 
@@ -557,7 +643,7 @@
       const w = ms(x.waiting_since) || ms(x.created_at);
       if (w) { age = t('waiting', { d: dur(Date.now() - w) }); old = Date.now() - w > 24 * 3600000; }
     } else if (x.handled_at) {
-      age = t('handled_by', { who: x.handled_by || '—', when: ago(x.handled_at) });
+      age = tx('handled_by', { who: x.handled_by || '—', when: ago(x.handled_at) });
     }
     const chips = [];
     if (opts.showStatus || !open || S.tab === 'search' || S.tab === 'today') chips.push(h('span', { class: 'chip st-' + x.status, text: t('st_' + x.status) }));
@@ -570,7 +656,7 @@
     if (x.archived) chips.push(h('span', { class: 'chip', text: t('archived') }));
     const inner = [
       h('div', { class: 'l1' }, h('span', { class: 'name', dir: 'auto', text: x.name || x.email || x.phone || t('no_name') }),
-        h('span', { class: 'age' + (old ? ' old' : ''), text: age })),
+        h('span', { class: 'age' + (old ? ' old' : '') }, age)),
       h('div', { class: 'sum', dir: 'auto', text: x.summary || x.subject || '' }),
       h('div', { class: 'chips' }, chips)
     ];
@@ -581,6 +667,13 @@
   function renderList(force) {
     const lp = $('list-pane');
     if (!S.brand) return;
+    if (!connected()) {
+      S.listSig = 'nc:' + S.brand;
+      clear(lp);
+      lp.append(h('div', { class: 'empty', 'data-test': 'not-connected' }, h('b', null, tx('not_connected', { b: brandName(S.brand) })), h('span', { text: t('not_connected_hint') })));
+      return;
+    }
+    if (S.tab === 'auto' && noSubs()) { go(listHash('ready'), true); return; }
     const err = S.bootErr[S.brand];
     const rows = rowsFor(S.tab);
     const sig = JSON.stringify([S.brand, S.tab, S.ticketId, err || '', S.tab === 'search' ? [S.search.q, S.search.err, S.search.res] : rows,
@@ -644,23 +737,81 @@
     tp.append(h('div', { class: 'placeholder', text: t('pick_ticket') }));
   }
 
-  async function openTicket(id) {
-    S.ticketId = id;
-    S.tk = { id: id, brand: S.brand, loading: true };
-    Draft.detach();
-    const tp = $('ticket-pane');
-    clear(tp);
-    tp.append(h('div', { class: 'tk-body' }, h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })));
-    const brand = S.brand;
-    const res = await Promise.all([engine('apiTicket', { id: id }), engine('apiTicketExtras', { id: id })]);
-    if (S.ticketId !== id || S.brand !== brand) return;
-    const a = res[0];
-    const b = res[1];
-    if (!a.ok) { clear(tp); tp.append(h('div', { class: 'tk-body' }, backBtn(), h('div', { class: 'err-box', text: a.msg || a.error }))); return; }
-    S.tk = { id: id, brand: brand, ticket: a.ticket, extras: b.ok ? (b.extras || {}) : null, extrasErr: b.ok ? null : (b.msg || b.error), related: null };
+  function tkSig(tk, ex) { return JSON.stringify([tk || null, ex || null]); }
+  function userBusyInTicket() {
+    const a = document.activeElement;
+    const typing = a && $('ticket-pane').contains(a) && /^(TEXTAREA|INPUT|SELECT)$/.test(a.tagName);
+    return typing || Draft.isDirty() || EnDraft.busy() || $('cancel-dlg').open || $('confirm-dlg').open;
+  }
+  function paintSync() {
+    const el = document.getElementById('tk-sync');
+    const k = S.tk;
+    if (!el || !k) return;
+    clear(el);
+    el.hidden = !(k.syncing || k.syncErr || k.pending);
+    el.className = 'chip sync ' + (k.syncErr ? 'bad' : k.pending ? 'st-sent' : 'outline');
+    if (k.syncing) el.append(h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' ', t('syncing'));
+    else if (k.pending) {
+      el.append(t('tk_updated') + ' · ');
+      el.append(h('button', { class: 'more-btn', type: 'button', text: t('apply_update'), onclick: function () { applyTicket(S.tk, S.tk.pending, true); } }));
+    } else if (k.syncErr) el.append(tx('sync_failed', { m: k.syncErr, when: ago(k.cachedAt) }));
+  }
+  /** Put a ticket copy on screen. Never under the agent's fingers: if they are typing, offer it instead. */
+  function applyTicket(k, r, force) {
+    if (S.tk !== k) return;
+    const sig = tkSig(r.ticket, r.extras);
+    k.pending = null;
+    if (k.ticket && sig === k.sig) { paintSync(); return; }
+    if (k.ticket && !force && userBusyInTicket()) { k.pending = r; paintSync(); return; }
+    const pane = $('ticket-pane');
+    const sy = window.scrollY;
+    const ps = pane.scrollTop;
+    const first = !k.ticket;
+    k.ticket = r.ticket; k.extras = r.extras || {}; k.extrasErr = r.extrasErr || null; k.sig = sig;
+    k.cachedAt = r.cache && r.cache.hit ? new Date(Date.now() - (r.cache.age_s || 0) * 1000).toISOString() : new Date().toISOString();
+    S.tkMemo[k.brand + '|' + k.id] = { ticket: k.ticket, extras: k.extras, extrasErr: k.extrasErr, sig: sig, cachedAt: k.cachedAt };
+    if (!first) Draft.detach();
     renderTicket();
-    loadRelated();
+    if (!first) { window.scrollTo(0, sy); pane.scrollTop = ps; }
+    if (first || k.related === null) loadRelated();
+  }
+  async function openTicket(id, opts) {
+    opts = opts || {};
+    S.ticketId = id;
+    const brand = S.brand;
+    Draft.detach();
+    const k = { id: id, brand: brand, related: null, syncing: true };
+    S.tk = k;
+    const tp = $('ticket-pane');
+    const memo = S.tkMemo[brand + '|' + id];
+    if (memo && !opts.fresh) applyTicket(k, { ticket: memo.ticket, extras: memo.extras, extrasErr: memo.extrasErr, cache: { hit: true, age_s: (Date.now() - ms(memo.cachedAt)) / 1000 } });
+    else { clear(tp); tp.append(h('div', { class: 'tk-body' }, h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' }))); }
     renderList(true);
+    const t0 = performance.now();
+    const r = await api('/api/' + encodeURIComponent(brand) + '/ticket', opts.fresh ? { id: id, fresh: true } : { id: id });
+    if (S.tk !== k) return;
+    k.firstPaintMs = Math.round(performance.now() - t0);
+    if (!r.ok) {
+      k.syncing = false;
+      if (!k.ticket) { clear(tp); tp.append(h('div', { class: 'tk-body' }, backBtn(), h('div', { class: 'err-box', text: r.msg || r.error }))); return; }
+      k.syncErr = r.msg || r.error; paintSync(); return;
+    }
+    const hit = !!(r.cache && r.cache.hit);
+    k.syncing = hit;                                   // a cache hit is shown now and revalidated right after
+    applyTicket(k, r, !memo);
+    paintSync();
+    if (!hit) return;
+    const f = await api('/api/' + encodeURIComponent(brand) + '/ticket', { id: id, revalidate: true });
+    if (S.tk !== k) return;
+    k.syncing = false;
+    if (!f.ok) { k.syncErr = f.msg || f.error; paintSync(); return; }
+    k.syncErr = null;
+    applyTicket(k, f, false);
+    paintSync();
+  }
+  /** One ticket's panels after a write: from the server cache (already patched or revalidated), never a full pane rebuild. */
+  async function fetchTicket(brand, id, revalidate) {
+    return api('/api/' + encodeURIComponent(brand) + '/ticket', revalidate ? { id: id, revalidate: true } : { id: id });
   }
 
   function backBtn() {
@@ -704,8 +855,9 @@
     contact.append(h('span', { class: 'item' }, h('span', { class: 'chip outline', text: t('ch_' + (x.channel || 'email')) })));
     const head = h('div', { class: 'tk-head' },
       h('div', { class: 'l1' }, backBtn(), h('h2', { dir: 'auto', text: x.name || x.email || x.phone || t('no_name') }), statusChip(x.status)),
+      h('div', { class: 'sync-row' }, h('span', { id: 'tk-sync', class: 'chip sync outline', hidden: true, 'aria-live': 'polite', 'data-test': 'tk-sync' })),
       contact,
-      x.summary ? h('p', { class: 'summary-line', dir: 'auto', text: x.summary }) : null);
+      x.summary ? h('p', { class: 'summary-line', id: 'tk-summary', dir: 'auto', text: x.summary }) : null);
     tp.append(head);
 
     const body = h('div', { class: 'tk-body' });
@@ -714,16 +866,21 @@
     if (isOpen && x.action) {
       const lines = actionLines(x.action);
       body.append(h('div', { class: 'why' + (x.status === 'health' ? ' health' : ''), role: 'note' }, h('b', { text: t('why_human') }),
-        lines.map(function (l) { return h('div', null, h('span', { text: l.text }), l.text !== l.raw ? h('div', null, h('span', { class: 'raw', text: l.raw })) : null); })));
+        lines.map(function (l) { return h('div', null, h('span', { text: l.text }), l.text !== l.raw ? h('div', null, h('bdi', { class: 'raw', text: l.raw })) : null); })));
     }
     body.append(convCard(ex.conversation || []));
-    body.append(Draft.card(x));
+    body.append(enMode(x) && isOpen ? EnDraft.card(x) : Draft.card(x));
     body.append(ordersCard(ex));
-    body.append(h('div', { id: 'subs-card' }, subsCard(ex, x)));
+    // Rendered only once apiBoot says the brand HAS subscriptions; a deep link can arrive first (paintSubs fills it later).
+    body.append(h('div', { id: 'subs-card' }, S.boots[k.brand] && !noSubs(k.brand) ? subsCard(ex, x) : null));
     body.append(h('div', { id: 'notes-card' }, notesCard(x)));
     body.append(h('div', { id: 'related-card' }, relatedCard()));
     body.append(detailsCard(x));
     if (k.extrasErr) body.insertBefore(h('div', { class: 'err-box', text: k.extrasErr }), body.children[1]);
+    if (enMode(x)) {
+      if (k.tr && k.tr.ok) { Translate.paint(k); EnDraft.prefill(x.id, k.tr.draft); } else Translate.load(k);
+    }
+    paintSync();
   }
 
   function checkStale() {
@@ -742,7 +899,7 @@
     clear(slot);
     if (what.length) {
       slot.append(h('div', { class: 'stale', role: 'status' }, h('span', { text: t('stale', { what: what.join(', ') }) }),
-        h('button', { class: 'btn small', type: 'button', text: t('refresh'), onclick: function () { Draft.flush(); openTicket(S.tk.id); } })));
+        h('button', { class: 'btn small', type: 'button', text: t('refresh'), onclick: function () { Draft.flush(); openTicket(S.tk.id, { fresh: true }); } })));
     }
   }
 
@@ -773,16 +930,18 @@
     flushText(); flushQuote();
     return out;
   }
+  const ORIG = new WeakMap();
   function convCard(conv) {
-    const card = h('div', { class: 'card' }, h('h3', { text: t('conversation') }));
+    const card = h('div', { class: 'card' }, h('h3', null, t('conversation'), h('span', { id: 'tr-state', class: 'chip outline', hidden: true })));
     const list = h('div', { class: 'conv' });
-    const msgs = conv.slice().sort(function (a, b) { return (ms(a.at) || 0) - (ms(b.at) || 0); });
+    const msgs = conv.map(function (m, i) { return Object.assign({ _i: i }, m); }).sort(function (a, b) { return (ms(a.at) || 0) - (ms(b.at) || 0); });
     msgs.forEach(function (m, i) {
       const who = m.who === 'us' ? 'us' : (m.who === 'automatic' ? 'automatic' : 'customer');
       const long = String(m.text || '').length > 600 && i < msgs.length - 1;
-      const el = h('div', { class: 'msg ' + who + (long ? ' collapsed' : '') },
+      const el = h('div', { class: 'msg ' + who + (long ? ' collapsed' : ''), 'data-i': String(m._i) },
         h('div', { class: 'meta' }, h('b', { text: t(who) }), h('span', { text: fmtDate(m.at, true) })),
-        messageBody(m.text));
+        h('div', { class: 'mbody' }, messageBody(m.text)));
+      ORIG.set(el, String(m.text || ''));
       if (long) {
         const mb = h('button', { class: 'more-btn', type: 'button', text: t('show_more') });
         mb.addEventListener('click', function () { const c = el.classList.toggle('collapsed'); mb.textContent = c ? t('show_more') : t('show_less'); });
@@ -814,8 +973,8 @@
     }
     function setState(kind, msg) {
       if (!st || !st.stateEl) return;
-      st.stateEl.className = 'save-state' + (kind === 'fail' ? ' bad' : '');
-      st.stateEl.textContent = kind === 'local' ? t('save_local') : kind === 'saving' ? t('saving') : kind === 'saved' ? t('saved') :
+      st.stateEl.className = 'save-state' + (kind === 'fail' ? ' bad' : kind === 'saved_opt' ? ' opt' : '');
+      st.stateEl.textContent = kind === 'local' ? t('save_local') : kind === 'saving' ? t('saving') : (kind === 'saved' || kind === 'saved_opt') ? t('saved') :
         kind === 'fail' ? t('save_failed', { m: msg || '' }) : (msg || '');
     }
     function showProblem(p) {
@@ -830,20 +989,30 @@
       const mine = st;
       const text = mine.ta.value;
       if (!text.trim()) return;
+      // Optimistic: "saved" shows at once. The device copy is kept until the engine confirms, and a refusal rolls the
+      // screen's idea of the server draft back — the agent's text itself is never touched.
+      const tk = S.tk && S.tk.id === mine.id ? S.tk.ticket : null;
+      const prevBase = mine.base;
+      const prevDraft = tk ? tk.draft_text : null;
       mine.saving = true;
-      setState('saving');
+      mine.base = text;
+      if (tk) tk.draft_text = text;
+      if (mine.ta.value === text) mine.dirty = false;
+      setState('saved_opt');
       const r = await engine('apiSaveDraft', { id: mine.id, text: text }, mine.brand);
       mine.saving = false;
-      if (st !== mine) return;
       if (r.ok) {
-        mine.base = text;
-        if (S.tk && S.tk.id === mine.id && S.tk.ticket) S.tk.ticket.draft_text = text;
-        if (mine.ta.value === text) { mine.dirty = false; dropLocal(); setState('saved'); } else writeLocal();
-        showProblem(r.problem ? (r.problem_msg || r.problem) : null);
+        if (st === mine) {
+          if (mine.ta.value === text && !mine.dirty) { dropLocal(); setState('saved'); } else writeLocal();
+          showProblem(r.problem ? (r.problem_msg || r.problem) : null);
+        }
       } else {
-        setState('fail', r.msg || r.error);
+        mine.base = prevBase;
+        if (tk && tk.draft_text === text) tk.draft_text = prevDraft;
+        mine.dirty = true;
+        if (st === mine) { writeLocal(); setState('fail', r.msg || r.error); } else toast(t('save_failed', { m: r.msg || r.error }));
       }
-      if (mine.again) { mine.again = false; save(); }
+      if (mine.again && st === mine) { mine.again = false; save(); }
     }
     function flush() { if (st) { clearTimeout(st.timer); if (st.dirty) save(); } }
     function detach() { flush(); st = null; }
@@ -958,8 +1127,253 @@
       refreshSend: function () { if (st && st.refreshSend) st.refreshSend(); } };
   })();
 
+  // ---------------------------------------------------------------- English mode (phase 5, /cs/en only)
+  function normLang(c) { c = String(c || '').toLowerCase().split('-')[0]; return c === 'iw' || !c ? 'he' : c; }
+  function langName(c) { const k = 'lang_name_' + normLang(c); const v = t(k); return v === k ? normLang(c).toUpperCase() : v; }
+  function enMode(x) { return LANG === 'en' && !!x && normLang(x.language) !== 'en'; }
+
+  /** One "show original" toggle per translated block. The original text is never discarded. */
+  function bilingual(container, original, english, toggleHost) {
+    let showing = 'en';
+    const btn = h('button', { class: 'more-btn tr-toggle', type: 'button', 'data-test': 'show-original' });
+    function paint() {
+      clear(container);
+      add(container, container.classList.contains('summary-line') ? (showing === 'en' ? english : original) : messageBody(showing === 'en' ? english : original));
+      btn.textContent = showing === 'en' ? t('show_orig') : t('show_en');
+    }
+    btn.addEventListener('click', function () { showing = showing === 'en' ? 'orig' : 'en'; paint(); });
+    toggleHost.append(btn);
+    paint();
+  }
+
+  const Translate = {
+    async load(k) {
+      const x = k.ticket;
+      k.tr = { loading: true };
+      this.paint(k);
+      const r = await api('/api/' + encodeURIComponent(k.brand) + '/translate', { ticketId: k.id });
+      if (S.tk !== k) return;
+      k.tr = r.ok ? r : { err: r.msg || r.error };
+      this.paint(k);
+      if (r.ok) EnDraft.prefill(x.id, r.draft);
+      else EnDraft.prefill(x.id, null);
+    },
+    paint(k) {
+      const chip = document.getElementById('tr-state');
+      const tr = k.tr || {};
+      if (chip) {
+        chip.hidden = false;
+        clear(chip);
+        if (tr.loading) chip.append(t('tr_loading'));
+        else if (tr.err) { chip.className = 'chip bad'; chip.append(tx('tr_failed', { m: tr.err })); }
+        else {
+          chip.append(tx('tr_from', { l: langName(tr.source || k.ticket.language) }));
+          if (tr.incomplete) { chip.className = 'chip bad'; chip.append(' · ', tx('tr_incomplete', { n: tr.incomplete })); }
+        }
+      }
+      if (!tr.ok) return;
+      const pane = $('ticket-pane');
+      (tr.conversation || []).forEach(function (c) {
+        if (!c || typeof c.text !== 'string') return;
+        const el = pane.querySelector('.msg[data-i="' + Number(c.i) + '"]');
+        if (!el || el.dataset.tr) return;
+        el.dataset.tr = '1';
+        el.querySelector('.mbody').setAttribute('lang', 'en');
+        bilingual(el.querySelector('.mbody'), ORIG.get(el) || '', c.text, el.querySelector('.meta'));
+      });
+      const sum = document.getElementById('tk-summary');
+      if (sum && tr.summary && !sum.dataset.tr) {
+        sum.dataset.tr = '1';
+        const host = h('span', { class: 'sum-toggle' });
+        sum.after(host);
+        bilingual(sum, k.ticket.summary || '', tr.summary, host);
+      }
+    }
+  };
+
+  const EnDraft = (function () {
+    let cur = null;
+    function card(x) {
+      const brand = S.brand;
+      const key = 'cs.draft.en.' + brand + '.' + x.id;
+      let local = null;
+      try { local = localStorage.getItem(key); } catch (e) { local = null; }
+      const ta = h('textarea', { dir: 'ltr', lang: 'en', rows: '8', 'aria-label': t('en_draft') });
+      const note = h('div', { class: 'muted small' });
+      const review = h('div', { class: 'en-review', hidden: true, 'data-test': 'en-review' });
+      const errEl = h('div');
+      const me = { id: x.id, brand: brand, ta: ta, note: note, prefilled: false, translated: null, busy: false };
+      cur = me;
+      if (local !== null && local.trim()) { ta.value = local; note.textContent = t('restored'); me.prefilled = true; } else note.textContent = t('en_draft_loading');
+      function isDry() { const b = S.boots[brand]; return !b || !!b.dryRun; }
+      function showErr(r, withOverride) {
+        clear(errEl);
+        const box = h('div', { class: 'err-box', role: 'alert' }, h('div', { text: r.msg || r.error }),
+          r.problem_msg ? h('bdi', { class: 'raw', text: r.problem }) : null);
+        if (withOverride && r.error === 'draft_problem') box.append(h('div', { class: 'actions' }, armed(t('send_anyway'), t('send_arm'), 'danger-outline small', function () { send(true); })));
+        errEl.append(box);
+      }
+      const reviewBtn = h('button', { class: 'btn primary', type: 'button', text: t('en_review'), 'data-test': 'en-review-btn' });
+      const confirmBtn = h('button', { class: 'btn primary', type: 'button', text: t('en_confirm'), 'data-test': 'en-confirm' });
+      const editBtn = h('button', { class: 'btn ghost', type: 'button', text: t('en_edit') });
+      function refresh() {
+        reviewBtn.disabled = me.busy || !ta.value.trim();
+        confirmBtn.disabled = me.busy || !me.translated || isDry();
+        confirmBtn.textContent = isDry() && S.boots[brand] ? t('send_dry') : t('en_confirm');
+        confirmBtn.title = isDry() ? t('dry_run') : '';
+      }
+      me.refresh = refresh;
+      function paintReview() {
+        clear(review);
+        const tr = me.translated;
+        review.hidden = !tr;
+        if (!tr) return;
+        add(review, [h('div', { class: 'en-cols' },
+          h('div', { class: 'en-col' }, h('b', { text: t('en_side_en') }), h('div', { class: 'txt', dir: 'ltr', lang: 'en', text: tr.en })),
+          h('div', { class: 'en-col out' }, h('b', null, tx('en_side_out', { l: langName(tr.target) })), h('div', { class: 'txt', dir: 'auto', text: tr.out }))),
+          tr.same ? h('div', { class: 'muted small', text: t('en_same') }) : null,
+          h('div', { class: 'actions' }, confirmBtn, editBtn)]);
+        refresh();
+      }
+      ta.addEventListener('input', function () {
+        me.typed = true;
+        try { localStorage.setItem(key, ta.value); } catch (e) { /* the server never holds this English text */ }
+        if (me.translated) { me.translated = null; paintReview(); showErr({ msg: t('en_stale') }); }
+        refresh();
+      });
+      reviewBtn.addEventListener('click', async function () {
+        if (!ta.value.trim()) return;
+        me.busy = true; reviewBtn.textContent = t('en_reviewing'); clear(errEl); refresh();
+        const r = await api('/api/' + encodeURIComponent(brand) + '/translate-out', { ticketId: x.id, text: ta.value });
+        me.busy = false; reviewBtn.textContent = t('en_review');
+        if (!r.ok) { refresh(); showErr(r); return; }
+        me.translated = { en: ta.value, out: r.text, target: r.target, same: !!r.same };
+        paintReview();
+      });
+      editBtn.addEventListener('click', function () { me.translated = null; paintReview(); ta.focus(); });
+      async function send(override) {
+        if (!me.translated || isDry()) return;
+        me.busy = true; refresh(); clear(errEl);
+        const args = { id: x.id, text: me.translated.out };
+        if (override) args.override = true;
+        const r = await engine('apiSend', args, brand);
+        me.busy = false;
+        if (r.ok) { try { localStorage.removeItem(key); } catch (e) { /* ignore */ } toast(r.queued ? t('queued_ok') : t('sent_ok')); await afterAction(); return; }
+        refresh(); showErr(r, true);
+      }
+      confirmBtn.addEventListener('click', function () { send(false); });
+      async function doClose(fn, okMsg) {
+        me.busy = true; refresh();
+        const r = await engine(fn, { id: x.id }, brand);
+        me.busy = false;
+        if (r.ok) { try { localStorage.removeItem(key); } catch (e) { /* ignore */ } toast(okMsg); await afterAction(); return; }
+        refresh(); showErr(r);
+      }
+      const handledBtn = armed(t('handled'), t('handled_arm'), '', function () { doClose('apiMarkHandled', t('handled_ok')); });
+      const closeBtn = armed(t('close'), t('close_arm'), 'ghost', function () { doClose('apiClose', t('closed_ok')); });
+      refresh();
+      return h('div', { class: 'card draft en-draft', 'data-test': 'en-draft' }, h('h3', { text: t('en_draft') }), note, ta,
+        h('div', { class: 'actions' }, reviewBtn, handledBtn, closeBtn), review, errEl);
+    }
+    function prefill(id, text) {
+      if (!cur || cur.id !== id || cur.prefilled) return;
+      if (text && !cur.ta.value.trim()) { cur.ta.value = text; cur.note.textContent = t('en_draft_ai'); cur.prefilled = true; }
+      else cur.note.textContent = '';
+      cur.refresh();
+    }
+    return { card: card, prefill: prefill, refresh: function () { if (cur && cur.refresh) cur.refresh(); },
+      busy: function () { return !!(cur && S.tk && cur.id === S.tk.id && (cur.typed || cur.translated || cur.busy)); } };
+  })();
+
+  // ---------------------------------------------------------------- knowledge assistant (phase 5)
+  const Assist = (function () {
+    const fab = $('assist-fab');
+    const pane = $('assist');
+    let ui = null;
+    function st() { if (!S.assist[S.brand]) S.assist[S.brand] = { msgs: [], busy: false, err: null, withTicket: true }; return S.assist[S.brand]; }
+    function available() { return !!(S.me && S.me.assistant && canWork() && S.brand && connected() && (S.view === 'list' || S.view === 'ticket')); }
+    function build() {
+      if (ui) return;
+      const title = h('b', { class: 'as-title' });
+      const log = h('div', { class: 'as-log', 'aria-live': 'polite' });
+      const ta = h('textarea', { rows: '2', dir: 'auto', placeholder: t('as_ph'), 'aria-label': t('as_ph'), maxlength: '4000' });
+      const sendBtn = h('button', { class: 'btn primary', type: 'button', text: t('as_send') });
+      const ctxCb = h('input', { type: 'checkbox', checked: true });
+      const ctxRow = h('label', { class: 'as-ctx cb' }, ctxCb, t('as_ctx'));
+      const err = h('div');
+      const clearBtn = h('button', { class: 'btn small ghost', type: 'button', text: t('as_clear') });
+      const closeBtn = h('button', { class: 'btn small', type: 'button', text: t('as_close'), 'aria-label': t('as_close') });
+      pane.append(h('div', { class: 'as-head' }, title, h('span', { class: 'spacer' }), clearBtn, closeBtn), log, err, ctxRow,
+        h('div', { class: 'as-compose' }, ta, sendBtn));
+      ui = { title: title, log: log, ta: ta, sendBtn: sendBtn, ctxCb: ctxCb, ctxRow: ctxRow, err: err };
+      sendBtn.addEventListener('click', send);
+      ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } });
+      ctxCb.addEventListener('change', function () { st().withTicket = ctxCb.checked; });
+      clearBtn.addEventListener('click', function () { const s = st(); if (s.busy) return; s.msgs = []; s.err = null; render(); });
+      closeBtn.addEventListener('click', function () { pane.hidden = true; sync(); });
+    }
+    function render() {
+      if (!ui) return;
+      const s = st();
+      clear(ui.title);
+      ui.title.append(t('as_title') + ' · ', h('bdi', { text: brandName(S.brand) }));
+      ui.ctxRow.hidden = !(S.view === 'ticket' && S.ticketId);
+      ui.ctxCb.checked = s.withTicket;
+      clear(ui.log);
+      ui.log.append(h('div', { class: 'as-hello muted small' }, tx('as_hello', { b: brandName(S.brand) })));
+      s.msgs.forEach(function (m) {
+        ui.log.append(h('div', { class: 'as-msg ' + (m.role === 'user' ? 'me' : 'bot') },
+          h('div', { class: 'meta' }, h('b', { text: m.role === 'user' ? t('as_me') : t('as_bot') }),
+            (m.tools || []).map(function (tl) { return h('span', { class: 'chip ' + (tl.ok ? 'outline' : 'bad'), text: t('tool_' + tl.name) }); })),
+          h('div', { class: 'txt', dir: 'auto', text: m.content })));
+      });
+      if (s.busy) ui.log.append(h('div', { class: 'as-msg bot' }, h('span', { class: 'spinner' }), ' ', t('as_thinking')));
+      clear(ui.err);
+      if (s.err) ui.err.append(h('div', { class: 'err-box', role: 'alert', text: s.err }));
+      ui.sendBtn.disabled = s.busy;
+      ui.log.scrollTop = ui.log.scrollHeight;
+    }
+    async function send() {
+      const s = st();
+      const text = ui.ta.value.trim();
+      if (!text || s.busy) return;
+      const brand = S.brand;
+      s.msgs.push({ role: 'user', content: text });
+      ui.ta.value = '';
+      s.busy = true; s.err = null;
+      render();
+      const body = { messages: s.msgs.map(function (m) { return { role: m.role, content: m.content }; }) };
+      if (s.withTicket && S.view === 'ticket' && S.ticketId) body.ticketId = S.ticketId;
+      const r = await api('/api/' + encodeURIComponent(brand) + '/assistant', body);
+      s.busy = false;
+      if (r.ok) s.msgs.push({ role: 'assistant', content: String(r.reply || ''), tools: r.tools || [] });
+      else {
+        const lost = s.msgs.pop();                    // the question is never lost: back into the box
+        s.err = r.msg || r.error;
+        if (S.brand === brand && !ui.ta.value.trim()) ui.ta.value = lost.content;
+      }
+      if (S.brand === brand) render();
+    }
+    function sync() {
+      const ok = available();
+      if (!ok) pane.hidden = true;
+      fab.hidden = !ok || !pane.hidden;
+      if (!pane.hidden) render();
+    }
+    fab.addEventListener('click', function () { build(); pane.hidden = false; sync(); ui.ta.focus(); });
+    return { sync: sync };
+  })();
+
+  function paintSubs(brand) {
+    const slot = document.getElementById('subs-card');
+    if (!slot || !S.tk || !S.tk.ticket || S.tk.brand !== brand || !S.boots[brand]) return;
+    if (noSubs(brand)) { clear(slot); return; }
+    if (!slot.firstChild) slot.append(subsCard(S.tk.extras || {}, S.tk.ticket));
+  }
+
   async function afterAction() {
     const id = S.tk && S.tk.id;
+    if (id) delete S.tkMemo[S.brand + '|' + id];          // the server cache was patched by the write; the memo was not
     await loadBoot(S.brand);
     if (id && S.tk && S.tk.id === id) openTicket(id);
   }
@@ -973,6 +1387,7 @@
       c.append(h('p', { class: 'small ship-line' }, h('span', { class: 'chip ' + (sh.state === 'not_late' ? 'ok' : sh.state === 'not_applicable' ? '' : 'bad'), text: sh.orderName }), ' ',
         t('ship_line', { state: t('ship_' + sh.state), d: sh.daysSinceOrder, n: sh.normalDays, l: sh.lateDays })));
     }
+    if (ex.ordersError) c.append(h('div', { class: 'problem' }, tx('orders_err', { m: String(ex.ordersError) })));
     if (!orders.length) {
       c.append(h('div', { class: 'muted', text: ex.lookup === 'error' ? t('lookup_error') : t('no_orders') }));
       return c;
@@ -984,7 +1399,7 @@
         (f.tracking || []).forEach(function (tr) {
           const u = safeUrl(tr.url);
           const label = [tr.company, tr.number].filter(Boolean).join(' · ') || t('track');
-          tracks.push(u ? h('a', { href: u, target: '_blank', rel: 'noopener noreferrer', class: 'ltr', text: label }) : h('span', { class: 'ltr', text: label }));
+          tracks.push(u ? h('a', { href: u, target: '_blank', rel: 'noopener noreferrer', class: 'ltr', text: label }) : h('bdi', { class: 'ltr', text: label }));
           if (tr.number) tracks.push(copyBtn(tr.number));
         });
       });
@@ -1015,7 +1430,8 @@
   function contractNum(id) { return String(id || '').split('/').pop(); }
   function subsCard(ex, x) {
     const c = h('div', { class: 'card' }, h('h3', { text: t('subs') }));
-    const subs = ex.subscriptions || [];
+    const subs = Array.isArray(ex.subscriptions) ? ex.subscriptions : [];
+    if (ex.subscriptionsError) c.append(h('div', { class: 'problem' }, tx('subs_err', { m: String(ex.subscriptionsError) })));
     if (!subs.length) { c.append(h('div', { class: 'muted', text: t('no_subs') })); return c; }
     const done = String(x.cancelled || '').split(',').filter(Boolean);
     const isOpen = OPEN.indexOf(x.status) >= 0;
@@ -1032,7 +1448,7 @@
           h('dt', { text: t('sub_next') }), h('dd', { text: s.nextBillingDate ? fmtDate(s.nextBillingDate) : (s.status === 'CANCELLED' ? '—' : t('sub_next_na')) }),
           h('dt', { text: t('sub_since') }), h('dd', { text: fmtDate(s.createdAt) }),
           s.lastPaymentStatus ? h('dt', { text: t('sub_lastpay') }) : null, s.lastPaymentStatus ? h('dd', { text: payText(s.lastPaymentStatus) }) : null,
-          h('dt', { text: t('sub_id') }), h('dd', null, h('span', { class: 'ltr', text: contractNum(s.id) }))));
+          h('dt', { text: t('sub_id') }), h('dd', null, h('bdi', { class: 'ltr', text: contractNum(s.id) }))));
       if (cancellable && canWork()) {
         card.append(h('div', { class: 'actions' }, h('button', { class: 'btn danger-outline small', type: 'button', text: t('cancel_sub'),
           disabled: !isOpen && false, onclick: function () { Cancel.open(x, s); } })));
@@ -1071,10 +1487,10 @@
           dlg.close();
           toast(r.msg || t('ss_CANCELLED'));
           if (S.tk && S.tk.id === x.id) {               // refresh only the panels the cancel changed; the draft is untouched
-            const res = await Promise.all([engine('apiTicket', { id: x.id }), engine('apiTicketExtras', { id: x.id })]);
-            if (S.tk && S.tk.id === x.id && res[0].ok) {
-              S.tk.ticket.cancelled = res[0].ticket.cancelled;
-              if (res[1].ok) S.tk.extras = res[1].extras || {};
+            const fr = await fetchTicket(S.brand, x.id, true);
+            if (S.tk && S.tk.id === x.id && fr.ok) {
+              S.tk.ticket.cancelled = fr.ticket.cancelled;
+              S.tk.extras = fr.extras || {};
               const slot = document.getElementById('subs-card');
               if (slot) { clear(slot); slot.append(subsCard(S.tk.extras || {}, S.tk.ticket)); }
             }
@@ -1083,7 +1499,7 @@
         }
         go.disabled = code.value.length !== 4;
         result.append(h('div', { class: 'err-box', role: 'alert' }, h('div', { text: r.msg || r.error }),
-          r.message ? h('span', { class: 'raw', text: r.message }) : null));
+          r.message ? h('bdi', { class: 'raw', text: r.message }) : null));
       });
       const warn = [];
       if (b.cancelFrozen) warn.push(h('div', { class: 'problem', text: t('dlg_frozen') }));
@@ -1091,7 +1507,7 @@
       dlg.append(h('div', { class: 'in' },
         h('h3', { text: t('dlg_title') }),
         h('div', null, h('b', { dir: 'auto', text: items || '—' }), ' ', h('span', { class: 'chip', text: t('ss_' + s.status) })),
-        h('div', { class: 'small muted' }, t('sub_id') + ': ', h('span', { class: 'ltr', text: num }), ' · ', x.email ? h('span', { class: 'ltr', text: x.email }) : null),
+        h('div', { class: 'small muted' }, t('sub_id') + ': ', h('bdi', { class: 'ltr', text: num }), ' · ', x.email ? h('bdi', { class: 'ltr', text: x.email }) : null),
         warn,
         h('label', null, t('dlg_type'), code),
         h('label', null, h('span', null, t('dlg_reason') + ' ', h('span', { class: 'muted small', text: wants ? t('dlg_reason_opt') : t('dlg_reason_req') })), reason),
@@ -1121,7 +1537,7 @@
       btn.disabled = false;
       if (!r.ok) { err.append(h('div', { class: 'err-box', text: r.msg || r.error })); return; }
       toast(t('note_ok'));
-      const fresh = await engine('apiTicket', { id: x.id });
+      const fresh = await fetchTicket(S.brand, x.id, true);
       if (S.tk && S.tk.id === x.id) {
         if (fresh.ok) S.tk.ticket.notes = fresh.ticket.notes;
         const slot = document.getElementById('notes-card');
@@ -1183,7 +1599,7 @@
       ok.addEventListener('click', function () { finish(true); });
       no.addEventListener('click', function () { finish(false); });
       dlg.addEventListener('close', function () { finish(false); }, { once: true });
-      dlg.append(h('div', { class: 'in' }, h('h3', { text: opts.title }), opts.body ? h('p', { class: 'm0', text: opts.body }) : null,
+      dlg.append(h('div', { class: 'in' }, h('h3', null, opts.title), opts.body ? h('p', { class: 'm0', text: opts.body }) : null,
         opts.extra || null, h('div', { class: 'row-btns' }, no, ok)));
       dlg.showModal();
       setTimeout(function () { no.focus(); }, 0);
@@ -1227,7 +1643,7 @@
       if (typeof S.autoMsg[mk] === 'string') { paint(slot, S.autoMsg[mk]); return; }
       if (S.autoMsg[mk] === null) return;               // a fetch is already running; it paints the live node
       S.autoMsg[mk] = null;
-      const r = await engine('apiTicketExtras', { id: tid });
+      const r = await fetchTicket(S.brand, tid, false);
       const conv = (r.ok && r.extras && r.extras.conversation) || [];
       const last = conv.filter(function (m) { return m.who === 'customer'; }).pop();
       S.autoMsg[mk] = last ? String(last.text || '') : '';
@@ -1240,7 +1656,7 @@
       const parts = [];
       if (ev.dkim !== undefined || ev.spf !== undefined) {
         const ok = passed(ev.dkim) && passed(ev.spf);
-        parts.push(ok ? t('ac_ev_auth_ok') : t('ac_ev_auth_bad') + ' ' + t('ac_ev_auth_detail', { d: String(ev.dkim), s: String(ev.spf) }));
+        parts.push(ok ? t('ac_ev_auth_ok') : t('ac_ev_auth_bad') + ' ' + t('ac_ev_auth_detail', { d: '\u2068' + String(ev.dkim) + '\u2069', s: '\u2068' + String(ev.spf) + '\u2069' }));
       }
       if (ev.contractCount !== undefined) {
         const n = Number(ev.contractCount);
@@ -1267,17 +1683,17 @@
       card.append(h('div', { class: 'hd' },
         kd === 'flight' ? h('span', { class: 'spinner', 'aria-hidden': 'true' }) : null,
         h('span', { class: 'chip ' + chipCls, text: stateText(it) }),
-        it.approvedBy ? h('span', { class: 'chip outline', text: t('ac_approved_by', { u: it.approvedBy }) }) : null,
+        it.approvedBy ? h('span', { class: 'chip outline' }, tx('ac_approved_by', { u: it.approvedBy })) : null,
         it.ticketStatus ? h('span', { class: 'chip outline', text: t('ac_ticket_status', { s: t('st_' + it.ticketStatus) }) }) : null,
-        it.email ? h('span', { class: 'ltr muted small', text: it.email }) : null));
+        it.email ? h('bdi', { class: 'ltr muted small', text: it.email }) : null));
       if (it.subject || it.summary) card.append(h('div', null, it.subject ? h('b', { dir: 'auto', text: it.subject }) : null, it.summary ? h('div', { class: 'small', dir: 'auto', text: it.summary }) : null));
-      if (kd === 'reply_failed') card.append(h('div', { class: 'err-box', role: 'alert' }, h('b', { text: t('ac_state_cancelled_reply_failed') }), it.error ? h('span', { class: 'raw', text: String(it.error) }) : null));
-      else if (kd === 'stopped' && it.error) card.append(h('div', { class: 'err-box' }, h('span', { class: 'raw', text: String(it.error) })));
+      if (kd === 'reply_failed') card.append(h('div', { class: 'err-box', role: 'alert' }, h('b', { text: t('ac_state_cancelled_reply_failed') }), it.error ? h('bdi', { class: 'raw', text: String(it.error) }) : null));
+      else if (kd === 'stopped' && it.error) card.append(h('div', { class: 'err-box' }, h('bdi', { class: 'raw', text: String(it.error) })));
       const msgSlot = h('div', { class: 'msg customer ac-msg' }, h('span', { class: 'muted small', text: t('loading') }));
       card.append(h('div', { class: 'small muted', text: t('ac_last_msg') }), msgSlot);
       fetchMessage(it, msgSlot);
       card.append(h('dl', { class: 'kv' },
-        h('dt', { text: t('ac_contract') }), h('dd', null, h('span', { class: 'ltr', text: contractNum(it.contractId) || '—' })),
+        h('dt', { text: t('ac_contract') }), h('dd', null, h('bdi', { class: 'ltr', text: contractNum(it.contractId) || '—' })),
         h('dt', { text: t('ac_next') }), h('dd', { text: it.nextBilling ? fmtDate(it.nextBilling) : '—' })));
       const ev = evidenceText(it.evidence);
       if (ev) card.append(h('div', { class: 'evidence', text: ev }));
@@ -1300,7 +1716,7 @@
       function refused(r) {
         clear(res);
         res.append(h('div', { class: 'err-box', role: 'alert' }, h('div', { text: r.msg || t('ac_refused') }),
-          h('span', { class: 'raw', text: [r.error, r.state, r.reason, r.problem].filter(Boolean).join(' · ') })));
+          h('bdi', { class: 'raw', text: [r.error, r.state, r.reason, r.problem].filter(Boolean).join(' · ') })));
       }
       if (approve) approve.addEventListener('click', async function () {
         const yes = await confirmDlg({ title: t('ac_approve_q'), body: t('ac_approve_body'), ok: t('ac_approve'), danger: true });
@@ -1366,10 +1782,10 @@
       const p = $('settings-pane');
       clear(p);
       const brand = S.brand;
-      p.append(h('h2', { text: t('set_title', { b: brandName(brand) }) }));
+      p.append(h('h2', null, tx('set_title', { b: brandName(brand) })));
       const st = S.settings[brand];
       if (st && st.refusal) p.append(h('div', { class: 'err-box', role: 'alert' }, h('div', { text: t('set_refused') + ' ' + st.refusal.msg }),
-        h('span', { class: 'raw', 'data-test': 'refusal-raw', text: st.refusal.raw })));
+        h('bdi', { class: 'raw', 'data-test': 'refusal-raw', text: st.refusal.raw })));
       if (st && st.err) p.append(h('div', { class: 'err-box', text: st.err }));
       if (!st || !st.values) { p.append(h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); return; }
       KEYS.forEach(function (kv) {
@@ -1382,7 +1798,7 @@
           const b = h('button', { type: 'button', class: 'seg-btn' + (cur === v ? ' on v-' + risk : ''), 'aria-pressed': cur === v ? 'true' : 'false', text: t('val_' + v) });
           b.addEventListener('click', async function () {
             if (cur === v) return;
-            const yes = await confirmDlg({ title: t('set_confirm_q', { k: t('set_' + k), v: t('val_' + v), b: brandName(brand) }), body: t('set_' + k + '_help'), ok: t('ok'), danger: v === 'on' || (k === 'DRY_RUN' && v === 'off') });
+            const yes = await confirmDlg({ title: tx('set_confirm_q', { k: t('set_' + k), v: t('val_' + v), b: brandName(brand) }), body: t('set_' + k + '_help'), ok: t('ok'), danger: v === 'on' || (k === 'DRY_RUN' && v === 'off') });
             if (!yes) return;
             seg.querySelectorAll('button').forEach(function (x) { x.disabled = true; });
             const r = await engine('apiSettings', { action: 'set', key: k, value: v }, brand);
@@ -1397,7 +1813,7 @@
           });
           seg.append(b);
         });
-        p.append(h('div', { class: 'card set-row' }, h('div', { class: 'set-hd' }, h('b', { text: t('set_' + k) }), h('span', { class: 'ltr muted small', text: k })),
+        p.append(h('div', { class: 'card set-row' }, h('div', { class: 'set-hd' }, h('b', { text: t('set_' + k) }), h('bdi', { class: 'ltr muted small', text: k })),
           h('div', { class: 'muted small', text: t('set_' + k + '_help') }), seg));
       });
     }
@@ -1493,7 +1909,7 @@
         clear(al);
         if (!r.ok) { al.append(h('div', { class: 'err-box', text: r.msg || r.error })); return; }
         r.lines.forEach(function (l) {
-          al.append(h('div', null, h('span', { class: 'muted', text: fmtDate(l.time, true) + ' · ' }), h('b', { text: l.actor }), ' ', h('span', { class: 'ltr', text: l.action }),
+          al.append(h('div', null, h('span', { class: 'muted', text: fmtDate(l.time, true) + ' · ' }), h('b', { text: l.actor }), ' ', h('bdi', { class: 'ltr', text: l.action }),
             l.target ? ' → ' + l.target : '', l.detail ? h('span', { class: 'muted small ltr', text: ' ' + JSON.stringify(l.detail) }) : null));
         });
       });
@@ -1509,8 +1925,8 @@
         u.roles.map(function (r) { return h('span', { class: 'chip st-sent', text: t('role_' + r) }); }),
         h('span', { class: 'chip ' + (u.disabled ? 'bad' : 'ok'), text: u.disabled ? t('u_disabled') : t('u_active') }),
         u.must_change ? h('span', { class: 'chip', text: t('u_must_change') }) : null));
-      c.append(h('div', { class: 'small muted' }, (u.brands.length ? u.brands.map(brandName).join(' · ') : '—') + ' · ' + t('lang_' + u.lang) + ' · ' +
-        t('u_last') + ': ' + (u.last_login ? fmtDate(u.last_login, true) : t('u_never'))));
+      c.append(h('div', { class: 'small muted' }, h('bdi', { text: u.brands.length ? u.brands.map(brandName).join(' · ') : '—' }), ' · ' + t('lang_' + u.lang) + ' · ' +
+        t('u_last') + ': ', h('bdi', { text: u.last_login ? fmtDate(u.last_login, true) : t('u_never') })));
       if (blocked) return c;
       const msg = h('div');
       if (openEdit === u.username) {
