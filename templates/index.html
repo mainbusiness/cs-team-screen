@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'he' else 'ltr' }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="csrf" content="{{ csrf_token() }}">
+<meta name="lang" content="{{ lang }}">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1f3a5f">
+<title>{{ 'שירות לקוחות' if lang == 'he' else 'Customer service' }}</title>
+<link rel="stylesheet" href="{{ asset('app.css') }}">
+<script src="{{ asset('app.js') }}" defer></script>
+</head>
+<body>
+<div id="app" class="app">
+  <header class="top" id="top"></header>
+  <div id="banners" class="banners"></div>
+  <nav id="tabs" class="tabs" aria-label="lists"></nav>
+  <main id="main" class="main">
+    <section id="list-pane" class="list-pane" aria-live="polite"></section>
+    <section id="ticket-pane" class="ticket-pane"></section>
+    <section id="users-pane" class="users-pane" hidden></section>
+    <section id="settings-pane" class="users-pane" hidden></section>
+  </main>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<dialog id="cancel-dlg" class="dlg"></dialog>
+<dialog id="confirm-dlg" class="dlg"></dialog>
+<noscript>{{ 'צריך JavaScript כדי להשתמש במסך.' if lang == 'he' else 'JavaScript is required.' }}</noscript>
+</body>
+</html>

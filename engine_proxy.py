@@ -1,0 +1,197 @@
+"""
+engine_proxy.py — the only path from the browser to a brand engine (Apps Script web app).
+
+Safety model:
+ - The browser never sees an engine URL or a token. It calls POST /api/<brand>/<fn>; this module
+   checks the brand is one the session user holds, the fn is on FN_TABLE, and the user's engine role may
+   call it (a mirror of Api.gs apiTable_ — the engine re-checks anyway).
+ - Arguments are rebuilt from a per-fn allowlist of keys; anything else the browser sends is dropped.
+   `brand` is always set by the server: Api.gs rejects a call whose args.brand is not its own BRAND.
+ - The token is minted per call, 10 minutes, and names ONLY the brand being called. If ENGINES_JSON ever
+   points brand A's name at brand B's engine, the engine answers "wrong brand" instead of serving B.
+ - Engine URLs must look like an Apps Script web app (script.google.com/.../exec); anything else is
+   treated as not configured. No customer data is ever put in a URL or a log line here.
+"""
+
+import json
+import re
+import time
+
+import requests
+
+import messages
+import security
+
+ALL_ROLES = ("agent", "admin", "user-manager")
+WORK_ROLES = ("agent", "admin")
+ADMIN_ONLY = ("admin",)
+
+# fn -> (roles allowed, argument keys the browser may send). Mirrors engine/Api.gs apiTable_.
+# NOT here on purpose: apiAdminRun (maintenance, CLI only), apiWa* (the WhatsApp extension's own secret).
+FN_TABLE = {
+    "apiBoot": (ALL_ROLES, ()),
+    "apiStatus": (ALL_ROLES, ()),
+    "apiTicket": (WORK_ROLES, ("id",)),
+    "apiTicketExtras": (WORK_ROLES, ("id",)),
+    "apiTickets": (WORK_ROLES, ("ids",)),
+    "apiSearch": (WORK_ROLES, ("q",)),
+    "apiSaveDraft": (WORK_ROLES, ("id", "text")),
+    "apiSend": (WORK_ROLES, ("id", "text", "override")),
+    "apiMarkHandled": (WORK_ROLES, ("id",)),
+    "apiClose": (WORK_ROLES, ("id",)),
+    "apiNote": (WORK_ROLES, ("id", "text")),
+    "apiKachingCancel": (WORK_ROLES, ("id", "contractId", "confirm", "reason")),
+    # Auto-cancel queue (Owner, 2026-10-05: the CS team decides). Shapes come from the engine builder later.
+    "apiAutoCancelList": (WORK_ROLES, ()),
+    "apiAutoCancelApprove": (WORK_ROLES, ("id", "replyText")),
+    "apiAutoCancelReject": (WORK_ROLES, ("id", "note")),
+    # System switches. Admin only — checked HERE as well as in the engine.
+    "apiSettings": (ADMIN_ONLY, ("action", "key", "value")),
+}
+
+# apiSettings: the only actions, keys and values the screen may send. Anything else never leaves Flask.
+SETTINGS_VALUES = {"DRY_RUN": ("on", "off"), "KACHING_WRITES": ("on", "off"), "AUTO_CANCEL": ("off", "shadow", "on")}
+
+ENGINE_URL_RE = re.compile(r"^https://script\.google\.com/(?:a/macros/[A-Za-z0-9.-]+|macros)/s/[A-Za-z0-9_-]{20,200}/exec$")
+KNOWN_BRANDS = ("velora", "rozela", "celesta", "apexmen")
+
+CONNECT_TIMEOUT_S = 5
+READ_TIMEOUT_S = 45            # Api.gs holds its lock up to 20s; a Gmail send adds a few seconds
+MAX_RESPONSE_BYTES = 3_000_000
+
+
+class ProxyError(Exception):
+    def __init__(self, code, http=502):
+        super().__init__(code)
+        self.code = code
+        self.http = http
+
+
+def parse_engines(raw, url_re=ENGINE_URL_RE):
+    """ENGINES_JSON -> {brand: url}. Invalid entries are dropped (fail closed) and reported."""
+    engines, bad = {}, []
+    if not raw:
+        return engines, bad
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return {}, ["ENGINES_JSON is not valid JSON"]
+    if not isinstance(data, dict):
+        return {}, ["ENGINES_JSON must be an object"]
+    for brand, url in data.items():
+        b = str(brand).lower()
+        if not re.match(r"^[a-z0-9][a-z0-9-]{1,29}$", b) or not isinstance(url, str) or not url_re.match(url):
+            bad.append("ENGINES_JSON entry rejected: %s" % b[:30])
+            continue
+        engines[b] = url
+    return engines, bad
+
+
+def clean_args(fn, args):
+    _, keys = FN_TABLE[fn]
+    if args is None:
+        args = {}
+    if not isinstance(args, dict):
+        raise ProxyError("bad_request", 400)
+    out = {}
+    for k in keys:
+        if k in args:
+            v = args[k]
+            if k == "override":
+                if v is True:
+                    out[k] = True
+                continue
+            if k == "ids":
+                if not isinstance(v, list) or len(v) > 100 or not all(isinstance(x, str) for x in v):
+                    raise ProxyError("bad_request", 400)
+            elif not isinstance(v, str) or len(v) > 20000:
+                raise ProxyError("bad_request", 400)
+            out[k] = v
+    if fn == "apiSettings":
+        action = out.get("action")
+        if action == "get":
+            out = {"action": "get"}
+        elif action == "set":
+            key, val = out.get("key"), out.get("value")
+            if key not in SETTINGS_VALUES or val not in SETTINGS_VALUES[key]:
+                raise ProxyError("bad_request", 400)
+            out = {"action": "set", "key": key, "value": val}
+        else:
+            raise ProxyError("bad_request", 400)
+    if fn == "apiAutoCancelReject" and not (2 <= len(out.get("note", "").strip()) <= 300):
+        raise ProxyError("bad_note", 400)
+    return out
+
+
+def http_transport(session=None):
+    """Real engine call: POST, follow Apps Script's 302 to googleusercontent (requests turns it into GET)."""
+    s = session or requests.Session()
+
+    def call(url, body):
+        try:
+            r = s.post(url, data=json.dumps(body), headers={"Content-Type": "application/json"},
+                       timeout=(CONNECT_TIMEOUT_S, READ_TIMEOUT_S), allow_redirects=True)
+        except requests.Timeout:
+            raise ProxyError("engine_timeout", 504)
+        except requests.RequestException:
+            raise ProxyError("engine_unreachable", 502)
+        if r.status_code != 200:
+            raise ProxyError("engine_bad_response", 502)
+        if len(r.content) > MAX_RESPONSE_BYTES:
+            raise ProxyError("engine_bad_response", 502)
+        try:
+            data = r.json()
+        except ValueError:
+            raise ProxyError("engine_bad_response", 502)       # e.g. a Google sign-in HTML page
+        if not isinstance(data, dict) or "ok" not in data:
+            raise ProxyError("engine_bad_response", 502)
+        return data
+
+    return call
+
+
+def localize(fn, resp, lang):
+    """Adds `msg` (and `problem_msg`) in the user's language; never removes the engine's own fields."""
+    out = dict(resp)
+    if fn == "apiKachingCancel" and resp.get("message"):
+        out["msg"] = messages.kaching_msg(resp.get("message"), lang)
+    elif not resp.get("ok"):
+        out["msg"] = messages.engine_error_msg(resp, fn, lang)
+    if resp.get("problem"):
+        out["problem_msg"] = messages.draft_problem_msg(resp.get("problem"), lang)
+    return out
+
+
+def call(engines, transport, secret, user, brand, fn, args, lang, now=None):
+    """Returns (http_status, json). Raises nothing for expected failures."""
+    roles = user.get("roles", [])
+    if fn not in FN_TABLE:
+        return 404, {"ok": False, "error": "forbidden_fn", "msg": messages.proxy_msg("forbidden_fn", lang)}
+    if brand not in user.get("brands", []):
+        return 403, {"ok": False, "error": "forbidden_brand", "msg": messages.proxy_msg("forbidden_brand", lang)}
+    try:
+        role = security.engine_role(roles)
+    except ValueError:
+        return 403, {"ok": False, "error": "forbidden_role", "msg": messages.proxy_msg("forbidden_role", lang)}
+    if role not in FN_TABLE[fn][0]:
+        return 403, {"ok": False, "error": "forbidden_role", "msg": messages.proxy_msg("forbidden_role", lang)}
+    url = engines.get(brand)
+    if not url:
+        return 503, {"ok": False, "error": "brand_not_connected", "msg": messages.proxy_msg("brand_not_connected", lang)}
+    try:
+        clean = clean_args(fn, args)
+    except ProxyError as e:
+        return e.http, {"ok": False, "error": e.code, "msg": messages.proxy_msg(e.code, lang)}
+    clean["brand"] = brand
+    try:
+        token = security.mint_engine_token(secret, user["username"], role, [brand], user.get("lang", "he"), now=now)
+    except ValueError:
+        return 500, {"ok": False, "error": "server_misconfigured", "msg": messages.proxy_msg("server_misconfigured", lang)}
+    started = time.monotonic()
+    try:
+        resp = transport(url, {"fn": fn, "args": clean, "token": token})
+    except ProxyError as e:
+        return e.http, {"ok": False, "error": e.code, "msg": messages.proxy_msg(e.code, lang)}
+    out = localize(fn, resp, lang)
+    out["_ms"] = int((time.monotonic() - started) * 1000)
+    return 200, out

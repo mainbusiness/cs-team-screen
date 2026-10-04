@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="{{ lang }}" dir="{{ 'rtl' if lang == 'he' else 'ltr' }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{ 'כניסה — שירות לקוחות' if lang == 'he' else 'Sign in — Customer service' }}</title>
+<link rel="stylesheet" href="{{ asset('app.css') }}">
+</head>
+<body class="auth-page">
+<form class="auth-card" method="post" action="{{ '/cs/en/login' if lang == 'en' else '/cs/login' }}" autocomplete="on">
+  <h1>{{ 'שירות לקוחות' if lang == 'he' else 'Customer service' }}</h1>
+  {% if mock %}<p class="banner warn">{{ 'תצוגה מקומית — נתונים מדומים' if lang == 'he' else 'Local preview — fake data' }}</p>{% endif %}
+  {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <label>{{ 'שם משתמש' if lang == 'he' else 'Username' }}
+    <input name="username" value="{{ username }}" autocomplete="username" autocapitalize="none" spellcheck="false" dir="ltr" required autofocus>
+  </label>
+  <label>{{ 'סיסמה' if lang == 'he' else 'Password' }}
+    <input name="password" type="password" autocomplete="current-password" dir="ltr" required>
+  </label>
+  <button class="btn primary wide" type="submit">{{ 'כניסה' if lang == 'he' else 'Sign in' }}</button>
+</form>
+</body>
+</html>
