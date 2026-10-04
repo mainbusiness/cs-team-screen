@@ -337,3 +337,63 @@ def test_mock_assistant_refuses_other_brand_and_uses_tools(make_app, pw_hash):
     assert call(c, tok, "selera", "apiBoot").get_json()["subscriptions"] == "none"
     k = call(c, tok, "rozela", "apiTicket", {"id": "t18f2a01"})     # sanity: the normal proxy still works
     assert k.get_json()["ok"]
+
+
+# ---------- reply sanitizer (live E2E findings, 2026-10-05) ----------
+
+LIVE_JARGON = ('Per the policy, a full refund within 90 days. A human agent processes the refund. '
+               'Route action with human_reason "refund: order <number>". Tell the customer the refund is on its way.')
+LIVE_TAG = "antml:answer I can't help with that here — I only answer about Rozela."
+
+
+def test_prompt_tells_the_model_to_speak_to_humans(app5, pw_hash, fake_llm):
+    c, tok = logged_in(app5, pw_hash, "noa", ["agent"], ["rozela"])
+    ask(c, tok)
+    sys0 = fake_llm.payloads[0]["system"][0]["text"]
+    assert "written for an automated pipeline" in sys0 and "NEVER mention route, human_reason" in sys0
+
+
+@pytest.mark.parametrize("raw", [LIVE_JARGON, "Set wants_subscription_cancel=true and route it to action.",
+                                 'The status is "noreply" so nothing to do. Ask for the order number.',
+                                 'Return {"route": "action", "human_reason": "x"} then wait.',
+                                 "Mark it ready. Then route to noreply."])
+@pytest.mark.parametrize("lang", ["he", "en"])
+def test_jargon_never_reaches_the_client(app5, pw_hash, fake_llm, raw, lang):
+    fake_llm.script = [text(raw)]
+    c, tok = logged_in(app5, pw_hash, "u" + lang, ["agent"], ["rozela"], lang=lang)
+    j = ask(c, tok).get_json()
+    assert j["ok"], j
+    low = j["reply"].lower()
+    for bad in ("route", "human_reason", "wants_subscription_cancel", "noreply", "no_reply", '"action"', "{", "}"):
+        assert bad not in low, (bad, j["reply"])
+
+
+def test_live_jargon_keeps_the_useful_part(app5, pw_hash, fake_llm, tmp_path):
+    fake_llm.script = [text(LIVE_JARGON)]
+    c, tok = logged_in(app5, pw_hash, "eve", ["agent"], ["rozela"], lang="en")
+    reply = ask(c, tok).get_json()["reply"]
+    assert "full refund within 90 days" in reply and "Tell the customer the refund is on its way." in reply
+    line = [json.loads(x) for x in (tmp_path / "audit.jsonl").read_text().splitlines() if "assistant_sanitized" in x][-1]
+    assert line["detail"]["jargon"] >= 1 and "refund" not in json.dumps(line)            # counts only, no text
+
+
+@pytest.mark.parametrize("raw,want", [
+    (LIVE_TAG, "I can't help with that here — I only answer about Rozela."),
+    ("<answer>\nזה לא זמין כאן.\n</answer>", "זה לא זמין כאן."),
+    ("Sure. <thinking>secret</thinking> The refund is 90 days.", "Sure. secret The refund is 90 days."),
+    ("<reply type=\"x\">ok</reply>", "ok"),
+])
+def test_markup_is_stripped(app5, pw_hash, fake_llm, raw, want):
+    fake_llm.script = [text(raw)]
+    c, tok = logged_in(app5, pw_hash, "eve", ["agent"], ["rozela"], lang="en")
+    reply = ask(c, tok).get_json()["reply"]
+    assert reply == want and "<" not in reply and "antml" not in reply.lower()
+
+
+def test_sanitizer_keeps_emails_urls_and_plain_words():
+    s = ("Write to support@tryrozela.com or track at https://t.17track.net/en#nums=JY1. The order is ready to ship. "
+         "Take action today. Contact <support@tryrozela.com>. Love it <3")
+    out, st = assistant.sanitize_reply(s, "en")
+    assert out == s and st == {"markup": 0, "jargon": 0}
+    he, _ = assistant.sanitize_reply("לפי המדיניות: החזר מלא תוך 90 יום. route action עם human_reason \"refund\".", "he")
+    assert he.startswith("לפי המדיניות: החזר מלא תוך 90 יום.") and "route" not in he and "human_reason" not in he
