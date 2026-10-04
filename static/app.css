@@ -315,3 +315,20 @@ bdi.ltr, bdi.raw { direction: ltr; }
 .chip.sync { gap: 6px; }
 .chip.sync .more-btn { padding: 0; font-size: 12px; }
 .save-state.opt { color: var(--ready); }
+
+/* ---------- auto-reply review + recommendation ---------- */
+.chip.bot { background: #ede9fe; color: #5b21b6; font-weight: 600; }
+.row .rec { font-size: 13px; color: var(--muted); margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.row .rec .rec-k { font-weight: 600; }
+.todo { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; border-radius: var(--radius); padding: 10px 14px; font-size: 15px; }
+.todo b { display: block; font-size: 13px; margin-bottom: 2px; }
+.todo-chip { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: baseline; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;
+  border-radius: 999px; padding: 4px 12px; font-size: 14px; margin-bottom: 8px; max-width: 100%; }
+.ar-item { margin-bottom: 10px; display: grid; gap: 8px; }
+.ar-item .hd { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.ar-item .msg { max-width: 100%; }
+.ar-lbl { display: flex; gap: 8px; align-items: baseline; }
+.ar-lbl .tr-toggle, .ar-sum-tg .tr-toggle { margin-inline-start: auto; }
+.set-note { color: var(--muted); }
+.set-note.warn { color: var(--warn-ink); background: var(--warn-bg); border-radius: 6px; padding: 3px 8px; width: max-content; max-width: 100%; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; color: inherit; }

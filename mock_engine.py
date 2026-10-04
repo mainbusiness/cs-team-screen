@@ -26,17 +26,17 @@ CS_ROLES = ("agent", "admin", "user-manager")
 OPEN = ("ready", "action", "health", "delay")
 SUMMARY_COLS = ['id', 'status', 'category', 'name', 'email', 'subject', 'summary', 'action', 'waiting_since',
                 'created_at', 'handled_by', 'handled_at', 'language', 'order_no', 'channel', 'emails_count',
-                'cancelled', 'watch', 'ship_state']
+                'cancelled', 'watch', 'ship_state', 'recommendation']
 TICKET_COLS = ['id', 'status', 'category', 'name', 'email', 'phone', 'channel', 'subject', 'summary', 'action',
                'draft_text', 'draft_id', 'thread_id', 'message_id', 'waiting_since', 'created_at', 'handled_by',
                'handled_at', 'language', 'order_no', 'order_date', 'tracking', 'carrier', 'ship_state', 'wa_sig',
-               'wa_out', 'wa_send', 'notes', 'watch', 'emails_count', 'cancelled']
+               'wa_out', 'wa_send', 'notes', 'watch', 'emails_count', 'cancelled', 'recommendation']
 WORK = ("agent", "admin")
 TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTicketExtras": WORK, "apiTickets": WORK,
          "apiSearch": WORK, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
          "apiNote": WORK, "apiKachingCancel": WORK, "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
-         "apiTicketFull": WORK, "apiChanges": WORK}
+         "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK}
 CONTRACT_RE_PREFIX = "gid://shopify/SubscriptionContract/"
 
 
@@ -146,6 +146,7 @@ def build_brand(brand, now):
             row["tracking"] = sh.get("trackingUrl", "")
             row["carrier"] = sh.get("carrier", "")
         row["ship_state"] = sh["state"]
+        row["recommendation"] = row.get("recommendation") or RECO.get(row.get("category"), RECO["other"])
         (archive if arch else tickets).append(row)
         snaps[row["id"]] = {"orders": orders, "subscriptions": list(subs), "shipping": sh, "conversation": conv,
                             "lookup": "ok" if orders else "none"}
@@ -154,6 +155,24 @@ def build_brand(brand, now):
     h = lambda x: _iso(now - timedelta(hours=x))
 
     if brand == "rozela":
+        o9 = _order(now, "#4516", 5, [(product, 1)], shipped_days_ago=3, track_no="JY4516000777")
+        add({"id": "t18f2c01", "status": "sent", "category": "shipping", "name": "טל ברק", "email": "tal.b@example.com", "channel": "email",
+             "subject": "מתי מגיע?", "summary": "שאלה פשוטה על זמן משלוח — נענתה אוטומטית עם קישור מעקב.", "created_at": h(3),
+             "handled_by": "auto-reply", "handled_at": h(2.5), "language": "he",
+             "recommendation": "לוודא שקישור המעקב נכון ושהטון חם. אם תקין — לסמן נבדק.",
+             "draft_text": "היי טל, ההזמנה יצאה לפני 3 ימים ונמצאת בדרך: https://t.17track.net/en#nums=JY4516000777\nבדרך כלל זה מגיע תוך שבוע-שבועיים." + sig},
+            _conv(now, ("customer", 3, "היי, מתי ההזמנה שלי אמורה להגיע?"),
+                  ("us", 2.5, "היי טל, ההזמנה יצאה לפני 3 ימים ונמצאת בדרך: https://t.17track.net/en#nums=JY4516000777\nבדרך כלל זה מגיע תוך שבוע-שבועיים." + sig)),
+            [o9])
+        add({"id": "t18f2c02", "status": "ready", "category": "product", "name": "אילנה ג.", "email": "ilana.g@example.com", "channel": "email",
+             "subject": "אפשר עם קפה?", "summary": "שואלת אם אפשר לקחת את הכמוסות עם קפה.", "waiting_since": h(1.2), "created_at": h(1.2),
+             "language": "he", "recommendation": "תשובה פשוטה מהמדיניות — אפשר לשלוח כמו שהיא.",
+             "draft_text": "היי אילנה, כן, אפשר לקחת גם עם קפה. הכי נוח עם ארוחה." + sig},
+            _conv(now, ("customer", 1.2, "שלום, אפשר לקחת את הכמוסות יחד עם קפה בבוקר?")))
+        add({"id": "t18f2c03", "status": "sent", "category": "shipping", "name": "רועי", "email": "roi@example.com", "channel": "email",
+             "subject": "מספר מעקב", "summary": "ביקש מספר מעקב — נשלח אוטומטית.", "created_at": h(28), "handled_by": "auto-reply",
+             "handled_at": h(27), "language": "he", "recommendation": "נבדק — אין מה לעשות."},
+            _conv(now, ("customer", 28, "אפשר מספר מעקב?"), ("us", 27, "היי רועי, הנה הקישור למעקב." + sig)))
         o1 = _order(now, "#4512", 6, [(product, 2)], shipped_days_ago=4, track_no="JY4512778810")
         add({"id": "t18f2a01", "status": "ready", "category": "shipping", "name": "מיכל לוי", "email": "michal.levi@example.com",
              "phone": "+972521234567", "channel": "email", "subject": "איפה ההזמנה שלי?",
@@ -250,6 +269,35 @@ def build_brand(brand, now):
     return {"name": name, "tickets": tickets, "archive": archive, "snaps": snaps}
 
 
+RECO = {
+    "shipping": "לשלוח את הטיוטה — ההזמנה בזמן; לוודא שקישור המעקב נכון.",
+    "product": "לשלוח את הטיוטה אחרי בדיקה מהירה של המינון.",
+    "cancel_subscription": "לבטל את המנוי בכפתור בפאנל המנויים, ואז לשלוח את הטיוטה.",
+    "return_refund": "לבצע החזר בשופיפיי לפי האחריות של 90 יום, ואז לשלוח את הטיוטה.",
+    "health": "לא לשלוח טיוטה בלי בדיקה — להמליץ להפסיק ולהתייעץ עם רופא.",
+    "order_change": "לעדכן את הכתובת בשופיפיי ולסגור.",
+    "billing": "לבדוק את החיוב בשופיפיי ולענות.",
+    "other": "לקרוא ולענות.",
+}
+
+
+def build_auto_reply(brand, now):
+    """apiAutoReplyList items in the coordinator's shape (2026-10-05). Item id = ticket id."""
+    if brand != "rozela":
+        return []
+    return [
+        {"id": "t18f2c01", "email": "ta***@example.com", "subject": "מתי מגיע?", "summary": "שאלה פשוטה על זמן משלוח.",
+         "replyText": "היי טל, ההזמנה יצאה לפני 3 ימים ונמצאת בדרך: https://t.17track.net/en#nums=JY4516000777\nבדרך כלל זה מגיע תוך שבוע-שבועיים.\n\nיהודה\nצוות Rozela",
+         "sentAt": _iso(now - timedelta(hours=2.5)), "state": "sent", "review": "pending", "reviewedBy": ""},
+        {"id": "t18f2c02", "email": "il***@example.com", "subject": "אפשר עם קפה?", "summary": "שואלת אם אפשר עם קפה.",
+         "replyText": "היי אילנה, כן, אפשר לקחת גם עם קפה. הכי נוח עם ארוחה.\n\nיהודה\nצוות Rozela",
+         "dueAt": None, "state": "shadow_would_send", "review": "pending", "reviewedBy": ""},
+        {"id": "t18f2c03", "email": "ro***@example.com", "subject": "מספר מעקב", "summary": "ביקש מספר מעקב.",
+         "replyText": "היי רועי, הנה הקישור למעקב.\n\nיהודה\nצוות Rozela", "sentAt": _iso(now - timedelta(hours=27)),
+         "state": "sent", "review": "ok", "reviewedBy": "manager"},
+    ]
+
+
 def build_auto(brand, now):
     """Auto-cancel records in the FINAL engine shape (coordinator, 2026-10-05). Item id = ticket id."""
     if brand != "rozela":
@@ -287,11 +335,12 @@ class MockEngines:
         now = datetime.now(timezone.utc)
         self.brands = {b: build_brand(b, now) for b in MOCK_BRANDS}
         # rozela: live-like switches (send on, cancels on); celesta: like today's real state (dry run, cancels off)
-        self.switches = {"rozela": {"dry": False, "writes": True, "frozen": "", "auto": "shadow"},
+        self.switches = {"rozela": {"dry": False, "writes": True, "frozen": "", "auto": "shadow", "reply": "on"},
                          "celesta": {"dry": True, "writes": False, "frozen": "", "auto": "off"},
                          "selera": {"dry": True, "writes": False, "frozen": "", "auto": "off"},
                          "apexmen": {"dry": True, "writes": True, "frozen": "2026-10-05T09:00:00Z — daily limit of 100 cancellations reached", "auto": "off"}}
         self.auto = {b: build_auto(b, now) for b in MOCK_BRANDS}
+        self.autoreply = {b: build_auto_reply(b, now) for b in MOCK_BRANDS}
         self.version = {b: 1 for b in MOCK_BRANDS}
         self.touched = {b: {} for b in MOCK_BRANDS}     # ticket id -> version of its last change
 
@@ -542,13 +591,15 @@ class MockEngines:
 
     def apiSettings(self, brand, a, c):
         sw = self.switches[brand]
-        cur = {"DRY_RUN": "on" if sw["dry"] else "off", "KACHING_WRITES": "on" if sw["writes"] else "off", "AUTO_CANCEL": sw["auto"]}
+        cur = {"DRY_RUN": "on" if sw["dry"] else "off", "KACHING_WRITES": "on" if sw["writes"] else "off", "AUTO_CANCEL": sw["auto"],
+               "AUTO_REPLY": sw.get("reply", "off")}
         action = a.get("action")
         if action == "get":
             return {"ok": True, "settings": cur}
         if action != "set":
             return {"ok": False, "error": "bad_action"}
-        allowed = {"DRY_RUN": ["on", "off"], "KACHING_WRITES": ["on", "off"], "AUTO_CANCEL": ["off", "shadow", "on"]}
+        allowed = {"DRY_RUN": ["on", "off"], "KACHING_WRITES": ["on", "off"], "AUTO_CANCEL": ["off", "shadow", "on"],
+                   "AUTO_REPLY": ["off", "shadow", "on"]}
         key, val = a.get("key"), a.get("value")
         if key not in allowed:
             return {"ok": False, "error": "bad_key"}
@@ -559,7 +610,11 @@ class MockEngines:
         frm = cur[key]
         if frm == val:
             return {"ok": True, "key": key, "from": frm, "to": val, "noop": True}
-        if key == "DRY_RUN":
+        if key == "AUTO_REPLY" and val == "on" and cur["DRY_RUN"] == "on":
+            return {"ok": False, "error": "needs_live_switches", "reason": "AUTO_REPLY=on needs DRY_RUN=off"}
+        if key == "AUTO_REPLY":
+            sw["reply"] = val
+        elif key == "DRY_RUN":
             sw["dry"] = val == "on"
         elif key == "KACHING_WRITES":
             sw["writes"] = val == "on"
@@ -627,3 +682,28 @@ class MockEngines:
         ids = [i for i, v in self.touched[brand].items() if v > since]
         rows = [{k: t[k] for k in SUMMARY_COLS} for t in self._b(brand)["tickets"] if t["id"] in ids]
         return {"ok": True, "version": self.version[brand], "tickets": rows, "removed": [], "serverMs": 40, "serverTime": self._now()}
+
+    # ---------- auto-reply review (coordinator shapes, 2026-10-05) ----------
+    def apiAutoReplyList(self, brand, a, c):
+        r = self.switches[brand].get("reply", "off")
+        live = r == "on" and not self.switches[brand]["dry"]
+        return {"ok": True, "switch": r, "mode": "live" if live else ("shadow" if r != "off" else "off"),
+                "items": copy.deepcopy(self.autoreply[brand])}
+
+    def apiAutoReplyReview(self, brand, a, c):
+        it = next((x for x in self.autoreply[brand] if x["id"] == a.get("id")), None)
+        if not it:
+            return {"ok": False, "error": "not_found"}
+        if a.get("verdict") not in ("ok", "problem"):
+            return {"ok": False, "error": "bad_verdict"}
+        if it["review"] != "pending":
+            return {"ok": False, "error": "already_reviewed"}
+        it.update({"review": a["verdict"], "reviewedBy": c["user"]})
+        if a["verdict"] == "problem":
+            t = self._find(brand, it["id"])
+            if t:
+                t.update({"status": "action", "action": "auto-reply flagged by %s: %s" % (c["user"], str(a.get("note", ""))[:200]),
+                          "recommendation": "תשובה אוטומטית סומנה כבעייתית — לקרוא את ההערה ולתקן מול הלקוח."})
+                self.version[brand] += 1
+                self.touched[brand][t["id"]] = self.version[brand]
+        return {"ok": True}

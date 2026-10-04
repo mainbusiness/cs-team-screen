@@ -165,7 +165,13 @@ SETTINGS = {
     "bad_value": ("ערך לא מותר. מותר: {allowed}", "Value not allowed. Allowed: {allowed}"),
     "needs_live_switches": ("אי אפשר — צריך קודם לשנות מתגים אחרים.", "Not possible — other switches must change first."),
 }
-AUTO_FNS = ("apiAutoCancelList", "apiAutoCancelApprove", "apiAutoCancelReject")
+AUTO.update({
+    "bad_verdict": ("ערך בדיקה לא תקין.", "Invalid review value."),
+    "not_reviewable": ("אי אפשר לסמן בדיקה במצב הנוכחי. רעננו את הרשימה.", "Cannot review in the current state. Refresh the list."),
+    "already_reviewed": ("מישהו כבר בדק את התשובה הזאת.", "Someone already reviewed this reply."),
+    "no_auto_reply": ("אין לפנייה הזאת תשובה אוטומטית.", "This ticket has no automatic reply."),
+})
+AUTO_FNS = ("apiAutoCancelList", "apiAutoCancelApprove", "apiAutoCancelReject", "apiAutoReplyList", "apiAutoReplyReview")
 
 
 def iso(v):

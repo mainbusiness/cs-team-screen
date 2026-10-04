@@ -20,6 +20,25 @@ EN = {
     "היי יוסי, ביטלתי את המנוי כך שלא יהיו חיובים נוספים. ההזמנה האחרונה כבר בדרך אליך.\n\nיהודה\nצוות Rozela":
         "Hi Yossi, I cancelled the subscription so there will be no more charges. Your last order is already on its way.\n\nYehuda\nRozela Team",
 }
+EN.update({
+    "היי, מתי ההזמנה שלי אמורה להגיע?": "Hi, when is my order supposed to arrive?",
+    "שאלה פשוטה על זמן משלוח.": "A simple question about delivery time.",
+    "היי טל, ההזמנה יצאה לפני 3 ימים ונמצאת בדרך: https://t.17track.net/en#nums=JY4516000777\nבדרך כלל זה מגיע תוך שבוע-שבועיים.\n\nיהודה\nצוות Rozela":
+        "Hi Tal, your order left 3 days ago and is on its way: https://t.17track.net/en#nums=JY4516000777\nIt usually arrives within one to two weeks.\n\nYehuda\nRozela Team",
+    "לוודא שקישור המעקב נכון ושהטון חם. אם תקין — לסמן נבדק.": "Check the tracking link is right and the tone is warm. If fine, mark it reviewed.",
+    "לבטל את המנוי בכפתור בפאנל המנויים, ואז לשלוח את הטיוטה.": "Cancel the subscription with the button in the subscriptions panel, then send the draft.",
+    "לשלוח את הטיוטה אחרי בדיקה מהירה של המינון.": "Send the draft after a quick check of the dosage.",
+    "שואלת כמה כמוסות לוקחים ביום ואם אפשר עם ארוחה.": "Asks how many capsules to take a day and whether with a meal.",
+    "שואלת איפה ההזמנה #4512 — נשלחה לפני 4 ימים, עדיין בזמן.": "Asks where order #4512 is — shipped 4 days ago, still on time.",
+    "לשלוח את הטיוטה — ההזמנה בזמן; לוודא שקישור המעקב נכון.": "Send the draft — the order is on time; check the tracking link.",
+    "שואלת אם אפשר עם קפה.": "Asks whether it can be taken with coffee.",
+    "שלום, אפשר לקחת את הכמוסות יחד עם קפה בבוקר?": "Hello, can I take the capsules together with my morning coffee?",
+    "היי אילנה, כן, אפשר לקחת גם עם קפה. הכי נוח עם ארוחה.\n\nיהודה\nצוות Rozela": "Hi Ilana, yes, you can take them with coffee too. Easiest with a meal.\n\nYehuda\nRozela Team",
+    "ביקש מספר מעקב.": "Asked for a tracking number.",
+    "אפשר מספר מעקב?": "Can I have a tracking number?",
+    "היי רועי, הנה הקישור למעקב.\n\nיהודה\nצוות Rozela": "Hi Roi, here is the tracking link.\n\nYehuda\nRozela Team",
+})
+
 HE = {
     "Hi Yossi, I cancelled the subscription right away, so there will be no more charges. Your last order is already on its way to you.\n\nYehuda\nRozela Team":
         "היי יוסי, ביטלתי את המנוי מיד, כך שלא יהיו עוד חיובים. ההזמנה האחרונה כבר בדרך אליך.\n\nיהודה\nצוות Rozela",

@@ -45,6 +45,9 @@ FN_TABLE = {
     "apiAutoCancelList": (WORK_ROLES, ()),
     "apiAutoCancelApprove": (WORK_ROLES, ("id", "replyText")),
     "apiAutoCancelReject": (WORK_ROLES, ("id", "note")),
+    # Auto-reply review queue (Owner, 2026-10-05: easy emails answered by the engine, "only a human eye goes over it")
+    "apiAutoReplyList": (WORK_ROLES, ()),
+    "apiAutoReplyReview": (WORK_ROLES, ("id", "verdict", "note")),
     # System switches. Admin only — checked HERE as well as in the engine.
     "apiSettings": (ADMIN_ONLY, ("action", "key", "value")),
 }
@@ -55,13 +58,15 @@ INTERNAL_FNS = {
     "apiCustomerLookup": (WORK_ROLES, ("q",)),
     # performance (2026-10-05): one-call ticket open + incremental list polling
     "apiTicketFull": (WORK_ROLES, ("id", "fresh")),
+    "apiAutoReplyList": (WORK_ROLES, ()),
     "apiChanges": (WORK_ROLES, ("since",)),        # final shape: agent/admin, since = int >= 0
     "apiTicket": FN_TABLE["apiTicket"],
     "apiTicketExtras": FN_TABLE["apiTicketExtras"],
 }
 
 # apiSettings: the only actions, keys and values the screen may send. Anything else never leaves Flask.
-SETTINGS_VALUES = {"DRY_RUN": ("on", "off"), "KACHING_WRITES": ("on", "off"), "AUTO_CANCEL": ("off", "shadow", "on")}
+SETTINGS_VALUES = {"DRY_RUN": ("on", "off"), "KACHING_WRITES": ("on", "off"), "AUTO_CANCEL": ("off", "shadow", "on"),
+                   "AUTO_REPLY": ("off", "shadow", "on")}
 
 ENGINE_URL_RE = re.compile(r"^https://script\.google\.com/(?:a/macros/[A-Za-z0-9.-]+|macros)/s/[A-Za-z0-9_-]{20,200}/exec$")
 KNOWN_BRANDS = ("velora", "rozela", "celesta", "apexmen")    # + EXTRA_BRANDS (selera, elevanu, ...) from the environment
@@ -136,6 +141,14 @@ def clean_args(fn, args, table=None):
             raise ProxyError("bad_request", 400)
     if fn == "apiAutoCancelReject" and not (2 <= len(out.get("note", "").strip()) <= 300):
         raise ProxyError("bad_note", 400)
+    if fn == "apiAutoReplyReview":
+        if out.get("verdict") not in ("ok", "problem"):
+            raise ProxyError("bad_request", 400)
+        note = out.get("note", "").strip()
+        if out["verdict"] == "problem" and not (2 <= len(note) <= 300):      # a problem must say what is wrong
+            raise ProxyError("bad_note", 400)
+        if len(note) > 300:
+            raise ProxyError("bad_note", 400)
     return out
 
 

@@ -116,12 +116,19 @@ class DiskCache:
         return os.path.join(self.root, key[:2], key + ".json")
 
     def get(self, key):
+        p = self._path(key)
         try:
-            with open(self._path(key), encoding="utf-8") as f:
+            with open(p, encoding="utf-8") as f:
                 d = json.load(f)
-        except (OSError, ValueError):
+        except OSError:
             return None
-        if time.time() - float(d.get("at", 0)) > self.ttl_s:
+        except ValueError:
+            d = {}
+        if not isinstance(d, dict) or time.time() - float(d.get("at", 0) or 0) > self.ttl_s:
+            try:
+                os.unlink(p)               # expired or damaged: remove it (Codex 2026-10-05)
+            except OSError:
+                pass
             return None
         return d.get("text")
 
@@ -483,7 +490,7 @@ def register(app, d):
                 continue
             idx.append(("c", i))
             items.append((tkey(TRANSLATE_MODEL, "en", m.get("text")), str(m.get("text"))))
-        for name in ("summary", "draft_text"):
+        for name in ("summary", "draft_text", "recommendation"):
             if str(t.get(name) or "").strip():
                 idx.append(("f", name))
                 items.append((tkey(TRANSLATE_MODEL, "en", t.get(name)), str(t.get(name))))
@@ -499,9 +506,102 @@ def register(app, d):
                 out["conversation"].append({"i": ref, "text": text})
             elif ref == "summary":
                 out["summary"] = text
+            elif ref == "recommendation":
+                out["recommendation"] = text
             else:
                 out["draft"] = text
         return jsonify(out)
+
+    def en_fields(texts):
+        """{key: hebrew text} -> {key: english}; one model call for the cache misses."""
+        keys = [k for k, v in texts.items() if isinstance(v, str) and v.strip()]
+        res = translate_items([(tkey(TRANSLATE_MODEL, "en", texts[k]), texts[k]) for k in keys], "en", "in",
+                              "Short customer-service notes and messages.")
+        return {k: r for k, r in zip(keys, res) if r}
+
+    @app.post("/api/<brand>/translate-rows")
+    def translate_rows(brand):
+        """English mode list: summary + recommendation of rows the SERVER already holds (the cached list) — the
+        browser sends ids only, so this endpoint cannot be used to translate arbitrary text."""
+        brand = str(brand).lower()
+        u, err = gate(brand)
+        if err:
+            return err
+        lang = u.get("lang", "he")
+        ids = (request.get_json(silent=True) or {}).get("ids")
+        if not isinstance(ids, list) or len(ids) > 60:
+            return fail("bad_request", 400, lang)
+        ids = list(dict.fromkeys(i for i in ids if isinstance(i, str)))        # dedupe (Codex 2026-10-05)
+        wait = tr_limit.hit(u["username"])
+        if wait:
+            return fail("rate_limited", 429, lang, wait=max(1, (wait + 59) // 60))
+        tc = d.get("ticket_cache")
+        rows = tc.cached_rows(brand) if tc else {}
+        texts = {}
+        budget = 30000                                                        # characters per request (cost guard)
+        for i in ids:
+            r = rows.get(i)
+            if not r:
+                continue
+            for f in ("summary", "recommendation"):
+                v = str(r.get(f) or "")[:600]
+                if v and budget - len(v) >= 0:
+                    texts[i + "|" + f] = v
+                    budget -= len(v)
+        try:
+            got = en_fields(texts)
+        except llm.LLMError as ex:
+            return fail(ex.code, ex.http, lang)
+        out = {}
+        for k, v in got.items():
+            i, f = k.rsplit("|", 1)
+            out.setdefault(i, {})[f] = v
+        return jsonify({"ok": True, "rows": out})
+
+    ar_memo = {}
+    ar_lock = threading.Lock()
+
+    def ar_list(u, brand):
+        """apiAutoReplyList, memoised 30 s per brand: a page of cards is one engine call, not one per card."""
+        with ar_lock:
+            hit = ar_memo.get(brand)
+            if hit and time.monotonic() - hit[0] < 30:
+                return hit[1]
+        out = ecall(u, brand, "apiAutoReplyList", {})
+        if out.get("ok"):
+            with ar_lock:
+                ar_memo[brand] = (time.monotonic(), out)
+        return out
+
+    @app.post("/api/<brand>/translate-autoreply")
+    def translate_autoreply(brand):
+        """English mode auto-reply card: question, summary, reply and recommendation, sourced from the engine."""
+        brand = str(brand).lower()
+        u, err = gate(brand)
+        if err:
+            return err
+        lang = u.get("lang", "he")
+        iid = (request.get_json(silent=True) or {}).get("id")
+        if not isinstance(iid, str) or not ID_RE.match(iid):
+            return fail("bad_request", 400, lang)
+        wait = tr_limit.hit(u["username"])
+        if wait:
+            return fail("rate_limited", 429, lang, wait=max(1, (wait + 59) // 60))
+        lst = ar_list(u, brand)
+        item = next((x for x in (lst.get("items") or []) if isinstance(x, dict) and x.get("id") == iid), None)
+        if not item:
+            return fail("not_found", 404, lang)
+        t, x = ticket_bundle(u, brand, item.get("ticketId") or iid)
+        question = item.get("question") or item.get("lastMessage")
+        if not question and x:
+            last = [m for m in (x.get("conversation") or []) if m.get("who") == "customer"]
+            question = last[-1].get("text") if last else None
+        try:
+            got = en_fields({"question": question, "summary": item.get("summary"), "reply": item.get("replyText"),
+                             "recommendation": (t or {}).get("recommendation")})
+        except llm.LLMError as ex:
+            return fail(ex.code, ex.http, lang)
+        return jsonify(dict(got, ok=True, id=iid))
 
     @app.post("/api/<brand>/translate-out")
     def translate_out(brand):

@@ -27,7 +27,7 @@ Render disk and in each engine's `audit` sheet.
 | `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
-| `tests/` | pytest (151 tests) |
+| `tests/` | pytest (190 tests) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
 
 ## Environment (Render)
@@ -176,3 +176,24 @@ Measured live before it: Render answered in 0.2-0.8 s, apiBoot took 2-3 s, and o
   the same brand/role gate as the proxy, and per-user fields (user, role, lang) are stripped before a list is cached.
 - `Server-Timing` on every `/api/` response: `cache;desc=hit|miss`, `engine;dur` per engine fn, `gas;dur` (the
   engine's `serverMs`), and `app;dur`. Durations and hit/miss only, never data.
+
+## Auto-reply review (Owner, 2026-10-05)
+
+The engine answers easy emails by itself (`AUTO_REPLY`) and marks them handled. A human then checks each one.
+
+- Tab **"נענה אוטומטית — לבדיקה"** (`apiAutoReplyList`). The badge counts `review: pending`. Each card shows the
+  customer's question, our reply, and when it was sent, with "🤖 נענה אוטומטית". "✓ נבדק — תקין" takes one click.
+  "⚠ בעיה" needs a note of 2-300 chars, checked in Flask before the engine; it reopens the ticket, and the cache
+  patches the ticket to `action` at once. Shadow items show "🤖 היה נשלח אוטומטית" with the text and a link to the
+  ticket. Items that cannot be sent or reviewed show their error and no buttons. If the engine lacks
+  `apiAutoReplyList`, the tab is hidden.
+- The 🤖 label appears on list rows and on the ticket header. Matching is tolerant: `handled_by` = auto / auto-reply /
+  engine / bot, an `auto_reply` flag, or a sent item in the review list.
+- `recommendation` appears as a green "מה לעשות" box at the top of every ticket, as a chip above the draft, and as
+  one muted line in list rows.
+- System Mode has an **AUTO_REPLY** switch (off / shadow / on, admin only in Flask too), with the note that "on"
+  needs test mode off. The top banner shows an auto-reply chip.
+- English mode: `/translate` now includes the recommendation. `/translate-rows {ids}` translates the summary and
+  recommendation of rows the **server** holds in the brand's cached list. `/translate-autoreply {id}` translates the
+  card from the engine's own item (list memoised 30 s). The browser never supplies text to translate; ids are
+  deduped, with a 30k-character budget. Both endpoints use the disk cache.

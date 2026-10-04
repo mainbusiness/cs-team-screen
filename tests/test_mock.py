@@ -36,7 +36,7 @@ def test_mock_auto_cancel_and_settings_shapes(make_app, pw_hash):
     r = call(c, tok, "rozela", "apiAutoCancelApprove", {"id": "t18f2a03", "replyText": "היי, ביטלתי."}).get_json()
     assert r["ok"] and r["state"] == "queued" and r["approvedBy"] == "manager"
     s = call(c, tok, "rozela", "apiSettings", {"action": "get"}).get_json()
-    assert set(s["settings"]) == {"DRY_RUN", "KACHING_WRITES", "AUTO_CANCEL"}
+    assert set(s["settings"]) == {"DRY_RUN", "KACHING_WRITES", "AUTO_CANCEL", "AUTO_REPLY"}
     call(c, tok, "rozela", "apiSettings", {"action": "set", "key": "DRY_RUN", "value": "on"})
     refused = call(c, tok, "rozela", "apiSettings", {"action": "set", "key": "AUTO_CANCEL", "value": "on"}).get_json()
     assert refused["error"] == "needs_live_switches" and "AUTO_CANCEL=on needs" in refused["reason"] and "מתגים" in refused["msg"]

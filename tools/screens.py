@@ -193,13 +193,22 @@ def main():
                 page.goto(base + "/cs#/b/rozela/ready")
                 page.wait_for_selector("a.row")
                 page.wait_for_timeout(int(os.environ.get("MOCK_LATENCY_MS", "120")) * 3 + 1500)   # prefetch (cap 3) finishes
-                t0 = time.perf_counter()
-                page.click("a.row >> nth=0")
-                page.wait_for_selector(".tk-head h2")
-                ms_open = (time.perf_counter() - t0) * 1000
-                syncing = page.locator("[data-test=tk-sync]:not([hidden])").count() > 0
-                print("open of a prefetched ticket at %dpx: %.0f ms (engine latency %s ms), revalidating=%s"
-                      % (width, ms_open, os.environ.get("MOCK_LATENCY_MS", "120"), syncing))
+                samples = []
+                syncing = False
+                for n in range(3):                                   # median of 3: one sample on a loaded box is noise
+                    if n:
+                        page.goto(base + "/cs#/b/rozela/ready")
+                        page.wait_for_selector("a.row")
+                    name_before = page.locator(".tk-head h2").inner_text() if page.locator(".tk-head h2").count() else None
+                    t0 = time.perf_counter()
+                    page.click("a.row >> nth=%d" % n)
+                    page.wait_for_selector("a.row.selected >> nth=0", state="attached")   # mobile hides the list pane
+                    page.wait_for_selector(".tk-head h2")
+                    samples.append((time.perf_counter() - t0) * 1000)
+                    syncing = syncing or page.locator("[data-test=tk-sync]:not([hidden])").count() > 0
+                ms_open = sorted(samples)[1]
+                print("open of a prefetched ticket at %dpx: median %.0f ms of %s (engine latency %s ms), revalidating=%s"
+                      % (width, ms_open, [int(x) for x in samples], os.environ.get("MOCK_LATENCY_MS", "120"), syncing))
                 if ms_open > 300:
                     problems.append("prefetched ticket took %.0f ms to open (budget 300)" % ms_open)
                 if not syncing:
@@ -231,6 +240,55 @@ def main():
                 problems.append("optimistic save indicator took %.0f ms" % opt_ms)
             page.locator(".draft").scroll_into_view_if_needed()
             shot(page, errs, "17_draft_save_refused_rollback", 390, full=False)
+            ctx.close()
+
+            # ---------- auto-reply review + recommendation (Owner, 2026-10-05) ----------
+            for width, height in ((390, 844), (1280, 860)):
+                ctx, page, errs = session("agent-one", width, height)
+                page.goto(base + "/cs#/b/rozela/autoreply")
+                page.wait_for_selector("[data-test=ar-item] .ar-q .txt")
+                badge = page.locator(".tab.autoreply .n").inner_text()
+                if width == 390 and badge != "2":                       # the 390 pass flags one below, so 1280 sees 1
+                    problems.append("auto-reply badge shows %r, want 2 (review: pending)" % badge)
+                if page.locator("text=🤖 נענה אוטומטית").count() < 1 or page.locator("text=🤖 היה נשלח אוטומטית").count() < 1:
+                    problems.append("auto-reply labels missing")
+                shot(page, errs, "18_autoreply_review", width, full=False)
+                if width == 390:
+                    page.locator("[data-test=ar-item] [data-test=ar-problem]").first.click()
+                    page.fill("[data-test=ar-item] .note-add input", "הקישור למעקב שגוי")
+                    page.locator("[data-test=ar-item] .note-add .btn").first.click()
+                    page.wait_for_selector("text=⚠ סומן כבעיה")
+                    shot(page, errs, "19_autoreply_flagged", width, full=False)
+                    page.goto(base + "/cs#/b/rozela/sent")
+                    page.wait_for_selector("[data-test=bot-chip]")
+                    if page.locator("a.row [data-test=row-rec]").count() < 1:
+                        problems.append("list rows have no recommendation line")
+                    shot(page, errs, "20_list_bot_label_and_recommendation", width, full=False)
+                page.goto(base + "/cs#/b/rozela/t/t18f2a01")
+                page.wait_for_selector("[data-test=what-to-do]")
+                if page.locator("[data-test=what-to-do-chip]").count() != 1:
+                    problems.append("no 'what to do' chip above the draft")
+                shot(page, errs, "21_ticket_what_to_do", width, full=False)
+                ctx.close()
+            ctx, page, errs = session("manager", 390, 844)
+            page.goto(base + "/cs#/settings/rozela")
+            page.wait_for_selector(".set-row[data-key=AUTO_REPLY]")
+            page.locator(".set-row[data-key=AUTO_REPLY]").scroll_into_view_if_needed()
+            shot(page, errs, "22_settings_auto_reply", 390, full=False)
+            ctx.close()
+            ctx, page, errs = session("eve", 390, 844)
+            page.goto(base + "/cs/en#/b/rozela/autoreply")
+            page.wait_for_selector("[data-test=ar-item] [data-test=show-original]")
+            page.wait_for_timeout(1500)
+            if "Hi, when is my order supposed to arrive?" not in page.inner_text("#list-pane"):
+                problems.append("English auto-reply card not translated")
+            shot(page, errs, "23_english_autoreply", 390, full=False)
+            page.goto(base + "/cs/en#/b/rozela/ready")
+            page.wait_for_selector("a.row [data-test=row-rec]")
+            page.wait_for_timeout(1200)
+            if "What to do: Send the draft" not in page.inner_text("#list-pane"):
+                problems.append("English list recommendation not translated")
+            shot(page, errs, "24_english_list_recommendation", 390, full=False)
             ctx.close()
 
             # ---------- phase 5 ----------

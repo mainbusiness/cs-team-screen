@@ -99,6 +99,15 @@
       as_ctx: 'כולל את הפנייה הפתוחה', as_thinking: 'חושב…', as_hello: 'אפשר לשאול כאן על המדיניות והמוצרים של {b}, או "מה לענות כאן?" כשפנייה פתוחה. העוזר רק קורא — הוא לא שולח ולא משנה כלום.',
       as_me: 'אני', as_bot: 'עוזר', tool_search_customer: 'חיפש לקוח', tool_get_ticket: 'קרא פנייה', as_close: 'סגירה', as_na: 'העוזר לא זמין בשרת הזה.',
       not_connected_hint: 'כשהמנוע של המותג יחובר, הפניות יופיעו כאן אוטומטית.',
+      tab_autoreply: 'נענה אוטומטית — לבדיקה', empty_autoreply: 'אין תשובות אוטומטיות שממתינות לבדיקה',
+      ar_label: '🤖 נענה אוטומטית', ar_label_shadow: '🤖 היה נשלח אוטומטית', ar_label_queued: '🤖 יישלח אוטומטית {when}', ar_failed: 'השליחה האוטומטית נכשלה',
+      ar_sent_at: 'נשלח {when}', ar_question: 'שאלת הלקוח', ar_reply: 'התשובה שנשלחה', ar_reply_shadow: 'התשובה שהייתה נשלחת',
+      ar_ok: '✓ נבדק — תקין', ar_problem: '⚠ בעיה', ar_note_ph: 'מה לא תקין? (חובה — הפנייה תיפתח מחדש)', ar_problem_go: 'סמן בעיה ופתח מחדש',
+      ar_reviewed_ok: '✓ נבדק ע״י {u}', ar_reviewed_problem: '⚠ סומן כבעיה ע״י {u}', ar_pending: 'ממתין לבדיקה', ar_open: 'פתיחת הפנייה',
+      ar_done_ok: 'סומן כתקין', ar_done_problem: 'סומן כבעיה — הפנייה נפתחה מחדש', ar_na: 'התשובות האוטומטיות עוד לא זמינות במנוע של המותג הזה.',
+      ar_mode: 'מענה אוטומטי: {m}', mode_auto_reply: 'מענה אוטומטי: {v}', what_to_do: 'מה לעשות',
+      set_AUTO_REPLY: 'מענה אוטומטי', set_AUTO_REPLY_help: 'כבוי / צל: מסמן מה היה נשלח / פעיל: עונה לבד על מיילים פשוטים ומסמן לבדיקה',
+      set_AUTO_REPLY_note: 'מצב "פעיל" דורש שמצב ניסיון יהיה כבוי.',
       syncing: 'מתעדכן…', sync_failed: 'לא עודכן ({m}) — מוצג עותק מ{when}', tk_updated: 'יש גרסה חדשה של הפנייה', apply_update: 'הצג',
       orders_err: 'בדיקת ההזמנות נכשלה: {m}', subs_err: 'בדיקת המנויים נכשלה: {m}',
       // users
@@ -186,6 +195,15 @@
       as_ctx: 'Include the open ticket', as_thinking: 'Thinking…', as_hello: 'Ask about {b} policy and products here, or "what should I answer?" while a ticket is open. The assistant only reads — it never sends or changes anything.',
       as_me: 'Me', as_bot: 'Assistant', tool_search_customer: 'searched customer', tool_get_ticket: 'read ticket', as_close: 'Close', as_na: 'The assistant is not available on this server.',
       not_connected_hint: 'Tickets will appear here once the brand engine is connected.',
+      tab_autoreply: 'Auto-answered — to review', empty_autoreply: 'No automatic replies waiting for review',
+      ar_label: '🤖 Answered automatically', ar_label_shadow: '🤖 Would have been sent automatically', ar_label_queued: '🤖 Will be sent automatically {when}', ar_failed: 'The automatic send failed',
+      ar_sent_at: 'sent {when}', ar_question: "Customer's question", ar_reply: 'The reply that was sent', ar_reply_shadow: 'The reply that would have been sent',
+      ar_ok: '✓ Reviewed — OK', ar_problem: '⚠ Problem', ar_note_ph: 'What is wrong? (required — the ticket reopens)', ar_problem_go: 'Flag and reopen',
+      ar_reviewed_ok: '✓ Reviewed by {u}', ar_reviewed_problem: '⚠ Flagged by {u}', ar_pending: 'Waiting for review', ar_open: 'Open the ticket',
+      ar_done_ok: 'Marked OK', ar_done_problem: 'Flagged — the ticket was reopened', ar_na: 'Automatic replies are not available in this brand engine yet.',
+      ar_mode: 'Auto-reply: {m}', mode_auto_reply: 'Auto-reply: {v}', what_to_do: 'What to do',
+      set_AUTO_REPLY: 'Auto-reply', set_AUTO_REPLY_help: 'Off / shadow: marks what would be sent / on: answers simple emails by itself and flags them for review',
+      set_AUTO_REPLY_note: '"On" requires test mode to be off.',
       syncing: 'Updating…', sync_failed: 'Not updated ({m}) — showing a copy from {when}', tk_updated: 'A newer version of this ticket is ready', apply_update: 'Show',
       orders_err: 'Order lookup failed: {m}', subs_err: 'Subscription lookup failed: {m}',
       tr_loading: 'Translating…', tr_failed: 'Translation failed: {m}', show_orig: 'Show original', show_en: 'Show English', tr_from: 'translated from {l}',
@@ -367,10 +385,10 @@
   // ---------------------------------------------------------------- state
   const S = {
     me: null, brand: null, view: 'list', tab: 'ready', ticketId: null,
-    boots: {}, bootErr: {}, tkMemo: {}, prefetchedAt: {}, assist: {}, auto: {}, autoEdits: {}, autoMsg: {}, settings: {}, listSig: '', tk: null, search: { q: '', res: null, err: null, seq: 0 }, menuOpen: false
+    boots: {}, bootErr: {}, ar: {}, rowTr: {}, tkMemo: {}, prefetchedAt: {}, assist: {}, auto: {}, autoEdits: {}, autoMsg: {}, settings: {}, listSig: '', tk: null, search: { q: '', res: null, err: null, seq: 0 }, menuOpen: false
   };
   const OPEN = ['ready', 'action', 'health', 'delay'];
-  const TABS = ['ready', 'action', 'auto', 'health', 'delay', 'sent', 'today', 'search'];
+  const TABS = ['ready', 'action', 'autoreply', 'auto', 'health', 'delay', 'sent', 'today', 'search'];
   const brandName = function (b) { const bt = S.boots[b]; return (bt && bt.brandName) || (b.charAt(0).toUpperCase() + b.slice(1)); };
   const boot = function () { return S.boots[S.brand] || null; };
   /** apiBoot.subscriptions === 'none' (e.g. selera): no subscriptions panel, no auto-cancel queue. */
@@ -516,6 +534,9 @@
       h('span', { class: 'mode-main', text: live ? t('mode_is_live') : t('dry_run') }));
     if (!noSubs()) p.append(h('span', { class: 'chip ' + (b.cancelEnabled ? 'bad' : ''), text: t('mode_kaching', { v: b.cancelEnabled ? t('val_on') : t('val_off') }) }));
     if (auto) p.append(h('span', { class: 'chip ' + (auto === 'on' ? 'bad' : auto === 'shadow' ? 'st-sent' : ''), text: t('mode_auto', { v: t('val_' + auto) }) }));
+    const ar = S.ar[S.brand];
+    const arv = ar && ar.switch ? String(ar.switch).toLowerCase() : (S.settings[S.brand] && S.settings[S.brand].values ? S.settings[S.brand].values.AUTO_REPLY : null);
+    if (arv && ['on', 'off', 'shadow'].indexOf(arv) >= 0) p.append(h('span', { class: 'chip ' + (arv === 'on' ? 'bad' : arv === 'shadow' ? 'st-sent' : ''), text: t('mode_auto_reply', { v: t('val_' + arv) }) }));
     return p;
   }
 
@@ -528,6 +549,7 @@
   function tabCount(id, b) {
     if (!b) return '';
     if (id === 'today') return todayList(b).length;
+    if (id === 'autoreply') { const a = S.ar[S.brand]; return a && a.items ? a.items.filter(function (x) { return x.review === 'pending'; }).length : ''; }
     if (id === 'auto') { const a = S.auto[S.brand]; return a && a.items ? a.items.filter(function (x) { return !AutoCancel.inFlight(x.state); }).length : ''; }
     if (id === 'search') return '';
     return (b.counts && b.counts[id]) || 0;
@@ -539,6 +561,7 @@
     if (!connected()) return;                       // nothing to list yet: no tabs, no counts
     TABS.forEach(function (id) {
       if (id === 'auto' && (!b || noSubs())) return;     // unknown until apiBoot answers: hidden, not guessed
+      if (id === 'autoreply' && (!S.ar[S.brand] || S.ar[S.brand].unavailable)) return;
       const n = tabCount(id, b);
       const a = h('a', { class: 'tab ' + id, href: listHash(id), role: 'tab', 'aria-selected': (S.view !== 'ticket' || window.innerWidth >= 1000) && S.tab === id ? 'true' : 'false' },
         t('tab_' + id), n !== '' ? h('span', { class: 'n', text: String(n) }) : null);
@@ -560,6 +583,7 @@
     if (conn && !conn.connected) { renderTabs(); renderList(true); return; }
     const r = await api('/api/' + encodeURIComponent(brand) + '/list', {});     // Render cache: instant when warm
     if (r.ok && canWork() && String(r.subscriptions || '').toLowerCase() !== 'none') loadAuto(brand);
+    if (r.ok && canWork()) AutoReply.load(brand);
     if (r.ok) { S.boots[brand] = r; delete S.bootErr[brand]; } else { S.bootErr[brand] = r.msg || r.error; }
     if (brand !== S.brand) return;
     renderTop(); renderBanners(); renderTabs(); renderList(false); checkStale(); Draft.refreshSend(); EnDraft.refresh(); Assist.sync(); paintSubs(brand);
@@ -568,7 +592,7 @@
 
   /** Warm the first 15 tickets of the visible tab on the server (it caps engine concurrency at 3). */
   function prefetchTab(brand) {
-    if (!canWork() || brand !== S.brand || S.tab === 'search' || S.tab === 'auto') return;
+    if (!canWork() || brand !== S.brand || S.tab === 'search' || S.tab === 'auto' || S.tab === 'autoreply') return;
     const rows = rowsFor(S.tab) || [];
     const key = brand + '|' + S.tab;
     if (!rows.length || Date.now() - (S.prefetchedAt[key] || 0) < 60000) return;
@@ -630,6 +654,7 @@
     if (!b) return null;
     if (tab === 'today') return sortRows(todayList(b), 'today');
     if (tab === 'search') return S.search.res;
+    if (tab === 'autoreply') { const a = S.ar[S.brand]; return a ? (a.items || []) : null; }
     if (tab === 'auto') { const a = S.auto[S.brand]; return a ? (a.items || []) : null; }
     return sortRows((b.tickets || []).filter(function (x) { return x.status === tab; }), tab);
   }
@@ -653,15 +678,44 @@
     if (x.language && x.language !== 'he' && x.language !== 'iw') chips.push(h('span', { class: 'chip outline', text: String(x.language).toUpperCase() }));
     if (x.order_no) chips.push(h('span', { class: 'chip outline ltr', text: x.order_no }));
     if (x.cancelled) chips.push(h('span', { class: 'chip ok', text: t('cancelled_here') }));
+    if (isAutoReplied(x)) chips.unshift(h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }));
     if (x.archived) chips.push(h('span', { class: 'chip', text: t('archived') }));
     const inner = [
       h('div', { class: 'l1' }, h('span', { class: 'name', dir: 'auto', text: x.name || x.email || x.phone || t('no_name') }),
         h('span', { class: 'age' + (old ? ' old' : '') }, age)),
-      h('div', { class: 'sum', dir: 'auto', text: x.summary || x.subject || '' }),
+      h('div', { class: 'sum', dir: 'auto', text: rowText(x, 'summary') || x.subject || '' }),
+      x.recommendation ? h('div', { class: 'rec', dir: 'auto', 'data-test': 'row-rec' }, h('span', { class: 'rec-k', text: t('what_to_do') + ': ' }), rowText(x, 'recommendation')) : null,
       h('div', { class: 'chips' }, chips)
     ];
     if (x.archived || opts.static) return h('div', { class: 'row', 'data-id': x.id }, inner);
     return h('a', { class: 'row' + (x.id === S.ticketId ? ' selected' : ''), href: ticketHash(x.id), 'data-id': x.id }, inner);
+  }
+
+  /** Handled by the engine's auto-reply. Tolerant: the engine's exact marker is not final (handled_by / a flag). */
+  function isAutoReplied(x) {
+    if (!x) return false;
+    if (x.auto_reply === true || x.autoReplied === true || x.auto_replied === true) return true;
+    if (/^(auto|auto[-_ ]?reply|autoreply|engine|bot)$/i.test(String(x.handled_by || ''))) return true;
+    const a = S.ar[S.brand];
+    return !!(a && a.items && a.items.some(function (it) { return it.id === x.id && it.state === 'sent'; }));
+  }
+  function rowText(x, f) {
+    const tr = LANG === 'en' ? S.rowTr[S.brand + '|' + x.id] : null;
+    return (tr && tr[f]) || x[f] || '';
+  }
+  /** English mode: summary + recommendation of the visible rows, translated server-side from the cached list. */
+  let rowTrBusy = false;
+  async function translateRows(rows) {
+    if (LANG !== 'en' || rowTrBusy || !rows || !rows.length) return;
+    const brand = S.brand;
+    const ids = rows.filter(function (x) { return !S.rowTr[brand + '|' + x.id] && (x.summary || x.recommendation); }).slice(0, 40).map(function (x) { return x.id; });
+    if (!ids.length) return;
+    rowTrBusy = true;
+    const r = await api('/api/' + encodeURIComponent(brand) + '/translate-rows', { ids: ids });
+    rowTrBusy = false;
+    if (!r.ok) return;
+    ids.forEach(function (i) { S.rowTr[brand + '|' + i] = (r.rows || {})[i] || { none: true }; });
+    if (brand === S.brand) renderList(false);
   }
 
   function renderList(force) {
@@ -677,10 +731,11 @@
     const err = S.bootErr[S.brand];
     const rows = rowsFor(S.tab);
     const sig = JSON.stringify([S.brand, S.tab, S.ticketId, err || '', S.tab === 'search' ? [S.search.q, S.search.err, S.search.res] : rows,
-      S.tab === 'auto' ? [S.auto[S.brand], S.autoMsg] : null]);
+      S.tab === 'auto' ? [S.auto[S.brand], S.autoMsg] : null, S.tab === 'autoreply' ? [S.ar[S.brand], S.autoMsg] : null, LANG === 'en' ? S.rowTr : null]);
     if (!force && sig === S.listSig) return;           // nothing changed: zero DOM work
     if (lp.contains(document.activeElement) && S.tab !== 'search' && !force) return;
     if (S.tab === 'auto' && !force && AutoCancel.busy()) return;     // never rebuild under an edited reply
+    if (S.tab === 'autoreply' && !force && AutoReply.busy()) return;
     S.listSig = sig;
 
     let searchBox = lp.querySelector('.search-box');
@@ -705,6 +760,7 @@
       return;
     }
     if (S.tab === 'auto') { AutoCancel.render(lp, force); return; }
+    if (S.tab === 'autoreply') { AutoReply.render(lp); return; }
     clear(lp);
     if (err) { lp.append(h('div', { class: 'err-box', text: err })); return; }
     if (rows === null) { for (let i = 0; i < 5; i++) lp.append(h('div', { class: 'skeleton' })); return; }
@@ -716,6 +772,7 @@
       return;
     }
     rows.forEach(function (x) { lp.append(rowEl(x)); });
+    translateRows(rows);
   }
 
   async function runSearch(q) {
@@ -737,6 +794,12 @@
     tp.append(h('div', { class: 'placeholder', text: t('pick_ticket') }));
   }
 
+  function markSelected(id) {
+    const lp = $('list-pane');
+    lp.querySelectorAll('a.row.selected').forEach(function (a) { a.classList.remove('selected'); });
+    const el = lp.querySelector('a.row[data-id="' + CSS.escape(String(id)) + '"]');
+    if (el) el.classList.add('selected');
+  }
   function tkSig(tk, ex) { return JSON.stringify([tk || null, ex || null]); }
   function userBusyInTicket() {
     const a = document.activeElement;
@@ -786,7 +849,7 @@
     const memo = S.tkMemo[brand + '|' + id];
     if (memo && !opts.fresh) applyTicket(k, { ticket: memo.ticket, extras: memo.extras, extrasErr: memo.extrasErr, cache: { hit: true, age_s: (Date.now() - ms(memo.cachedAt)) / 1000 } });
     else { clear(tp); tp.append(h('div', { class: 'tk-body' }, h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' }))); }
-    renderList(true);
+    markSelected(id);                                    // move the highlight only — no list rebuild on every open
     const t0 = performance.now();
     const r = await api('/api/' + encodeURIComponent(brand) + '/ticket', opts.fresh ? { id: id, fresh: true } : { id: id });
     if (S.tk !== k) return;
@@ -854,7 +917,8 @@
     if (x.phone) contact.append(h('span', { class: 'item' }, h('a', { class: 'val', href: 'tel:' + String(x.phone).replace(/[^\d+]/g, ''), text: x.phone }), copyBtn(x.phone)));
     contact.append(h('span', { class: 'item' }, h('span', { class: 'chip outline', text: t('ch_' + (x.channel || 'email')) })));
     const head = h('div', { class: 'tk-head' },
-      h('div', { class: 'l1' }, backBtn(), h('h2', { dir: 'auto', text: x.name || x.email || x.phone || t('no_name') }), statusChip(x.status)),
+      h('div', { class: 'l1' }, backBtn(), h('h2', { dir: 'auto', text: x.name || x.email || x.phone || t('no_name') }),
+        isAutoReplied(x) ? h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }) : null, statusChip(x.status)),
       h('div', { class: 'sync-row' }, h('span', { id: 'tk-sync', class: 'chip sync outline', hidden: true, 'aria-live': 'polite', 'data-test': 'tk-sync' })),
       contact,
       x.summary ? h('p', { class: 'summary-line', id: 'tk-summary', dir: 'auto', text: x.summary }) : null);
@@ -863,13 +927,20 @@
     const body = h('div', { class: 'tk-body' });
     tp.append(body);
     body.append(h('div', { id: 'tk-stale' }));
+    if (x.recommendation) body.append(h('div', { class: 'todo', role: 'note', 'data-test': 'what-to-do' },
+      h('b', { text: t('what_to_do') }), h('div', { id: 'tk-reco', dir: 'auto', text: x.recommendation })));
     if (isOpen && x.action) {
       const lines = actionLines(x.action);
       body.append(h('div', { class: 'why' + (x.status === 'health' ? ' health' : ''), role: 'note' }, h('b', { text: t('why_human') }),
         lines.map(function (l) { return h('div', null, h('span', { text: l.text }), l.text !== l.raw ? h('div', null, h('bdi', { class: 'raw', text: l.raw })) : null); })));
     }
     body.append(convCard(ex.conversation || []));
-    body.append(enMode(x) && isOpen ? EnDraft.card(x) : Draft.card(x));
+    const dcard = enMode(x) && isOpen ? EnDraft.card(x) : Draft.card(x);
+    if (x.recommendation && isOpen) {
+      const h3 = dcard.querySelector('h3');
+      h3.after(h('div', { class: 'todo-chip', 'data-test': 'what-to-do-chip' }, h('b', { text: t('what_to_do') + ': ' }), h('span', { class: 'tk-reco2', dir: 'auto', text: x.recommendation })));
+    }
+    body.append(dcard);
     body.append(ordersCard(ex));
     // Rendered only once apiBoot says the brand HAS subscriptions; a deep link can arrive first (paintSubs fills it later).
     body.append(h('div', { id: 'subs-card' }, S.boots[k.brand] && !noSubs(k.brand) ? subsCard(ex, x) : null));
@@ -1138,7 +1209,8 @@
     const btn = h('button', { class: 'more-btn tr-toggle', type: 'button', 'data-test': 'show-original' });
     function paint() {
       clear(container);
-      add(container, container.classList.contains('summary-line') ? (showing === 'en' ? english : original) : messageBody(showing === 'en' ? english : original));
+      const plain = container.classList.contains('summary-line') || container.id === 'tk-reco';
+      add(container, plain ? (showing === 'en' ? english : original) : messageBody(showing === 'en' ? english : original));
       btn.textContent = showing === 'en' ? t('show_orig') : t('show_en');
     }
     btn.addEventListener('click', function () { showing = showing === 'en' ? 'orig' : 'en'; paint(); });
@@ -1181,6 +1253,11 @@
         el.querySelector('.mbody').setAttribute('lang', 'en');
         bilingual(el.querySelector('.mbody'), ORIG.get(el) || '', c.text, el.querySelector('.meta'));
       });
+      if (tr.recommendation) {
+        const r1 = document.getElementById('tk-reco');
+        if (r1 && !r1.dataset.tr) { r1.dataset.tr = '1'; const host = h('span', { class: 'sum-toggle' }); r1.after(host); bilingual(r1, k.ticket.recommendation || '', tr.recommendation, host); }
+        document.querySelectorAll('.tk-reco2').forEach(function (el) { el.textContent = tr.recommendation; });
+      }
       const sum = document.getElementById('tk-summary');
       if (sum && tr.summary && !sum.dataset.tr) {
         sum.dataset.tr = '1';
@@ -1762,12 +1839,149 @@
     return { render: render, busy: busy, inFlight: inFlight };
   })();
 
+  // ---------------------------------------------------------------- automatic replies — human review (Owner, 2026-10-05)
+  const AutoReply = (function () {
+    const editing = {};
+    const trCache = {};
+    function busy() { return Object.keys(editing).some(function (k) { return editing[k] && k.indexOf(S.brand + '|') === 0; }); }
+    async function load(brand) {
+      const r = await engine('apiAutoReplyList', {}, brand);
+      if (r.ok) {
+        S.ar[brand] = { items: Array.isArray(r.items) ? r.items : [], switch: r.switch || null, mode: r.mode || null };
+        const ids = S.ar[brand].items.filter(function (x) { return x.review === 'pending'; }).map(function (x) { return x.ticketId || x.id; });
+        if (ids.length) api('/api/' + encodeURIComponent(brand) + '/prefetch', { ids: ids.slice(0, 15) });   // questions load warm
+      }
+      else if (r.error === 'unauthorized' || r.error === 'forbidden_fn') S.ar[brand] = { items: null, unavailable: true };
+      else S.ar[brand] = { items: (S.ar[brand] && S.ar[brand].items) || null, err: r.msg || r.error };
+      if (brand === S.brand) { renderBanners(); renderTabs(); renderList(false); }
+    }
+    function stateChip(it) {
+      const st = String(it.state || '');
+      if (st === 'sent') return h('span', { class: 'chip bot', text: t('ar_label') });
+      if (/^shadow/.test(st)) return h('span', { class: 'chip st-sent', text: t('ar_label_shadow') });
+      if (st === 'queued') return h('span', { class: 'chip st-action' }, tx('ar_label_queued', { when: it.dueAt ? ago(it.dueAt) : '' }));
+      if (/fail/.test(st)) return h('span', { class: 'chip bad', text: t('ar_failed') });
+      return h('bdi', { class: 'chip outline', text: st || '—' });
+    }
+    function reviewChip(it) {
+      if (it.review === 'ok') return h('span', { class: 'chip ok' }, tx('ar_reviewed_ok', { u: it.reviewedBy || '—' }));
+      if (it.review === 'problem') return h('span', { class: 'chip bad' }, tx('ar_reviewed_problem', { u: it.reviewedBy || '—' }));
+      return h('span', { class: 'chip st-action', text: t('ar_pending') });
+    }
+    async function question(it, slot) {
+      if (it.question || it.lastMessage) { clear(slot); add(slot, messageBody(it.question || it.lastMessage)); return; }
+      const mk = S.brand + '|' + (it.ticketId || it.id);
+      if (typeof S.autoMsg[mk] === 'string') { clear(slot); add(slot, S.autoMsg[mk] ? messageBody(S.autoMsg[mk]) : '—'); return; }
+      const r = await fetchTicket(S.brand, it.ticketId || it.id, false);
+      const conv = (r.ok && r.extras && r.extras.conversation) || [];
+      const last = conv.filter(function (m) { return m.who === 'customer'; }).pop();
+      S.autoMsg[mk] = last ? String(last.text || '') : '';
+      const live = document.querySelector('.ar-item[data-id="' + CSS.escape(String(it.id)) + '"] .ar-q');
+      const el = live || slot;
+      if (el && el.isConnected) { clear(el); add(el, S.autoMsg[mk] ? messageBody(S.autoMsg[mk]) : '—'); }
+    }
+    async function translate(it, card) {
+      if (LANG !== 'en') return;
+      const key = S.brand + '|' + it.id;
+      let tr = trCache[key];
+      if (!tr) {
+        const r = await api('/api/' + encodeURIComponent(S.brand) + '/translate-autoreply', { id: it.id });
+        if (!r.ok) return;
+        tr = trCache[key] = r;
+      }
+      if (!card.isConnected) return;
+      [['.ar-q', 'question'], ['.ar-reply', 'reply'], ['.ar-sum', 'summary']].forEach(function (p) {
+        const el = card.querySelector(p[0]);
+        if (!el || !tr[p[1]] || el.dataset.tr) return;
+        el.dataset.tr = '1';
+        const host = card.querySelector(p[0] + '-tg');
+        if (p[0] === '.ar-sum') { const orig = el.textContent; clear(el); el.classList.add('summary-line'); bilingual(el, orig, tr[p[1]], host); }
+        else bilingual(el, el.dataset.orig || el.textContent, tr[p[1]], host);
+      });
+    }
+    function itemEl(it) {
+      const k = S.brand + '|' + it.id;
+      const tid = it.ticketId || it.id;
+      const shadow = /^shadow/.test(String(it.state || ''));
+      const card = h('div', { class: 'card ar-item', 'data-id': it.id, 'data-test': 'ar-item' });
+      const when = it.sentAt || it.dueAt;
+      card.append(h('div', { class: 'hd' }, stateChip(it), reviewChip(it),
+        when && it.sentAt ? h('span', { class: 'muted small' }, tx('ar_sent_at', { when: fmtDate(when, true) })) : null,
+        it.email ? h('bdi', { class: 'ltr muted small', text: it.email }) : null));
+      card.append(h('div', null, it.subject ? h('b', { dir: 'auto', text: it.subject }) : null,
+        it.summary ? h('div', { class: 'small ar-sum', dir: 'auto', text: it.summary }) : null, h('span', { class: 'ar-sum-tg' })));
+      const q = h('div', { class: 'msg customer ar-q' }, h('span', { class: 'muted small', text: t('loading') }));
+      card.append(h('div', { class: 'small muted ar-lbl' }, t('ar_question'), h('span', { class: 'ar-q-tg' })), q);
+      question(it, q);
+      const reply = h('div', { class: 'msg us ar-reply', 'data-orig': String(it.replyText || '') });
+      add(reply, messageBody(String(it.replyText || '—')));
+      card.append(h('div', { class: 'small muted ar-lbl' }, shadow ? t('ar_reply_shadow') : t('ar_reply'), h('span', { class: 'ar-reply-tg' })), reply);
+      if (it.error) card.append(h('div', { class: 'err-box' }, h('bdi', { class: 'raw', text: String(it.error) })));
+      const res = h('div');
+      const actions = h('div', { class: 'actions' });
+      const open = h('a', { class: 'btn ghost small', href: ticketHash(tid), text: t('ar_open'), 'data-test': 'ar-open' });
+      if (it.review === 'pending' && !/fail/.test(String(it.state || ''))) {
+        const okBtn = h('button', { class: 'btn primary', type: 'button', text: t('ar_ok'), 'data-test': 'ar-ok' });
+        const probBtn = h('button', { class: 'btn danger-outline', type: 'button', text: t('ar_problem'), 'data-test': 'ar-problem' });
+        const noteRow = h('div', { class: 'note-add', hidden: true });
+        const note = h('input', { type: 'text', placeholder: t('ar_note_ph'), maxlength: '300', dir: 'auto' });
+        const go = h('button', { class: 'btn small danger', type: 'button', text: t('ar_problem_go') });
+        noteRow.append(note, go);
+        function lockAll(on) { [okBtn, probBtn, go, note].forEach(function (b) { b.disabled = on; }); }
+        async function review(verdict, n) {
+          lockAll(true);
+          clear(res);
+          const args = { id: it.id, verdict: verdict };
+          if (n) args.note = n;
+          const r = await engine('apiAutoReplyReview', args);
+          lockAll(false);
+          if (!r.ok) { res.append(h('div', { class: 'err-box', role: 'alert' }, h('div', { text: r.msg || r.error }), h('bdi', { class: 'raw', text: String(r.error || '') }))); return; }
+          delete editing[k];
+          it.review = verdict; it.reviewedBy = S.me.user.username;        // optimistic; the reload below confirms
+          toast(verdict === 'ok' ? t('ar_done_ok') : t('ar_done_problem'));
+          if (verdict === 'problem') { delete S.tkMemo[S.brand + '|' + tid]; pollChanges(S.brand); }
+          load(S.brand);
+        }
+        okBtn.addEventListener('click', function () { review('ok'); });
+        probBtn.addEventListener('click', function () { noteRow.hidden = false; editing[k] = true; note.focus(); });
+        go.addEventListener('click', function () {
+          const n = note.value.trim();
+          if (n.length < 2) { clear(res); res.append(h('div', { class: 'err-box', text: t('ac_note_req') })); return; }
+          review('problem', n);
+        });
+        actions.append(okBtn, probBtn, open);
+        card.append(actions, noteRow, res);
+      } else {
+        actions.append(open);
+        card.append(actions);
+      }
+      translate(it, card);
+      return card;
+    }
+    function render(lp) {
+      clear(lp);
+      const a = S.ar[S.brand];
+      if (!a) { for (let i = 0; i < 3; i++) lp.append(h('div', { class: 'skeleton' })); return; }
+      if (a.unavailable) { lp.append(h('div', { class: 'empty' }, h('b', { text: t('ar_na') }))); return; }
+      if (a.err) lp.append(h('div', { class: 'err-box', text: a.err }));
+      if (!a.items) return;
+      lp.append(h('div', { class: 'list-meta' }, h('span', { text: brandName(S.brand) + ' · ' + t('tab_autoreply') }),
+        a.mode ? h('span', { text: t('ar_mode', { m: t('mode_' + a.mode) }) }) : null));
+      if (!a.items.length) { lp.append(h('div', { class: 'empty' }, h('b', { text: t('empty_autoreply') }), h('span', { text: t('empty_hint') }))); return; }
+      const rank = function (x) { return x.review === 'pending' ? 0 : x.review === 'problem' ? 1 : 2; };
+      a.items.slice().sort(function (x, y) {
+        return rank(x) - rank(y) || (ms(y.sentAt || y.dueAt) || 0) - (ms(x.sentAt || x.dueAt) || 0);
+      }).forEach(function (it) { lp.append(itemEl(it)); });
+    }
+    return { load: load, render: render, busy: busy };
+  })();
+
   // ---------------------------------------------------------------- system mode (admin)
   const Settings = (function () {
-    const KEYS = [['DRY_RUN', ['on', 'off']], ['KACHING_WRITES', ['on', 'off']], ['AUTO_CANCEL', ['off', 'shadow', 'on']]];
+    const KEYS = [['DRY_RUN', ['on', 'off']], ['KACHING_WRITES', ['on', 'off']], ['AUTO_CANCEL', ['off', 'shadow', 'on']], ['AUTO_REPLY', ['off', 'shadow', 'on']]];
     function norm(key, v) {
       if (v === undefined || v === null) return null;
-      if (key === 'AUTO_CANCEL') { const s = String(v).toLowerCase(); return s === 'true' ? 'on' : s === 'false' ? 'off' : s; }
+      if (key === 'AUTO_CANCEL' || key === 'AUTO_REPLY') { const s = String(v).toLowerCase(); return s === 'true' ? 'on' : s === 'false' ? 'off' : s; }
       return onOff(v) ? 'on' : 'off';
     }
     async function load(brand) {
@@ -1808,13 +2022,16 @@
             };
             if (r.ok) toast(r.noop ? t('set_noop') : t('set_ok') + ' (' + k + ': ' + r.from + ' → ' + r.to + ')');
             if (r.ok && k === 'AUTO_CANCEL') loadAuto(brand);
+            if (r.ok && k === 'AUTO_REPLY') AutoReply.load(brand);
             await load(brand);
             await loadBoot(brand);
           });
           seg.append(b);
         });
-        p.append(h('div', { class: 'card set-row' }, h('div', { class: 'set-hd' }, h('b', { text: t('set_' + k) }), h('bdi', { class: 'ltr muted small', text: k })),
-          h('div', { class: 'muted small', text: t('set_' + k + '_help') }), seg));
+        if (st.values[k] === undefined && k === 'AUTO_REPLY') return;      // engine without the switch yet: not offered
+        p.append(h('div', { class: 'card set-row', 'data-key': k }, h('div', { class: 'set-hd' }, h('b', { text: t('set_' + k) }), h('bdi', { class: 'ltr muted small', text: k })),
+          h('div', { class: 'muted small', text: t('set_' + k + '_help') }),
+          k === 'AUTO_REPLY' ? h('div', { class: 'small set-note' + (norm('DRY_RUN', st.values.DRY_RUN) === 'on' ? ' warn' : ''), text: t('set_AUTO_REPLY_note') }) : null, seg));
       });
     }
     return { show: show };

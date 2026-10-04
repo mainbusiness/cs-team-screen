@@ -194,6 +194,12 @@ class TicketCache:
                     b["boot"] = e
         return e
 
+    def cached_rows(self, brand):
+        """Public read of the cached summary rows of ONE brand (callers gate the user on that brand first).
+        Every work-role user of a brand already sees the whole list via apiBoot, so this is not wider than that."""
+        e = self._boot_entry(brand)
+        return {r.get("id"): r for r in ((e or {}).get("data", {}).get("tickets") or []) if isinstance(r, dict)}
+
     def _fetch_boot(self, user, brand):
         out = self._call(user, brand, "apiBoot", {})
         if out.get("ok"):
@@ -426,6 +432,8 @@ class TicketCache:
             patch = {"draft_text": args.get("text", ""), "handled_by": user["username"], "handled_at": now_iso}
             if not out.get("queued"):
                 patch["status"] = "sent"
+        elif ok and fn == "apiAutoReplyReview" and args.get("verdict") == "problem":
+            patch = {"status": "action"}                 # "⚠ problem" reopens the ticket (the engine confirms on revalidate)
         elif ok and fn in ("apiMarkHandled", "apiClose"):
             patch = {"status": "done", "handled_by": user["username"], "handled_at": now_iso}
         with self.lock:
@@ -448,7 +456,7 @@ class TicketCache:
 
 
 WRITE_FNS = ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel",
-             "apiAutoCancelApprove", "apiAutoCancelReject")
+             "apiAutoCancelApprove", "apiAutoCancelReject", "apiAutoReplyReview")
 
 
 def register(app, d):
