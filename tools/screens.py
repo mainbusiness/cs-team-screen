@@ -242,6 +242,34 @@ def main():
             shot(page, errs, "17_draft_save_refused_rollback", 390, full=False)
             ctx.close()
 
+            # ---------- WhatsApp vs email (Owner, 2026-10-05) ----------
+            for width, height in ((390, 844), (1280, 860)):
+                ctx, page, errs = session("agent-one", width, height)
+                page.goto(base + "/cs#/b/rozela/action")
+                page.wait_for_selector("a.row.wa")
+                shot(page, errs, "26_channels_list", width, full=False)
+                page.goto(base + "/cs#/b/rozela/t/w8ab77c1")
+                page.wait_for_selector("[data-test=wa-banner]")
+                page.fill(".draft textarea", "היי עומר, כן — יש משלוח לאילת, עד הבית או לנקודת איסוף.")
+                page.evaluate("window.scrollTo(0, 0); document.getElementById('ticket-pane').scrollTop = 0")
+                shot(page, errs, "27_whatsapp_ticket", width, full=False)
+                page.locator("[data-test=send-btn]").scroll_into_view_if_needed()
+                shot(page, errs, "28_whatsapp_send_button", width, full=False)
+                if page.locator("[data-test=send-btn]").inner_text() != "שליחה בוואטסאפ":
+                    problems.append("WhatsApp send button label")
+                ctx.close()
+
+            # ---------- deploy resilience: the "reconnecting" pill while a read rides through Render's 502 ----------
+            ctx, page, errs = session("agent-one", 390, 844)
+            page.route("**/api/rozela/ticket", lambda route, req: route.fulfill(status=502, content_type="text/html", body="<html>502</html>"))
+            page.goto(base + "/cs#/b/rozela/t/t18f2a05")
+            page.wait_for_selector("[data-test=reconnecting]:not([hidden])", timeout=5000)
+            page.screenshot(path=os.path.join(OUT, "25_reconnecting_390.png"))
+            shots.append(os.path.join(OUT, "25_reconnecting_390.png"))
+            if "תשובה לא תקינה" in page.inner_text("body"):
+                problems.append("bad-response message shown during a restart")
+            ctx.close()
+
             # ---------- auto-reply review + recommendation (Owner, 2026-10-05) ----------
             for width, height in ((390, 844), (1280, 860)):
                 ctx, page, errs = session("agent-one", width, height)

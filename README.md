@@ -27,7 +27,7 @@ Render disk and in each engine's `audit` sheet.
 | `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
-| `tests/` | pytest (190 tests) |
+| `tests/` | pytest (197 tests, incl. real-browser tests with Playwright) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
 
 ## Environment (Render)
@@ -197,3 +197,41 @@ The engine answers easy emails by itself (`AUTO_REPLY`) and marks them handled. 
   recommendation of rows the **server** holds in the brand's cached list. `/translate-autoreply {id}` translates the
   card from the engine's own item (list memoised 30 s). The browser never supplies text to translate; ids are
   deduped, with a 30k-character budget. Both endpoints use the disk cache.
+
+## Deploy resilience (lesson, 2026-10-05)
+
+**The client must survive a server restart. Reads retry; writes never do.**
+
+What happened: the service has a persistent disk, so Render cannot deploy without downtime. During the two
+switchovers on 2026-10-04 (22:18 and 22:47-22:48 UTC), Render answered 23 requests with its own 223 KB HTML 502 page
+(`/changes`, `/ticket`, `/prefetch`, `/cs/login`). `api()` failed on `r.json()`, and agents saw "תשובה לא תקינה מהשרת".
+The app itself logged no 500s and no tracebacks.
+
+The rule, enforced in `api()` in `static/app.js`:
+- A **restart** is any answer that is not our JSON: Render's HTML page, an empty body, or a dropped connection.
+  Our own JSON 502/504 answers (`engine_timeout`, `engine_bad_response`) are real answers and are shown at once.
+- **Reads** (`list`, `changes`, `ticket`, `prefetch`, `apiTicket*`, `apiSearch`, `apiBoot`, the auto-reply/auto-cancel
+  lists, `translate*`, the assistant, `/api/me`, `apiSettings` get) retry after 1, 2, 4, 8, 15 and 15 s (~45 s) behind a
+  small non-blocking "מתעדכן… / Reconnecting…" pill. Only after that do they say "השרת בעדכון — נסו שוב בעוד דקה".
+- **Writes** (send, save draft, handled, close, note, Kaching cancel, auto-cancel/auto-reply review, settings set) are
+  **never** re-sent: the request may have landed just before the restart. The agent sees "השרת התעדכן בדיוק ברגע הזה.
+  רעננו את הפנייה ובדקו אם הפעולה בוצעה לפני שמנסים שוב."
+- The 20 s **poller** makes one quiet attempt per tick. On a restart it keeps the last good list and tries again next
+  tick, with no pill and no message. Prefetch, background revalidation and list translation are quiet too.
+- Proof: `tests/test_resilience_browser.py` runs real Chromium, with Playwright injecting Render's HTML 502:
+  - a read that fails twice then loads, showing no error;
+  - a send that fails, with exactly one request and the "check first" message;
+  - a silent poller;
+  - our own JSON 504, shown once and not retried.
+
+  Each of these fails if its rule is removed (checked by mutation).
+
+## WhatsApp vs email (Owner, 2026-10-05)
+
+- **List rows:** WhatsApp rows have a 4 px WhatsApp-green (#25D366) stripe on the inline-start edge (right in RTL) and
+  a green "וואטסאפ" pill with a chat icon (#075E54 on #D9FDD3, 6.9:1). Email rows have a pale blue stripe and a blue
+  "מייל" pill with an envelope.
+- **Channel filter:** הכול / מייל / וואטסאפ, shown only when the brand has WhatsApp tickets.
+- **Ticket page:** a channel banner, and a green tint on customer bubbles in WhatsApp tickets.
+- **Send button:** "שליחה בוואטסאפ" in WhatsApp green (#008069 with white, 4.9:1) or "שליחה במייל".
+- **English UI:** "WhatsApp" / "Email", and the English-mode confirm button names the channel.

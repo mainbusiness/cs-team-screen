@@ -332,3 +332,33 @@ bdi.ltr, bdi.raw { direction: ltr; }
 .set-note { color: var(--muted); }
 .set-note.warn { color: var(--warn-ink); background: var(--warn-bg); border-radius: 6px; padding: 3px 8px; width: max-content; max-width: 100%; }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; color: inherit; }
+
+/* deploy resilience: non-blocking pill while reads ride through a server restart */
+.reconnect { position: fixed; top: 10px; inset-inline: 0; margin: 0 auto; width: max-content; z-index: 60; background: #111827; color: #fff;
+  border-radius: 999px; padding: 6px 14px; font-size: 13px; display: flex; gap: 8px; align-items: center; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+.reconnect .spinner { border-color: rgba(255,255,255,.3); border-top-color: #fff; }
+
+/* ---------- channel separation (Owner, 2026-10-05): WhatsApp green vs email blue, obvious at 390px ---------- */
+:root { --wa: #25D366; --wa-ink: #075E54; --wa-bg: #D9FDD3; --wa-btn: #008069; --wa-tint: #EAF9EE; }
+.ic { width: 14px; height: 14px; flex: 0 0 auto; }
+.chip.ch { font-weight: 700; gap: 4px; }
+.chip.ch-wa { background: var(--wa-bg); color: var(--wa-ink); }
+.chip.ch-email { background: var(--sent-bg); color: var(--sent); }
+.chip.ch.big { font-size: 13px; padding: 3px 10px; }
+.row.wa { border-inline-start: 4px solid var(--wa); }
+.row.email { border-inline-start: 4px solid #c7d6f7; }
+.ch-banner { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding: 5px 10px; border-radius: 8px; font-weight: 700; font-size: 14px; width: max-content; max-width: 100%; }
+.ch-banner .ic { width: 18px; height: 18px; }
+.ch-banner.wa { background: var(--wa-bg); color: var(--wa-ink); box-shadow: inset 4px 0 0 var(--wa); }
+html[dir=rtl] .ch-banner.wa { box-shadow: inset -4px 0 0 var(--wa); }
+.ch-banner.email { background: var(--sent-bg); color: var(--sent); }
+.card.wa .msg.customer { background: var(--wa-tint); border-color: #bfe8cc; }
+.btn.primary.wa { background: var(--wa-btn); border-color: var(--wa-btn); color: #fff; }
+.btn.primary.wa.arm { background: var(--wa-ink); border-color: var(--wa-ink); }
+.chan-filter { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin: 0 0 10px; background: var(--card); }
+.chan-btn { border: 0; background: transparent; padding: 6px 12px; font-size: 13px; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; min-height: 32px; }
+.chan-btn + .chan-btn { border-inline-start: 1px solid var(--line); }
+.chan-btn.on { background: var(--ink); color: #fff; }
+.chan-btn.whatsapp.on { background: var(--wa-btn); }
+.chan-btn.email.on { background: var(--sent); }
+.reconnect { top: 62px; }

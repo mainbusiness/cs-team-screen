@@ -74,6 +74,9 @@
       pick_ticket: 'בחרו פנייה מהרשימה',
       menu: 'תפריט', users: 'ניהול משתמשים', change_pw: 'החלפת סיסמה', logout: 'יציאה', to_en: 'English UI', to_he: 'ממשק בעברית', to_tickets: 'חזרה לפניות',
       err_network: 'אין חיבור לאינטרנט או לשרת. שום דבר לא נשלח — נסו שוב.', err_bad_response: 'תשובה לא תקינה מהשרת.', err_login: 'צריך להתחבר מחדש.',
+      reconnecting: 'מתעדכן…', send_wa: 'שליחה בוואטסאפ', send_email: 'שליחה במייל', chan_all: 'הכול', wa_banner: 'פנייה בוואטסאפ',
+      email_banner: 'פנייה במייל', err_restarting: 'השרת בעדכון — נסו שוב בעוד דקה.',
+      err_restart_write: 'השרת התעדכן בדיוק ברגע הזה. רעננו את הפנייה ובדקו אם הפעולה בוצעה לפני שמנסים שוב.',
       tab_auto: 'ביטולי מנוי אוטומטיים', empty_auto: 'אין ביטולים אוטומטיים שממתינים', auto_na: 'הביטול האוטומטי עוד לא זמין במנוע של המותג הזה.',
       ac_state_queued: 'אושר — יבוטל {when}', ac_state_queued_nodue: 'אושר — בתור לביטול', ac_state_shadow_would_cancel: 'הצעה: המערכת הייתה מבטלת',
       ac_state_aborted_newer: 'נעצר: הלקוח כתב שוב', ac_state_refused: 'נעצר: המנוע סירב', ac_state_cancelling: 'מבטל בקאצ׳ינג…', ac_state_cancelled: 'בוטל — שולח תשובה…',
@@ -170,6 +173,9 @@
       pick_ticket: 'Pick a ticket from the list',
       menu: 'Menu', users: 'Users', change_pw: 'Change password', logout: 'Sign out', to_en: 'English UI', to_he: 'Hebrew UI', to_tickets: 'Back to tickets',
       err_network: 'No connection. Nothing was sent — try again.', err_bad_response: 'Invalid server answer.', err_login: 'Please sign in again.',
+      reconnecting: 'Reconnecting…', send_wa: 'Send on WhatsApp', send_email: 'Send by email', chan_all: 'All', wa_banner: 'WhatsApp conversation',
+      email_banner: 'Email conversation', en_confirm_wa: 'Confirm translation and send on WhatsApp', en_confirm_email: 'Confirm translation and send by email', err_restarting: 'The server is updating — try again in a minute.',
+      err_restart_write: 'The server restarted at exactly this moment. Refresh the ticket and check whether the action happened before trying again.',
       tab_auto: 'Automatic cancellations', empty_auto: 'No automatic cancellations waiting', auto_na: 'Automatic cancellation is not available in this brand engine yet.',
       ac_state_queued: 'Approved — cancels {when}', ac_state_queued_nodue: 'Approved — queued', ac_state_shadow_would_cancel: 'Proposal: the system would cancel',
       ac_state_aborted_newer: 'Stopped: the customer wrote again', ac_state_refused: 'Stopped: the engine refused', ac_state_cancelling: 'Cancelling in Kaching…', ac_state_cancelled: 'Cancelled — sending the reply…',
@@ -271,6 +277,29 @@
     el.append(c.nodeType ? c : document.createTextNode(String(c)));
   }
   const $ = function (id) { return document.getElementById(id); };
+  const ICONS = {
+    wa: 'M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 2a8 8 0 1 1-4.1 14.9l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 0 1 12 4zm-3.2 4c-.2 0-.5 0-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1 2.7c.1.2 1.8 2.8 4.4 3.9 2.2.9 2.6.7 3.1.6.5 0 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2l-.4-.3-1.6-.8c-.2-.1-.4-.1-.6.1l-.7.9c-.1.2-.3.2-.5.1a6.6 6.6 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.7-1.8c-.2-.5-.4-.4-.5-.4h-.5z',
+    mail: 'M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2v.4l8 5.1 8-5.1V7H4zm16 2.8-7.5 4.8a1 1 0 0 1-1 0L4 9.8V17h16V9.8z'
+  };
+  function icon(name) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('class', 'ic');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', ICONS[name]);
+    path.setAttribute('fill', 'currentColor');
+    svg.append(path);
+    return svg;
+  }
+  function isWA(x) { return String((x && x.channel) || '').toLowerCase() === 'whatsapp'; }
+  /** The one channel pill used everywhere: WhatsApp green with a chat icon, email blue with an envelope. */
+  function chanPill(x, big) {
+    const wa = isWA(x);
+    return h('span', { class: 'chip ch ' + (wa ? 'ch-wa' : 'ch-email') + (big ? ' big' : ''), 'data-test': wa ? 'ch-wa' : 'ch-email' },
+      icon(wa ? 'wa' : 'mail'), t(wa ? 'ch_whatsapp' : 'ch_email'));
+  }
   function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
   function safeUrl(u) { return /^https:\/\/[^\s"<>]+$/i.test(String(u || '')) ? String(u) : null; }
 
@@ -369,14 +398,68 @@
 
   // ---------------------------------------------------------------- api
   let PENDING = 0;
-  async function api(path, body, method) {
+  /*
+   * Deploy resilience (2026-10-05, measured in Render's logs): the service has a persistent disk, so a deploy is
+   * a short outage. Render answers it with its own 502/503 HTML page, or the connection drops. That is "the server
+   * is restarting", not "the server answered badly".
+   *  - READS retry with backoff (1, 2, 4, 8, 15, 15 s ≈ 45 s) behind a small "Reconnecting…" pill, and only then say so.
+   *  - WRITES are never retried: the request may have landed just before the restart. The agent is told to refresh
+   *    and check, never "invalid answer".
+   *  - Our OWN JSON answers (also 502/504, e.g. engine_timeout) are real answers and pass straight through.
+   */
+  const READ_FNS = ['list', 'changes', 'ticket', 'prefetch', 'translate', 'translate-rows', 'translate-autoreply', 'translate-out',
+    'assistant', 'apiBoot', 'apiStatus', 'apiTicket', 'apiTicketExtras', 'apiTickets', 'apiSearch', 'apiAutoReplyList', 'apiAutoCancelList'];
+  const RETRY_MS = [1000, 2000, 4000, 8000, 15000, 15000];
+  function isRead(path, method, body) {
+    if ((method || 'POST') === 'GET') return true;
+    const m = /^\/api\/[^/]+\/([A-Za-z-]+)$/.exec(path);
+    if (!m) return false;
+    if (m[1] === 'apiSettings') return !!(body && body.args && body.args.action === 'get');
+    return READ_FNS.indexOf(m[1]) >= 0;
+  }
+  let RECONNECTING = 0;
+  function paintReconnect() {
+    let el = document.getElementById('reconnect');
+    if (!el) {
+      el = h('div', { id: 'reconnect', class: 'reconnect', role: 'status', 'aria-live': 'polite', 'data-test': 'reconnecting', hidden: true },
+        h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' ', t('reconnecting'));
+      document.body.append(el);
+    }
+    el.hidden = RECONNECTING <= 0;
+  }
+  function sleep(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
+  /** One HTTP round trip: {kind: 'json'|'transient'|'auth', data}. */
+  async function once(path, opt) {
+    let r;
+    try { r = await fetch(path, opt); } catch (e) { return { kind: 'transient' }; }          // connection dropped mid-restart
+    if (r.status === 401) return { kind: 'auth' };
+    let data = null;
+    try { data = await r.json(); } catch (e) { data = null; }
+    if (!data || typeof data !== 'object' || !('ok' in data)) return { kind: 'transient', status: r.status };   // Render's HTML page
+    return { kind: 'json', data: data };
+  }
+  async function api(path, body, method, opts) {
+    opts = opts || {};
     const opt = { method: method || 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': CSRF, Accept: 'application/json' } };
     if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    const read = isRead(path, method, body);
+    const retries = read && opts.retry !== false ? RETRY_MS : [];
     PENDING++;
-    let r;
-    try { r = await fetch(path, opt); } catch (e) { return { ok: false, error: 'network', msg: t('err_network') }; } finally { PENDING--; }
-    if (r.status === 401) { setTimeout(function () { location.href = BASE + '/login'; }, 600); return { ok: false, error: 'not_logged_in', msg: t('err_login') }; }
-    try { return await r.json(); } catch (e) { return { ok: false, error: 'bad_response', msg: t('err_bad_response') }; }
+    let shown = false;
+    try {
+      for (let i = 0; ; i++) {
+        const res = await once(path, opt);
+        if (res.kind === 'auth') { setTimeout(function () { location.href = BASE + '/login'; }, 600); return { ok: false, error: 'not_logged_in', msg: t('err_login') }; }
+        if (res.kind === 'json') return res.data;
+        if (!read) return { ok: false, error: 'server_restarted', msg: t('err_restart_write') };   // never re-send a write
+        if (i >= retries.length) return { ok: false, error: 'server_restarting', msg: t('err_restarting'), quiet: !!opts.quiet };
+        if (!opts.quiet && !shown) { shown = true; RECONNECTING++; paintReconnect(); }
+        await sleep(retries[i]);
+      }
+    } finally {
+      PENDING--;
+      if (shown) { RECONNECTING--; paintReconnect(); }
+    }
   }
   function engine(fn, args, brand) {
     return api('/api/' + encodeURIComponent(brand || S.brand) + '/' + fn, { args: args || {} });
@@ -597,7 +680,7 @@
     const key = brand + '|' + S.tab;
     if (!rows.length || Date.now() - (S.prefetchedAt[key] || 0) < 60000) return;
     S.prefetchedAt[key] = Date.now();
-    api('/api/' + encodeURIComponent(brand) + '/prefetch', { ids: rows.slice(0, 15).map(function (x) { return x.id; }) });
+    api('/api/' + encodeURIComponent(brand) + '/prefetch', { ids: rows.slice(0, 15).map(function (x) { return x.id; }) }, 'POST', { quiet: true });
   }
 
   /** Every 20 s: only what changed since our version, merged into the list in place (no full reload). */
@@ -608,7 +691,8 @@
     if (polling || !connected(brand)) return;
     polling = true;
     let r;
-    try { r = await api('/api/' + encodeURIComponent(brand) + '/changes', { since: b.version }); } finally { polling = false; }
+    // background: one quiet attempt per tick; on a restart keep the last good state and try again next tick
+    try { r = await api('/api/' + encodeURIComponent(brand) + '/changes', { since: b.version }, 'POST', { retry: false, quiet: true }); } finally { polling = false; }
     if (!r.ok || S.boots[brand] !== b) return;
     const byId = {};
     b.tickets.forEach(function (x, i) { byId[x.id] = i; });
@@ -649,7 +733,17 @@
     };
     return rows.slice().sort(function (a, b) { return key(a) - key(b); });
   }
+  function byChannel(rows) {
+    if (!rows || !S.chan || S.chan === 'all') return rows;
+    return rows.filter(function (x) { return S.chan === 'whatsapp' ? isWA(x) : !isWA(x); });
+  }
   function rowsFor(tab) {
+    const b = boot();
+    if (!b) return null;
+    if (['ready', 'action', 'health', 'delay', 'sent', 'today'].indexOf(tab) >= 0) return byChannel(rowsForRaw(tab));
+    return rowsForRaw(tab);
+  }
+  function rowsForRaw(tab) {
     const b = boot();
     if (!b) return null;
     if (tab === 'today') return sortRows(todayList(b), 'today');
@@ -673,7 +767,7 @@
     const chips = [];
     if (opts.showStatus || !open || S.tab === 'search' || S.tab === 'today') chips.push(h('span', { class: 'chip st-' + x.status, text: t('st_' + x.status) }));
     if (x.category) chips.push(h('span', { class: 'chip', text: t('cat_' + x.category) }));
-    if (x.channel === 'whatsapp') chips.push(h('span', { class: 'chip outline', text: t('ch_whatsapp') }));
+    chips.unshift(chanPill(x));
     if (Number(x.emails_count) > 1) chips.push(h('span', { class: 'chip outline', text: t('msgs', { n: x.emails_count }) }));
     if (x.language && x.language !== 'he' && x.language !== 'iw') chips.push(h('span', { class: 'chip outline', text: String(x.language).toUpperCase() }));
     if (x.order_no) chips.push(h('span', { class: 'chip outline ltr', text: x.order_no }));
@@ -687,8 +781,9 @@
       x.recommendation ? h('div', { class: 'rec', dir: 'auto', 'data-test': 'row-rec' }, h('span', { class: 'rec-k', text: t('what_to_do') + ': ' }), rowText(x, 'recommendation')) : null,
       h('div', { class: 'chips' }, chips)
     ];
-    if (x.archived || opts.static) return h('div', { class: 'row', 'data-id': x.id }, inner);
-    return h('a', { class: 'row' + (x.id === S.ticketId ? ' selected' : ''), href: ticketHash(x.id), 'data-id': x.id }, inner);
+    const ch = isWA(x) ? ' wa' : ' email';
+    if (x.archived || opts.static) return h('div', { class: 'row' + ch, 'data-id': x.id }, inner);
+    return h('a', { class: 'row' + ch + (x.id === S.ticketId ? ' selected' : ''), href: ticketHash(x.id), 'data-id': x.id }, inner);
   }
 
   /** Handled by the engine's auto-reply. Tolerant: the engine's exact marker is not final (handled_by / a flag). */
@@ -711,7 +806,7 @@
     const ids = rows.filter(function (x) { return !S.rowTr[brand + '|' + x.id] && (x.summary || x.recommendation); }).slice(0, 40).map(function (x) { return x.id; });
     if (!ids.length) return;
     rowTrBusy = true;
-    const r = await api('/api/' + encodeURIComponent(brand) + '/translate-rows', { ids: ids });
+    const r = await api('/api/' + encodeURIComponent(brand) + '/translate-rows', { ids: ids }, 'POST', { quiet: true });
     rowTrBusy = false;
     if (!r.ok) return;
     ids.forEach(function (i) { S.rowTr[brand + '|' + i] = (r.rows || {})[i] || { none: true }; });
@@ -730,7 +825,7 @@
     if (S.tab === 'auto' && noSubs()) { go(listHash('ready'), true); return; }
     const err = S.bootErr[S.brand];
     const rows = rowsFor(S.tab);
-    const sig = JSON.stringify([S.brand, S.tab, S.ticketId, err || '', S.tab === 'search' ? [S.search.q, S.search.err, S.search.res] : rows,
+    const sig = JSON.stringify([S.brand, S.tab, S.ticketId, S.chan || 'all', err || '', S.tab === 'search' ? [S.search.q, S.search.err, S.search.res] : rows,
       S.tab === 'auto' ? [S.auto[S.brand], S.autoMsg] : null, S.tab === 'autoreply' ? [S.ar[S.brand], S.autoMsg] : null, LANG === 'en' ? S.rowTr : null]);
     if (!force && sig === S.listSig) return;           // nothing changed: zero DOM work
     if (lp.contains(document.activeElement) && S.tab !== 'search' && !force) return;
@@ -767,6 +862,16 @@
     const b = boot();
     lp.append(h('div', { class: 'list-meta' }, h('span', { text: brandName(S.brand) + ' · ' + t('tab_' + S.tab) }),
       h('span', { text: t('updated', { when: ago(b.serverTime) }) })));
+    if ((b.tickets || []).some(isWA)) {
+      const seg = h('div', { class: 'chan-filter', role: 'group', 'data-test': 'chan-filter' });
+      [['all', t('chan_all'), null], ['email', t('ch_email'), 'mail'], ['whatsapp', t('ch_whatsapp'), 'wa']].forEach(function (c) {
+        const on = (S.chan || 'all') === c[0];
+        const b2 = h('button', { type: 'button', class: 'chan-btn ' + c[0] + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false' }, c[2] ? icon(c[2]) : null, c[1]);
+        b2.addEventListener('click', function () { S.chan = c[0]; renderList(true); });
+        seg.append(b2);
+      });
+      lp.append(seg);
+    }
     if (!rows.length) {
       lp.append(h('div', { class: 'empty' }, h('b', { text: t('empty_' + S.tab) }), h('span', { text: t('empty_hint') })));
       return;
@@ -864,7 +969,7 @@
     applyTicket(k, r, !memo);
     paintSync();
     if (!hit) return;
-    const f = await api('/api/' + encodeURIComponent(brand) + '/ticket', { id: id, revalidate: true });
+    const f = await api('/api/' + encodeURIComponent(brand) + '/ticket', { id: id, revalidate: true }, 'POST', { quiet: true });
     if (S.tk !== k) return;
     k.syncing = false;
     if (!f.ok) { k.syncErr = f.msg || f.error; paintSync(); return; }
@@ -915,11 +1020,13 @@
     const contact = h('div', { class: 'contact' });
     if (x.email) contact.append(h('span', { class: 'item' }, h('span', { class: 'val', text: x.email }), copyBtn(x.email)));
     if (x.phone) contact.append(h('span', { class: 'item' }, h('a', { class: 'val', href: 'tel:' + String(x.phone).replace(/[^\d+]/g, ''), text: x.phone }), copyBtn(x.phone)));
-    contact.append(h('span', { class: 'item' }, h('span', { class: 'chip outline', text: t('ch_' + (x.channel || 'email')) })));
+    contact.append(h('span', { class: 'item' }, chanPill(x)));
     const head = h('div', { class: 'tk-head' },
       h('div', { class: 'l1' }, backBtn(), h('h2', { dir: 'auto', text: x.name || x.email || x.phone || t('no_name') }),
         isAutoReplied(x) ? h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }) : null, statusChip(x.status)),
       h('div', { class: 'sync-row' }, h('span', { id: 'tk-sync', class: 'chip sync outline', hidden: true, 'aria-live': 'polite', 'data-test': 'tk-sync' })),
+      h('div', { class: 'ch-banner ' + (isWA(x) ? 'wa' : 'email'), 'data-test': isWA(x) ? 'wa-banner' : 'email-banner' },
+        icon(isWA(x) ? 'wa' : 'mail'), t(isWA(x) ? 'wa_banner' : 'email_banner')),
       contact,
       x.summary ? h('p', { class: 'summary-line', id: 'tk-summary', dir: 'auto', text: x.summary }) : null);
     tp.append(head);
@@ -934,7 +1041,9 @@
       body.append(h('div', { class: 'why' + (x.status === 'health' ? ' health' : ''), role: 'note' }, h('b', { text: t('why_human') }),
         lines.map(function (l) { return h('div', null, h('span', { text: l.text }), l.text !== l.raw ? h('div', null, h('bdi', { class: 'raw', text: l.raw })) : null); })));
     }
-    body.append(convCard(ex.conversation || []));
+    const cc = convCard(ex.conversation || []);
+    if (isWA(x)) cc.classList.add('wa');
+    body.append(cc);
     const dcard = enMode(x) && isOpen ? EnDraft.card(x) : Draft.card(x);
     if (x.recommendation && isOpen) {
       const h3 = dcard.querySelector('h3');
@@ -1179,11 +1288,13 @@
         lock(false);
         showErr(r);
       }
-      const sendBtn = armed(t('send'), t('send_arm'), 'primary', function () { if (!sendDisabled()) doSend(false); });
+      const sendLabel = isWA(x) ? t('send_wa') : t('send_email');
+      const sendBtn = armed(sendLabel, t('send_arm'), 'primary' + (isWA(x) ? ' wa' : ''), function () { if (!sendDisabled()) doSend(false); });
+      sendBtn.setAttribute('data-test', 'send-btn');
       st.refreshSend = function () {
         if (sendBtn.classList.contains('arm')) return;
         sendBtn.disabled = sendDisabled();
-        sendBtn.textContent = isDry() && S.boots[st.brand] ? t('send_dry') : t('send');
+        sendBtn.textContent = isDry() && S.boots[st.brand] ? t('send_dry') : sendLabel;
         sendBtn.title = isDry() ? t('dry_run') : '';
       };
       st.refreshSend();
@@ -1291,12 +1402,12 @@
         errEl.append(box);
       }
       const reviewBtn = h('button', { class: 'btn primary', type: 'button', text: t('en_review'), 'data-test': 'en-review-btn' });
-      const confirmBtn = h('button', { class: 'btn primary', type: 'button', text: t('en_confirm'), 'data-test': 'en-confirm' });
+      const confirmBtn = h('button', { class: 'btn primary' + (isWA(x) ? ' wa' : ''), type: 'button', text: t('en_confirm'), 'data-test': 'en-confirm' });
       const editBtn = h('button', { class: 'btn ghost', type: 'button', text: t('en_edit') });
       function refresh() {
         reviewBtn.disabled = me.busy || !ta.value.trim();
         confirmBtn.disabled = me.busy || !me.translated || isDry();
-        confirmBtn.textContent = isDry() && S.boots[brand] ? t('send_dry') : t('en_confirm');
+        confirmBtn.textContent = isDry() && S.boots[brand] ? t('send_dry') : t(isWA(x) ? 'en_confirm_wa' : 'en_confirm_email');
         confirmBtn.title = isDry() ? t('dry_run') : '';
       }
       me.refresh = refresh;
@@ -1849,7 +1960,7 @@
       if (r.ok) {
         S.ar[brand] = { items: Array.isArray(r.items) ? r.items : [], switch: r.switch || null, mode: r.mode || null };
         const ids = S.ar[brand].items.filter(function (x) { return x.review === 'pending'; }).map(function (x) { return x.ticketId || x.id; });
-        if (ids.length) api('/api/' + encodeURIComponent(brand) + '/prefetch', { ids: ids.slice(0, 15) });   // questions load warm
+        if (ids.length) api('/api/' + encodeURIComponent(brand) + '/prefetch', { ids: ids.slice(0, 15) }, 'POST', { quiet: true });   // questions load warm
       }
       else if (r.error === 'unauthorized' || r.error === 'forbidden_fn') S.ar[brand] = { items: null, unavailable: true };
       else S.ar[brand] = { items: (S.ar[brand] && S.ar[brand].items) || null, err: r.msg || r.error };
