@@ -449,6 +449,35 @@ class TicketCache:
         timing("cache", None, "ticket-miss" if not revalidate else "ticket-revalidate")
         return full, err, {"hit": False, "age_s": 0, "stale": False}
 
+    # ---------- related tickets: secondary information, never allowed to crowd out an agent's work ----------
+    RELATED_TTL_S = 300
+
+    def related(self, user, brand, q):
+        """apiSearch(email/phone) for the "related tickets" card. Cached 5 min per (brand, query); on a miss it runs at
+        BACKGROUND priority (free slots only). Measured live 2026-10-05: as an interactive call on every open, these slow
+        searches filled the brand's 6 slots and other calls got "busy"."""
+        key = (brand, q.strip().lower())
+        with self.lock:
+            hit = self.mem.setdefault("_related", {}).get(key) if BRAND_RE.match(brand) else None
+            if hit and self.clock() - hit[0] < self.RELATED_TTL_S:
+                timing("cache", None, "related-hit")
+                return {"ok": True, "tickets": hit[1], "cache": True}
+        if engine_proxy.gate(brand).tripped():
+            return {"ok": True, "tickets": None, "deferred": True}
+        out = self._call(user, brand, "apiSearch", {"q": q}, True)
+        if out.get("error") == "dropped":
+            return {"ok": True, "tickets": None, "deferred": True}
+        if not out.get("ok"):
+            return out
+        rows = out.get("tickets") or []
+        with self.lock:
+            rel = self.mem.setdefault("_related", {})
+            rel[key] = (self.clock(), rows)
+            if len(rel) > 5000:
+                for k, _ in sorted(rel.items(), key=lambda kv: kv[1][0])[:1000]:
+                    rel.pop(k, None)
+        return {"ok": True, "tickets": rows}
+
     def prefetch(self, user, brand, ids):
         if engine_proxy.gate(brand).tripped():
             return 0                                 # circuit breaker: no prefetch for ~60 s after a slow/HTML answer
@@ -579,6 +608,17 @@ def register(app, d):
             return jsonify(localized(dict(e or {"ok": False, "error": "server_error"}), u.get("lang", "he"), "apiTicket")), 200
         return jsonify({"ok": True, "ticket": full.get("ticket"), "extras": full.get("extras") or {}, "snapshotAt": full.get("snapshotAt"),
                         "extrasErr": full.get("extrasError"), "cache": meta})
+
+    @app.post("/api/<brand>/related")
+    def cached_related(brand):
+        brand = str(brand).lower()
+        u, err = gate(brand, work=True)
+        if err:
+            return err
+        q = (request.get_json(silent=True) or {}).get("q")
+        if not isinstance(q, str) or not (2 <= len(q.strip()) <= 100):
+            return d["json_error"]("bad_request", 400, u.get("lang", "he"))
+        return jsonify(localized(cache.related(u, brand, q.strip()), u.get("lang", "he"), "apiSearch"))
 
     @app.post("/api/<brand>/prefetch")
     def cached_prefetch(brand):

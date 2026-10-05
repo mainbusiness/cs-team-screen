@@ -76,6 +76,7 @@
       err_network: 'אין חיבור לאינטרנט או לשרת. שום דבר לא נשלח — נסו שוב.', err_bad_response: 'תשובה לא תקינה מהשרת.', err_login: 'צריך להתחבר מחדש.',
       orders_chip_only: 'פרטי ההזמנה לא נשמרו', check_error: 'לא ניתן לבדוק כרגע', orders_not_checked: 'הזמנות: לא נבדק', subs_not_checked: 'מנויים: לא נבדק',
       st_merged: 'אוחד',
+      related_later: 'הפניות הקודמות ייטענו כשהמערכת תתפנה.',
       old_section: 'ישנים (30+ יום)', subs_no_email: 'מנויים: לא נבדק (אין מייל)', subs_unavailable: 'בדיקת המנויים לא זמינה כרגע.',
       siblings: 'ללקוח יש עוד {n} פניות פתוחות', siblings_one: 'ללקוח יש עוד פנייה פתוחה אחת', siblings_short: '+{n} פתוחות',
       tab_bot: '🤖 הבוט של דונדי מטפל', empty_bot: 'אין כרגע שיחות שהבוט של דונדי מטפל בהן', st_bot: '🤖 בוט',
@@ -183,6 +184,7 @@
       err_network: 'No connection. Nothing was sent — try again.', err_bad_response: 'Invalid server answer.', err_login: 'Please sign in again.',
       orders_chip_only: 'Order details were not saved', check_error: 'Cannot check right now', orders_not_checked: 'Orders: not checked', subs_not_checked: 'Subscriptions: not checked',
       st_merged: 'Merged',
+      related_later: 'Previous tickets will load when the system is free.',
       old_section: 'Older than 30 days', subs_no_email: 'Subscriptions: not checked (no email)', subs_unavailable: 'Subscription lookup unavailable right now.',
       siblings: 'This customer has {n} more open tickets', siblings_one: 'This customer has 1 more open ticket', siblings_short: '+{n} open',
       tab_bot: '🤖 Dondy bot is handling', empty_bot: 'The Dondy bot is not handling any chat right now', st_bot: '🤖 Bot',
@@ -1856,8 +1858,15 @@
     if (!k || !k.ticket) return;
     const q = String(k.ticket.email || k.ticket.phone || '').trim();
     if (q.length < 2) { k.related = []; paintRelated(); return; }
-    const r = await engine('apiSearch', { q: q }, k.brand);
+    // server-cached and background-priority: never takes an engine slot an agent needs
+    const r = await api('/api/' + encodeURIComponent(k.brand) + '/related', { q: q }, 'POST', { quiet: true });
     if (S.tk !== k) return;
+    if (r.ok && r.deferred) {
+      k.related = undefined; k.relatedDeferred = true; paintRelated();
+      if (!k.relatedRetried) { k.relatedRetried = true; setTimeout(function () { if (S.tk === k) loadRelated(); }, 20000); }
+      return;
+    }
+    k.relatedDeferred = false;
     k.related = r.ok ? (r.tickets || []).filter(function (x) { return x.id !== k.id; }) : [];
     k.relatedErr = r.ok ? null : (r.msg || r.error);
     paintRelated();
@@ -1865,7 +1874,8 @@
   function relatedCard() {
     const c = h('div', { class: 'card related' }, h('h3', { text: t('related') }));
     const k = S.tk;
-    if (!k || k.related === null || k.related === undefined) c.append(h('div', { class: 'muted small', text: t('loading') }));
+    if (k && k.relatedDeferred && !k.related) c.append(h('div', { class: 'muted small', 'data-test': 'related-deferred', text: t('related_later') }));
+    else if (!k || k.related === null || k.related === undefined) c.append(h('div', { class: 'muted small', text: t('loading') }));
     else if (k.relatedErr) c.append(h('div', { class: 'err-box', text: k.relatedErr }));
     else if (!k.related.length) c.append(h('div', { class: 'muted small', text: t('no_related') }));
     else k.related.forEach(function (x) { c.append(rowEl(x, { showStatus: true })); });

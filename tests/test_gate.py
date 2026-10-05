@@ -158,3 +158,25 @@ def test_a_freed_slot_goes_to_the_waiting_agent_not_to_background():
             g.fg_waiting = 0
     assert g.acquire(bg=True) is True        # nobody waiting: background may use the free slot
     g.release(True, 0.1, None)
+
+
+
+def test_related_is_cached_and_never_takes_an_agents_slot(app, pw_hash, transport):
+    transport.reply = lambda url, body: {"ok": True, "tickets": [{"id": "t9", "status": "done"}]}
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    H = {"X-CSRF-Token": tok}
+    j = c.post("/api/rozela/related", json={"q": "dana@example.com"}, headers=H).get_json()
+    assert j["tickets"] == [{"id": "t9", "status": "done"}] and len(transport.calls) == 1
+    assert c.post("/api/rozela/related", json={"q": "DANA@example.com"}, headers=H).get_json()["cache"] is True
+    assert len(transport.calls) == 1                                       # cached 5 min, case-insensitive
+    g = engine_proxy.gate("rozela")
+    with g.cond:
+        g.inflight = engine_proxy.GATE_CAP                                 # the engine is full of agents' calls
+    try:
+        j = c.post("/api/rozela/related", json={"q": "other@example.com"}, headers=H).get_json()
+        assert j == {"ok": True, "tickets": None, "deferred": True} and len(transport.calls) == 1
+    finally:
+        with g.cond:
+            g.inflight = 0
+    c2, tok2 = logged_in(app, pw_hash, "agent-two", ["agent"], ["celesta"])
+    assert c2.post("/api/rozela/related", json={"q": "dana@example.com"}, headers={"X-CSRF-Token": tok2}).status_code == 403
