@@ -246,6 +246,19 @@ def build_brand(brand, now):
              "channel": "whatsapp", "subject": "WhatsApp", "summary": "הודעת וואטסאפ חדשה",
              "action": "whatsapp: no automatic draft in this phase", "waiting_since": h(0.6), "created_at": h(0.6), "language": "he"},
             _conv(now, ("customer", 0.6, "היי יש לכם משלוח לאילת?")))
+        # engine @37/38: a failed WhatsApp send goes back to "action", marked ⚠️ at the start of the action line
+        add({"id": "w8ab77f1", "status": "action", "category": "other", "name": "נועה (נכשל)", "phone": "+972521112233",
+             "channel": "whatsapp", "subject": "WhatsApp", "summary": "שאלה על משלוח — השליחה בדונדי נכשלה.",
+             "action": "⚠️ בדקו בדונדי לפני שליחה חוזרת (chat_not_found)", "wa_send": "failed:dondy-ext",
+             "wa_out": "היי נועה, החבילה יצאה אתמול ותגיע עד יום חמישי.", "draft_text": "היי נועה, החבילה יצאה אתמול ותגיע עד יום חמישי.",
+             "waiting_since": h(2), "created_at": h(2), "handled_by": "agent1", "handled_at": h(1), "language": "he"},
+            _conv(now, ("customer", 2, "מתי זה מגיע?")))
+        add({"id": "w8ab77f2", "status": "action", "category": "other", "name": "דוד (24 שעות)", "phone": "+972521114455",
+             "channel": "whatsapp", "subject": "WhatsApp", "summary": "ענינו מאוחר — חלון 24 השעות נסגר.",
+             "action": "⚠️ חלון 24 השעות נסגר — צריך תבנית", "wa_send": "template_required:dondy-ext",
+             "wa_out": "היי דוד, סליחה על העיכוב.", "draft_text": "היי דוד, סליחה על העיכוב.",
+             "waiting_since": h(30), "created_at": h(30), "handled_by": "agent1", "handled_at": h(26), "language": "he"},
+            _conv(now, ("customer", 30, "יש עדכון?")))
         for n, days in (("00", 82), ("01", 84)):
             add({"id": "w8ab77" + n, "status": "ready", "category": "other", "name": "לקוחה %s" % n, "phone": "+97250000%s11" % n,
                  "channel": "whatsapp", "subject": "WhatsApp", "summary": "תגובה להודעת עגלה נטושה מיולי.",

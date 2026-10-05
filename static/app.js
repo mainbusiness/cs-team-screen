@@ -80,6 +80,10 @@
       old_section: 'ישנים (30+ יום)', subs_no_email: 'מנויים: לא נבדק (אין מייל)', subs_unavailable: 'בדיקת המנויים לא זמינה כרגע.',
       siblings: 'ללקוח יש עוד {n} פניות פתוחות', siblings_one: 'ללקוח יש עוד פנייה פתוחה אחת', siblings_short: '+{n} פתוחות',
       tab_bot: '🤖 הבוט של דונדי מטפל', empty_bot: 'אין כרגע שיחות שהבוט של דונדי מטפל בהן', st_bot: '🤖 בוט',
+      tab_failed: '⚠️ נכשלו', empty_failed: 'אין שליחות וואטסאפ שנכשלו', wa_fail: '⚠️ השליחה נכשלה',
+      wa_fail_tpl: '⚠️ עברו 24 שעות — צריך תבנית בדונדי', wa_fail_unknown_note: 'לא ידוע אם ההודעה יצאה — בדקו בדונדי לפני שליחה חוזרת.',
+      wa_fail_tpl_note: 'הלקוח לא כתב 24 שעות: וואטסאפ מאפשר רק תבנית מאושרת. שלחו תבנית מדונדי.',
+      wa_fail_note: 'ההודעה לא יצאה. אפשר לשלוח שוב את אותו הטקסט.', wa_resend: 'שלח שוב', wa_resend_arm: 'לחצו שוב לשליחה חוזרת',
       bot_banner: 'הבוט של דונדי מטפל בשיחה הזאת. אין טיוטה — המנוע בודק אותה בכל ריצה.', takeover: 'לקחת את השיחה', takeover_arm: 'לחצו שוב כדי לקחת את השיחה',
       takeover_ok: 'השיחה אצלך — טיוטה תיכתב בריצה הבאה של המנוע', photo_dondy: '📷 תמונה — לצפייה בדונדי', photo_open: '📷 תמונה — פתיחה',
       photo_wait: '📷 תמונה — עוד לא הגיעה',
@@ -202,6 +206,10 @@
       old_section: 'Older than 30 days', subs_no_email: 'Subscriptions: not checked (no email)', subs_unavailable: 'Subscription lookup unavailable right now.',
       siblings: 'This customer has {n} more open tickets', siblings_one: 'This customer has 1 more open ticket', siblings_short: '+{n} open',
       tab_bot: '🤖 Dondy bot is handling', empty_bot: 'The Dondy bot is not handling any chat right now', st_bot: '🤖 Bot',
+      tab_failed: '⚠️ Failed', empty_failed: 'No failed WhatsApp sends', wa_fail: '⚠️ The send failed',
+      wa_fail_tpl: '⚠️ 24 hours passed — needs a template in Dondy', wa_fail_unknown_note: 'Unknown whether it went out — check in Dondy before sending again.',
+      wa_fail_tpl_note: 'The customer has not written for 24 hours: WhatsApp allows only an approved template. Send one from Dondy.',
+      wa_fail_note: 'The message did not go out. You can send the same text again.', wa_resend: 'Send again', wa_resend_arm: 'Click again to resend',
       bot_banner: 'The Dondy bot is handling this chat. No draft — the engine re-checks it every run.', takeover: 'Take over', takeover_arm: 'Click again to take over',
       takeover_ok: 'The chat is yours — a draft will be written on the next engine run', photo_dondy: '📷 Photo — view in Dondy', photo_open: '📷 Photo — open',
       photo_wait: '📷 Photo — not arrived yet',
@@ -341,6 +349,24 @@
   }
   function isWA(x) { return String((x && x.channel) || '').toLowerCase() === 'whatsapp'; }
   /** QA round 5 (double WhatsApp send): queued = status wa_queued, or (older engine) wa_send pending on an open ticket. */
+  /** A failed WhatsApp send (engine @37/38): wa_send failed | template_required | unknown (claim expired), the ticket back in
+   *  "action", the action line starting with ⚠️. List rows carry no wa_send (summary columns): there the ⚠️ line decides.
+   *  -> 'failed' | 'template_required' | 'unknown' | null */
+  const WA_FAIL_STATES = ['failed', 'template_required', 'unknown'];
+  function waFail(x) {
+    if (!x || !isWA(x) || OPEN.indexOf(x.status) < 0) return null;
+    const st = String(x.wa_send || '').split(':')[0];
+    if (WA_FAIL_STATES.indexOf(st) >= 0) return st;
+    if (st) return null;                                             // pending / claimed / sent: not a failure
+    const a = String(x.action || '').trim();
+    if (a.charAt(0) !== '\u26A0') return null;                     // the engine's WA_FAIL_MARK, with or without U+FE0F
+    return /24|תבנית|template/i.test(a) ? 'template_required' : 'failed';
+  }
+  function waFailChip(x) {
+    const k = waFail(x);
+    if (!k) return null;
+    return h('span', { class: 'chip wa-fail', 'data-test': 'wa-fail-chip', 'data-kind': k, text: t(k === 'template_required' ? 'wa_fail_tpl' : 'wa_fail') });
+  }
   function waQueued(x) { return !!x && (x.status === 'wa_queued' || (isWA(x) && x.wa_send === 'pending')); }
   const WA_LOCK = {};
   function waLock(brand, id) { WA_LOCK[brand + '|' + id] = true; }
@@ -540,7 +566,7 @@
     boots: {}, bootErr: {}, ar: {}, rowTr: {}, tkMemo: {}, prefetchedAt: {}, assist: {}, auto: {}, autoEdits: {}, autoMsg: {}, settings: {}, listSig: '', tk: null, search: { q: '', res: null, err: null, seq: 0 }, menuOpen: false
   };
   const OPEN = ['ready', 'action', 'health', 'delay'];
-  const TABS = ['ready', 'action', 'autoreply', 'auto', 'health', 'delay', 'bot', 'sent', 'today', 'search'];
+  const TABS = ['ready', 'action', 'failed', 'autoreply', 'auto', 'health', 'delay', 'bot', 'sent', 'today', 'search'];
   const brandName = function (b) { const bt = S.boots[b]; return (bt && bt.brandName) || (b.charAt(0).toUpperCase() + b.slice(1)); };
   const boot = function () { return S.boots[S.brand] || null; };
   /** apiBoot.subscriptions === 'none' (e.g. selera): no subscriptions panel, no auto-cancel queue. */
@@ -735,6 +761,7 @@
     if (id === 'autoreply') { const a = S.ar[S.brand]; return a && a.items ? a.items.filter(function (x) { return x.review === 'pending'; }).length : ''; }
     if (id === 'auto') { const a = S.auto[S.brand]; return a && a.items ? a.items.filter(function (x) { return !AutoCancel.inFlight(x.state); }).length : ''; }
     if (id === 'search') return '';
+    if (id === 'failed') return (b.tickets || []).filter(function (x) { return waFail(x); }).length;
     const rows = (b.tickets || []).filter(function (x) { return x.status === id; }).length;
     if (OPEN.indexOf(id) >= 0) return rows;               // apiBoot carries EVERY open ticket: the rows are the truth
     if (id === 'sent') {
@@ -752,6 +779,7 @@
       if (id === 'auto' && (!b || noSubs())) return;     // unknown until apiBoot answers: hidden, not guessed
       if (id === 'autoreply' && (!S.ar[S.brand] || S.ar[S.brand].unavailable)) return;
       const n = tabCount(id, b);
+      if (id === 'failed' && !n && S.tab !== 'failed') return;      // shown only while something failed
       const a = h('a', { class: 'tab ' + id, href: listHash(id), role: 'tab', 'aria-selected': (S.view !== 'ticket' || window.innerWidth >= 1000) && S.tab === id ? 'true' : 'false' },
         t('tab_' + id), n !== '' ? h('span', { class: 'n', text: String(n) }) : null);
       el.append(a);
@@ -884,13 +912,14 @@
   function rowsFor(tab) {
     const b = boot();
     if (!b) return null;
-    if (['ready', 'action', 'health', 'delay', 'bot', 'sent', 'today'].indexOf(tab) >= 0) return byChannel(rowsForRaw(tab));
+    if (['ready', 'action', 'failed', 'health', 'delay', 'bot', 'sent', 'today'].indexOf(tab) >= 0) return byChannel(rowsForRaw(tab));
     return rowsForRaw(tab);
   }
   function rowsForRaw(tab) {
     const b = boot();
     if (!b) return null;
     if (tab === 'today') return sortRows(todayList(b), 'today');
+    if (tab === 'failed') return sortRows((b.tickets || []).filter(function (x) { return waFail(x); }), 'action');
     if (tab === 'search') return S.search.res;
     if (tab === 'sent') return sortRows((b.tickets || []).filter(function (x) { return x.status === 'sent' || x.status === 'wa_queued'; }), 'sent');
     if (tab === 'autoreply') { const a = S.ar[S.brand]; return a ? (a.items || []) : null; }
@@ -919,6 +948,7 @@
     if (x.cancelled) chips.push(h('span', { class: 'chip ok', text: t('cancelled_here') }));
     if (Number(x.siblings) > 0) chips.push(h('span', { class: 'chip sib', text: t('siblings_short', { n: Number(x.siblings) }) }));
     if (isAutoReplied(x)) chips.unshift(h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }));
+    if (waFail(x)) chips.unshift(waFailChip(x));
     const ob = Outbox.forTicket(S.brand, x.id);
     if (ob && (ob.state !== 'ok' || Date.now() - ob.at < 15 * 60000)) chips.unshift(h('span', { class: 'chip ' + Outbox.cls(ob), text: Outbox.label(ob), 'data-test': 'row-outbox', 'data-state': ob.state }));
     if (x.archived) chips.push(h('span', { class: 'chip', text: t('archived') }));
@@ -1181,7 +1211,7 @@
    *  next 3 copied into this page's memory a moment later (cache only — never an engine call from here). */
   function prefetchNext(brand, id) {
     if (!canWork() || brand !== S.brand) return;
-    const tab = ['ready', 'action', 'health', 'delay', 'bot'].indexOf(S.tab) >= 0 ? S.tab : null;
+    const tab = ['ready', 'action', 'failed', 'health', 'delay', 'bot'].indexOf(S.tab) >= 0 ? S.tab : null;
     if (!tab) return;
     const rows = (rowsFor(tab) || []).filter(function (x) { return !isOld(x) && !Outbox.hidesRow(brand, x.id); });
     const pos = rows.map(function (x) { return x.id; }).indexOf(id);
@@ -1370,7 +1400,7 @@
     contact.append(h('span', { class: 'item' }, chanPill(x)));
     const head = h('div', { class: 'tk-head' },
       h('div', { class: 'l1' }, backBtn(), h('h2', { dir: 'auto', text: x.name || x.email || x.phone || t('no_name') }),
-        isAutoReplied(x) ? h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }) : null, statusChip(x.status)),
+        isAutoReplied(x) ? h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }) : null, statusChip(x.status), waFailChip(x)),
       h('div', { class: 'sync-row' }, h('span', { id: 'tk-sync', class: 'chip sync outline', hidden: true, 'aria-live': 'polite', 'data-test': 'tk-sync' }),
         h('span', { id: 'tk-check', class: 'tk-check', hidden: true, 'data-test': 'tk-check' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' ', t('checking'))),
       h('div', { class: 'ch-banner ' + (isWA(x) ? 'wa' : 'email'), 'data-test': isWA(x) ? 'wa-banner' : 'email-banner' },
@@ -1385,6 +1415,8 @@
     body.append(h('div', { id: 'tk-stale' }));
     body.append(h('div', { id: 'tk-outbox' }));
     body.append(h('div', { id: 'tk-live', class: 'live-note', role: 'status', 'aria-live': 'polite', 'data-test': 'tk-live', hidden: true }));
+    const wf = waFail(x);
+    if (wf) body.append(waFailBox(k, x, wf));
     if (x.status === 'wa_queued') body.append(h('div', { class: 'wa-note', role: 'status', 'data-test': 'wa-queued' },
       h('span', { class: 'chip ch-wa big', text: t('wa_queued_chip') })));
     if (x.recommendation) body.append(h('div', { class: 'todo', role: 'note', 'data-test': 'what-to-do' },
@@ -1430,6 +1462,25 @@
       if (k.tr && k.tr.ok) { Translate.paint(k); EnDraft.prefill(x.id, k.tr.draft); } else Translate.load(k);
     }
     paintSync();
+  }
+
+  /** The failed-send box at the top of the ticket. "שלח שוב" only for a plain failure (failed: open / chat / compose) —
+   *  never for unknown (it may have gone out) or template_required (needs a template). Same text (wa_out), the normal
+   *  outbox, a new rid; every guard of a first send applies (DRY_RUN, one open action, the WhatsApp lock). */
+  function waFailBox(k, x, kind) {
+    const box = h('div', { class: 'wa-fail-box', role: 'alert', 'data-test': 'wa-fail' },
+      h('div', { text: kind === 'template_required' ? t('wa_fail_tpl_note') : kind === 'unknown' ? t('wa_fail_unknown_note') : t('wa_fail_note') }));
+    const text = String(x.wa_out || '');
+    if (kind !== 'failed' || String(x.wa_send || '').split(':')[0] !== 'failed' || !text.trim()) return box;
+    const b0 = S.boots[k.brand];
+    const btn = armed(t('wa_resend'), t('wa_resend_arm'), 'primary wa', function () {
+      if (btn.disabled) return;
+      if (Outbox.start('apiSend', k.brand, x, { id: x.id, text: text, channel: 'whatsapp' })) goNext(k.brand, x.id);
+    });
+    btn.setAttribute('data-test', 'wa-resend');
+    btn.disabled = !b0 || !!b0.dryRun || Outbox.blocks(k.brand, x.id) || waLocked(k.brand, x.id) || waQueued(x);
+    box.append(h('div', { class: 'actions' }, btn));
+    return box;
   }
 
   function checkStale() {
@@ -2405,7 +2456,7 @@
   /** After a hand-off: the next ticket of the current tab (or the list), within a frame. */
   function goNext(brand, fromId) {
     if (brand !== S.brand) return;
-    const tab = ['ready', 'action', 'health', 'delay', 'bot'].indexOf(S.tab) >= 0 ? S.tab : null;
+    const tab = ['ready', 'action', 'failed', 'health', 'delay', 'bot'].indexOf(S.tab) >= 0 ? S.tab : null;
     const rows = tab ? (rowsFor(tab) || []).filter(function (x) { return !isOld(x) && !Outbox.blocks(brand, x.id) && !Outbox.hidesRow(brand, x.id); }) : [];
     const all = tab ? (rowsFor(tab) || []).filter(function (x) { return !isOld(x); }) : [];
     const pos = all.map(function (x) { return x.id; }).indexOf(fromId);

@@ -458,3 +458,14 @@ Engine @35/36 (round 2, same day):
   on the engine's own work (`serverMs`) above 10 s. It **never trips on wall time**: 30 s of wall time with
   `serverMs` 40 is Google's gateway, and dropping prefetch for it only made opens slower. Timeouts don't trip it either
   (they are wall time). The cap of 6 per brand and the reserved slot are unchanged; they are what bounds the load.
+
+## Failed WhatsApp sends (engine @37/38)
+- A failed send (`wa_send` failed / template_required / unknown, the last also covering an expired claim) is back in
+  "action", with ⚠️ at the start of the action line.
+- **Red chip** on the row and at the top of the ticket: "⚠️ השליחה נכשלה", or for template_required "⚠️ עברו 24
+  שעות — צריך תבנית בדונדי". List rows carry no `wa_send` (summary columns), so there the ⚠️ line decides; the
+  ticket reads `wa_send`.
+- **"⚠️ נכשלו (N)" tab,** shown only while N > 0.
+- **"שלח שוב"** appears only when `wa_send` is `failed` (open_failed / chat_not_found / compose_failed), never for
+  unknown or template_required. It sends the same text (`wa_out`) through the normal outbox with a new rid and moves
+  to the next ticket. It is disabled under DRY_RUN, an open action, the WhatsApp lock, or a queued send.
