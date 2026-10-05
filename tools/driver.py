@@ -11,7 +11,7 @@ their 5-minute trigger as a fallback and leave at once while this driver is aliv
 Brands run in parallel. Logs one status line per brand, never customer data. Exit 0 = every brand answered and is healthy,
 1 = a brand failed, 2 = a brand answers but has not completed a run for 15 minutes. Two drivers at once are harmless: the engine's run guard.
 """
-import argparse, uuid, base64, concurrent.futures, hashlib, hmac, json, os, re, subprocess, sys, time, urllib.error, urllib.request
+import argparse, tempfile, uuid, base64, concurrent.futures, hashlib, hmac, json, os, re, subprocess, sys, time, urllib.error, urllib.request
 
 DEFAULT_BRANDS = "rozela,celesta,apexmen,selera"
 URL_RE = re.compile(r"^https://script\.google\.com/(?:a/macros/[A-Za-z0-9.-]+|macros)/s/[A-Za-z0-9_-]{20,200}/exec$")
@@ -132,6 +132,46 @@ def run_brand(brand, url, secret, transport, budget, now=None, idle=0):
     if (h.get("lastRunAgeMs") or 0) > STALE_MS:
         return 2, line + " STALE"
     return 0, line
+
+
+# ---------------- a brand whose Gmail quota is spent: pause it for 30 minutes (the engine says `stopped=gmail_quota`) ----------------
+
+GMAIL_BACKOFF_S = 30 * 60
+
+
+def backoff_path(environ):
+    return environ.get("DRIVER_STATE_FILE") or os.path.join(tempfile.gettempdir(), "cs_driver_backoff.json")
+
+
+def backoff_load(path):
+    try:
+        with open(path) as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def backoff_until(path, brand):
+    try:
+        return float(backoff_load(path).get(brand) or 0)
+    except Exception:
+        return 0.0
+
+
+def backoff_set(path, brand, until):
+    d = backoff_load(path)
+    d[brand] = until
+    try:
+        with open(path, "w") as f:
+            json.dump({k: v for k, v in d.items() if isinstance(v, (int, float)) and v > time.time() - 3600}, f)
+    except Exception:
+        pass   # a read-only place (a cron host without a disk): the engine answers a paused brand in one property read anyway
+
+
+def wants_backoff(line):
+    """The engine paused its Gmail work (quota) and had no WhatsApp work this run: nothing to gain from calling it every minute."""
+    return "stopped=gmail_quota" in line and (" wa=0 " in line or " wa=0)" in line or "wa=0" in line)
 
 
 def run_brand_chain(brand, url, secret, transport, budget, idle, window_s):
@@ -305,6 +345,14 @@ def main(argv=None, environ=None, transport=None, out=print, now_utc=None):
         out("%s FAIL no engine url" % b)
     todo = [b for b in want if b in engines]
     codes = [1] * len(missing)
+    state = backoff_path(environ)
+    for b in list(todo):
+        until = backoff_until(state, b)
+        if until > time.time():   # Gmail quota spent: not hammered every minute
+            out(time.strftime("%H:%M:%S ") + "%s ok backoff gmail_quota until %s (%d min left)" % (b, time.strftime("%H:%M", time.localtime(until)), int((until - time.time()) / 60) + 1))
+            todo.remove(b)
+            codes.append(0)
+    paused_any = len(todo) != len([b for b in want if b in engines])
     if todo:
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(todo)) as ex:
             futs = {b: ex.submit(run_brand_chain, b, engines[b], secret, transport, max(10, min(25, a.budget)), max(0, min(600, a.only_if_stale)), a.window) for b in todo}
@@ -312,7 +360,10 @@ def main(argv=None, environ=None, transport=None, out=print, now_utc=None):
                 code, line = futs[b].result()
                 out(time.strftime("%H:%M:%S ") + line)
                 codes.append(code)
-    if todo:
+                if wants_backoff(line):
+                    backoff_set(state, b, time.time() + GMAIL_BACKOFF_S)
+                    out(time.strftime("%H:%M:%S ") + "%s backoff 30 min (Gmail daily quota)" % b)
+    if todo or paused_any:
         line = maybe_weekly(engines, secret, transport, want, now_utc, out)
         if line:
             out(time.strftime("%H:%M:%S ") + line)

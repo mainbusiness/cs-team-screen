@@ -273,3 +273,38 @@ def test_compose_is_plain_tidy_and_survives_a_missing_section():
     assert "דחיות שליחה: cancel_claim 2" in body and "שגיאות מנוע:" in body and "התראות שהושתקו: 2" in body
     assert "וואטסאפ: תקין · התראות ניתוק: 1" in body
     assert len(body) < 3000
+
+
+# ---------------- Gmail quota: the brand is paused for 30 minutes ----------------
+
+def test_a_brand_with_a_spent_gmail_quota_is_paused_for_30_minutes_and_resumes(tmp_path, monkeypatch):
+    calls = []
+    def tr(url, body, timeout):
+        calls.append(url)
+        return 200, json.dumps(reply(body, ok=True, result={"processed": 0, "waDrafted": 0, "stopped": "gmail_quota", "health": {}}))
+    env = dict(ENV, DRIVER_STATE_FILE=str(tmp_path / "backoff.json"))
+    t = [1_000_000.0]
+    monkeypatch.setattr(driver.time, "time", lambda: t[0])
+    lines = []
+    assert driver.main(["--brands", "selera"], env, tr, lines.append) == 0
+    first = len(calls)
+    assert first >= 1 and any("backoff 30 min" in l for l in lines)
+    t[0] += 60
+    lines.clear()
+    assert driver.main(["--brands", "selera"], env, tr, lines.append) == 0
+    assert len(calls) == first, "not one engine call while paused"
+    assert "backoff gmail_quota" in lines[0]
+    t[0] += 31 * 60
+    driver.main(["--brands", "selera"], env, tr, lambda s: None)
+    assert len(calls) > first, "resumes after 30 minutes"
+
+
+def test_the_pause_is_per_brand_and_never_when_the_brand_has_whatsapp_work(tmp_path, monkeypatch):
+    def tr(url, body, timeout):
+        sel = url == URL("e")
+        return 200, json.dumps(reply(body, ok=True, result={"processed": 0, "waDrafted": 0 if sel else 3, "stopped": "gmail_quota", "health": {}}))
+    env = dict(ENV, DRIVER_STATE_FILE=str(tmp_path / "b.json"))
+    monkeypatch.setattr(driver.time, "time", lambda: 5_000_000.0)
+    driver.main(["--brands", "selera,celesta"], env, tr, lambda s: None)
+    st = json.load(open(env["DRIVER_STATE_FILE"]))
+    assert "selera" in st and "celesta" not in st, st
