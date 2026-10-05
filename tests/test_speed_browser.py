@@ -131,3 +131,56 @@ def test_a_saved_edit_is_still_the_agents_text(page):
     pg.wait_for_selector("[data-test=tk-live]:not([hidden])", timeout=12000)
     assert pg.input_value(".draft textarea") == mine and pg.is_visible("[data-test=use-new-draft]")
     pg.unroute("**/api/rozela/watch")
+
+
+def test_checking_indicator_is_small_and_never_blocks_send(page):
+    """While a check of the open chat runs: a quiet "מתעדכן…", and Send stays usable (rozela is live in the mock)."""
+    pg, base = page
+    held = []
+    pg.goto(base + "/cs#/b/rozela/t/t18f2a03")
+    pg.wait_for_selector(".draft textarea")
+    pg.fill(".draft textarea", "בדיקה")
+    pg.route("**/api/rozela/watch", lambda route, req: held.append(route))          # the check hangs until we let it go
+    pg.wait_for_selector("[data-test=tk-check]:not([hidden])", timeout=12000)
+    assert "מתעדכן…" in pg.inner_text("[data-test=tk-check]")
+    assert not pg.is_disabled("[data-test=send-btn]")                       # never blocks the send
+    assert pg.is_hidden("[data-test=tk-sync]")
+    pg.unroute("**/api/rozela/watch")
+    for r in held:
+        r.continue_()
+    pg.wait_for_selector("[data-test=tk-check]", state="hidden", timeout=12000)
+
+
+def test_an_old_confirmed_copy_never_settles_the_send_guards(page):
+    """45 s window (2026-10-05): a copy vouched for 30 s ago opens at once, but an unknown WhatsApp send is decided only
+    by a FRESH check (the immediate background apiTicketLite), never by that copy."""
+    import time as _t
+    pg, base = page
+    rid = "q" * 32
+    item = {rid: {"rid": rid, "brand": "rozela", "id": "w8ab7701", "fn": "apiSend", "args": {"id": "w8ab7701", "text": "x", "channel": "whatsapp"},
+                  "channel": "whatsapp", "name": "לקוחה 01", "state": "unknown", "at": int(_t.time() * 1000) - 120000}}
+    pg.goto(base + "/cs#/b/rozela/t/w8ab7701")                                      # warm the server's copy
+    pg.wait_for_selector(".draft textarea, [data-test=wa-queued], [data-test=bot-banner]")
+    pg.goto(base + "/cs#/b/rozela/ready")
+    pg.evaluate("v => localStorage.setItem('cs.outbox', v)", json.dumps(item))
+
+    def old(route, req):
+        r = route.fetch()
+        j = r.json()
+        if j.get("ok") and isinstance(j.get("cache"), dict):
+            j["cache"].update(hit=True, confirmed=True, stale=False, vouched_s=30)
+        route.fulfill(response=r, body=json.dumps(j))
+    held = []
+    pg.route("**/api/rozela/ticket", old)
+    pg.route("**/api/rozela/watch", lambda route, req: held.append(route))
+    pg.reload()
+    pg.goto(base + "/cs#/b/rozela/t/w8ab7701")
+    pg.wait_for_selector("[data-test=outbox-banner]", timeout=15000)
+    pg.wait_for_timeout(1500)
+    assert pg.get_attribute("[data-test=outbox-banner]", "data-state") in ("unknown", "checking")   # not decided by the old copy
+    assert held                                                                     # a fresh check was asked for at once
+    pg.unroute("**/api/rozela/watch")
+    for r in held:
+        r.continue_()
+    pg.wait_for_selector("[data-test=outbox-banner][data-state=unsent]", timeout=15000)   # the fresh check decided
+    pg.unroute("**/api/rozela/ticket")

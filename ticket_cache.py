@@ -56,7 +56,9 @@ UNSUPPORTED_RETRY_S = 600
 # asks; every client gets its own delta from a log kept here. A cached ticket the feed has not marked changed is
 # "confirmed" — it is shown without another engine round-trip.
 CHANGES_SHARED_S = 4.0     # /changes and /watch reuse a feed read younger than this
-CONFIRM_S = 12.0           # a copy is confirmed fresh if the engine (ticket read or change feed) vouched for it this recently
+CONFIRM_S = 45.0           # a copy the engine vouched for this recently opens with NO engine call (the owner via coordinator,
+                           # 2026-10-05: speed first). /watch (apiTicketLite every 5 s) still brings every change in.
+GUARD_FRESH_S = 12.0       # what the screen's send guards (WhatsApp lock, outbox) need: a vouch at most this old
 WATCH_WAIT_S = 10.0        # /watch waits at most this long for the shared feed read
 WATCH_DIRECT_S = 20.0
 WATCH_FRESH_S = 5.0        # /watch makes no engine call for a copy vouched for this recently (by apiTicketLite or the feed)      # feed unreadable: the open ticket itself is re-read once its copy is older than this
@@ -659,22 +661,30 @@ class TicketCache:
     def _lite_ok(self, brand):
         return self.clock() > self.no_lite.get(brand, 0)
 
+    def vouched_age(self, brand, e):
+        """Seconds since the engine last vouched for this copy (its own read, apiTicketLite, or a feed read that would have
+        marked it changed); None when it is marked changed or nothing vouches for it."""
+        if not e or e.get("stale"):
+            return None
+        now = self.clock()
+        best = now - max(e["at"], e.get("chk") or 0)
+        with self.lock:
+            f = self.feed.get(brand)
+        if f and float(e.get("t0", e.get("at", 0)) or 0) >= f["base_t"]:
+            best = min(best, now - f["ok_at"])
+        return max(0.0, best)
+
     def confirmed(self, brand, e, window=CONFIRM_S):
         """Is this cached copy vouched for by the engine within CONFIRM_S — read itself, or covered by a feed read that
         would have marked it changed? Then the open ticket needs no second round-trip."""
-        if not e or e.get("stale"):
-            return False
-        now = self.clock()
-        if now - max(e["at"], e.get("chk") or 0) <= window:
-            return True
-        with self.lock:
-            f = self.feed.get(brand)
-        return bool(f and now - f["ok_at"] <= window and float(e.get("t0", e.get("at", 0)) or 0) >= f["base_t"])
+        a = self.vouched_age(brand, e)
+        return a is not None and a <= window
 
     def meta(self, brand, e, hit):
         age = self.clock() - e["at"]
+        va = self.vouched_age(brand, e)
         return {"hit": hit, "age_s": round(age, 1), "stale": bool(e.get("stale")), "at": e["at"],
-                "confirmed": self.confirmed(brand, e)}
+                "confirmed": self.confirmed(brand, e), "vouched_s": None if va is None else round(va, 1)}
 
     def get_ticket(self, user, brand, tid, revalidate=False, fresh=False, top=False, lite=True):
         if not ID_RE.match(tid):
@@ -736,8 +746,9 @@ class TicketCache:
                     need_full = bool(r.get("need_full"))
                 elif r.get("error") in ("unauthorized", "forbidden_fn"):
                     need_full = self._watch_by_feed(user, brand, tid)
-                else:                                # the front door failed twice: re-read once the copy is old
-                    need_full = not self.confirmed(brand, e) and self.clock() - e["at"] > WATCH_DIRECT_S
+                else:                                # the front door failed twice: re-read once nobody vouched for 20 s
+                    va = self.vouched_age(brand, e)
+                    need_full = va is None or va > WATCH_DIRECT_S
             else:
                 need_full = self._watch_by_feed(user, brand, tid)
         if need_full:                                # lite already said "not mergeable": straight to the full read
@@ -757,8 +768,8 @@ class TicketCache:
         if age is None or age > CHANGES_SHARED_S:
             feed_ok = bool(self._once(("chg", brand), lambda: self._sync(user, brand), wait=WATCH_WAIT_S).get("ok"))
         e = self._entry(brand, tid)
-        return (e is None or e.get("stale") or (not feed_ok and not self.confirmed(brand, e)
-                                                 and self.clock() - e["at"] > WATCH_DIRECT_S))
+        va = self.vouched_age(brand, e)
+        return e is None or va is None or (not feed_ok and va > WATCH_DIRECT_S)
 
     # ---------- related tickets: secondary information, never allowed to crowd out an agent's work ----------
     RELATED_TTL_S = 300

@@ -356,7 +356,7 @@ def test_a_feed_without_a_valid_version_vouches_for_nothing(make_app, pw_hash, t
     now = [1000.0]
     app, cache, c, tok, eng = setup(make_app, pw_hash, transport, now)
     post(c, tok, "/api/rozela/ticket", {"id": "t1"})
-    now[0] += 30                                                             # (not starving yet: no apiBoot fallback)
+    now[0] += 50                                                             # past the 45 s window, not starving yet (60 s)
     real = transport.reply
     transport.reply = lambda u, b: {"ok": True, "tickets": [], "removed": [], "version": 3} if b["fn"] == "apiChanges" else real(u, b)
     j = post(c, tok, "/api/rozela/changes", {"since": 7}).get_json()
@@ -388,3 +388,30 @@ def test_lite_never_merges_a_backwards_version_or_a_malformed_message(make_app, 
         transport.reply = lambda u, b, bad=bad: bad if b["fn"] == "apiTicketLite" else real(u, b)
         cache._entry("rozela", "t1")["v"] = 8
         assert cache._lite({"username": "noa", "roles": ["agent"], "brands": ["rozela"], "lang": "he"}, "rozela", "t1")["need_full"] is True
+
+
+def test_a_copy_vouched_for_within_45s_opens_with_no_engine_call(make_app, pw_hash, transport):
+    now = [1000.0]
+    app, cache, c, tok, eng = setup(make_app, pw_hash, transport, now)
+    post(c, tok, "/api/rozela/ticket", {"id": "t1"})
+    now[0] += 40
+    eng.calls.clear()
+    m = post(c, tok, "/api/rozela/ticket", {"id": "t1", "open": True}).get_json()["cache"]
+    assert m["confirmed"] is True and m["vouched_s"] == 40 and eng.calls == []
+    now[0] += 6                                                              # 46 s: no longer vouched for
+    m = post(c, tok, "/api/rozela/ticket", {"id": "t1", "open": True}).get_json()["cache"]
+    assert m["confirmed"] is False
+    now[0] += 1                                                              # one lite check vouches for it again, at once
+    m = post(c, tok, "/api/rozela/watch", {"id": "t1", "at": m["at"]}).get_json()["cache"]
+    assert m["vouched_s"] == 0 and eng.calls == ["apiTicketLite"]
+
+
+def test_a_change_is_never_hidden_by_the_45s_window(make_app, pw_hash, transport):
+    now = [1000.0]
+    app, cache, c, tok, eng = setup(make_app, pw_hash, transport, now)
+    at = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]["at"]
+    eng.conv["t1"].append({"who": "customer", "at": "2026-10-05T10:05:00Z", "text": "another one"})
+    eng.change("t1", draft_text="v2")
+    now[0] += 6                                                              # well inside 45 s
+    j = post(c, tok, "/api/rozela/watch", {"id": "t1", "at": at}).get_json()
+    assert j["changed"] is True and j["extras"]["conversation"][-1]["text"] == "another one"

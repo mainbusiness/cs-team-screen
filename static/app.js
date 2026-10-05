@@ -132,7 +132,7 @@
       ar_mode: 'מענה אוטומטי: {m}', mode_auto_reply: 'מענה אוטומטי: {v}', what_to_do: 'מה לעשות',
       set_AUTO_REPLY: 'מענה אוטומטי', set_AUTO_REPLY_help: 'כבוי / צל: מסמן מה היה נשלח / פעיל: עונה לבד על מיילים פשוטים ומסמן לבדיקה',
       set_AUTO_REPLY_note: 'מצב "פעיל" דורש שמצב ניסיון יהיה כבוי.',
-      syncing: 'טוען גרסה עדכנית…', sync_failed: 'לא עודכן ({m}) — מוצג עותק מ{when}', tk_updated: 'יש גרסה חדשה של הפנייה', apply_update: 'הצג',
+      syncing: 'טוען גרסה עדכנית…', checking: 'מתעדכן…', sync_failed: 'לא עודכן ({m}) — מוצג עותק מ{when}', tk_updated: 'יש גרסה חדשה של הפנייה', apply_update: 'הצג',
       live_new_msg: 'התקבלה הודעה חדשה', live_new_msgs: 'התקבלו {n} הודעות חדשות', live_ok: 'הבנתי',
       draft_new_avail: 'המנוע כתב טיוטה חדשה — הטיוטה שלך לא נגעה.', use_new_draft: 'החלף לטיוטה החדשה', draft_updated: 'הטיוטה עודכנה לפי ההודעה החדשה.',
       orders_err: 'בדיקת ההזמנות נכשלה: {m}', subs_err: 'בדיקת המנויים נכשלה: {m}',
@@ -254,7 +254,7 @@
       ar_mode: 'Auto-reply: {m}', mode_auto_reply: 'Auto-reply: {v}', what_to_do: 'What to do',
       set_AUTO_REPLY: 'Auto-reply', set_AUTO_REPLY_help: 'Off / shadow: marks what would be sent / on: answers simple emails by itself and flags them for review',
       set_AUTO_REPLY_note: '"On" requires test mode to be off.',
-      syncing: 'Loading the latest version…', sync_failed: 'Not updated ({m}) — showing a copy from {when}', tk_updated: 'A newer version of this ticket is ready', apply_update: 'Show',
+      syncing: 'Loading the latest version…', checking: 'Updating…', sync_failed: 'Not updated ({m}) — showing a copy from {when}', tk_updated: 'A newer version of this ticket is ready', apply_update: 'Show',
       live_new_msg: 'A new message arrived', live_new_msgs: '{n} new messages arrived', live_ok: 'Got it',
       draft_new_avail: 'The engine wrote a new draft — yours is untouched.', use_new_draft: 'Use the new draft', draft_updated: 'The draft was updated for the new message.',
       orders_err: 'Order lookup failed: {m}', subs_err: 'Subscription lookup failed: {m}',
@@ -1154,14 +1154,16 @@
     // a copy the engine vouched for within seconds (read itself, or untouched by the shared change feed) needs no
     // second round-trip: it IS the fresh copy (P0 speed, the owner 2026-10-05)
     const confirmed = !!(r.cache && r.cache.confirmed && !r.cache.stale);
-    if (!hit || confirmed) { delete WA_LOCK[brand + '|' + id]; Outbox.reconcile(brand, id, r.ticket); }   // engine data: the real state is known again
+    // the send guards (WhatsApp lock, outbox decisions) trust only an engine read or a vouch <= 12 s old; an older
+    // confirmed copy is shown at once and the immediate check below settles them
+    if (!hit || guardFresh(r)) { delete WA_LOCK[brand + '|' + id]; Outbox.reconcile(brand, id, r.ticket); }
     k.syncing = hit && !confirmed;                     // an unconfirmed cache hit is shown now and revalidated right after
     k.srvAt = r.cache && typeof r.cache.at === 'number' ? r.cache.at : 0;
     applyTicket(k, r, !memo || !!opts.showMemo);
     Draft.refreshSend();
     paintSync();
     prefetchNext(brand, id);
-    if (!k.syncing) return;
+    if (!k.syncing) { if (hit && !guardFresh(r)) Watch.kick(true); return; }   // checked at once, in the background
     const f = await api('/api/' + encodeURIComponent(brand) + '/ticket', { id: id, revalidate: true, open: true }, 'POST', { quiet: true });
     if (S.tk !== k) return;
     k.syncing = false;
@@ -1197,6 +1199,7 @@
     }, 2500);
   }
 
+  function guardFresh(r) { return !!(r && r.cache && typeof r.cache.vouched_s === 'number' && r.cache.vouched_s <= 12); }
   function msgKey(m) { return [m && m.who, m && m.at, String((m && m.text) || '').slice(0, 120)].join('|'); }
   /** A newer copy of the OPEN ticket (watch / revalidate). Never under the agent's fingers:
    *  - idle  -> the whole ticket is redrawn in place (scroll kept);
@@ -1259,19 +1262,31 @@
   /** The open ticket, every 5 s: cheap on the server (it rides the brand's shared change feed). */
   const Watch = (function () {
     let busy = false;
-    async function tick() {
+    /** "מתעדכן…" — small, never blocking (send stays as it is), only while a check of the open chat runs. Periodic
+     *  ticks show it only if they take longer than 0.8 s, so a quick check never flickers. */
+    function mark(k, on) {
+      const el = document.getElementById('tk-check');
+      if (el && S.tk === k) el.hidden = !on;
+    }
+    async function tick(now) {
       const k = S.tk;
       if (busy || !k || !k.ticket || k.syncing || document.hidden || S.view !== 'ticket' || !canWork()) return;
       busy = true;
+      const shown = setTimeout(function () { mark(k, true); }, now ? 0 : 800);
       let r;
       try { r = await api('/api/' + encodeURIComponent(k.brand) + '/watch', { id: k.id, at: k.srvAt || 0 }, 'POST', { retry: false, quiet: true }); }
-      finally { busy = false; }
+      finally { busy = false; clearTimeout(shown); mark(k, false); }
       if (S.tk !== k || !r || !r.ok) return;
       if (typeof r.syncedAge === 'number') noteSync(k.brand, r.syncedAge);
       if (r.changed && r.ticket) liveUpdate(k, r);
+      if (S.tk === k && guardFresh(r)) {             // the engine just vouched for what is on screen: settle the guards
+        delete WA_LOCK[k.brand + '|' + k.id];
+        Outbox.reconcile(k.brand, k.id, k.ticket);
+        Draft.refreshSend();
+      }
     }
     setInterval(tick, 5000);
-    return { kick: function () { setTimeout(tick, 0); }, tick: tick };
+    return { kick: function (now) { setTimeout(function () { tick(now); }, 0); }, tick: tick };
   })();
 
   /** No full ticket yet: what the list already knows about it (read-only), and a note. Never an empty error box. */
@@ -1356,7 +1371,8 @@
     const head = h('div', { class: 'tk-head' },
       h('div', { class: 'l1' }, backBtn(), h('h2', { dir: 'auto', text: x.name || x.email || x.phone || t('no_name') }),
         isAutoReplied(x) ? h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }) : null, statusChip(x.status)),
-      h('div', { class: 'sync-row' }, h('span', { id: 'tk-sync', class: 'chip sync outline', hidden: true, 'aria-live': 'polite', 'data-test': 'tk-sync' })),
+      h('div', { class: 'sync-row' }, h('span', { id: 'tk-sync', class: 'chip sync outline', hidden: true, 'aria-live': 'polite', 'data-test': 'tk-sync' }),
+        h('span', { id: 'tk-check', class: 'tk-check', hidden: true, 'data-test': 'tk-check' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' ', t('checking'))),
       h('div', { class: 'ch-banner ' + (isWA(x) ? 'wa' : 'email'), 'data-test': isWA(x) ? 'wa-banner' : 'email-banner' },
         icon(isWA(x) ? 'wa' : 'mail'), t(isWA(x) ? 'wa_banner' : 'email_banner')),
       contact,
