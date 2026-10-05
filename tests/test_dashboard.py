@@ -200,3 +200,12 @@ def test_handle_time_belongs_to_the_ticket_even_when_the_agent_looks_elsewhere(t
     ev(log, b + 60, "send", t="a")
     ev(log, b + 70, "send", t="b")
     assert sorted(x for _, x in D.handle_times(log.events(DAY))) == [60, 60]
+
+
+def test_a_backfilled_old_message_is_not_received_today(tmp_path):
+    """Live 2026-10-05: created_at is when the engine stored the ticket; a midnight backfill must not read as 289 new tickets."""
+    now = T0 + 15 * 3600
+    rows = [{"id": "old", "status": "action", "created_at": iso(T0 + 60), "waiting_since": iso(T0 - 9 * 86400)},
+            {"id": "new", "status": "action", "created_at": iso(T0 + 3600), "waiting_since": iso(T0 + 3600)}]
+    o = D.overview(rows, DAY, now)
+    assert o["received"] == 1 and o["aging"]["3d+"] == 1

@@ -235,6 +235,13 @@ def _pct(a, b):
     return round(100.0 * a / b, 1) if b else None
 
 
+def arrived(r):
+    """When the customer's message arrived. created_at is when the ENGINE stored the ticket — measured live 2026-10-05: a
+    backfill at midnight stamped 289 of celesta's tickets "created today" for messages from late September."""
+    ts = [x for x in (parse_ts(r.get("created_at")), parse_ts(r.get("waiting_since"))) if x is not None]
+    return min(ts) if ts else None
+
+
 def _resp_s(r):
     h = parse_ts(r.get("handled_at"))
     w = parse_ts(r.get("waiting_since"))
@@ -255,7 +262,7 @@ def overview(rows, day, now):
     """One brand, one Israel day, from its cached ticket list (open tickets are all there; closed ones only the last 100)."""
     lo, hi = day_start(day), day_start(next_day(day))
     inday = lambda ts: ts is not None and lo <= ts < hi          # noqa: E731
-    received = [r for r in rows if inday(parse_ts(r.get("created_at")))]
+    received = [r for r in rows if inday(arrived(r))]
     answered = [r for r in rows if r.get("status") in ANSWERED_ST and inday(parse_ts(r.get("handled_at")))]
     closed = [r for r in rows if r.get("status") == "done" and inday(parse_ts(r.get("handled_at")))]
     awaiting = [r for r in rows if r.get("status") in OPEN_ST]
@@ -270,7 +277,7 @@ def overview(rows, day, now):
                 aging[k] += 1
     frt = {"email": [], "whatsapp": []}
     for r in answered:
-        c, h = parse_ts(r.get("created_at")), parse_ts(r.get("handled_at"))
+        c, h = arrived(r), parse_ts(r.get("handled_at"))
         if inday(c) and h is not None and h >= c:
             frt["whatsapp" if is_wa(r) else "email"].append(h - c)
     auto = [r for r in answered if AUTO_RE.match(str(r.get("handled_by") or ""))]
@@ -396,7 +403,7 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now):
     sla = {"email": [0, 0], "whatsapp": [0, 0]}
     for r in answered:
         ch = "whatsapp" if is_wa(r) else "email"
-        c, h = parse_ts(r.get("created_at")), parse_ts(r.get("handled_at"))
+        c, h = arrived(r), parse_ts(r.get("handled_at"))
         if c is not None and lo <= c < hi and h >= c:
             frt[ch].append(h - c)
         rs_ = _resp_s(r)
