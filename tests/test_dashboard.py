@@ -307,3 +307,15 @@ def test_a_finished_day_is_reread_after_a_while_or_on_an_admin_refresh(app, pw_h
     now[0] += D.DS_FINAL_TTL_S + 1
     a.get("/api/dash?date=%s" % DAY); act["ds_drain"]()
     assert len(calls) == 6
+
+
+def test_a_brand_without_daystats_is_named_and_kept_out_of_the_kpis(app, pw_hash, transport):
+    calls = []
+    good = ds_reply(calls)
+    transport.reply = lambda u, b: {"ok": False, "error": "server_error"} if (b["fn"] == "apiDayStats" and "celesta" in u) else good(u, b)
+    act = dash_now(app, [T0 + 17 * 3600])
+    a, _ = logged_in(app, pw_hash, "boss", ["admin"], ["rozela", "celesta"])
+    a.get("/api/dash"); act["ds_drain"]()
+    o = a.get("/api/dash").get_json()
+    assert o["stats_source"] == "mixed" and o["missing_ds"] == {"celesta": "server_error"}
+    assert o["kpis"]["frt_email_s"] == 1800 and o["kpis"]["frt_source"] == "dayStats"       # rozela's conversations only

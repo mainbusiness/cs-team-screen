@@ -516,3 +516,16 @@ written by a thread in the single gunicorn process).
 
 **Charts** are plain SVG (strict CSP, no library). The page refreshes every 30 s while it is open. It has a day / 7 / 30
 selector and a date picker.
+
+**dayStats (engine, 2026-10-06): the day's numbers come from the conversations.** Received, answered, closed,
+awaiting, FRT and who answered come from the engine's `apiDayStats` (internal fn, admin + user-manager), which reads the
+WhatsApp conversations and the Gmail threads. It counts replies from our screen, from Dondy directly (person / bot /
+template / close) and from Gmail directly.
+- **Fetching:** in the background, all chunks (`next` is passed back as `cursor`), one brand at a time.
+- **Cache:** on disk as `ds-<brand>-<day>.json`. A running day is re-read every 10 min, a finished day every 6 h (the
+  engine can backfill), and an admin can force a re-read with `?refresh=1`.
+- **"Answered" / "closed" by source:** shown as a row of cards (total, then from the system / from Dondy / from email,
+  each with its parts), a pie chart, and a per-brand table.
+- **The screen's own log** stays as "פעילות במסך" (work time, AHT, hours).
+- **Banners:** a brand without dayStats is named in a "לא סופי" banner, and its list-based numbers stay out of the FRT
+  KPIs. `VERIFY_NOTE` shows the coordinator's live reconciliation (rozela 2026-10-05: 15/15).

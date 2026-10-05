@@ -481,15 +481,17 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
     tot_active = sum(a["active_s"] for a in agents)
     tot_present = sum(a["present_s"] for a in agents)
     ds_ok = bool(brands) and all(o.get("stats") == "dayStats" for o in brands_out.values())
+    ds_any = any(o.get("stats") == "dayStats" for o in brands_out.values())
 
-    def wmean(key, ch):
-        pts = [(o.get(key), (o.get("frt_n") or {}).get(ch, 0)) for o in brands_out.values() if o.get(key) is not None]
+    def wmean(key, ch):                       # only brands counted from the conversations (never mixed with list proxies)
+        pts = [(o.get(key), (o.get("frt_n") or {}).get(ch, 0)) for o in brands_out.values()
+               if o.get("stats") == "dayStats" and o.get(key) is not None]
         n = sum(w for _, w in pts)
         return round(sum(v * w for v, w in pts) / n, 1) if n else None
     kpis = {
-        "frt_email_s": wmean("frt_email_s", "email") if ds_ok else _median(frt["email"]),
-        "frt_wa_s": wmean("frt_wa_s", "whatsapp") if ds_ok else _median(frt["whatsapp"]),
-        "frt_source": "dayStats" if ds_ok else "list",
+        "frt_email_s": wmean("frt_email_s", "email") if ds_any else _median(frt["email"]),
+        "frt_wa_s": wmean("frt_wa_s", "whatsapp") if ds_any else _median(frt["whatsapp"]),
+        "frt_source": "dayStats" if ds_any else "list",
         "aht_s": _median(all_handles), "fcr_pct": _pct(single, len(sent_tickets)),
         "reopen_pct": _pct(reopened, len(sent_tickets)), "fcr_window_open": now - hi < 72 * 3600,
         "occupancy": round(min(1.0, tot_active / tot_present), 3) if tot_present else None,
@@ -506,7 +508,8 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
         # Owner, 2026-10-06: agents also answer in Dondy / Gmail directly, so received/answered/closed/FRT come from the
         # engine's dayStats (computed from the conversations). Brands without it yet say "not final".
         "stats_source": "dayStats" if ds_ok else ("mixed" if any(o.get("stats") == "dayStats" for o in brands_out.values()) else "list"),
-        "verify_note": VERIFY_NOTE if any(o.get("stats") == "dayStats" for o in brands_out.values()) else None,
+        "verify_note": VERIFY_NOTE if ds_any else None,
+        "missing_ds": {b: o.get("ds_error") for b, o in brands_out.items() if o.get("stats") != "dayStats"},
         "sources": {"total": _sum_sources([o.get("sources") for o in brands_out.values() if o.get("sources")]),
                     "brands": {b: _sum_sources([o["sources"]]) for b, o in brands_out.items() if o.get("sources")}},
         "senders": by_sender,
