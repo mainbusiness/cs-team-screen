@@ -42,11 +42,27 @@ def test_admin_sees_live_numbers_from_real_actions(server):
         assert ad.inner_text("[data-test=dash-brand][data-brand=rozela] [data-test=ov-awaiting] b") not in ("", "0")
         assert int(ad.inner_text("[data-test=dash-brand][data-brand=rozela] [data-test=ov-wafail] b")) >= 1
         row = ad.locator("[data-test=dash-agent][data-user=agent1]")
-        assert row.count() == 1 and row.locator("[data-test=ag-replies] b").inner_text() == "1"            # one reply (engine + log agree)
+        assert row.count() == 1 and row.locator("[data-test=ag-replies] b").inner_text() == "1"
+        assert "הנתונים בתיקון — לא סופיים" in ad.inner_text("[data-test=dash-fixing]")        # before dayStats has landed            # one reply (engine + log agree)
         assert "חסר" in ad.inner_text("[data-test=kpi-csat]") and "75–85%" in ad.inner_text("[data-test=kpi-occ]")
         assert ad.locator("[data-test=heatmap] .hc").count() >= 24 and ad.locator("[data-test=pie-channel] svg").count() == 1
-        assert "הנתונים בתיקון — לא סופיים" in ad.inner_text("[data-test=dash-fixing]")        # until the engine's dayStats
         assert "פעילות במסך" in ad.inner_text("[data-test=dash-onscreen]")
+        # dayStats is read in the background (rozela in two chunks): the next load shows the conversation numbers
+        for _ in range(20):
+            ad.reload()
+            ad.wait_for_selector("[data-test=dash-brand][data-brand=rozela]")
+            if ad.locator("[data-test=dash-brand][data-brand=rozela] [data-test=ov-from-conv]").count():
+                break
+            ad.wait_for_timeout(300)
+        assert ad.locator("[data-test=dash-fixing]").count() == 0
+        assert "אימות מול השיחות" in ad.inner_text("[data-test=dash-verify]")
+        assert ad.inner_text("[data-test=dash-brand][data-brand=rozela] [data-test=ov-answered] .v") == "5"
+        assert ad.inner_text("[data-test=src-answered-total] .v") == "5"
+        assert ad.inner_text("[data-test=src-answered-fromDondy] .v") == "1" and "אדם 1" in ad.inner_text("[data-test=src-answered-fromDondy]")
+        assert ad.inner_text("[data-test=src-closed-fromDondy] .v") == "1" and "סגירה 1" in ad.inner_text("[data-test=src-closed-fromDondy]")
+        assert ad.locator("[data-test=src-answered] svg.donut").count() == 1
+        assert ad.inner_text("[data-test=dash-agent][data-user=agent1] [data-test=ag-conv]") == "2"
+        assert "ישירות בדונדי 1" in ad.inner_text("[data-test=dash-direct]")
         ad.click("[data-test=range-7]")
         ad.wait_for_selector("[data-test=heat-who]")
         b.close()

@@ -37,7 +37,7 @@ TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTick
          "apiNote": WORK, "apiKachingCancel": WORK, "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
          "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK,
-         "apiResult": WORK, "apiTicketLite": WORK}
+         "apiResult": WORK, "apiTicketLite": WORK, "apiDayStats": ("admin", "user-manager")}
 MOCK_WRITES = ("apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiWaTakeOver",
                "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject")
 CONTRACT_RE_PREFIX = "gid://shopify/SubscriptionContract/"
@@ -745,6 +745,29 @@ class MockEngines:
         return {"ok": True, "version": self.version[brand], "tickets": rows, "removed": [], "serverMs": 40, "serverTime": self._now(),
                 "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]),
                 "subscriptions": "none" if brand == "selera" else "kaching"}
+
+    def apiDayStats(self, brand, a, c):
+        """Engine 2026-10-06 shape (DayStats.gs dsReport_), small fixed numbers; rozela comes in two chunks."""
+        if not isinstance(a.get("date"), str) or len(a["date"]) != 10:
+            return {"ok": False, "error": "bad_date"}
+        cur = a.get("cursor") or 0
+        if brand == "rozela" and cur == 0:
+            return {"ok": True, "partial": True, "next": 7, "received": {"total": 0}, "answered": {"total": 0}}
+        t = self._b(brand)["tickets"]
+        rec = {"email": sum(1 for x in t if x.get("channel") != "whatsapp"), "whatsapp": sum(1 for x in t if x.get("channel") == "whatsapp")}
+        tot = lambda o: o["email"] + o["whatsapp"]                    # noqa: E731
+        ans = {"email": 3, "whatsapp": 2}
+        row = lambda ag, au, hu, bo, te, cl, di: {"fromSystem": {"agent": ag, "auto": au, "total": ag + au},  # noqa: E731
+                                                  "fromDondy": {"human": hu, "bot": bo, "template": te, "close": cl, "total": hu + bo + te + cl},
+                                                  "fromEmail": {"direct": di, "total": di}}
+        return {"ok": True, "date": a["date"], "source": "conversation", "brand": brand,
+                "received": dict(rec, total=tot(rec)), "answered": dict(ans, total=5, byHuman=4),
+                "awaitingNow": {"email": 2, "whatsapp": 1, "total": 3}, "closedToday": {"email": 1, "whatsapp": 1, "total": 2, "by": {"ours": 1, "dondy": 1}},
+                "frt": {"all": {"n": 5, "medianMin": 42, "p90Min": 300}, "email": {"n": 3, "medianMin": 95, "p90Min": 300},
+                        "whatsapp": {"n": 2, "medianMin": 6, "p90Min": 9}},
+                "attribution": {"bySender": {"agent1": 2, "auto": 1, "dondy_direct": 1, "gmail_direct": 1}},
+                "sources": {"answered": row(2, 1, 1, 0, 0, 0, 1), "closed": row(1, 0, 0, 0, 0, 1, 0), "replies": row(3, 1, 2, 1, 0, 0, 1)},
+                "partial": False, "next": None, "serverMs": 900}
 
     def apiTicketLite(self, brand, a, c):
         """Engine @35/36 shape: {id, since, seen?} -> {ok, v, changed:false} | {ok, v, changed:true, status, draft_text,

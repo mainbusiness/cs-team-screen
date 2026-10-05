@@ -209,3 +209,79 @@ def test_a_backfilled_old_message_is_not_received_today(tmp_path):
             {"id": "new", "status": "action", "created_at": iso(T0 + 3600), "waiting_since": iso(T0 + 3600)}]
     o = D.overview(rows, DAY, now)
     assert o["received"] == 1 and o["aging"]["3d+"] == 1
+
+
+# ---------- dayStats (engine 2026-10-06): the day's numbers from the conversations themselves ----------
+
+def ds_reply(calls, err=None):
+    def row(ag, au, hu, bo, te, cl, di):
+        return {"fromSystem": {"agent": ag, "auto": au, "total": ag + au},
+                "fromDondy": {"human": hu, "bot": bo, "template": te, "close": cl, "total": hu + bo + te + cl},
+                "fromEmail": {"direct": di, "total": di}}
+
+    def reply(url, body):
+        fn, a = body["fn"], body.get("args") or {}
+        if fn == "apiDayStats":
+            calls.append(dict(a))
+            if err:
+                return {"ok": False, "error": err}
+            if not a.get("cursor"):
+                return {"ok": True, "partial": True, "next": 5, "received": {"total": 0}, "answered": {"total": 0}}
+            return {"ok": True, "date": a["date"], "received": {"total": 40, "email": 30, "whatsapp": 10},
+                    "answered": {"total": 38, "email": 28, "whatsapp": 10, "byHuman": 30}, "awaitingNow": {"total": 2},
+                    "closedToday": {"total": 12, "email": 7, "whatsapp": 5},
+                    "frt": {"all": {"n": 38, "medianMin": 20}, "email": {"n": 28, "medianMin": 30}, "whatsapp": {"n": 10, "medianMin": 2}},
+                    "attribution": {"bySender": {"noa": 9, "dondy_direct": 20, "auto": 5, "gmail_direct": 4}},
+                    "sources": {"answered": row(9, 5, 20, 0, 0, 0, 4), "closed": row(7, 0, 0, 0, 0, 5, 0), "replies": row(9, 5, 25, 1, 0, 0, 4)},
+                    "partial": False}
+        if fn == "apiBoot":
+            return {"ok": True, "version": 1, "counts": {"ready": 1}, "tickets": [{"id": "x1", "status": "ready", "created_at": "2026-10-05T08:00:00Z"}]}
+        from conftest import valid_reply
+        return valid_reply(url, body)
+    return reply
+
+
+def dash_now(app, now):
+    log = app.extensions["cs"]["activity"]["log"]
+    log.clock = lambda: now[0]
+    return app.extensions["cs"]["activity"]
+
+
+def test_daystats_replaces_the_list_numbers_and_is_read_in_chunks(app, pw_hash, transport):
+    calls = []
+    transport.reply = ds_reply(calls)
+    now = [T0 + 17 * 3600]
+    act = dash_now(app, now)
+    a, _ = logged_in(app, pw_hash, "boss", ["admin"], ["rozela"])
+    first = a.get("/api/dash").get_json()
+    assert first["brands"]["rozela"].get("stats") != "dayStats" and first["stats_source"] == "list"   # not yet: banner stays
+    act["ds_drain"]()
+    assert calls == [{"date": DAY, "brand": "rozela"}, {"date": DAY, "cursor": 5, "brand": "rozela"}]   # next -> cursor
+    o = a.get("/api/dash").get_json()
+    r = o["brands"]["rozela"]
+    assert (r["stats"], r["received"], r["answered"], r["closed"], r["awaiting"]) == ("dayStats", 40, 38, 12, 2)
+    assert r["answered_pct"] == 95.0 and r["frt_median_s"] == 1200 and r["auto_pct"] == round(100 * 5 / 38, 1)
+    assert o["stats_source"] == "dayStats" and o["verify_note"] == D.VERIFY_NOTE
+    assert o["kpis"]["frt_email_s"] == 1800 and o["kpis"]["frt_wa_s"] == 120 and o["kpis"]["frt_source"] == "dayStats"
+    s = o["sources"]["total"]
+    assert s["answered"]["fromDondy"]["human"] == 20 and s["answered"]["fromEmail"]["total"] == 4 and s["closed"]["fromDondy"]["close"] == 5
+    assert o["senders"]["dondy_direct"] == 20
+    assert len(calls) == 2                                                      # cached: no new engine read
+    now[0] += D.DS_TTL_S + 1
+    a.get("/api/dash"); act["ds_drain"]()
+    assert len(calls) == 4                                                      # a running day is re-read after the TTL
+
+
+def test_daystats_failure_keeps_the_not_final_banner(app, pw_hash, transport):
+    calls = []
+    transport.reply = ds_reply(calls, err="forbidden_fn")
+    act = dash_now(app, [T0 + 17 * 3600])
+    a, _ = logged_in(app, pw_hash, "boss", ["admin"], ["rozela"])
+    a.get("/api/dash"); act["ds_drain"]()
+    o = a.get("/api/dash").get_json()
+    assert o["stats_source"] == "list" and o["verify_note"] is None and o["brands"]["rozela"]["ds_error"] == "forbidden_fn"
+
+
+def test_daystats_is_never_reachable_from_the_browser_route(app, pw_hash, transport):
+    a, tok = logged_in(app, pw_hash, "boss", ["admin"], ["rozela"])
+    assert call(a, tok, "rozela", "apiDayStats", {"date": DAY}).status_code == 404 and transport.calls == []

@@ -68,6 +68,8 @@ INTERNAL_FNS = {
     "apiChanges": (WORK_ROLES, ("since",)),        # final shape: agent/admin, since = int >= 0
     # engine @35/36 (2026-10-05): the open ticket's cheap check. {id, since: ticket v, seen: messages we hold}
     "apiTicketLite": (WORK_ROLES, ("id", "since", "seen")),
+    # engine 2026-10-06: the day's numbers from the conversations themselves (managers' dashboard). Chunked: partial + next.
+    "apiDayStats": (("admin", "user-manager"), ("date", "cursor")),
     # QA round 4: the stored final reply of a write, by the rid it was sent with (engine keeps it 30 min)
     "apiResult": (WORK_ROLES, ("rid",)),
     "apiTicket": FN_TABLE["apiTicket"],
@@ -93,7 +95,7 @@ log = logging.getLogger("cs_screen.engine")
 # retried either: a slow engine would turn into minutes of waiting.
 READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "apiTicketExtras", "apiTickets", "apiSearch",
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
-                      "apiResult", "apiTicketLite"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
+                      "apiResult", "apiTicketLite", "apiDayStats"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
 # the time a server thread was held (70-110 s), the 16 threads ran out, Render's health check timed out and the
@@ -269,7 +271,7 @@ def clean_args(fn, args, table=None):
     for k in keys:
         if k in args:
             v = args[k]
-            if k in ("since", "seen"):
+            if k in ("since", "seen", "cursor"):
                 if isinstance(v, bool) or not isinstance(v, int) or v < 0:
                     raise ProxyError("bad_request", 400)
                 out[k] = v
@@ -359,6 +361,7 @@ SCHEMAS = {
     "apiTicketFull": lambda r, a: _tid_ok(r, "ticket", a.get("id")) and isinstance(r.get("extras"), dict),
     "apiTicketLite": lambda r, a: (isinstance(r.get("v"), int) and isinstance(r.get("changed"), bool)
                                    and (r["changed"] is False or isinstance(r.get("newMessages"), list))),
+    "apiDayStats": lambda r, a: isinstance(r.get("received"), dict) and isinstance(r.get("answered"), dict),
     "apiTicketExtras": lambda r, a: isinstance(r.get("extras"), dict) and r.get("id") == a.get("id"),
     "apiTickets": lambda r, a: isinstance(r.get("tickets"), list),
     "apiSearch": lambda r, a: isinstance(r.get("tickets"), list),

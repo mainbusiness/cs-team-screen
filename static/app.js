@@ -2773,7 +2773,10 @@
       pie_chan: 'לפי ערוץ', pie_cat: 'לפי נושא', pie_who: 'מי ענה', agents_w: 'נציגים', auto_w: 'מענה אוטומטי', email: 'מייל', whatsapp: 'וואטסאפ',
       h: 'ש׳', m: 'דק׳', s: 'שנ׳', resends: 'מתוכן שליחה חוזרת', per_day: 'לפי יום', present: 'מחובר',
       fixing: 'הנתונים בתיקון — לא סופיים', fixing_sub: 'נציגים עונים גם ישירות בדונדי ובג׳ימייל; המספרים יעברו לחישוב מהשיחות עצמן במנוע.',
-      onscreen: 'פעילות במסך', log_word: 'ביומן', idle_agents: '{n} משתמשים בלי פעילות בטווח', log_new: 'יומן הפעילות עוד ריק — זמן העבודה נספר מהפעולה הבאה של כל נציג; תשובות וסגירות כבר נספרות מהמנוע.'
+      onscreen: 'פעילות במסך', log_word: 'ביומן', from_conv: 'מהשיחות', computing: 'מחשב מהשיחות…',
+      src_answered: 'נענו — לפי מקור', src_closed: 'נסגרו — לפי מקור', src_fromSystem: 'מהמערכת', src_fromDondy: 'מדונדי', src_fromEmail: 'מהמייל',
+      sub_agent: 'נציג', sub_auto: 'אוטומטי', sub_human: 'אדם', sub_bot: 'בוט', sub_template: 'תבנית', sub_close: 'סגירה', sub_direct: 'ישיר', total: 'סה״כ',
+      conv_answered: 'ענו (מהשיחות)', direct_note: 'בלי שם נציג: ישירות בדונדי {d} · ישירות במייל {g} · אוטומטי {a} · בוט {b}', all_brands: 'כל המותגים', brand_col: 'מותג', idle_agents: '{n} משתמשים בלי פעילות בטווח', log_new: 'יומן הפעילות עוד ריק — זמן העבודה נספר מהפעולה הבאה של כל נציג; תשובות וסגירות כבר נספרות מהמנוע.'
     };
     const EN = {
       title: 'Managers', day: 'Day', d7: '7 days', d30: '30 days', updated: 'Updated', loading: 'Loading…',
@@ -2791,7 +2794,10 @@
       pie_chan: 'By channel', pie_cat: 'By topic', pie_who: 'Who answered', agents_w: 'Agents', auto_w: 'Auto-reply', email: 'Email', whatsapp: 'WhatsApp',
       h: 'h', m: 'min', s: 's', resends: 'of them re-sends', per_day: 'Per day', present: 'Logged in',
       fixing: 'The numbers are being fixed — not final', fixing_sub: 'Agents also answer directly in Dondy and Gmail; the numbers will move to the engine\'s count from the conversations.',
-      onscreen: 'On-screen activity', log_word: 'log', idle_agents: '{n} users with no activity in range', log_new: 'The activity log is still empty — work time counts from each agent\'s next action; replies and closes are already counted from the engine.'
+      onscreen: 'On-screen activity', log_word: 'log', from_conv: 'from conversations', computing: 'Counting from conversations…',
+      src_answered: 'Answered — by source', src_closed: 'Closed — by source', src_fromSystem: 'From the system', src_fromDondy: 'From Dondy', src_fromEmail: 'From email',
+      sub_agent: 'agent', sub_auto: 'auto', sub_human: 'person', sub_bot: 'bot', sub_template: 'template', sub_close: 'close', sub_direct: 'direct', total: 'Total',
+      conv_answered: 'Answered (conversations)', direct_note: 'No agent name: directly in Dondy {d} · directly in email {g} · auto {a} · bot {b}', all_brands: 'All brands', brand_col: 'Brand', idle_agents: '{n} users with no activity in range', log_new: 'The activity log is still empty — work time counts from each agent\'s next action; replies and closes are already counted from the engine.'
     };
     const L = LANG === 'en' ? EN : HE;
     function d(k, v) { let s = L[k] || k; Object.keys(v || {}).forEach(function (x) { s = s.replace('{' + x + '}', v[x]); }); return s; }
@@ -2814,7 +2820,7 @@
       return el;
     }
     function catName(c) { const v = t('cat_' + c); return v === 'cat_' + c ? c : v; }
-    function nameOf(kind, k) { return kind === 'brand' ? brandName(k) : kind === 'channel' ? L[k] || k : kind === 'category' ? catName(k) : L[k + '_w'] || k; }
+    function nameOf(kind, k) { return kind === 'brand' ? brandName(k) : kind === 'channel' ? L[k] || k : kind === 'category' ? catName(k) : kind === 'src' ? L['src_' + k] || k : L[k + '_w'] || k; }
     /** Donut + legend. data {key: value}; nothing -> a quiet "no data". */
     function pie(title, kind, data, unit) {
       const keys = Object.keys(data || {}).filter(function (k) { return data[k] > 0; }).sort(function (a, b) { return data[b] - data[a]; });
@@ -2858,7 +2864,9 @@
     function brandCard(b, o) {
       const pre = o.truncated ? '≥' : '';
       const c = h('div', { class: 'dash-card brand', 'data-test': 'dash-brand', 'data-brand': b },
-        h('h3', null, brandName(b), o.source !== 'live' ? h('span', { class: 'chip outline', text: o.source === 'snapshot' ? L.src_snapshot : L.src_rebuilt }) : null));
+        h('h3', null, brandName(b),
+          o.stats === 'dayStats' ? h('span', { class: 'chip ok', 'data-test': 'ov-from-conv', text: L.from_conv }) :
+            (o.ds_busy ? h('span', { class: 'chip outline', text: L.computing }) : (o.source !== 'live' ? h('span', { class: 'chip outline', text: o.source === 'snapshot' ? L.src_snapshot : L.src_rebuilt }) : null))));
       c.append(h('div', { class: 'big-row' },
         big(L.received, pre + o.received, null, 'ov-received'),
         big(L.answered, pre + o.answered, o.answered_pct !== null ? pctS(o.answered_pct) + ' ' + L.of : null, 'ov-answered'),
@@ -2898,17 +2906,18 @@
     }
     function agentsTable(all) {
       // the engine is the truth for replies/closes (the log only exists since it was deployed): the larger number leads
-      const list = all.filter(function (a) { return a.active_s || a.sends || a.closes || a.engine_sends || a.engine_closes; });
+      const list = all.filter(function (a) { return a.active_s || a.sends || a.closes || a.engine_sends || a.engine_closes || a.ds_answered; });
       const idle = all.length - list.length;
       const wrap = h('div', { class: 'table-wrap' });
       if (idle) wrap.append(h('div', { class: 'muted small idle-note', text: d('idle_agents', { n: idle }) }));
       if (!list.length) { wrap.append(h('div', { class: 'muted', text: L.none })); return wrap; }
       const tb = h('table', { class: 'dash-table', 'data-test': 'dash-agents' });
-      tb.append(h('thead', null, h('tr', null, [L.agent, L.active, L.replies, L.closes, L.per_hour, 'AHT', L.occ].map(function (x) { return h('th', { text: x }); }))));
+      tb.append(h('thead', null, h('tr', null, [L.agent, L.conv_answered, L.active, L.replies, L.closes, L.per_hour, 'AHT', L.occ].map(function (x) { return h('th', { text: x }); }))));
       const body = h('tbody');
       list.forEach(function (a) {
         const tr = h('tr', { 'data-test': 'dash-agent', 'data-user': a.user },
           h('td', null, h('bdi', { text: a.name })),
+          h('td', { 'data-test': 'ag-conv' }, h('b', { text: a.ds_answered === null || a.ds_answered === undefined ? '—' : String(a.ds_answered) })),
           h('td', { 'data-test': 'ag-active', text: fmtS(a.active_s) }),
           h('td', { 'data-test': 'ag-replies' }, h('b', { text: String(Math.max(a.sends, a.engine_sends)) }),
             h('span', { class: 'muted small', text: ' (' + L.engine + ' ' + a.engine_sends + ' · ' + L.log_word + ' ' + a.sends + ')' })),
@@ -2928,7 +2937,7 @@
         if (a.days.length > 1) det.append(h('ul', { class: 'mini' }, a.days.map(function (x) { return h('li', null, x.day + ': ' + fmtS(x.active_s) + ' · ' + x.sends + ' ' + L.replies); })));
         if (a.resends) det.append(h('div', { class: 'muted small', text: a.resends + ' ' + L.resends }));
         det.append(h('div', { class: 'muted small', text: L.present + ': ' + fmtS(a.present_s) }));
-        body.append(h('tr', { class: 'det-row' }, h('td', { colspan: '7' }, det)));
+        body.append(h('tr', { class: 'det-row' }, h('td', { colspan: '8' }, det)));
       });
       tb.append(body);
       wrap.append(tb);
@@ -2968,6 +2977,40 @@
       if (tot.length) box.append(h('h4', { text: L.heat_total }), bars(tot, 'hours'));
       return box;
     }
+    /** "Answered" / "closed" split by where it happened: the system (agent / auto), Dondy (person / bot / template / close),
+     *  the mailbox directly. A row of cards (total, then each source with its parts), a pie, and the per-brand table. */
+    const SRC = [['fromSystem', ['agent', 'auto']], ['fromDondy', ['human', 'bot', 'template', 'close']], ['fromEmail', ['direct']]];
+    function sourcesBlock(srcs, metric) {
+      const tot = srcs.total[metric];
+      const box = h('div', { class: 'src-block', 'data-test': 'src-' + metric }, h('h3', { text: L['src_' + metric] }));
+      const all = SRC.reduce(function (a, s) { return a + (tot[s[0]].total || 0); }, 0);
+      const row = h('div', { class: 'src-cards' }, h('div', { class: 'src-card total', 'data-test': 'src-' + metric + '-total' },
+        h('div', { class: 'v', text: String(all) }), h('div', { class: 'l', text: L.total })));
+      SRC.forEach(function (s) {
+        const parts = s[1].filter(function (k) { return tot[s[0]][k]; }).map(function (k) { return L['sub_' + k] + ' ' + tot[s[0]][k]; });
+        row.append(h('div', { class: 'src-card', 'data-test': 'src-' + metric + '-' + s[0] }, h('div', { class: 'v', text: String(tot[s[0]].total || 0) }),
+          h('div', { class: 'l', text: L['src_' + s[0]] }), h('div', { class: 'muted small', text: parts.join(' · ') || '—' })));
+      });
+      box.append(row);
+      const data = {};
+      SRC.forEach(function (s) { data[s[0]] = tot[s[0]].total || 0; });
+      const pieBox = pie(L['src_' + metric], 'src', data, 'n');
+      const tb = h('table', { class: 'dash-table' }, h('thead', null, h('tr', null, [L.brand_col, L.total].concat(SRC.map(function (s) { return L['src_' + s[0]]; })).map(function (c) { return h('th', { text: c }); }))));
+      const body = h('tbody');
+      const line = function (name, m) {
+        const n = SRC.reduce(function (a, s) { return a + (m[s[0]].total || 0); }, 0);
+        body.append(h('tr', null, h('td', null, h('bdi', { text: name })), h('td', null, h('b', { text: String(n) })),
+          SRC.map(function (s) {
+            const parts = s[1].filter(function (k) { return m[s[0]][k]; }).map(function (k) { return L['sub_' + k] + ' ' + m[s[0]][k]; });
+            return h('td', null, h('b', { text: String(m[s[0]].total || 0) }), parts.length ? h('span', { class: 'muted small', text: ' (' + parts.join(' · ') + ')' }) : null);
+          })));
+      };
+      Object.keys(srcs.brands || {}).forEach(function (b) { line(brandName(b), srcs.brands[b][metric]); });
+      if (Object.keys(srcs.brands || {}).length > 1) line(L.all_brands, tot);
+      tb.append(body);
+      box.append(h('div', { class: 'src-split' }, pieBox, h('div', { class: 'table-wrap' }, tb)));
+      return box;
+    }
     function render() {
       const p = $('dash-pane');
       clear(p);
@@ -2988,13 +3031,17 @@
       if (!x) { p.append(h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); return; }
       if (x.stats_source !== 'dayStats') p.append(h('div', { class: 'err-box dash-fixing', role: 'alert', 'data-test': 'dash-fixing' },
         h('b', { text: '⚠️ ' + L.fixing }), h('div', { class: 'small', text: L.fixing_sub })));
+      if (x.verify_note) p.append(h('div', { class: 'note-box warn', role: 'status', 'data-test': 'dash-verify', text: '🔎 ' + x.verify_note }));
       p.append(h('div', { class: 'muted small dash-method', text: d('method', { m: Math.round(x.idle_gap_s / 60) }) + (x.log_since ? ' · ' + d('since', { d: x.log_since }) : '') }));
       if (!x.log_since) p.append(h('div', { class: 'note-box', 'data-test': 'dash-log-new', text: L.log_new }));
       const bw = h('div', { class: 'brand-grid' });
       Object.keys(x.brands).forEach(function (b) { bw.append(brandCard(b, x.brands[b])); });
       p.append(bw);
+      if (x.sources && x.sources.total && x.sources.total.answered) p.append(sourcesBlock(x.sources, 'answered'), sourcesBlock(x.sources, 'closed'));
       p.append(h('h3', { text: L.kpis }), kpis(x.kpis, x.bench));
       p.append(h('h3', { text: L.agents + ' — ' + L.onscreen, 'data-test': 'dash-onscreen' }), agentsTable(x.agents));
+      const sd = x.senders || {};
+      if (Object.keys(sd).length) p.append(h('div', { class: 'muted small', 'data-test': 'dash-direct', text: d('direct_note', { d: sd.dondy_direct || 0, g: sd.gmail_direct || 0, a: sd.auto || 0, b: (sd.bot || 0) + (sd.template || 0) }) }));
       p.append(heatmap(x));
       const pg = h('div', { class: 'pie-grid' });
       pg.append(pie(L.pie_brand, 'brand', x.pies.brand, 's'), pie(L.pie_chan, 'channel', x.pies.channel, 's'),

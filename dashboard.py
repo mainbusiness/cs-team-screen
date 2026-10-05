@@ -17,7 +17,11 @@ import time
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from concurrent.futures import ThreadPoolExecutor
+
 from flask import g, jsonify, request
+
+import engine_proxy
 
 TZ = ZoneInfo("Asia/Jerusalem")
 IDLE_GAP_S = 300            # two actions at most 5 min apart are one work session; a longer gap ends it (documented in README)
@@ -39,6 +43,13 @@ BOOT_CLOSED_MAX = 100       # apiBoot carries every open ticket + only the 100 m
 BENCH = {"frt_email_s": 24 * 3600, "frt_wa_s": 90, "aht_s": [240, 360], "occupancy": [0.75, 0.85],
          "sla_wa_s": 3600, "sla_email_s": 24 * 3600}
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
+# Owner, 2026-10-06: received / answered / closed / awaiting / FRT come from the engine's dayStats (computed from the
+# conversations: our screen, Dondy directly, Gmail directly, bots, templates). The screen's own log is only "on-screen
+# activity" (work time, AHT, hours). Read in the background, cached on disk; a running day is re-read every DS_TTL_S.
+DS_TTL_S = 600
+DS_MAX_CHUNKS = 40
+VERIFY_NOTE = "אימות מול השיחות: וואטסאפ 8/10 · מייל בבדיקה"     # the coordinator's live reconciliation; replaced when final
+SOURCES = {"fromSystem": ("agent", "auto"), "fromDondy": ("human", "bot", "template", "close"), "fromEmail": ("direct",)}
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -295,8 +306,37 @@ def overview(rows, day, now):
     }
 
 
-def build(log, rows_by_brand, users, brands, end_day, ndays, now):
+def ds_overview(o, ds):
+    """Replace the list-based day numbers with the engine's dayStats (the conversations themselves)."""
+    rec, ans, clo = ds.get("received") or {}, ds.get("answered") or {}, ds.get("closedToday") or {}
+    aw, frt = ds.get("awaitingNow") or {}, ds.get("frt") or {}
+    mins = lambda x: None if not isinstance(x, dict) or x.get("medianMin") is None else round(x["medianMin"] * 60.0, 1)  # noqa: E731
+    src = ds.get("sources") or {}
+    auto = (((src.get("answered") or {}).get("fromSystem") or {}).get("auto")) or 0
+    n_ans = ans.get("total") or 0
+    o = dict(o, received=rec.get("total", 0), answered=n_ans, closed=clo.get("total", 0),
+             answered_pct=_pct(n_ans, rec.get("total", 0)), closed_pct=_pct(clo.get("total", 0), rec.get("total", 0)),
+             awaiting=aw.get("total", o.get("awaiting")), frt_median_s=mins(frt.get("all")), frt_email_s=mins(frt.get("email")),
+             frt_wa_s=mins(frt.get("whatsapp")), frt_n={"email": (frt.get("email") or {}).get("n", 0), "whatsapp": (frt.get("whatsapp") or {}).get("n", 0)},
+             auto_pct=_pct(auto, n_ans), truncated=False, sources=src, by_channel={"received": rec, "answered": ans, "closed": clo},
+             stats="dayStats")
+    return o
+
+
+def _sum_sources(tables):
+    out = {}
+    for t in tables:
+        for metric in ("answered", "closed", "replies"):
+            m = out.setdefault(metric, {k: {s: 0 for s in subs + ("total",)} for k, subs in SOURCES.items()})
+            for k, subs in SOURCES.items():
+                for s in subs + ("total",):
+                    m[k][s] += int((((t or {}).get(metric) or {}).get(k) or {}).get(s) or 0)
+    return out
+
+
+def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=None):
     """The whole dashboard for the viewer's brands. rows_by_brand: {brand: [summary rows]} (cached lists)."""
+    ds_by_brand = ds_by_brand or {}
     days = [(date.fromisoformat(end_day) - timedelta(days=i)).isoformat() for i in reversed(range(ndays))]
     lo, hi = day_start(days[0]), min(day_start(next_day(days[-1])), max(now, day_start(days[0])))
     evts = []
@@ -381,7 +421,13 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now):
             "by_channel": {k: dict(v, active_s=round(v["active_s"])) for k, v in by_c.items()},
             "days": [dict(day=d, active_s=round(v["active_s"]), sends=v["sends"], closes=v["closes"]) for d, v in per_day.items()],
         })
-    agents.sort(key=lambda a: (-a["active_s"], -a["sends"], a["name"]))
+    by_sender = {}
+    for ds in ds_by_brand.values():
+        for k, v in ((((ds or {}).get("data") or {}).get("attribution") or {}).get("bySender") or {}).items():
+            by_sender[k] = by_sender.get(k, 0) + int(v or 0)
+    for a in agents:
+        a["ds_answered"] = by_sender.get(a["user"])
+    agents.sort(key=lambda a: (-(a.get("ds_answered") or 0), -a["active_s"], -a["sends"], a["name"]))
 
     # brand overview for the end day: live from the cached list today, from the midnight snapshot for a past day
     today = il_day(now)
@@ -395,6 +441,11 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now):
                 brands_out[b] = dict(snap["brands"][b], source="snapshot", snapshot_at=snap.get("at"))
             else:
                 brands_out[b] = dict(overview(rows_by_brand.get(b, []), end_day, now), source="rebuilt")
+        ds = ds_by_brand.get(b) or {}
+        if ds.get("data"):
+            brands_out[b] = dict(ds_overview(brands_out[b], ds["data"]), ds_at=ds.get("at"), ds_final=ds.get("final"))
+        brands_out[b]["ds_busy"] = bool(ds.get("busy"))
+        brands_out[b]["ds_error"] = ds.get("error")
 
     # KPIs over the range
     answered = [r for rs in rows_by_brand.values() for r in rs
@@ -422,8 +473,16 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now):
     agent_replies = max(sum(a["sends"] for a in agents), sum(a["engine_sends"] for a in agents))
     tot_active = sum(a["active_s"] for a in agents)
     tot_present = sum(a["present_s"] for a in agents)
+    ds_ok = bool(brands) and all(o.get("stats") == "dayStats" for o in brands_out.values())
+
+    def wmean(key, ch):
+        pts = [(o.get(key), (o.get("frt_n") or {}).get(ch, 0)) for o in brands_out.values() if o.get(key) is not None]
+        n = sum(w for _, w in pts)
+        return round(sum(v * w for v, w in pts) / n, 1) if n else None
     kpis = {
-        "frt_email_s": _median(frt["email"]), "frt_wa_s": _median(frt["whatsapp"]),
+        "frt_email_s": wmean("frt_email_s", "email") if ds_ok else _median(frt["email"]),
+        "frt_wa_s": wmean("frt_wa_s", "whatsapp") if ds_ok else _median(frt["whatsapp"]),
+        "frt_source": "dayStats" if ds_ok else "list",
         "aht_s": _median(all_handles), "fcr_pct": _pct(single, len(sent_tickets)),
         "reopen_pct": _pct(reopened, len(sent_tickets)), "fcr_window_open": now - hi < 72 * 3600,
         "occupancy": round(min(1.0, tot_active / tot_present), 3) if tot_present else None,
@@ -437,9 +496,13 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now):
         "pies": {"brand": {k: round(v) for k, v in pie_brand.items()}, "channel": {k: round(v) for k, v in pie_chan.items()},
                  "category": {k: round(v) for k, v in pie_cat.items()}, "who": {"agents": agent_replies, "auto": auto_n}},
         "idle_gap_s": IDLE_GAP_S, "session_tail_s": SESSION_TAIL_S, "log_since": log.first_day(),
-        # Owner, 2026-10-06: agents also answer in Dondy / Gmail directly, so received/answered/closed/FRT must come from
-        # the engine's dayStats (computed from the conversations). Until it is wired in, the screen says "not final".
-        "stats_source": "list",
+        # Owner, 2026-10-06: agents also answer in Dondy / Gmail directly, so received/answered/closed/FRT come from the
+        # engine's dayStats (computed from the conversations). Brands without it yet say "not final".
+        "stats_source": "dayStats" if ds_ok else ("mixed" if any(o.get("stats") == "dayStats" for o in brands_out.values()) else "list"),
+        "verify_note": VERIFY_NOTE if any(o.get("stats") == "dayStats" for o in brands_out.values()) else None,
+        "sources": {"total": _sum_sources([o.get("sources") for o in brands_out.values() if o.get("sources")]),
+                    "brands": {b: _sum_sources([o["sources"]]) for b, o in brands_out.items() if o.get("sources")}},
+        "senders": by_sender,
     }
 
 
@@ -466,6 +529,71 @@ def register(app, d):
             out[b] = list(rows.values())
         return out
 
+    ds_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="cs-daystats")
+    ds_busy, ds_lock, ds_futs, ds_err = set(), threading.Lock(), [], {}
+
+    def ds_path(b, day):
+        return os.path.join(log.root, "ds-%s-%s.json" % (b, day))
+
+    def ds_read(b, day):
+        try:
+            with open(ds_path(b, day), encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return None
+
+    def ds_fetch(u, b, day):
+        """All chunks of one brand-day (the engine keeps the running totals; `next` is passed back as `cursor`)."""
+        started = log.clock()
+        try:
+            cursor, data = 0, None
+            for _ in range(DS_MAX_CHUNKS):
+                args = {"date": day}
+                if cursor:
+                    args["cursor"] = cursor
+                _, out = engine_proxy.call(d["engines"], cache.transport, cache.secret(), u, b, "apiDayStats", args, "he", internal=True)
+                if not out.get("ok"):
+                    ds_err[(b, day)] = out.get("error") or "error"
+                    return
+                data = out
+                if out.get("partial") and isinstance(out.get("next"), int) and not isinstance(out.get("next"), bool):
+                    cursor = out["next"]
+                    continue
+                break
+            if data is None or data.get("partial"):
+                ds_err[(b, day)] = "partial"
+                return
+            ds_err.pop((b, day), None)
+            obj = {"at": started, "final": started >= day_start(next_day(day)), "data": {k: v for k, v in data.items() if not k.startswith("_")}}
+            tmp = "%s.%d.tmp" % (ds_path(b, day), os.getpid())
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(obj, f, ensure_ascii=False)
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, ds_path(b, day))
+        finally:
+            with ds_lock:
+                ds_busy.discard(b)
+
+    def ds_for(u, brands, day, now):
+        out = {}
+        for b in brands:
+            e = ds_read(b, day) or {}
+            stale = not e or (not e.get("final") and now - float(e.get("at", 0)) > DS_TTL_S)
+            with ds_lock:
+                start = stale and b not in ds_busy       # one dayStats per brand at a time (its state is one property)
+                if start:
+                    ds_busy.add(b)
+                busy = b in ds_busy
+            if start:
+                ds_futs.append(ds_pool.submit(ds_fetch, u, b, day))
+                del ds_futs[:-50]
+            out[b] = dict(e, busy=busy, error=ds_err.get((b, day)))
+        return out
+
+    def ds_drain(timeout=10):
+        for f in list(ds_futs):
+            f.result(timeout=timeout)
+
     @app.get("/api/dash")
     def dash():
         u, err = d["api_user"]()
@@ -485,7 +613,7 @@ def register(app, d):
         except ValueError:
             return d["json_error"]("bad_request", 400, d["ui_lang"](u))
         brands = [b for b in u.get("brands", []) if b in d["engines"]]
-        return jsonify(build(log, rows_for(u, brands), d["store"].all(), brands, end, ndays, now))
+        return jsonify(build(log, rows_for(u, brands), d["store"].all(), brands, end, ndays, now, ds_for(u, brands, end, now)))
 
     @app.post("/api/<brand>/activity")
     def activity(brand):
@@ -535,6 +663,7 @@ def register(app, d):
         return True
 
     app.extensions["cs"]["activity"]["snapshot_once"] = snapshot_once
+    app.extensions["cs"]["activity"]["ds_drain"] = ds_drain
     if d.get("start_thread"):
         def loop():
             while True:

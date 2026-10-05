@@ -499,3 +499,15 @@ body.view-dash .list-pane, body.view-dash .ticket-pane, body.view-dash .tabs { d
 body.view-dash .banners { display: none; }      /* brand banners (test mode, frozen cancels) belong to the ticket screens */
 .idle-note { padding: 8px 10px 0; }
 .note-box { background: var(--sent-bg); color: var(--sent); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 13px; }
+/* answered / closed by source (dayStats) */
+.src-block { margin-top: 14px; }
+.src-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+@media (min-width: 760px) { .src-cards { grid-template-columns: repeat(4, 1fr); } }
+.src-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 10px 12px; }
+.src-card .v { font-size: 24px; font-weight: 800; color: var(--brand); }
+.src-card .l { font-size: 13px; font-weight: 600; }
+.src-card.total { background: var(--brand); color: #fff; }
+.src-card.total .v { color: #fff; }
+.src-split { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 10px; }
+@media (min-width: 900px) { .src-split { grid-template-columns: minmax(280px, 1fr) 2fr; } }
+.note-box.warn { background: var(--warn-bg); color: var(--warn-ink); font-weight: 600; }
