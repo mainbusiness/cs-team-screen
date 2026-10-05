@@ -175,3 +175,11 @@ def test_messages_follow_the_page_language(app, pw_hash, transport, no_wait):
     en2 = call(c, tok, "rozela", "apiTicket", {"id": "t1"}).headers  # proxy route too
     r = c.post("/api/rozela/apiTicket", json={"args": {"id": "t1"}}, headers={"X-CSRF-Token": tok, "X-UI-Lang": "en"}).get_json()
     assert r["msg"].startswith("The engine sent an invalid answer")
+
+
+
+def test_owner_knowledge_alone_is_valid():
+    import assistant
+    assert engine_proxy.reply_problem("apiKnowledge", {}, "r", {"ok": True, "ownerKnowledge": "price: 149", "knowledge": "", "policy": []}) is None
+    assert assistant.knowledge_ok({"ok": True, "ownerKnowledge": "price: 149"})
+    assert engine_proxy.reply_problem("apiKnowledge", {}, "r", {"ok": True, "knowledge": "", "ownerKnowledge": " ", "policy": []})

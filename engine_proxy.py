@@ -307,7 +307,8 @@ SCHEMAS = {
     "apiTickets": lambda r, a: isinstance(r.get("tickets"), list),
     "apiSearch": lambda r, a: isinstance(r.get("tickets"), list),
     "apiStatus": lambda r, a: isinstance(r.get("counts"), dict) or "dryRun" in r,
-    "apiKnowledge": lambda r, a: bool(str(r.get("knowledge") or "").strip()) or bool(r.get("policy")),
+    "apiKnowledge": lambda r, a: (bool(str(r.get("knowledge") or "").strip()) or bool(str(r.get("ownerKnowledge") or "").strip())
+                                  or bool(r.get("policy"))),
     "apiCustomerLookup": lambda r, a: isinstance(r.get("orders"), list) or isinstance(r.get("tickets"), list),
     "apiAutoReplyList": lambda r, a: isinstance(r.get("items"), list),
     "apiAutoCancelList": lambda r, a: isinstance(r.get("items"), list),

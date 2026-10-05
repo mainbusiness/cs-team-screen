@@ -89,7 +89,8 @@ class WindowLimiter:
 
 
 def knowledge_ok(k):
-    return isinstance(k, dict) and (bool(str(k.get("knowledge") or "").strip()) or bool(k.get("policy")))
+    return isinstance(k, dict) and (bool(str(k.get("knowledge") or "").strip()) or bool(str(k.get("ownerKnowledge") or "").strip())
+                                    or bool(k.get("policy")))
 
 
 class KnowledgeCache:
