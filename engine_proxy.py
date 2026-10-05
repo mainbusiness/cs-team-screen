@@ -87,7 +87,14 @@ log = logging.getLogger("cs_screen.engine")
 READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "apiTicketExtras", "apiTickets", "apiSearch",
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup"))
 READ_RETRY_DELAYS_S = (1.5, 3.0)
+# Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
+# the time a server thread was held (70-110 s), the 16 threads ran out, Render's health check timed out and the
+# edge served 502s. So only a FAST failure (a redeploy blip) is retried, inside a total budget, and background work
+# (prefetch, revalidation, polling) is never retried at all — its next tick is the retry.
+RETRY_FAST_FAIL_S = 8.0
+RETRY_TOTAL_BUDGET_S = 20.0
 _sleep = time.sleep
+_clock = time.monotonic
 
 
 def is_read(fn, args):
@@ -209,7 +216,7 @@ def localize(fn, resp, lang):
     return out
 
 
-def call(engines, transport, secret, user, brand, fn, args, lang, now=None, internal=False):
+def call(engines, transport, secret, user, brand, fn, args, lang, now=None, internal=False, retry=True):
     """Returns (http_status, json). Raises nothing for expected failures.
     internal=True is used ONLY by server code (assistant.py) to reach INTERNAL_FNS; the browser route never sets it."""
     roles = user.get("roles", [])
@@ -236,20 +243,21 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
         token = security.mint_engine_token(secret, user["username"], role, [brand], user.get("lang", "he"), now=now)
     except ValueError:
         return 500, {"ok": False, "error": "server_misconfigured", "msg": messages.proxy_msg("server_misconfigured", lang)}
-    started = time.monotonic()
-    delays = READ_RETRY_DELAYS_S if is_read(fn, clean) else ()
+    started = _clock()
+    delays = READ_RETRY_DELAYS_S if (retry and is_read(fn, clean)) else ()
     attempt = 0
     while True:
         attempt += 1
-        t0 = time.monotonic()
+        t0 = _clock()
         try:
             resp = transport(url, {"fn": fn, "args": clean, "token": token})
             break
         except ProxyError as e:
-            ms = int((time.monotonic() - t0) * 1000)
+            took = _clock() - t0
             # timing line: brand, fn, attempt, duration, outcome — never args, never customer data
-            log.warning("engine %s %s attempt=%d ms=%d -> %s", brand, fn, attempt, ms, e.code)
-            if e.code == "engine_bad_response" and attempt <= len(delays):
+            log.warning("engine %s %s attempt=%d ms=%d -> %s", brand, fn, attempt, int(took * 1000), e.code)
+            if (e.code == "engine_bad_response" and attempt <= len(delays) and took < RETRY_FAST_FAIL_S
+                    and (_clock() - started) + delays[attempt - 1] < RETRY_TOTAL_BUDGET_S):
                 _sleep(delays[attempt - 1])
                 continue
             code = e.code
@@ -257,9 +265,9 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
                 code = "engine_bad_response_write"              # a write may have landed: check before retrying
             return e.http, {"ok": False, "error": e.code, "msg": messages.proxy_msg(code, lang)}
     if attempt > 1:
-        log.warning("engine %s %s recovered on attempt=%d total_ms=%d", brand, fn, attempt, int((time.monotonic() - started) * 1000))
+        log.warning("engine %s %s recovered on attempt=%d total_ms=%d", brand, fn, attempt, int((_clock() - started) * 1000))
     out = localize(fn, resp, lang)
-    out["_ms"] = int((time.monotonic() - started) * 1000)
+    out["_ms"] = int((_clock() - started) * 1000)
     if attempt > 1:
         out["_attempts"] = attempt
     return 200, out

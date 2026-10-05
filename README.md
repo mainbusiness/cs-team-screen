@@ -280,3 +280,16 @@ The rule, enforced in `api()` in `static/app.js`:
   - `shipping.normalDays` / `lateDays` are never read.
 - **Status `merged`:** closed, labelled "אוחד" / "Merged".
 - The engine's Hebrew cancel-claim `problem` is shown verbatim inside the safety-check message.
+
+## Engine HTML errors: retry only what is worth retrying (2026-10-05)
+
+Apps Script sometimes answers with Google's HTML error page. `engine_proxy.call` retries **idempotent reads**
+(`READ_FNS`, plus `apiSettings` get) after 1.5 s and then 3 s, but only when the failed attempt was **fast** (under 8 s,
+which is a redeploy blip) and within a **20 s total budget**. **Background** work (prefetch, revalidation, the
+list refresh) is never retried; its next tick is the retry. **Writes** are never retried; agents see "ייתכן שהפעולה
+בוצעה. רעננו את הפנייה ובדקו לפני שמנסים שוב."
+
+Why the limits, measured live: right after this shipped without them, the engine's HTML answers came after 9-44 s of
+work. Retrying them held a server thread for 70-110 s, the 16 threads ran out, Render's health check timed out
+(`server_failed`, 02:57:12 UTC), and the edge served 502 pages. The service also now runs **32** threads.
+Each attempt is logged as `engine <brand> <fn> attempt=N ms=M -> <code>` (no arguments, no customer data).

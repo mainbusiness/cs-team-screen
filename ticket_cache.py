@@ -84,10 +84,10 @@ class TicketCache:
     def _call(self, user, brand, fn, args, bg=None):
         bg = getattr(self._tl, "bg", False) if bg is None else bg
         t0 = time.perf_counter()
-        if bg:
+        if bg:                                       # background: never retried — the next tick is the retry
             with self.bg_slots:
                 _, out = engine_proxy.call(self.engines, self.transport, self.secret(), user, brand, fn, args,
-                                           user.get("lang", "he"), internal=True)
+                                           user.get("lang", "he"), internal=True, retry=False)
         else:
             _, out = engine_proxy.call(self.engines, self.transport, self.secret(), user, brand, fn, args,
                                        user.get("lang", "he"), internal=True)

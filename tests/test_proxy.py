@@ -502,3 +502,43 @@ def test_real_http_html_then_json(make_app, pw_hash, fake_gas, fast_retry):
     c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
     r = call(c, tok, "rozela", "apiBoot")
     assert r.status_code == 200 and r.get_json()["echo"] == "apiBoot" and FakeAppsScript.flaky == 2
+
+
+
+def test_slow_failure_is_not_retried(app, pw_hash, transport, fast_retry, monkeypatch):
+    """A 30-second engine failure must not be repeated: it would hold a server thread for minutes."""
+    t = [0.0]
+    monkeypatch.setattr(engine_proxy, "_clock", lambda: t[0])
+
+    def reply(url, body):
+        t[0] += 9.0                                    # 9 s of engine work, then an HTML page: slow -> no retry (budget alone would allow one)
+        raise engine_proxy.ProxyError("engine_bad_response", 502)
+    transport.reply = reply
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    assert call(c, tok, "rozela", "apiBoot").status_code == 502
+    assert len(transport.calls) == 1 and fast_retry == []
+
+
+def test_retry_respects_the_total_budget(app, pw_hash, transport, fast_retry, monkeypatch):
+    t = [0.0]
+    monkeypatch.setattr(engine_proxy, "_clock", lambda: t[0])
+    monkeypatch.setattr(engine_proxy, "_sleep", lambda s: (fast_retry.append(s), t.__setitem__(0, t[0] + s)))
+
+    def reply(url, body):
+        t[0] += 7.9                                    # fast (<8 s): retried once (t=9.4); after attempt 2 (t=17.3) +3 s breaks 20 s
+        raise engine_proxy.ProxyError("engine_bad_response", 502)
+    transport.reply = reply
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    call(c, tok, "rozela", "apiBoot")
+    assert len(transport.calls) == 2 and fast_retry == [1.5]
+
+
+def test_background_work_is_never_retried(app, pw_hash, transport, fast_retry):
+    flaky(10, transport)
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    c.post("/api/rozela/prefetch", json={"ids": ["p1", "p2"]}, headers={"X-CSRF-Token": tok})
+    app.extensions["cs"]["ticket_cache"].drain()
+    per_id = {}
+    for _, b in transport.calls:
+        per_id[(b["fn"], b["args"].get("id"))] = per_id.get((b["fn"], b["args"].get("id")), 0) + 1
+    assert per_id and all(n == 1 for n in per_id.values()) and fast_retry == []
