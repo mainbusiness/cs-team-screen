@@ -2797,7 +2797,8 @@
       per_hour: 'תשובות לשעת עבודה', engine: 'במנוע', none: 'אין פעילות בטווח', by_brand: 'לפי מותג', by_channel: 'לפי ערוץ',
       heat: 'מתי עובדים בפועל', heat_all: 'כל הנציגים', heat_total: 'סה״כ לפי שעה', pies: 'חלוקה', pie_brand: 'זמן עבודה לפי מותג',
       pie_chan: 'לפי ערוץ', pie_cat: 'לפי נושא', pie_who: 'מי ענה', agents_w: 'נציגים', auto_w: 'מענה אוטומטי', email: 'מייל', whatsapp: 'וואטסאפ',
-      h: 'ש׳', m: 'דק׳', s: 'שנ׳', resends: 'מתוכן שליחה חוזרת', per_day: 'לפי יום', present: 'מחובר'
+      h: 'ש׳', m: 'דק׳', s: 'שנ׳', resends: 'מתוכן שליחה חוזרת', per_day: 'לפי יום', present: 'מחובר',
+      log_word: 'ביומן', idle_agents: '{n} משתמשים בלי פעילות בטווח', log_new: 'יומן הפעילות עוד ריק — זמן העבודה נספר מהפעולה הבאה של כל נציג; תשובות וסגירות כבר נספרות מהמנוע.'
     };
     const EN = {
       title: 'Managers', day: 'Day', d7: '7 days', d30: '30 days', updated: 'Updated', loading: 'Loading…',
@@ -2813,7 +2814,8 @@
       per_hour: 'Replies per work hour', engine: 'engine', none: 'No activity in range', by_brand: 'By brand', by_channel: 'By channel',
       heat: 'When they actually work', heat_all: 'All agents', heat_total: 'Total per hour', pies: 'Split', pie_brand: 'Work time by brand',
       pie_chan: 'By channel', pie_cat: 'By topic', pie_who: 'Who answered', agents_w: 'Agents', auto_w: 'Auto-reply', email: 'Email', whatsapp: 'WhatsApp',
-      h: 'h', m: 'min', s: 's', resends: 'of them re-sends', per_day: 'Per day', present: 'Logged in'
+      h: 'h', m: 'min', s: 's', resends: 'of them re-sends', per_day: 'Per day', present: 'Logged in',
+      log_word: 'log', idle_agents: '{n} users with no activity in range', log_new: 'The activity log is still empty — work time counts from each agent\'s next action; replies and closes are already counted from the engine.'
     };
     const L = LANG === 'en' ? EN : HE;
     function d(k, v) { let s = L[k] || k; Object.keys(v || {}).forEach(function (x) { s = s.replace('{' + x + '}', v[x]); }); return s; }
@@ -2918,8 +2920,12 @@
         kpi(L.csat, '—', null, null, 'kpi-csat', L.csat_missing));
       return box;
     }
-    function agentsTable(list) {
+    function agentsTable(all) {
+      // the engine is the truth for replies/closes (the log only exists since it was deployed): the larger number leads
+      const list = all.filter(function (a) { return a.active_s || a.sends || a.closes || a.engine_sends || a.engine_closes; });
+      const idle = all.length - list.length;
       const wrap = h('div', { class: 'table-wrap' });
+      if (idle) wrap.append(h('div', { class: 'muted small idle-note', text: d('idle_agents', { n: idle }) }));
       if (!list.length) { wrap.append(h('div', { class: 'muted', text: L.none })); return wrap; }
       const tb = h('table', { class: 'dash-table', 'data-test': 'dash-agents' });
       tb.append(h('thead', null, h('tr', null, [L.agent, L.active, L.replies, L.closes, L.per_hour, 'AHT', L.occ].map(function (x) { return h('th', { text: x }); }))));
@@ -2928,8 +2934,10 @@
         const tr = h('tr', { 'data-test': 'dash-agent', 'data-user': a.user },
           h('td', null, h('bdi', { text: a.name })),
           h('td', { 'data-test': 'ag-active', text: fmtS(a.active_s) }),
-          h('td', null, h('b', { text: String(a.sends) }), h('span', { class: 'muted small', text: ' (' + L.engine + ' ' + a.engine_sends + ')' })),
-          h('td', null, h('b', { text: String(a.closes) }), h('span', { class: 'muted small', text: ' (' + L.engine + ' ' + a.engine_closes + ')' })),
+          h('td', { 'data-test': 'ag-replies' }, h('b', { text: String(Math.max(a.sends, a.engine_sends)) }),
+            h('span', { class: 'muted small', text: ' (' + L.engine + ' ' + a.engine_sends + ' · ' + L.log_word + ' ' + a.sends + ')' })),
+          h('td', null, h('b', { text: String(Math.max(a.closes, a.engine_closes)) }),
+            h('span', { class: 'muted small', text: ' (' + L.engine + ' ' + a.engine_closes + ' · ' + L.log_word + ' ' + a.closes + ')' })),
           h('td', { text: a.per_hour === null ? '—' : String(a.per_hour) }),
           h('td', { text: fmtS(a.aht_s) }),
           h('td', { text: a.occupancy === null ? '—' : Math.round(a.occupancy * 100) + '%' }));
@@ -3003,6 +3011,7 @@
       const x = st.data;
       if (!x) { p.append(h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); return; }
       p.append(h('div', { class: 'muted small dash-method', text: d('method', { m: Math.round(x.idle_gap_s / 60) }) + (x.log_since ? ' · ' + d('since', { d: x.log_since }) : '') }));
+      if (!x.log_since) p.append(h('div', { class: 'note-box', 'data-test': 'dash-log-new', text: L.log_new }));
       const bw = h('div', { class: 'brand-grid' });
       Object.keys(x.brands).forEach(function (b) { bw.append(brandCard(b, x.brands[b])); });
       p.append(bw);

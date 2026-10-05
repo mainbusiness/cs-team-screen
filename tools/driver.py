@@ -269,6 +269,8 @@ def compose_weekly(stats, local, days=7):
         lines.append("הצלות מספאם: %d · ביטולי מנוי ב-Kaching: %d%s" % (s.get("spamRescued", 0), s.get("kachingCancels", 0), " (נכשלו או נדחו: %d)" % s["kachingFailed"] if s.get("kachingFailed") else ""))
         if s.get("sendRefusals"):
             lines.append("דחיות שליחה: " + _top(s["sendRefusals"]))
+        if s.get("sendWarnings"):
+            lines.append("נשלחו עם אזהרה: " + _top(s["sendWarnings"]))
         if s.get("engineErrors"):
             lines.append("שגיאות מנוע: " + _top(s["engineErrors"]))
         sup = s.get("alertsSuppressed") or {}

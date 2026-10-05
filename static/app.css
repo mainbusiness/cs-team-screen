@@ -497,3 +497,5 @@ body.view-dash .list-pane, body.view-dash .ticket-pane, body.view-dash .tabs { d
 .sl3 { fill: #db2777; background: #db2777; } .sl4 { fill: #0891b2; background: #0891b2; } .sl5 { fill: #7c3aed; background: #7c3aed; }
 .sl6 { fill: #64748b; background: #64748b; } .sl7 { fill: #ea580c; background: #ea580c; }
 body.view-dash .banners { display: none; }      /* brand banners (test mode, frozen cancels) belong to the ticket screens */
+.idle-note { padding: 8px 10px 0; }
+.note-box { background: var(--sent-bg); color: var(--sent); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 13px; }

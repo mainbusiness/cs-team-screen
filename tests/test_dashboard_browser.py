@@ -42,7 +42,7 @@ def test_admin_sees_live_numbers_from_real_actions(server):
         assert ad.inner_text("[data-test=dash-brand][data-brand=rozela] [data-test=ov-awaiting] b") not in ("", "0")
         assert int(ad.inner_text("[data-test=dash-brand][data-brand=rozela] [data-test=ov-wafail] b")) >= 1
         row = ad.locator("[data-test=dash-agent][data-user=agent1]")
-        assert row.count() == 1 and row.locator("td").nth(2).inner_text().startswith("1")       # one reply
+        assert row.count() == 1 and row.locator("[data-test=ag-replies] b").inner_text() == "1"            # one reply (engine + log agree)
         assert "חסר" in ad.inner_text("[data-test=kpi-csat]") and "75–85%" in ad.inner_text("[data-test=kpi-occ]")
         assert ad.locator("[data-test=heatmap] .hc").count() >= 24 and ad.locator("[data-test=pie-channel] svg").count() == 1
         ad.click("[data-test=range-7]")
