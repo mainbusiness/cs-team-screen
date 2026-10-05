@@ -397,3 +397,17 @@ def test_sanitizer_keeps_emails_urls_and_plain_words():
     assert out == s and st == {"markup": 0, "jargon": 0}
     he, _ = assistant.sanitize_reply("לפי המדיניות: החזר מלא תוך 90 יום. route action עם human_reason \"refund\".", "he")
     assert he.startswith("לפי המדיניות: החזר מלא תוך 90 יום.") and "route" not in he and "human_reason" not in he
+
+
+def test_owner_knowledge_comes_first_is_never_cut_and_prices_follow_it():
+    from assistant import knowledge_text, system_blocks, KNOWLEDGE_MAX
+    k = {"brandName": "Rozela", "ownerKnowledge": "PRICE LIST: single bottle 189 NIS", "knowledge": "price: 222.35 NIS " + "x" * (KNOWLEDGE_MAX * 2),
+         "policy": ["1. a single beet bottle lists at 222.35 NIS"], "shippingDays": {"normal": 17}, "subscriptions": "kaching"}
+    t = knowledge_text("rozela", k)
+    assert t.index("OWNER KNOWLEDGE") < t.index("222.35"), "owner knowledge first"
+    assert "single bottle 189 NIS" in t
+    assert len(t) <= KNOWLEDGE_MAX + 5
+    sys_text = system_blocks("rozela", k, "he")[0]["text"]
+    assert "8. PRICES" in sys_text and "OVERRIDES the site knowledge" in sys_text
+    # a brand without an owner document is unchanged
+    assert knowledge_text("velora", {"brandName": "V", "knowledge": "k", "policy": []}).startswith("Brand: V")

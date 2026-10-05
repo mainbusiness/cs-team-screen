@@ -160,7 +160,14 @@ def as_text(v):
 
 
 def knowledge_text(brand, k):
+    """Owner knowledge FIRST and never cut: it overrides the site knowledge and the policy when they conflict (prices included),
+    exactly as it does for the drafts. The rest is capped so the whole stays inside KNOWLEDGE_MAX."""
     name = k.get("brandName") or brand
+    owner = as_text(k.get("ownerKnowledge")).strip()
+    head = []
+    if owner:
+        head.append("OWNER KNOWLEDGE (written by the owner; it OVERRIDES the site knowledge and the policy below when they conflict, "
+                    "and it is the only source for prices):\n" + owner)
     out = ["Brand: %s (%s)" % (name, brand)]
     if k.get("updatedAt"):
         out.append("Knowledge updated: %s" % k.get("updatedAt"))
@@ -176,8 +183,11 @@ def knowledge_text(brand, k):
             out.append(line if re.match(r"^\d+[.)]", line) else "%d. %s" % (i + 1, line))   # engine sends "1. …" already
     elif pol:
         out.append("POLICY:\n" + as_text(pol))
-    out.append("KNOWLEDGE:\n" + as_text(k.get("knowledge")))
-    return "\n".join(out)[:KNOWLEDGE_MAX]
+    out.append("KNOWLEDGE (from the brand's site; lower priority than the owner knowledge):\n" + as_text(k.get("knowledge")))
+    first = "\n\n".join(head)
+    rest = "\n".join(out)
+    room = max(KNOWLEDGE_MAX - len(first) - 2, 0)
+    return (first + "\n\n" if first else "") + rest[:room]
 
 
 def system_blocks(brand, k, user_lang, ticket_ctx=None):
@@ -199,6 +209,9 @@ def system_blocks(brand, k, user_lang, ticket_ctx=None):
         "what to answer the customer, give a ready reply in the customer's language: warm, short, like a real person on WhatsApp, "
         "gender-neutral in Hebrew when the gender is unknown, no AI-sounding phrases, never promise health results.\n"
         "6. Plain text only. No markdown headings, tables or bold. No tags of any kind.\n"
+        "8. PRICES: quote prices only from the OWNER KNOWLEDGE price list. The site knowledge and the policy may carry other figures (a single-bottle "
+        "list price, an A/B test variant, a live Shopify price). When the figure you were asked about differs between sources, give the owner's "
+        "price first and tell the agent plainly that the site/live price differs, so they can check the customer's order before answering.\n"
         "7. The policy text below was written for an automated pipeline. Translate it into plain instructions for a human "
         "support agent: what to tell the customer, and what the agent must do (for example 'issue the refund in Shopify', "
         "'cancel in Kaching using the button in the subscriptions panel'). NEVER mention route, human_reason, "
