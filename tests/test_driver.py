@@ -8,8 +8,13 @@ URL = lambda c: "https://script.google.com/macros/s/%s/exec" % (c * 30)
 ENV = {"TOKEN_SECRET": SECRET, "ENGINES_JSON": json.dumps({"rozela": URL("a"), "celesta": URL("b"), "apexmen": URL("c"), "velora": URL("d")})}
 
 
+def reply(body, **kw):
+    req = json.loads(body)
+    return dict({"fn": req["fn"], "rid": req["rid"]}, **kw)
+
+
 def ok(result):
-    return lambda url, body, timeout: (200, json.dumps({"ok": True, "job": "runAgent", "result": result}))
+    return lambda url, body, timeout: (200, json.dumps(reply(body, ok=True, job="runAgent", result=result)))
 
 
 def test_token_is_the_format_the_engines_verify():
@@ -30,7 +35,7 @@ def test_default_brands_exclude_velora_and_each_brand_gets_its_own_token_and_url
     def tr(url, body, timeout):
         req = json.loads(body)
         seen[url] = req
-        return 200, json.dumps({"ok": True, "result": {"processed": 1, "health": {"lastRunAgeMs": 1000}}})
+        return 200, json.dumps(reply(body, ok=True, result={"processed": 1, "health": {"lastRunAgeMs": 1000}}))
     lines = []
     code = driver.main([], dict(ENV), tr, lines.append)
     assert code == 0
@@ -44,7 +49,7 @@ def test_default_brands_exclude_velora_and_each_brand_gets_its_own_token_and_url
 
 def test_failures_are_nonzero_and_leak_nothing():
     def tr(url, body, timeout):
-        return 200, json.dumps({"ok": False, "error": "unauthorized", "secret": "customer dana@example.com"})
+        return 200, json.dumps(reply(body, ok=False, error="unauthorized", secret="customer dana@example.com"))
     lines = []
     assert driver.main(["--brands", "rozela"], dict(ENV), tr, lines.append) == 1
     assert "dana" not in " ".join(lines) and "rozela FAIL" in lines[0]
@@ -59,7 +64,7 @@ def test_one_brand_failing_does_not_hide_the_others_and_exit_is_the_worst():
     def tr(url, body, timeout):
         if url == URL("b"):
             return 500, "x"
-        return 200, json.dumps({"ok": True, "result": {"processed": 0, "health": {}}})
+        return 200, json.dumps(reply(body, ok=True, result={"processed": 0, "health": {}}))
     lines = []
     assert driver.main([], dict(ENV), tr, lines.append) == 1
     assert len(lines) == 3 and sum("FAIL" in l for l in lines) == 1
@@ -84,7 +89,7 @@ def test_unknown_brand_and_missing_secret_fail_closed():
 def test_brands_run_in_parallel():
     def slow(url, body, timeout):
         time.sleep(0.3)
-        return 200, json.dumps({"ok": True, "result": {"processed": 0, "health": {}}})
+        return 200, json.dumps(reply(body, ok=True, result={"processed": 0, "health": {}}))
     t0 = time.time()
     assert driver.main([], dict(ENV), slow, lambda s: None) == 0
     assert time.time() - t0 < 0.8
@@ -106,3 +111,23 @@ def test_render_cron_body_matches_the_driver_contract():
     assert {e["key"] for e in env} >= {"TOKEN_SECRET", "ENGINES_JSON", "DRIVER_BRANDS"}
     assert os.path.exists(os.path.join(os.path.dirname(__file__), "..", "tools", "driver.py"))
     json.loads(env[1]["value"])
+
+
+def test_a_reply_that_is_not_ours_is_a_failure():
+    for text in ['{"ok": true}', json.dumps({"ok": True, "fn": "apiBoot", "rid": "x", "result": {}}), json.dumps({"ok": True, "fn": "apiAdminRun", "rid": "someone-else", "result": {}})]:
+        lines = []
+        assert driver.main(["--brands", "rozela"], dict(ENV), lambda u, b, t, text=text: (200, text), lines.append) == 1
+        assert "reply_is_not_ours" in lines[0]
+
+
+def test_second_driver_sends_idle_and_other_driver_fresh_is_fine():
+    seen = []
+    def tr(url, body, timeout):
+        seen.append(json.loads(body))
+        return 200, json.dumps(reply(body, ok=True, result={"skipped": "other_driver_fresh", "health": {}}))
+    lines = []
+    assert driver.main(["--brands", "rozela", "--only-if-stale", "180"], dict(ENV), tr, lines.append) == 0
+    assert seen[0]["args"]["idle"] == 180 and "other_driver_fresh" in lines[0]
+    seen.clear()
+    driver.main(["--brands", "rozela"], dict(ENV), tr, lambda s: None)
+    assert "idle" not in seen[0]["args"], "the primary driver never asks"

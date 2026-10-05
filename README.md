@@ -27,7 +27,7 @@ Render disk and in each engine's `audit` sheet.
 | `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
-| `tests/` | pytest (251 tests, incl. real-browser tests with Playwright) |
+| `tests/` | pytest (270+ tests, incl. real-browser tests with Playwright) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
 
 ## Environment (Render)
@@ -316,3 +316,24 @@ Measured with `tools/load_test.py` (mock only: 4 agents x 3 brands, 0.8 s engine
   They are cached 45 s and fetched at background priority. When the engine is full, an expired copy is served, or
   "deferred" when there is none (the client retries once). Approve, reject or review, and an AUTO_CANCEL /
   AUTO_REPLY switch change, delete the cached queue, so the next load reads the engine.
+
+## Engine replies are validated, never trusted (QA round 3, B1)
+
+A bare `{"ok":true}` (Apps Script `doGet()`, reached when a POST ends as a GET on `/exec` after a slow redirect)
+rendered "no tickets" over ~280 open ones, cached empty knowledge, and would have shown "sent" for a send that
+never happened. Now:
+- **Transport:** a redirect chain that ends with a GET on `/exec` is `engine_bad_response`.
+- **Schemas:** every reply is checked per fn (`engine_proxy.SCHEMAS`) before use or caching. Examples: apiBoot needs
+  `tickets` and `counts`; apiTicketFull needs `ticket.id` equal to the requested id; apiSend needs `sent`, `queued`
+  or the id echo; apiKnowledge needs a non-empty knowledge or policy. A refusal must carry an error code. Invalid means
+  `engine_bad_response`: reads follow the retry rules, writes show "ייתכן שהפעולה בוצעה, רעננו ובדקו".
+- **`rid` / `fn` echo:** every call sends a random `rid`. When the engine echoes `rid` / `fn` they must match;
+  until it does, the schema check alone decides. `apiClose`, `apiMarkHandled`, `apiNote` and `apiAutoReplyReview`
+  legitimately answer a bare `{ok:true}`; for them the transport check, and the echo once deployed, decide.
+- **Cache:** an invalid reply is never cached. A list that suddenly says "nothing open" after 3 or more open tickets
+  is refused, and the last good copy kept. An invalid copy on disk is never served. Empty knowledge is evicted.
+- **A request waiting on another request's in-flight fetch** answers `engine_timeout` after 90 s instead of a 500.
+  Any unexpected error on `/api` is JSON.
+- **Messages follow the page** (`X-UI-Lang` header): `/cs/en` gets English even for a Hebrew profile.
+- **The client** never renders a list, ticket or answer without its data. Open-status tab counts are derived from
+  the rows, so they can no longer disagree with what is listed.

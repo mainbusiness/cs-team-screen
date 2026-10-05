@@ -162,6 +162,8 @@ def create_app(overrides=None):
     def lang_of(path_lang=None):
         if path_lang in ("he", "en"):
             return path_lang
+        if g.get("ui_lang"):
+            return g.ui_lang
         u = g.get("user")
         return (u or {}).get("lang", "he")
 
@@ -197,6 +199,11 @@ def create_app(overrides=None):
     def start_timer():
         g.t0 = time.perf_counter()
         g.timings = []
+        hl = request.headers.get("X-UI-Lang")
+        g.ui_lang = hl if hl in ("he", "en") else None    # messages follow the PAGE (/cs vs /cs/en), not the profile
+
+    def ui_lang(u=None):
+        return g.get("ui_lang") or (u or g.get("user") or {}).get("lang", "he")
 
     @app.before_request
     def load_user():
@@ -415,7 +422,7 @@ def create_app(overrides=None):
             return json_error("bad_request", 400)
         t0 = time.perf_counter()
         status, out = engine_proxy.call(engines, transport, app.config["TOKEN_SECRET"], u, str(brand).lower(), fn,
-                                        body.get("args", {}), u.get("lang", "he"))
+                                        body.get("args", {}), ui_lang(u))
         ticket_cache.timing("engine", (time.perf_counter() - t0) * 1000, fn)
         if status == 200 and fn in ticket_cache.WRITE_FNS and isinstance(body.get("args"), dict):
             app.extensions["cs"]["ticket_cache"].after_write(u, str(brand).lower(), fn, body["args"], out)
@@ -542,10 +549,10 @@ def create_app(overrides=None):
         o.get("TICKET_CACHE_DIR", os.environ.get("TICKET_CACHE_DIR", os.path.join(os.path.dirname(users_path), "ticket-cache"))),
         engines, transport, lambda: app.config["TOKEN_SECRET"])
     app.extensions["cs"]["ticket_cache"] = tcache
-    ticket_cache.register(app, {"api_user": api_user, "json_error": json_error, "engines": engines, "cache": tcache})
+    ticket_cache.register(app, {"api_user": api_user, "json_error": json_error, "engines": engines, "cache": tcache, "ui_lang": ui_lang})
 
     assistant.register(app, {
-        "ticket_cache": tcache,
+        "ticket_cache": tcache, "ui_lang": ui_lang,
         "api_user": api_user, "json_error": json_error, "engines": engines, "transport": transport, "store": store,
         "llm_call": llm_call,
         "cache_dir": o.get("TRANSLATE_CACHE_DIR", os.environ.get("TRANSLATE_CACHE_DIR", os.path.join(os.path.dirname(users_path), "translate-cache"))),
@@ -558,6 +565,17 @@ def create_app(overrides=None):
         if request.path.startswith("/api/"):
             return json_error("forbidden_fn", 404)
         return "Not found", 404
+
+    @app.errorhandler(Exception)
+    def api_crash(e):
+        """An unexpected error on /api never becomes Render's HTML page or a bare 500: JSON the screen can show."""
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException):
+            return e
+        log.exception("unhandled error on %s", request.path)
+        if request.path.startswith("/api/"):
+            return jsonify({"ok": False, "error": "server_error", "msg": messages.proxy_msg("server_error", lang_of())}), 500
+        return "Server error", 500
 
     @app.errorhandler(413)
     def too_big(_e):

@@ -6,7 +6,7 @@ import time
 import pytest
 
 import engine_proxy
-from conftest import ENGINES, call, logged_in
+from conftest import ENGINES, call, logged_in, valid_reply
 
 
 class Meter:
@@ -30,7 +30,7 @@ class Meter:
                 time.sleep(self.delay)
             if self.fail:
                 raise engine_proxy.ProxyError(self.fail, 502)
-            return {"ok": True, "ticket": {"id": body["args"].get("id", "x")}, "extras": {}, "tickets": [], "counts": {}}
+            return dict(valid_reply(url, body), ticket={"id": body["args"].get("id", "x")}, extras={}, tickets=[], counts={})
         finally:
             with self.lock:
                 self.now[brand] -= 1
@@ -132,7 +132,7 @@ def test_breaker_trips_on_html_and_on_slow_and_recovers(monkeypatch):
 
     def slow(url, body):
         clock[0] += 11
-        return {"ok": True}
+        return valid_reply(url, body)
     direct(slow, "rozela", "apiBoot", {})
     assert g.tripped()
 
@@ -162,7 +162,7 @@ def test_a_freed_slot_goes_to_the_waiting_agent_not_to_background():
 
 
 def test_related_is_cached_and_never_takes_an_agents_slot(app, pw_hash, transport):
-    transport.reply = lambda url, body: {"ok": True, "tickets": [{"id": "t9", "status": "done"}]}
+    transport.reply = lambda url, body: dict(valid_reply(url, body), tickets=[{"id": "t9", "status": "done"}])
     c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
     H = {"X-CSRF-Token": tok}
     j = c.post("/api/rozela/related", json={"q": "dana@example.com"}, headers=H).get_json()
@@ -191,7 +191,7 @@ def _queues_reply(state):
             return {"ok": True, "switch": "on", "mode": "live", "items": [{"id": "t1", "review": "pending", "n": state[fn]}]}
         if fn == "apiAutoCancelList":
             return {"ok": True, "switch": "shadow", "mode": "shadow", "items": [{"id": "t2", "state": "shadow_would_cancel", "n": state[fn]}]}
-        return {"ok": True}
+        return valid_reply(url, body)
     return reply
 
 

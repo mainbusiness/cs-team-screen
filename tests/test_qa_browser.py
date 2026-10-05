@@ -95,3 +95,44 @@ def test_engine_notes_drive_the_fact_panel(server):
         pg.wait_for_selector(".results .row[data-id=t18f2a12] .chip.st-merged")
         assert pg.inner_text(".results .row[data-id=t18f2a12] .chip.st-merged") == "אוחד"
         browser.close()
+
+
+def test_tab_counts_come_from_the_rows(server):
+    """QA round 3: rozela showed Health 16 rows / count 0. Open-status counts are derived from the rows."""
+    base, pwd = server
+    with pw.sync_playwright() as p:
+        browser, pg = login(p, base, "agent1", pwd)
+
+        def wrong_counts(route, request):
+            resp = route.fetch()
+            j = resp.json()
+            if isinstance(j.get("counts"), dict):
+                j["counts"] = {k: 0 for k in j["counts"]}                      # engine counts out of sync with rows
+            route.fulfill(response=resp, body=__import__("json").dumps(j))
+        pg.route("**/api/rozela/list", wrong_counts)
+        pg.goto(base + "/cs#/b/rozela/action")
+        pg.wait_for_selector("a.row")
+        rows = pg.locator("#list-pane > a.row").count() + pg.locator("[data-test=old-section] a.row").count()
+        assert pg.locator(".tab.action .n").inner_text() == str(rows)
+        browser.close()
+
+
+def test_bare_list_reply_keeps_the_last_good_list(server):
+    base, pwd = server
+    with pw.sync_playwright() as p:
+        browser, pg = login(p, base, "agent1", pwd)
+        errs = []
+        pg.on("pageerror", lambda e: errs.append(str(e)))
+        pg.goto(base + "/cs#/b/rozela/ready")
+        pg.wait_for_selector("a.row")
+        n = pg.locator("a.row").count()
+        bare = lambda route, req: route.fulfill(status=200, content_type="application/json", body='{"ok": true}')
+        for pat in ("**/api/rozela/list", "**/api/rozela/changes", "**/api/rozela/queue", "**/api/rozela/ticket"):
+            pg.route(pat, bare)
+        pg.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+        pg.wait_for_timeout(800)
+        assert pg.locator("a.row").count() == n and errs == []                  # no "0 tickets", no JS crash
+        pg.goto(base + "/cs#/b/rozela/t/t18f2a02")
+        pg.wait_for_timeout(1200)
+        assert errs == []
+        browser.close()

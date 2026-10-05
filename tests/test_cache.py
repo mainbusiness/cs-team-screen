@@ -8,7 +8,7 @@ import time
 import pytest
 
 import ticket_cache
-from conftest import ENGINES, call, client_for, logged_in
+from conftest import ENGINES, call, client_for, logged_in, valid_reply
 
 ROZ = {"id": "t1", "status": "ready", "name": "Rozela customer", "email": "r@example.com", "draft_text": "rozela draft", "emails_count": 1}
 CEL = {"id": "t1", "status": "action", "name": "Celesta customer", "email": "c@example.com", "draft_text": "celesta draft", "emails_count": 1}
@@ -34,7 +34,7 @@ def make_reply(full=True, changes=True, delay=0.0, counter=None):
             if fn == "apiTicket":
                 return {"ok": True, "ticket": mine}
             if fn == "apiTicketExtras":
-                return {"ok": True, "extras": {"conversation": []}}
+                return {"ok": True, "id": tid, "extras": {"conversation": []}}
             if fn == "apiBoot":
                 return {"ok": True, "user": "whoever", "role": "admin", "lang": "he", "counts": {t["status"]: 1},
                         "tickets": [t], "version": 7, "serverTime": "2026-10-05T10:00:00Z", "dryRun": True}
@@ -43,7 +43,7 @@ def make_reply(full=True, changes=True, delay=0.0, counter=None):
                     return {"ok": True, "version": 9, "reset": True, "tickets": [t]}
                 return {"ok": True, "version": 8, "tickets": [dict(t, status="done")], "removed": [], "serverMs": 12} if changes \
                     else {"ok": False, "error": "unauthorized"}
-            return {"ok": True}
+            return valid_reply(url, body)
         finally:
             if counter is not None:
                 with counter["lock"]:

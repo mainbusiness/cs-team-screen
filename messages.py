@@ -39,6 +39,7 @@ PROXY = {
                                   "The engine returned a temporary error — the action may have happened. Refresh the ticket and check before trying again."),
     "engine_bad_response": ("המנוע החזיר תשובה לא תקינה. אם זה חוזר — לדווח למנהל.",
                             "The engine sent an invalid answer. If it repeats, tell Manager."),
+    "server_error": ("תקלה זמנית בשרת. נסו שוב בעוד רגע.", "A temporary server error. Try again in a moment."),
     "server_misconfigured": ("המערכת לא מוגדרת עד הסוף (חסר מפתח). לדווח לבעלים.",
                              "The system is not fully configured (missing key). Tell the owner."),
     "rate_limited": ("יותר מדי ניסיונות. נסו שוב בעוד {wait} דקות.", "Too many attempts. Try again in {wait} minutes."),

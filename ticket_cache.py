@@ -33,6 +33,7 @@ import tempfile
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 
 from flask import g, jsonify, request
 
@@ -50,7 +51,8 @@ PREFETCH_MAX = 15
 PREFETCH_FRESH_S = 120     # a prefetched ticket younger than this is not fetched again
 DISK_HORIZON_S = 7 * 86400
 MAX_TICKETS_PER_BRAND = 3000
-UNSUPPORTED_RETRY_S = 600  # an engine without apiTicketFull / apiChanges is asked again after 10 min
+UNSUPPORTED_RETRY_S = 600
+WAIT_FOR_INFLIGHT_S = 90   # a request sharing another one's in-flight engine fetch waits at most this long  # an engine without apiTicketFull / apiChanges is asked again after 10 min
 
 
 def timing(name, dur_ms=None, desc=None):
@@ -140,7 +142,12 @@ class TicketCache:
                 fut = Future()
                 self.inflight[key] = fut
         if not owner:
-            return fut.result(timeout=90)
+            try:
+                return fut.result(timeout=WAIT_FOR_INFLIGHT_S)
+            except FutureTimeout:
+                # QA round 3: this waiter used to raise -> HTTP 500 on /list. Answer like an engine timeout instead.
+                err = {"ok": False, "error": "engine_timeout"}
+                return (None, err) if key and key[0] == "t" else err
         try:
             res = fn()
             fut.set_result(res)
@@ -205,6 +212,9 @@ class TicketCache:
         e = b["boot"]
         if e is None:
             e = self._read(os.path.join(self.root, brand, "boot.json"))
+            if e and not (isinstance(e.get("data"), dict) and isinstance(e["data"].get("tickets"), list)
+                          and isinstance(e["data"].get("counts"), dict)):
+                e = None                                   # an invalid copy on disk is never served
             if e:
                 with self.lock:
                     b["boot"] = e
@@ -216,9 +226,20 @@ class TicketCache:
         e = self._boot_entry(brand)
         return {r.get("id"): r for r in ((e or {}).get("data", {}).get("tickets") or []) if isinstance(r, dict)}
 
+    @staticmethod
+    def _open_count(data):
+        counts = (data or {}).get("counts") or {}
+        return sum(int(counts.get(s, 0) or 0) for s in ("ready", "action", "health", "delay"))
+
     def _fetch_boot(self, user, brand):
         out = self._call(user, brand, "apiBoot", {})
         if out.get("ok"):
+            prev = self._boot_entry(brand)
+            if (prev and self._open_count(prev["data"]) >= 3 and not out.get("tickets") and self._open_count(out) == 0):
+                # a list that suddenly says "nothing open" over many open tickets is a broken reply, not a fact
+                engine_proxy.log.warning("engine %s apiBoot: empty list after %d open — refused, kept the last good copy",
+                                         brand, self._open_count(prev["data"]))
+                return {"ok": False, "error": "engine_bad_response"}
             self._store_boot(brand, out)
         return out
 
@@ -424,6 +445,9 @@ class TicketCache:
             e = b["t"].get(tid)
         if e is None:
             e = self._read(os.path.join(self.root, brand, "t", tid + ".json"))
+            if e and not (isinstance(e.get("full"), dict) and isinstance(e["full"].get("ticket"), dict)
+                          and e["full"]["ticket"].get("id") == tid):
+                e = None
             if e:
                 with self.lock:
                     b["t"][tid] = e
@@ -597,7 +621,7 @@ def register(app, d):
         except ValueError:
             role = None
         if work and role not in WORK_ROLES:
-            return None, d["json_error"]("forbidden_role", 403, lang)
+            return None, d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
         if not BRAND_RE.match(brand) or brand not in u.get("brands", []):
             return None, d["json_error"]("forbidden_brand", 403, lang)
         if brand not in d["engines"]:
@@ -605,8 +629,10 @@ def register(app, d):
         return u, None
 
     def localized(out, lang, fn):
-        if not out.get("ok") and "msg" not in out:
-            out = dict(out, msg=messages.engine_error_msg(out, fn, lang))
+        if not out.get("ok"):                            # always in the language of the page that asked
+            code = out.get("error")
+            msg = messages.proxy_msg(code, lang) if code in messages.PROXY else messages.engine_error_msg(out, fn, lang)
+            out = dict(out, msg=msg)
         return out
 
     @app.post("/api/<brand>/list")
@@ -618,7 +644,7 @@ def register(app, d):
         ma = (request.get_json(silent=True) or {}).get("maxAge")
         ma = ma if isinstance(ma, (int, float)) and not isinstance(ma, bool) and 0 <= ma <= 3600 else None
         st, out = cache.get_list(u, brand, max_age=ma)
-        return jsonify(localized(out, u.get("lang", "he"), "apiBoot")), st
+        return jsonify(localized(out, d["ui_lang"](u), "apiBoot")), st
 
     @app.post("/api/<brand>/changes")
     def cached_changes(brand):
@@ -628,7 +654,7 @@ def register(app, d):
             return err
         since = (request.get_json(silent=True) or {}).get("since")
         st, out = cache.changes(u, brand, since if isinstance(since, (str, int, float)) else None)
-        return jsonify(localized(out, u.get("lang", "he"), "apiBoot")), st
+        return jsonify(localized(out, d["ui_lang"](u), "apiBoot")), st
 
     @app.post("/api/<brand>/ticket")
     def cached_ticket(brand):
@@ -643,7 +669,7 @@ def register(app, d):
         fresh = body.get("fresh") is True
         full, e, meta = cache.get_ticket(u, brand, tid, revalidate=body.get("revalidate") is True or fresh, fresh=fresh)
         if not full:
-            return jsonify(localized(dict(e or {"ok": False, "error": "server_error"}), u.get("lang", "he"), "apiTicket")), 200
+            return jsonify(localized(dict(e or {"ok": False, "error": "server_error"}), d["ui_lang"](u), "apiTicket")), 200
         return jsonify({"ok": True, "ticket": full.get("ticket"), "extras": full.get("extras") or {}, "snapshotAt": full.get("snapshotAt"),
                         "extrasErr": full.get("extrasError"), "cache": meta})
 
@@ -656,7 +682,7 @@ def register(app, d):
         q = (request.get_json(silent=True) or {}).get("q")
         if not isinstance(q, str) or not (2 <= len(q.strip()) <= 100):
             return d["json_error"]("bad_request", 400, u.get("lang", "he"))
-        return jsonify(localized(cache.related(u, brand, q.strip()), u.get("lang", "he"), "apiSearch"))
+        return jsonify(localized(cache.related(u, brand, q.strip()), d["ui_lang"](u), "apiSearch"))
 
     @app.post("/api/<brand>/queue")
     def cached_queue(brand):
@@ -667,7 +693,7 @@ def register(app, d):
         fn = (request.get_json(silent=True) or {}).get("fn")
         if fn not in TicketCache.QUEUE_FNS:
             return d["json_error"]("forbidden_fn", 404, u.get("lang", "he"))
-        return jsonify(localized(cache.queue(u, brand, fn), u.get("lang", "he"), fn))
+        return jsonify(localized(cache.queue(u, brand, fn), d["ui_lang"](u), fn))
 
     @app.post("/api/<brand>/prefetch")
     def cached_prefetch(brand):

@@ -16,8 +16,10 @@ Safety model:
 import json
 import logging
 import re
+import secrets
 import threading
 import time
+from urllib.parse import urlparse
 
 import requests
 
@@ -267,6 +269,10 @@ def http_transport(session=None):
             raise ProxyError("engine_unreachable", 502)
         if r.status_code != 200:
             raise ProxyError("engine_bad_response", 502)
+        # QA round 3 (B1): after a slow redirect the POST can end as a GET on /exec, which is doGet() -> a bare
+        # {"ok":true} with no data. The real answer to a doPost always comes from the googleusercontent echo URL.
+        if getattr(r, "request", None) is not None and r.request.method == "GET" and urlparse(r.url).path.endswith("/exec"):
+            raise ProxyError("engine_bad_response", 502)
         if len(r.content) > MAX_RESPONSE_BYTES:
             raise ProxyError("engine_bad_response", 502)
         try:
@@ -278,6 +284,63 @@ def http_transport(session=None):
         return data
 
     return call
+
+
+# ---------- reply schemas (QA round 3, B1) ----------
+# Every engine reply is checked against the shape its fn must have BEFORE anything uses or caches it. A bare
+# {"ok":true} (doGet) once rendered "no tickets" over ~280 open ones, cached empty knowledge, and would have shown
+# "sent" for a send that never happened. An invalid reply is treated exactly like Google's HTML page.
+LEGIT_BARE = frozenset(("apiMarkHandled", "apiClose", "apiNote", "apiAutoReplyReview"))   # their real reply IS {ok:true}
+
+
+def _tid_ok(r, key, tid):
+    t = r.get(key)
+    return isinstance(t, dict) and t.get("id") == tid
+
+
+SCHEMAS = {
+    "apiBoot": lambda r, a: isinstance(r.get("tickets"), list) and isinstance(r.get("counts"), dict),
+    "apiChanges": lambda r, a: isinstance(r.get("tickets"), list) and "version" in r,
+    "apiTicket": lambda r, a: _tid_ok(r, "ticket", a.get("id")),
+    "apiTicketFull": lambda r, a: _tid_ok(r, "ticket", a.get("id")) and isinstance(r.get("extras"), dict),
+    "apiTicketExtras": lambda r, a: isinstance(r.get("extras"), dict) and r.get("id") == a.get("id"),
+    "apiTickets": lambda r, a: isinstance(r.get("tickets"), list),
+    "apiSearch": lambda r, a: isinstance(r.get("tickets"), list),
+    "apiStatus": lambda r, a: isinstance(r.get("counts"), dict) or "dryRun" in r,
+    "apiKnowledge": lambda r, a: bool(str(r.get("knowledge") or "").strip()) or bool(r.get("policy")),
+    "apiCustomerLookup": lambda r, a: isinstance(r.get("orders"), list) or isinstance(r.get("tickets"), list),
+    "apiAutoReplyList": lambda r, a: isinstance(r.get("items"), list),
+    "apiAutoCancelList": lambda r, a: isinstance(r.get("items"), list),
+    "apiSettings": lambda r, a: isinstance(r.get("settings"), dict) if a.get("action") == "get" else ("key" in r or "to" in r),
+    "apiSend": lambda r, a: r.get("sent") is True or r.get("queued") is True or r.get("id") == a.get("id"),
+    "apiSaveDraft": lambda r, a: "problem" in r,
+    "apiKachingCancel": lambda r, a: "status" in r or "message" in r,
+    "apiAutoCancelApprove": lambda r, a: r.get("id") == a.get("id") or "state" in r,
+    "apiAutoCancelReject": lambda r, a: r.get("id") == a.get("id"),
+    "apiWaTakeOver": lambda r, a: r.get("id") == a.get("id") or "status" in r,
+}
+
+
+def reply_problem(fn, args, rid, r):
+    """None when the reply may be used, else a short reason (logged, never shown)."""
+    if not isinstance(r, dict) or "ok" not in r:
+        return "no ok field"
+    if "rid" in r and r.get("rid") != rid:
+        return "rid mismatch"                       # engine echoes rid/fn once deployed: a reply to ANOTHER call
+    if "fn" in r and r.get("fn") != fn:
+        return "fn mismatch"
+    if r.get("ok") is not True:
+        if r.get("ok") is False and isinstance(r.get("error"), str) and r["error"]:
+            return None
+        if fn == "apiKachingCancel" and r.get("ok") is False and isinstance(r.get("message"), str):
+            return None                             # the gate's refusal: {ok:false, status, message}
+        return "refusal without an error code"
+    check = SCHEMAS.get(fn)
+    if check is not None:
+        return None if check(r, args) else "reply does not match the %s schema" % fn
+    if fn in LEGIT_BARE:
+        return None                                 # verified by the transport (no doGet) and, once echoed, by rid
+    return None
 
 
 def localize(fn, resp, lang):
@@ -320,6 +383,7 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
     except ValueError:
         return 500, {"ok": False, "error": "server_misconfigured", "msg": messages.proxy_msg("server_misconfigured", lang)}
     started = _clock()
+    rid = secrets.token_hex(8)
     delays = READ_RETRY_DELAYS_S if (retry and is_read(fn, clean)) else ()
     attempt = 0
     g = gate(brand)
@@ -337,7 +401,11 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
         t0 = _clock()
         err = None
         try:
-            resp = transport(url, {"fn": fn, "args": clean, "token": token})
+            resp = transport(url, {"fn": fn, "args": clean, "token": token, "rid": rid})
+            why = reply_problem(fn, clean, rid, resp)
+            if why:
+                log.warning("engine %s %s invalid reply: %s (keys: %s)", brand, fn, why, ",".join(sorted(resp)[:8]) if isinstance(resp, dict) else type(resp).__name__)
+                raise ProxyError("engine_bad_response", 502)
         except ProxyError as x:
             err = x
         finally:

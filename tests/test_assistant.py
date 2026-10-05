@@ -6,7 +6,7 @@ import pytest
 
 import assistant
 import llm
-from conftest import ENGINES, TOKEN_SECRET, add_user, call, client_for, logged_in, store_of
+from conftest import ENGINES, TOKEN_SECRET, add_user, call, client_for, logged_in, store_of, valid_reply
 from test_proxy import gas_verify_token, payload_of
 
 KNOW = {"ok": True, "brand": "rozela", "brandName": "Rozela", "knowledge": "## Rozela\n- 60 capsules, 2 a day.",
@@ -23,8 +23,9 @@ LOOKUP = {"ok": True, "queryType": "email", "orderLookup": "ok", "orders": [{"na
 
 def engine_reply(url, body):
     fn = body["fn"]
-    return {"apiKnowledge": KNOW, "apiTicket": {"ok": True, "ticket": TICKET}, "apiTicketExtras": {"ok": True, "extras": EXTRAS},
-            "apiCustomerLookup": LOOKUP}.get(fn, {"ok": True})
+    return {"apiKnowledge": KNOW, "apiTicket": {"ok": True, "ticket": TICKET}, "apiTicketExtras": {"ok": True, "id": TICKET["id"], "extras": EXTRAS},
+            "apiTicketFull": {"ok": True, "ticket": TICKET, "extras": EXTRAS},
+            "apiCustomerLookup": LOOKUP}.get(fn) or valid_reply(url, body)
 
 
 class FakeLLM:

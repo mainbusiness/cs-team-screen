@@ -9,9 +9,11 @@
     <string>/Users/Shared/cs_driver/driver.py</string>
     <string>--engines</string>
     <string>/Users/Shared/cs_driver/engines.json</string>
+    <string>--only-if-stale</string>
+    <string>180</string>
   </array>
-  <!-- every 60 s; a run still in progress makes the next call a no-op (engine run guard). TOKEN_SECRET comes from the Keychain item cs-engine / all/TOKEN_SECRET -->
-  <key>StartInterval</key><integer>60</integer>
+  <!-- SECOND driver: every 120 s, and the engine answers at once unless no external run completed in the last 180 s (the Render cron is the primary). a run still in progress makes the next call a no-op (engine run guard). TOKEN_SECRET comes from the Keychain item cs-engine / all/TOKEN_SECRET -->
+  <key>StartInterval</key><integer>120</integer>
   <key>RunAtLoad</key><true/>
   <key>StandardOutPath</key><string>/Users/Shared/cs_driver/driver.log</string>
   <key>StandardErrorPath</key><string>/Users/Shared/cs_driver/driver.log</string>

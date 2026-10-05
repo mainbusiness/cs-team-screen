@@ -83,6 +83,7 @@
       bot_banner: 'הבוט של דונדי מטפל בשיחה הזאת. אין טיוטה — המנוע בודק אותה בכל ריצה.', takeover: 'לקחת את השיחה', takeover_arm: 'לחצו שוב כדי לקחת את השיחה',
       takeover_ok: 'השיחה אצלך — טיוטה תיכתב בריצה הבאה של המנוע', photo_dondy: '📷 תמונה — לצפייה בדונדי', photo_open: '📷 תמונה — פתיחה',
       photo_wait: '📷 תמונה — עוד לא הגיעה',
+      err_bad_engine: 'המנוע החזיר תשובה לא תקינה. נסו שוב בעוד רגע.',
       reconnecting: 'מתעדכן…', send_wa: 'שליחה בוואטסאפ', send_email: 'שליחה במייל', chan_all: 'הכול', wa_banner: 'פנייה בוואטסאפ',
       email_banner: 'פנייה במייל', err_restarting: 'השרת בעדכון — נסו שוב בעוד דקה.',
       err_restart_write: 'השרת התעדכן בדיוק ברגע הזה. רעננו את הפנייה ובדקו אם הפעולה בוצעה לפני שמנסים שוב.',
@@ -191,6 +192,7 @@
       bot_banner: 'The Dondy bot is handling this chat. No draft — the engine re-checks it every run.', takeover: 'Take over', takeover_arm: 'Click again to take over',
       takeover_ok: 'The chat is yours — a draft will be written on the next engine run', photo_dondy: '📷 Photo — view in Dondy', photo_open: '📷 Photo — open',
       photo_wait: '📷 Photo — not arrived yet',
+      err_bad_engine: 'The engine returned an invalid answer. Try again in a moment.',
       reconnecting: 'Reconnecting…', send_wa: 'Send on WhatsApp', send_email: 'Send by email', chan_all: 'All', wa_banner: 'WhatsApp conversation',
       email_banner: 'Email conversation', en_confirm_wa: 'Confirm translation and send on WhatsApp', en_confirm_email: 'Confirm translation and send by email', err_restarting: 'The server is updating — try again in a minute.',
       err_restart_write: 'The server restarted at exactly this moment. Refresh the ticket and check whether the action happened before trying again.',
@@ -458,7 +460,7 @@
   }
   async function api(path, body, method, opts) {
     opts = opts || {};
-    const opt = { method: method || 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': CSRF, Accept: 'application/json' } };
+    const opt = { method: method || 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': CSRF, Accept: 'application/json', 'X-UI-Lang': LANG } };
     if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
     const read = isRead(path, method, body);
     const retries = read && opts.retry !== false ? RETRY_MS : [];
@@ -653,7 +655,9 @@
     if (id === 'autoreply') { const a = S.ar[S.brand]; return a && a.items ? a.items.filter(function (x) { return x.review === 'pending'; }).length : ''; }
     if (id === 'auto') { const a = S.auto[S.brand]; return a && a.items ? a.items.filter(function (x) { return !AutoCancel.inFlight(x.state); }).length : ''; }
     if (id === 'search') return '';
-    return (b.counts && b.counts[id]) || 0;
+    const rows = (b.tickets || []).filter(function (x) { return x.status === id; }).length;
+    if (OPEN.indexOf(id) >= 0) return rows;               // apiBoot carries EVERY open ticket: the rows are the truth
+    return Math.max(rows, Number((b.counts || {})[id]) || 0);
   }
   function renderTabs() {
     const el = $('tabs');
@@ -682,10 +686,14 @@
   async function loadBoot(brand) {
     const conn = S.me.brands.filter(function (b) { return b.id === brand; })[0];
     if (conn && !conn.connected) { renderTabs(); renderList(true); return; }
-    const r = await api('/api/' + encodeURIComponent(brand) + '/list', {});     // Render cache: instant when warm
+    let r = await api('/api/' + encodeURIComponent(brand) + '/list', {});     // Render cache: instant when warm
+    if (r.ok && (!Array.isArray(r.tickets) || !r.counts || typeof r.counts !== 'object')) {
+      r = { ok: false, error: 'engine_bad_response', msg: t('err_bad_engine') };      // never render a list without its data
+    }
     if (r.ok && canWork() && String(r.subscriptions || '').toLowerCase() !== 'none') loadAuto(brand);
     if (r.ok && canWork()) AutoReply.load(brand);
-    if (r.ok) { S.boots[brand] = r; delete S.bootErr[brand]; } else { S.bootErr[brand] = r.msg || r.error; }
+    if (r.ok) { S.boots[brand] = r; delete S.bootErr[brand]; }
+    else if (!S.boots[brand]) { S.bootErr[brand] = r.msg || r.error; }               // keep the last good list on a bad reply
     if (brand !== S.brand) return;
     renderTop(); renderBanners(); renderTabs(); renderList(false); checkStale(); Draft.refreshSend(); EnDraft.refresh(); Assist.sync(); paintSubs(brand);
     prefetchTab(brand);
@@ -727,7 +735,8 @@
     let r;
     // background: one quiet attempt per tick; on a restart keep the last good state and try again next tick
     try { r = await api('/api/' + encodeURIComponent(brand) + '/changes', { since: b.version }, 'POST', { retry: false, quiet: true }); } finally { polling = false; }
-    if (!r.ok || S.boots[brand] !== b) return;
+    if (!r.ok || S.boots[brand] !== b || !Array.isArray(b.tickets)) return;
+    if (!Array.isArray(r.changed || [])) return;
     const byId = {};
     b.tickets.forEach(function (x, i) { byId[x.id] = i; });
     let touched = false;
@@ -739,7 +748,7 @@
       delete S.tkMemo[brand + '|' + row.id];                       // its full copy is now old
     });
     if ((r.removed || []).length) { touched = true; b.tickets = b.tickets.filter(function (x) { return r.removed.indexOf(x.id) < 0; }); }
-    if (r.counts) b.counts = r.counts;
+    if (r.counts && typeof r.counts === 'object') b.counts = r.counts;
     mergeSwitches(brand, r.switches);
     if (r.version !== undefined) b.version = r.version;
     if (r.serverTime) b.serverTime = r.serverTime;
@@ -1016,6 +1025,11 @@
       if (!k.ticket) { clear(tp); tp.append(h('div', { class: 'tk-body' }, backBtn(), h('div', { class: 'err-box', text: r.msg || r.error }))); return; }
       k.syncErr = r.msg || r.error; paintSync(); return;
     }
+    if (!r.ticket || typeof r.ticket !== 'object') {
+      k.syncing = false;
+      if (!k.ticket) { clear(tp); tp.append(h('div', { class: 'tk-body' }, backBtn(), h('div', { class: 'err-box', text: t('err_bad_engine') }))); return; }
+      k.syncErr = t('err_bad_engine'); paintSync(); return;
+    }
     const hit = !!(r.cache && r.cache.hit);
     k.syncing = hit;                                   // a cache hit is shown now and revalidated right after
     applyTicket(k, r, !memo);
@@ -1025,6 +1039,7 @@
     if (S.tk !== k) return;
     k.syncing = false;
     if (!f.ok) { k.syncErr = f.msg || f.error; paintSync(); return; }
+    if (!f.ticket || typeof f.ticket !== 'object') { k.syncErr = t('err_bad_engine'); paintSync(); return; }
     k.syncErr = null;
     applyTicket(k, f, false);
     paintSync();
@@ -1630,9 +1645,10 @@
       render();
       const body = { lang: LANG, messages: s.msgs.map(function (m) { return { role: m.role, content: m.content }; }) };
       if (s.withTicket && S.view === 'ticket' && S.ticketId) body.ticketId = S.ticketId;
-      const r = await api('/api/' + encodeURIComponent(brand) + '/assistant', body);
+      let r = await api('/api/' + encodeURIComponent(brand) + '/assistant', body);
       s.busy = false;
-      if (r.ok) s.msgs.push({ role: 'assistant', content: String(r.reply || ''), tools: r.tools || [] });
+      if (r.ok && !(typeof r.reply === 'string' && r.reply.trim())) r = { ok: false, msg: t('err_bad_engine') };   // no answer = an error
+      if (r.ok) s.msgs.push({ role: 'assistant', content: r.reply, tools: Array.isArray(r.tools) ? r.tools : [] });
       else {
         const lost = s.msgs.pop();                    // the question is never lost: back into the box
         s.err = r.msg || r.error;
@@ -1922,7 +1938,8 @@
     const r = await api('/api/' + encodeURIComponent(brand) + '/queue', { fn: 'apiAutoCancelList' }, 'POST', { quiet: true });
     if (r.ok && r.deferred) { if (!S.auto[brand]) setTimeout(function () { loadAuto(brand); }, 20000); return; }
     // An engine without these functions answers "unauthorized" (Api.gs gives no function-name oracle).
-    if (r.ok) S.auto[brand] = { items: Array.isArray(r.items) ? r.items : [], switch: r.switch || null, mode: r.mode || null };
+    if (r.ok && !Array.isArray(r.items)) return;
+    if (r.ok) S.auto[brand] = { items: r.items, switch: r.switch || null, mode: r.mode || null };
     else if (r.error === 'unauthorized' || r.error === 'forbidden_fn') S.auto[brand] = { items: null, unavailable: true };
     else S.auto[brand] = { items: (S.auto[brand] && S.auto[brand].items) || null, err: r.msg || r.error };
     if (brand === S.brand) { renderBanners(); renderTabs(); if (S.tab === 'auto') renderList(false); }
@@ -2082,8 +2099,9 @@
     async function load(brand) {
       const r = await api('/api/' + encodeURIComponent(brand) + '/queue', { fn: 'apiAutoReplyList' }, 'POST', { quiet: true });
       if (r.ok && r.deferred) { if (!S.ar[brand]) setTimeout(function () { load(brand); }, 20000); return; }
+      if (r.ok && !Array.isArray(r.items)) return;              // a reply without items is not "empty": keep what we have
       if (r.ok) {
-        S.ar[brand] = { items: Array.isArray(r.items) ? r.items : [], switch: r.switch || null, mode: r.mode || null };
+        S.ar[brand] = { items: r.items, switch: r.switch || null, mode: r.mode || null };
         const ids = S.ar[brand].items.filter(function (x) { return x.review === 'pending'; }).map(function (x) { return x.ticketId || x.id; });
         if (ids.length) api('/api/' + encodeURIComponent(brand) + '/prefetch', { ids: ids.slice(0, 15) }, 'POST', { quiet: true });   // questions load warm
       }

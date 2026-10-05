@@ -24,10 +24,27 @@ def pw_hash():
     return security.hash_password(PASSWORD)
 
 
+def valid_reply(url, body):
+    """A schema-valid engine answer for every fn (QA round 3: a bare {"ok": true} is what we must reject)."""
+    fn, a = body["fn"], body.get("args") or {}
+    tid = a.get("id", "t1")
+    by_fn = {
+        "apiBoot": {"tickets": [], "counts": {}, "version": 1}, "apiChanges": {"tickets": [], "version": 1, "removed": []},
+        "apiTicket": {"ticket": {"id": tid}}, "apiTicketFull": {"ticket": {"id": tid}, "extras": {}},
+        "apiTicketExtras": {"id": tid, "extras": {}}, "apiTickets": {"tickets": []}, "apiSearch": {"tickets": []},
+        "apiStatus": {"counts": {}, "dryRun": True}, "apiKnowledge": {"knowledge": "k", "policy": ["1. p"]},
+        "apiCustomerLookup": {"orders": [], "tickets": []}, "apiAutoReplyList": {"items": []}, "apiAutoCancelList": {"items": []},
+        "apiSettings": {"settings": {}} if a.get("action") == "get" else {"key": a.get("key"), "to": a.get("value")},
+        "apiSend": {"sent": True}, "apiSaveDraft": {"problem": None}, "apiKachingCancel": {"status": None, "message": "cancelled"},
+        "apiAutoCancelApprove": {"id": tid, "state": "queued"}, "apiAutoCancelReject": {"id": tid}, "apiWaTakeOver": {"id": tid, "status": "action"},
+    }
+    return dict(by_fn.get(fn, {}), ok=True)
+
+
 class FakeTransport:
     def __init__(self):
         self.calls = []
-        self.reply = {"ok": True}
+        self.reply = valid_reply
         self.raise_ = None
 
     def __call__(self, url, body):

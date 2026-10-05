@@ -88,6 +88,10 @@ class WindowLimiter:
             return 0
 
 
+def knowledge_ok(k):
+    return isinstance(k, dict) and (bool(str(k.get("knowledge") or "").strip()) or bool(k.get("policy")))
+
+
 class KnowledgeCache:
     def __init__(self, ttl_s=KNOWLEDGE_TTL_S, clock=time.monotonic):
         self.ttl_s, self.clock = ttl_s, clock
@@ -97,9 +101,14 @@ class KnowledgeCache:
     def get(self, brand, loader):
         with self._lock:
             hit = self._d.get(brand)
+            if hit and not knowledge_ok(hit[1]):
+                self._d.pop(brand, None)                 # evict an invalid copy (QA round 3: empty knowledge was cached)
+                hit = None
             if hit and self.clock() - hit[0] < self.ttl_s:
                 return hit[1]
         value = loader()               # outside the lock: an engine call can take seconds
+        if value is not None and not knowledge_ok(value):
+            value = None
         if value is not None:
             with self._lock:
                 self._d[brand] = (self.clock(), value)
@@ -321,7 +330,7 @@ def register(app, d):
         u, err = d["api_user"]()
         if err:
             return None, err
-        lang = u.get("lang", "he")
+        lang = d["ui_lang"](u)
         try:
             role = security.engine_role(u.get("roles", []))
         except ValueError:
@@ -372,7 +381,7 @@ def register(app, d):
             return err
         body = request.get_json(silent=True) or {}
         # answer in the language of the PAGE it was asked from (/cs vs /cs/en), not the profile (live QA 2026-10-05)
-        lang = body.get("lang") if body.get("lang") in ("he", "en") else u.get("lang", "he")
+        lang = body.get("lang") if body.get("lang") in ("he", "en") else d["ui_lang"](u)
         msgs = clean_messages(body.get("messages"))
         tid = body.get("ticketId")
         if msgs is None or (tid is not None and (not isinstance(tid, str) or not ID_RE.match(tid))):
@@ -487,7 +496,7 @@ def register(app, d):
         u, err = gate(brand)
         if err:
             return err
-        lang = u.get("lang", "he")
+        lang = d["ui_lang"](u)
         tid = (request.get_json(silent=True) or {}).get("ticketId")
         if not isinstance(tid, str) or not ID_RE.match(tid):
             return fail("bad_request", 400, lang)
@@ -541,7 +550,7 @@ def register(app, d):
         u, err = gate(brand)
         if err:
             return err
-        lang = u.get("lang", "he")
+        lang = d["ui_lang"](u)
         ids = (request.get_json(silent=True) or {}).get("ids")
         if not isinstance(ids, list) or len(ids) > 60:
             return fail("bad_request", 400, lang)
@@ -594,7 +603,7 @@ def register(app, d):
         u, err = gate(brand)
         if err:
             return err
-        lang = u.get("lang", "he")
+        lang = d["ui_lang"](u)
         iid = (request.get_json(silent=True) or {}).get("id")
         if not isinstance(iid, str) or not ID_RE.match(iid):
             return fail("bad_request", 400, lang)
@@ -623,7 +632,7 @@ def register(app, d):
         u, err = gate(brand)
         if err:
             return err
-        lang = u.get("lang", "he")
+        lang = d["ui_lang"](u)
         body = request.get_json(silent=True) or {}
         tid, text = body.get("ticketId"), body.get("text")
         if not isinstance(tid, str) or not ID_RE.match(tid) or not isinstance(text, str) or not text.strip() or len(text) > 8000:

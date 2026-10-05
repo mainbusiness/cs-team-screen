@@ -12,7 +12,7 @@ import pytest
 
 import engine_proxy
 import messages
-from conftest import ENGINES, TOKEN_SECRET, call, client_for, logged_in
+from conftest import ENGINES, TOKEN_SECRET, call, client_for, logged_in, valid_reply
 
 
 # ---------- independent port of engine/Api.gs verifyToken_ (do NOT import app code here) ----------
@@ -73,7 +73,7 @@ def test_token_round_trips_through_the_apps_script_algorithm(app, pw_hash, trans
     assert call(c, tok, "rozela", "apiBoot").status_code == 200
     url, body = transport.calls[0]
     assert url == ENGINES["rozela"]
-    assert set(body) == {"fn", "args", "token"} and body["fn"] == "apiBoot"
+    assert set(body) == {"fn", "args", "token", "rid"} and body["fn"] == "apiBoot" and len(body["rid"]) == 16
     now = int(time.time())
     v = gas_verify_token(body["token"], TOKEN_SECRET, "rozela", now)
     assert v["ok"], v
@@ -362,7 +362,7 @@ class FakeAppsScript(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path.startswith("/echo"):
-            body = json.dumps({"ok": True, "echo": FakeAppsScript.posts[-1]["fn"]}).encode()
+            body = json.dumps({"ok": True, "echo": FakeAppsScript.posts[-1]["fn"], "tickets": [], "counts": {}, "version": 1}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -448,7 +448,7 @@ def flaky(n_bad, transport):
         if left[0] > 0:
             left[0] -= 1
             raise engine_proxy.ProxyError("engine_bad_response", 502)
-        return {"ok": True, "tickets": [], "ticket": {"id": "t1"}}
+        return valid_reply(url, body)
     transport.reply = reply
 
 
