@@ -180,3 +180,83 @@ def test_related_is_cached_and_never_takes_an_agents_slot(app, pw_hash, transpor
             g.inflight = 0
     c2, tok2 = logged_in(app, pw_hash, "agent-two", ["agent"], ["celesta"])
     assert c2.post("/api/rozela/related", json={"q": "dana@example.com"}, headers={"X-CSRF-Token": tok2}).status_code == 403
+
+
+
+def _queues_reply(state):
+    def reply(url, body):
+        fn = body["fn"]
+        state[fn] = state.get(fn, 0) + 1
+        if fn == "apiAutoReplyList":
+            return {"ok": True, "switch": "on", "mode": "live", "items": [{"id": "t1", "review": "pending", "n": state[fn]}]}
+        if fn == "apiAutoCancelList":
+            return {"ok": True, "switch": "shadow", "mode": "shadow", "items": [{"id": "t2", "state": "shadow_would_cancel", "n": state[fn]}]}
+        return {"ok": True}
+    return reply
+
+
+def test_queues_are_cached_shared_and_background(app, pw_hash, transport, monkeypatch):
+    state = {}
+    transport.reply = _queues_reply(state)
+    a, ta = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    b, tb = logged_in(app, pw_hash, "ron", ["agent"], ["rozela"])
+    q = lambda c, t, fn: c.post("/api/rozela/queue", json={"fn": fn}, headers={"X-CSRF-Token": t}).get_json()
+    assert q(a, ta, "apiAutoReplyList")["items"][0]["n"] == 1
+    assert q(b, tb, "apiAutoReplyList")["cache"]["hit"] is True and state["apiAutoReplyList"] == 1   # shared by the brand's agents
+    assert q(a, ta, "apiAutoCancelList")["items"][0]["n"] == 1
+    # the engine is full of agents' calls: the queue never takes a slot, an expired copy is served instead
+    cache = app.extensions["cs"]["ticket_cache"]
+    clock = [cache.clock() + 100]
+    monkeypatch.setattr(cache, "clock", lambda: clock[0])
+    g = engine_proxy.gate("rozela")
+    with g.cond:
+        g.inflight = engine_proxy.GATE_CAP
+    try:
+        j = q(a, ta, "apiAutoReplyList")
+        assert j["cache"]["stale"] is True and state["apiAutoReplyList"] == 1
+    finally:
+        with g.cond:
+            g.inflight = 0
+    assert q(a, ta, "apiAutoReplyList")["items"][0]["n"] == 2                        # free again: refreshed
+    assert a.post("/api/rozela/queue", json={"fn": "apiSend"}, headers={"X-CSRF-Token": ta}).status_code == 404
+    c, tc = logged_in(app, pw_hash, "agent-two", ["agent"], ["celesta"])
+    assert c.post("/api/rozela/queue", json={"fn": "apiAutoReplyList"}, headers={"X-CSRF-Token": tc}).status_code == 403
+
+
+def test_no_copy_and_full_engine_means_deferred(app, pw_hash, transport):
+    transport.reply = _queues_reply({})
+    a, ta = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    g = engine_proxy.gate("rozela")
+    with g.cond:
+        g.inflight = engine_proxy.GATE_CAP
+    try:
+        j = a.post("/api/rozela/queue", json={"fn": "apiAutoCancelList"}, headers={"X-CSRF-Token": ta}).get_json()
+        assert j == {"ok": True, "deferred": True, "items": None} and transport.calls == []
+    finally:
+        with g.cond:
+            g.inflight = 0
+
+
+@pytest.mark.parametrize("fn,args,queue", [("apiAutoReplyReview", {"id": "t1", "verdict": "ok"}, "apiAutoReplyList"),
+                                           ("apiAutoCancelApprove", {"id": "t2"}, "apiAutoCancelList"),
+                                           ("apiAutoCancelReject", {"id": "t2", "note": "צריך בדיקה"}, "apiAutoCancelList")])
+def test_writes_invalidate_their_queue(app, pw_hash, transport, fn, args, queue):
+    state = {}
+    transport.reply = _queues_reply(state)
+    a, ta = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    H = {"X-CSRF-Token": ta}
+    a.post("/api/rozela/queue", json={"fn": queue}, headers=H)
+    call(a, ta, "rozela", fn, args)
+    j = a.post("/api/rozela/queue", json={"fn": queue}, headers=H).get_json()
+    assert j["cache"]["hit"] is False and state[queue] == 2                           # read again after the write
+
+
+def test_switch_change_invalidates_its_queue(app, pw_hash, transport):
+    state = {}
+    transport.reply = _queues_reply(state)
+    d, td = logged_in(app, pw_hash, "manager", ["admin"], ["rozela"])
+    H = {"X-CSRF-Token": td}
+    d.post("/api/rozela/list", json={}, headers=H)
+    d.post("/api/rozela/queue", json={"fn": "apiAutoReplyList"}, headers=H)
+    call(d, td, "rozela", "apiSettings", {"action": "set", "key": "AUTO_REPLY", "value": "shadow"})
+    assert d.post("/api/rozela/queue", json={"fn": "apiAutoReplyList"}, headers=H).get_json()["cache"]["hit"] is False

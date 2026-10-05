@@ -312,3 +312,7 @@ Over that, calls queue and then fail. The retry deploy, prefetch and verificatio
 
 Measured with `tools/load_test.py` (mock only: 4 agents x 3 brands, 0.8 s engine, prefetch on): the peak was
 6 in flight per brand, 0 busy answers and 0 errors. **Never run the load test against a live engine.**
+- **The auto-cancel / auto-reply queues** (`POST /api/<brand>/queue {fn}`) are shared by all agents of a brand.
+  They are cached 45 s and fetched at background priority. When the engine is full, an expired copy is served, or
+  "deferred" when there is none (the client retries once). Approve, reject or review, and an AUTO_CANCEL /
+  AUTO_REPLY switch change, delete the cached queue, so the next load reads the engine.

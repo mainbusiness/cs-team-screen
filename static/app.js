@@ -1918,7 +1918,9 @@
 
   // ---------------------------------------------------------------- automatic cancellations queue
   async function loadAuto(brand) {
-    const r = await engine('apiAutoCancelList', {}, brand);
+    // shared per brand on the server (cached 45 s, background priority): never takes an agent's engine slot
+    const r = await api('/api/' + encodeURIComponent(brand) + '/queue', { fn: 'apiAutoCancelList' }, 'POST', { quiet: true });
+    if (r.ok && r.deferred) { if (!S.auto[brand]) setTimeout(function () { loadAuto(brand); }, 20000); return; }
     // An engine without these functions answers "unauthorized" (Api.gs gives no function-name oracle).
     if (r.ok) S.auto[brand] = { items: Array.isArray(r.items) ? r.items : [], switch: r.switch || null, mode: r.mode || null };
     else if (r.error === 'unauthorized' || r.error === 'forbidden_fn') S.auto[brand] = { items: null, unavailable: true };
@@ -2078,7 +2080,8 @@
     const trCache = {};
     function busy() { return Object.keys(editing).some(function (k) { return editing[k] && k.indexOf(S.brand + '|') === 0; }); }
     async function load(brand) {
-      const r = await engine('apiAutoReplyList', {}, brand);
+      const r = await api('/api/' + encodeURIComponent(brand) + '/queue', { fn: 'apiAutoReplyList' }, 'POST', { quiet: true });
+      if (r.ok && r.deferred) { if (!S.ar[brand]) setTimeout(function () { load(brand); }, 20000); return; }
       if (r.ok) {
         S.ar[brand] = { items: Array.isArray(r.items) ? r.items : [], switch: r.switch || null, mode: r.mode || null };
         const ids = S.ar[brand].items.filter(function (x) { return x.review === 'pending'; }).map(function (x) { return x.ticketId || x.id; });

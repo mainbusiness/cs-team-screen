@@ -244,6 +244,10 @@ class TicketCache:
         if not out.get("ok") or not isinstance(args, dict) or args.get("action") != "set" or not BRAND_RE.match(brand):
             return
         key, val = args.get("key"), args.get("value")
+        if key == "AUTO_CANCEL":
+            self.drop_queue(brand, "apiAutoCancelList")
+        elif key == "AUTO_REPLY":
+            self.drop_queue(brand, "apiAutoReplyList")
         with self.lock:
             e = self._bucket(brand)["boot"]
             if not e:
@@ -478,6 +482,38 @@ class TicketCache:
                     rel.pop(k, None)
         return {"ok": True, "tickets": rows}
 
+    # ---------- the auto-cancel / auto-reply queues: shared per brand, background priority ----------
+    QUEUE_FNS = ("apiAutoCancelList", "apiAutoReplyList")
+    QUEUE_TTL_S = 45
+    QUEUE_INVALIDATE = {"apiAutoCancelApprove": "apiAutoCancelList", "apiAutoCancelReject": "apiAutoCancelList",
+                        "apiAutoReplyReview": "apiAutoReplyList"}
+
+    def queue(self, user, brand, fn):
+        """apiAutoCancelList / apiAutoReplyList for every agent of a brand. Measured live 2026-10-05: reloaded as
+        interactive calls on every list load they took agents' slots and returned 502s. Now: cached 45 s, fetched at
+        background priority, an expired copy served when the engine is full, "deferred" when there is no copy."""
+        key = (brand, fn)
+        with self.lock:
+            hit = self.mem.setdefault("_queues", {}).get(key) if BRAND_RE.match(brand) else None
+        if hit and self.clock() - hit[0] < self.QUEUE_TTL_S:
+            timing("cache", None, "queue-hit")
+            return dict(hit[1], cache={"hit": True, "age_s": round(self.clock() - hit[0], 1)})
+        out = None if engine_proxy.gate(brand).tripped() else self._call(user, brand, fn, {}, True)
+        if out is None or out.get("error") == "dropped":
+            if hit:
+                return dict(hit[1], cache={"hit": True, "stale": True, "age_s": round(self.clock() - hit[0], 1)})
+            return {"ok": True, "deferred": True, "items": None}
+        if out.get("ok"):
+            clean = {k: v for k, v in out.items() if not k.startswith("_") and k != "msg"}
+            with self.lock:
+                self.mem.setdefault("_queues", {})[key] = (self.clock(), clean)
+            return dict(clean, cache={"hit": False})
+        return out
+
+    def drop_queue(self, brand, fn):
+        with self.lock:
+            self.mem.setdefault("_queues", {}).pop((brand, fn), None)
+
     def prefetch(self, user, brand, ids):
         if engine_proxy.gate(brand).tripped():
             return 0                                 # circuit breaker: no prefetch for ~60 s after a slow/HTML answer
@@ -502,6 +538,8 @@ class TicketCache:
     # ---------- writes made through the screen ----------
 
     def after_write(self, user, brand, fn, args, out):
+        if fn in self.QUEUE_INVALIDATE:              # the next load reads the engine (the write changed the queue)
+            self.drop_queue(brand, self.QUEUE_INVALIDATE[fn])
         tid = args.get("id") if isinstance(args, dict) else None
         if not isinstance(tid, str) or not ID_RE.match(tid) or not BRAND_RE.match(brand):
             return
@@ -619,6 +657,17 @@ def register(app, d):
         if not isinstance(q, str) or not (2 <= len(q.strip()) <= 100):
             return d["json_error"]("bad_request", 400, u.get("lang", "he"))
         return jsonify(localized(cache.related(u, brand, q.strip()), u.get("lang", "he"), "apiSearch"))
+
+    @app.post("/api/<brand>/queue")
+    def cached_queue(brand):
+        brand = str(brand).lower()
+        u, err = gate(brand, work=True)
+        if err:
+            return err
+        fn = (request.get_json(silent=True) or {}).get("fn")
+        if fn not in TicketCache.QUEUE_FNS:
+            return d["json_error"]("forbidden_fn", 404, u.get("lang", "he"))
+        return jsonify(localized(cache.queue(u, brand, fn), u.get("lang", "he"), fn))
 
     @app.post("/api/<brand>/prefetch")
     def cached_prefetch(brand):
