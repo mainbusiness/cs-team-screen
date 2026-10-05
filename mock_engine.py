@@ -489,12 +489,14 @@ class MockEngines:
         if not t:
             return {"ok": False, "error": "not_found"}
         if t["status"] in ("sent", "done"):
-            return {"ok": False, "error": "already_handled"}
+            return {"ok": False, "error": "already_sent" if t["channel"] == "whatsapp" else "already_handled"}
         p = self._problem(text)
         if p and a.get("override") is not True:
             return {"ok": False, "error": "draft_problem", "problem": p}
-        if t["channel"] == "whatsapp":
-            t.update({"wa_out": text, "wa_send": "pending", "handled_by": c["user"], "handled_at": self._now()})
+        if t["channel"] == "whatsapp":                     # live engine (2026-10-05 08:14): wa_queued + double-send guard
+            if t["status"] == "wa_queued" or t.get("wa_send") == "pending":
+                return {"ok": True, "queued": True, "already": True}
+            t.update({"wa_out": text, "wa_send": "pending", "status": "wa_queued", "handled_by": c["user"], "handled_at": self._now()})
             return {"ok": True, "queued": True}
         t.update({"status": "sent", "draft_text": text, "handled_by": c["user"], "handled_at": self._now(), "draft_id": ""})
         snap = self._b(brand)["snaps"].get(t["id"])

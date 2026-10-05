@@ -16,6 +16,7 @@ from test_assistant import FakeLLM, KNOW, engine_reply
 @pytest.fixture
 def no_wait(monkeypatch):
     monkeypatch.setattr(engine_proxy, "_sleep", lambda s: None)
+    monkeypatch.setattr(engine_proxy, "RESEND_MIN_AGE_S", 0)
 
 
 def bare_for(fns, transport, base=valid_reply):

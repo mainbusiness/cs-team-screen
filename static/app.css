@@ -388,3 +388,10 @@ button.chip.sib { cursor: pointer; }
   .top { position: static; }
 }
 .chip.st-merged { background: var(--done-bg); color: var(--done); }
+
+/* ---------- QA round 5 ---------- */
+.wa-note { margin: 6px 0; }
+.wa-note:empty { display: none; }
+.banner.stale-list { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.chip.st-wa_queued { background: var(--wa-bg); color: var(--wa-ink); }
+.search-note { margin: 6px 2px 10px; }

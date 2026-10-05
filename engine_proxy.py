@@ -178,6 +178,10 @@ def reset_gates():
         _gates.clear()
 
 
+def _wire(args):
+    return {k: v for k, v in args.items() if not k.startswith("_")}
+
+
 def is_read(fn, args):
     return fn in READ_FNS or (fn == "apiSettings" and isinstance(args, dict) and args.get("action") == "get")
 
@@ -364,6 +368,8 @@ def reply_problem(fn, args, rid, r, brand=None):
 # ---------- lost write replies (QA round 4) ----------
 WRITE_UNKNOWN_CODES = ("engine_bad_response", "engine_timeout", "engine_unreachable")
 RESULT_POLL_DELAYS_S = (1.0, 2.0, 3.0, 4.0, 5.0)        # ~15 s in total
+RESEND_MIN_AGE_S = 40.0      # QA round 5: never resend while the original may still be running inside Apps Script
+ALREADY_CODES = ("already_handled", "already_sent", "already")
 
 
 def _result_lookup(engines, transport, secret, user, brand, rid, lang):
@@ -386,13 +392,35 @@ def _result_lookup(engines, transport, secret, user, brand, rid, lang):
     return "error", None
 
 
-def resolve_write(engines, transport, secret, user, brand, fn, clean, lang, rid, token, url, gate_, bg):
+def _effect_visible(engines, transport, secret, user, brand, fn, clean, lang):
+    """Read the ticket: did THIS user's write already take effect? Returns a reply to use, or None."""
+    if fn not in ("apiSend", "apiMarkHandled", "apiClose") or not clean.get("id"):
+        return None
+    st, out = call(engines, transport, secret, user, brand, "apiTicket", {"id": clean["id"]}, lang, internal=True, retry=False)
+    t = out.get("ticket") if out.get("ok") else None
+    if not isinstance(t, dict) or t.get("handled_by") != user.get("username"):
+        return None
+    if fn == "apiSend":
+        if t.get("status") in ("sent", "done"):
+            return {"ok": True, "sent": True, "recovered": "ticket"}
+        if t.get("status") == "wa_queued" or t.get("wa_send") == "pending":
+            return {"ok": True, "queued": True, "recovered": "ticket"}
+    elif t.get("status") == "done":
+        return {"ok": True, "recovered": "ticket"}
+    return None
+
+
+def resolve_write(engines, transport, secret, user, brand, fn, clean, lang, rid, token, url, gate_, bg, started=None):
     """The reply to a write was lost (HTML page, GET turned from POST, timeout). The engine stores the final reply of
     every write by rid and treats a repeated rid as the same call. So: ask for the stored reply; if it never appears,
     send the SAME call with the SAME rid once (idempotent); if that is lost too, say so plainly — never "refused"."""
     t0 = _clock()
+    started = started if started is not None else t0
     supported = None
-    for delay in RESULT_POLL_DELAYS_S:
+    delays = list(RESULT_POLL_DELAYS_S)
+    while _clock() - started + sum(delays) < RESEND_MIN_AGE_S:
+        delays.append(5.0)                          # keep asking until the original cannot still be running
+    for delay in delays:
         _sleep(delay)
         state, stored = _result_lookup(engines, transport, secret, user, brand, rid, lang)
         if state == "unsupported":
@@ -406,21 +434,31 @@ def resolve_write(engines, transport, secret, user, brand, fn, clean, lang, rid,
                 out = localize(fn, stored, lang)
                 out["recovered"] = "apiResult"
                 return 200, out
+    seen = _effect_visible(engines, transport, secret, user, brand, fn, clean, lang)
+    if seen:
+        log.warning("engine %s %s outcome read from the ticket (already done by this user)", brand, fn)
+        return 200, localize(fn, seen, lang)
     if supported is False:
         log.warning("engine %s %s reply lost; engine has no apiResult yet", brand, fn)
         return 502, {"ok": False, "error": "engine_bad_response", "msg": messages.proxy_msg("engine_bad_response_write", lang),
                      "refresh": True}
+    if fn == "apiSend" and clean.get("_channel") == "whatsapp":
+        pass                                        # a WhatsApp send is NEVER resent: a second queue entry is a second message
     # not found: one resend with the same rid — the engine returns the stored reply or runs it exactly once
-    if gate_.acquire(bg):
+    elif gate_.acquire(bg):
         err = None
         try:
-            resp = transport(url, {"fn": fn, "args": clean, "token": token, "rid": rid})
+            resp = transport(url, {"fn": fn, "args": _wire(clean), "token": token, "rid": rid})
             if reply_problem(fn, clean, rid, resp, brand):
                 err = "invalid"
         except ProxyError as x:
             err = x.code
         finally:
             gate_.release(bg, 0, None if err is None else "engine_bad_response")
+        if err is None and resp.get("error") in ALREADY_CODES:
+            seen = _effect_visible(engines, transport, secret, user, brand, fn, clean, lang)
+            if seen:                                # "someone already handled it" — and that someone is us
+                return 200, localize(fn, dict(seen, recovered="resend"), lang)
         if err is None:
             log.warning("engine %s %s resolved by a same-rid resend after %d ms", brand, fn, int((_clock() - t0) * 1000))
             out = localize(fn, resp, lang)
@@ -465,6 +503,8 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
     except ProxyError as e:
         return e.http, {"ok": False, "error": e.code, "msg": messages.proxy_msg(e.code, lang)}
     clean["brand"] = brand
+    if fn == "apiSend" and isinstance(args, dict) and args.get("channel") == "whatsapp":
+        clean["_channel"] = "whatsapp"          # local only: stripped before the engine sees it
     try:
         token = security.mint_engine_token(secret, user["username"], role, [brand], user.get("lang", "he"), now=now)
     except ValueError:
@@ -488,7 +528,7 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
         t0 = _clock()
         err = None
         try:
-            resp = transport(url, {"fn": fn, "args": clean, "token": token, "rid": rid})
+            resp = transport(url, {"fn": fn, "args": _wire(clean), "token": token, "rid": rid})
             why = reply_problem(fn, clean, rid, resp, brand)
             if why:
                 log.warning("engine %s %s invalid reply: %s (keys: %s)", brand, fn, why, ",".join(sorted(resp)[:8]) if isinstance(resp, dict) else type(resp).__name__)
@@ -511,10 +551,15 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
             code = e.code
             if not is_read(fn, clean) and fn != "apiResult" and code in WRITE_UNKNOWN_CODES:
                 # the write may well have run: find out instead of guessing (QA round 4)
-                return resolve_write(engines, transport, secret, user, brand, fn, clean, lang, rid, token, url, g, bg)
+                return resolve_write(engines, transport, secret, user, brand, fn, clean, lang, rid, token, url, g, bg, started)
             return e.http, {"ok": False, "error": e.code, "msg": messages.proxy_msg(code, lang)}
     if attempt > 1:
         log.warning("engine %s %s recovered on attempt=%d total_ms=%d", brand, fn, attempt, int((_clock() - started) * 1000))
+    if fn == "apiSend" and isinstance(resp, dict) and resp.get("ok") is False and resp.get("error") in ALREADY_CODES:
+        # a repeat click after an unconfirmed send: if the ticket shows OUR send, say "sent", not "someone else"
+        seen = _effect_visible(engines, transport, secret, user, brand, fn, clean, lang)
+        if seen:
+            resp = dict(seen, already=True)
     out = localize(fn, resp, lang)
     out["_ms"] = int((_clock() - started) * 1000)
     if attempt > 1:

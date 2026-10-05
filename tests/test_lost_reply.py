@@ -10,6 +10,7 @@ from conftest import call, logged_in, valid_reply
 def quick(monkeypatch):
     slept = []
     monkeypatch.setattr(engine_proxy, "_sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(engine_proxy, "RESEND_MIN_AGE_S", 0)          # the 40 s floor has its own test
     return slept
 
 
@@ -166,3 +167,71 @@ def test_rid_reuse_is_never_an_answer(app, pw_hash, transport, quick):
     transport.reply = reply
     j = send(app, pw_hash).get_json()
     assert j["ok"] is False and j["error"] == "write_unknown"
+
+
+
+# ---------- QA round 5 ----------
+
+def test_no_resend_before_the_original_could_have_finished(app, pw_hash, transport, monkeypatch):
+    """The resend waits until RESEND_MIN_AGE_S after the ORIGINAL call started: it may still be running in Apps Script."""
+    t = [0.0]
+    monkeypatch.setattr(engine_proxy, "_clock", lambda: t[0])
+    monkeypatch.setattr(engine_proxy, "_sleep", lambda s: t.__setitem__(0, t[0] + s))
+    log = []
+    transport.reply = engine("missing", ["lost", "ok"], log)
+    resent_at = []
+    base = transport.reply
+
+    def timed(url, body):
+        if body["fn"] == "apiSend" and len([x for x in log if x[0] == "apiSend"]) == 1:
+            resent_at.append(t[0])
+        return base(url, body)
+    transport.reply = timed
+    assert send(app, pw_hash).get_json()["recovered"] == "resend"
+    assert resent_at and resent_at[0] >= engine_proxy.RESEND_MIN_AGE_S
+
+
+def test_whatsapp_send_is_never_resent(app, pw_hash, transport, quick):
+    log = []
+    transport.reply = engine("missing", ["lost", "ok"], log)
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    app.extensions["cs"]["ticket_cache"]._background = lambda *a, **k: False
+    j = call(c, tok, "rozela", "apiSend", {"id": "w1", "text": "היי", "channel": "whatsapp"}).get_json()
+    assert j["error"] == "write_unknown" and j["refresh"] is True
+    sends = [b for _, b in transport.calls if b["fn"] == "apiSend"]
+    assert len(sends) == 1 and "_channel" not in sends[0]["args"] and "channel" not in sends[0]["args"]
+
+
+def test_lost_whatsapp_send_resolved_from_the_ticket_as_queued(app, pw_hash, transport, quick):
+    def reply(url, body):
+        fn = body["fn"]
+        if fn == "apiSend":
+            return {"ok": False, "error": "get_not_supported"}
+        if fn == "apiResult":
+            return echo(body, {"ok": True, "found": False})
+        if fn == "apiTicket":
+            return echo(body, {"ok": True, "ticket": {"id": "w1", "status": "action", "wa_send": "pending", "handled_by": "noa"}})
+        return echo(body, valid_reply(url, body))
+    transport.reply = reply
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    app.extensions["cs"]["ticket_cache"]._background = lambda *a, **k: False
+    j = call(c, tok, "rozela", "apiSend", {"id": "w1", "text": "היי", "channel": "whatsapp"}).get_json()
+    assert j["ok"] and j["queued"] and j["recovered"] == "ticket"
+
+
+def test_already_handled_by_us_is_reported_as_sent(app, pw_hash, transport, quick):
+    def reply(url, body):
+        if body["fn"] == "apiSend":
+            return echo(body, {"ok": False, "error": "already_handled"})
+        if body["fn"] == "apiTicket":
+            return echo(body, {"ok": True, "ticket": {"id": "t1", "status": "sent", "handled_by": "noa"}})
+        return echo(body, valid_reply(url, body))
+    transport.reply = reply
+    j = send(app, pw_hash).get_json()
+    assert j["ok"] and j["sent"] and j["already"] is True
+    # someone ELSE handled it: the honest refusal stays
+    transport.reply = lambda url, body: echo(body, {"ok": False, "error": "already_handled"}) if body["fn"] == "apiSend" else \
+        echo(body, {"ok": True, "ticket": {"id": "t1", "status": "sent", "handled_by": "agent-two"}}) if body["fn"] == "apiTicket" else echo(body, valid_reply(url, body))
+    c, tok = logged_in(app, pw_hash, "ron", ["agent"], ["rozela"])
+    j = call(c, tok, "rozela", "apiSend", {"id": "t1", "text": "x"}).get_json()
+    assert j["ok"] is False and j["error"] == "already_handled" and "כבר טיפל" in j["msg"]

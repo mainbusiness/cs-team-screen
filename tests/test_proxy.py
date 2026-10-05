@@ -440,6 +440,7 @@ def test_not_logged_in_api_is_401(app):
 def fast_retry(monkeypatch):
     slept = []
     monkeypatch.setattr(engine_proxy, "_sleep", lambda s: slept.append(s))
+    monkeypatch.setattr(engine_proxy, "RESEND_MIN_AGE_S", 0)
     return slept
 
 

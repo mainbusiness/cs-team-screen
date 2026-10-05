@@ -55,8 +55,15 @@ UNSUPPORTED_RETRY_S = 600
 WAIT_FOR_INFLIGHT_S = 90   # a request sharing another one's in-flight engine fetch waits at most this long  # an engine without apiTicketFull / apiChanges is asked again after 10 min
 
 
+_collect = threading.local()   # a worker thread collects its timings here and the request thread re-emits them
+
+
 def timing(name, dur_ms=None, desc=None):
-    """Server-Timing entry for this request (no-op outside a request)."""
+    """Server-Timing entry for this request (collected on worker threads, no-op elsewhere)."""
+    sink = getattr(_collect, "items", None)
+    if sink is not None:
+        sink.append((name, dur_ms, desc))
+        return
     try:
         g.timings.append((name, dur_ms, desc))
     except (AttributeError, RuntimeError):
@@ -77,6 +84,7 @@ class TicketCache:
         self.bg_slots = threading.BoundedSemaphore(workers)
         self._tl = threading.local()
         self.brand_bg = {}                           # brand -> semaphore(engine_proxy.GATE_BG_CAP): prefetch fan-out 2/brand
+        self.fg_pool = ThreadPoolExecutor(max_workers=16, thread_name_prefix="cs-open")   # interactive opens (capped wait)
         self.inflight = {}               # key -> Future (dedupe: one engine fetch per key at a time)
         self.no_full = {}
         self.no_changes = {}
@@ -171,14 +179,14 @@ class TicketCache:
             if key in self.inflight:
                 return False
         brand = key[1] if len(key) > 1 else ""
-        if engine_proxy.gate(brand).tripped():       # breaker open: the engine is struggling, leave it alone
+        if engine_proxy.gate(brand).tripped() and key[0] != "boot":    # breaker: leave the engine alone — except the list
             return False
         def job():
             self._tl.bg = True
             sem = self._brand_sem(brand)
             sem.acquire()                            # queue here (2 per brand), not at the engine
             try:
-                if engine_proxy.gate(brand).tripped():
+                if engine_proxy.gate(brand).tripped() and key[0] != "boot":
                     return
                 with contextlib.suppress(Exception):
                     self._once(key, fn)
@@ -201,7 +209,7 @@ class TicketCache:
 
     def _store_boot(self, brand, data):
         clean = {k: v for k, v in data.items() if k not in PER_USER and not k.startswith("_") and k != "msg"}
-        e = {"data": clean, "at": self.clock(), "full_at": self.clock()}
+        e = {"data": clean, "at": self.clock(), "full_at": self.clock(), "synced_at": self.clock()}
         with self.lock:
             self._bucket(brand)["boot"] = e
         self._write(os.path.join(self._dir(brand), "boot.json"), e)
@@ -231,8 +239,18 @@ class TicketCache:
         counts = (data or {}).get("counts") or {}
         return sum(int(counts.get(s, 0) or 0) for s in ("ready", "action", "health", "delay"))
 
+    def synced_age(self, brand):
+        e = self._boot_entry(brand)
+        return None if not e else round(self.clock() - e.get("synced_at", e.get("full_at", e["at"])), 1)
+
     def _fetch_boot(self, user, brand):
-        out = self._call(user, brand, "apiBoot", {})
+        # QA round 5: the rozela list went 27 min stale — the breaker kept dropping every background refresh. The list
+        # is the one call that must always get through: background priority while fresh, interactive once starved.
+        e0 = self._boot_entry(brand)
+        age = (self.clock() - e0.get("synced_at", e0.get("full_at", e0["at"]))) if e0 else 1e9
+        starving = age > LIST_STARVE_S or engine_proxy.gate(brand).tripped()
+        bg = getattr(self._tl, "bg", False) and not starving
+        out = self._call(user, brand, "apiBoot", {}, bg)
         if out.get("ok"):
             prev = self._boot_entry(brand)
             if (prev and self._open_count(prev["data"]) >= 3 and not out.get("tickets") and self._open_count(out) == 0):
@@ -292,12 +310,14 @@ class TicketCache:
             out = self._for_user(e["data"], user)
             out["ok"] = True
             out["cache"] = {"hit": True, "age_s": round(age, 1)}
+            out["syncedAge"] = self.synced_age(brand)
             return 200, out
         out = self._once(("boot", brand), lambda: self._fetch_boot(user, brand))
         if not out.get("ok"):
             return 200, out
         out = self._for_user({k: v for k, v in out.items() if k not in PER_USER}, user)
         out["cache"] = {"hit": False, "age_s": 0}
+        out["syncedAge"] = 0
         return 200, out
 
     @staticmethod
@@ -363,19 +383,22 @@ class TicketCache:
                     data["version"] = out.get("version", data.get("version"))
                     data["serverTime"] = out.get("serverTime", data.get("serverTime"))
                     full_at = e.get("full_at", e["at"])
-                    self._bucket(brand)["boot"] = {"data": data, "at": now, "full_at": full_at}
-                self._write(os.path.join(self._dir(brand), "boot.json"), {"data": data, "at": now, "full_at": full_at})
+                    self._bucket(brand)["boot"] = {"data": data, "at": now, "full_at": full_at, "synced_at": now}
+                self._write(os.path.join(self._dir(brand), "boot.json"), {"data": data, "at": now, "full_at": full_at, "synced_at": now})
                 if now - full_at > SWITCH_MAX_AGE_S:          # apiChanges has no switches: refresh them behind the poll
                     self._background(("boot", brand), lambda: self._fetch_boot(user, brand))
                 self._stale([r.get("id") for r in rows if isinstance(r, dict)] + removed, brand)
                 return 200, {"ok": True, "version": data.get("version"), "changed": rows, "removed": removed,
-                             "counts": data.get("counts", {}), "serverTime": data.get("serverTime"), "via": "apiChanges",
+                             "counts": data.get("counts", {}), "serverTime": data.get("serverTime"), "via": "apiChanges", "syncedAge": 0,
                              "switches": {k: data[k] for k in SWITCH_KEYS if k in data}}
             lacks_changes = out.get("error") in ("unauthorized", "forbidden_fn")
             if lacks_changes:
                 pass                                                         # recorded below, only if apiBoot then works
             elif not out.get("ok") and out.get("error") not in ("bad_since",):
-                return 200, out
+                age = self.synced_age(brand)
+                if age is None or age < LIST_STARVE_S:
+                    return 200, dict(out, syncedAge=age)
+                # apiChanges keeps failing and the list is starving: fall through to one full apiBoot
             # reset:true (our version is too old) or bad_since -> one full apiBoot below, so the counts are right
         else:
             lacks_changes = False
@@ -393,7 +416,7 @@ class TicketCache:
         removed = [i for i in old if i not in new]
         self._stale([t.get("id") for t in changed], brand)
         return 200, {"ok": True, "version": out.get("version") or out.get("serverTime"), "changed": changed, "removed": removed,
-                     "counts": out.get("counts", {}), "serverTime": out.get("serverTime"), "via": "apiBoot",
+                     "counts": out.get("counts", {}), "serverTime": out.get("serverTime"), "via": "apiBoot", "syncedAge": 0,
                      "switches": {k: out[k] for k in SWITCH_KEYS if k in out}}
 
     # ---------- full tickets ----------
@@ -473,7 +496,24 @@ class TicketCache:
                 if e.get("stale") or age > TICKET_TTL_S:
                     self._background(("t", brand, tid), lambda: self._refresh(user, brand, tid))
                 return e["full"], None, {"hit": True, "age_s": round(age, 1), "stale": bool(e.get("stale"))}
-        full, err = self._once(("t", brand, tid), lambda: self._refresh(user, brand, tid, fresh))
+        # QA round 5: an agent waits at most TICKET_WAIT_S; the fetch keeps going and lands in the cache for the retry
+        def work():
+            _collect.items = []
+            try:
+                return self._once(("t", brand, tid), lambda: self._refresh(user, brand, tid, fresh)), _collect.items
+            finally:
+                _collect.items = None
+        fut = self.fg_pool.submit(work)
+        try:
+            (full, err), tims = fut.result(timeout=TICKET_WAIT_S)
+            for t_ in tims:
+                timing(*t_)
+        except FutureTimeout:
+            timing("cache", None, "ticket-slow")
+            e = self._entry(brand, tid)
+            if e:                                    # an older copy beats a spinner
+                return e["full"], None, {"hit": True, "age_s": round(self.clock() - e["at"], 1), "stale": True, "slow": True}
+            return None, {"ok": False, "error": "engine_slow", "pending": True}, {}
         timing("cache", None, "ticket-miss" if not revalidate else "ticket-revalidate")
         return full, err, {"hit": False, "age_s": 0, "stale": False}
 
@@ -574,7 +614,9 @@ class TicketCache:
             patch = {"draft_text": args.get("text", "")}
         elif ok and fn == "apiSend":
             patch = {"draft_text": args.get("text", ""), "handled_by": user["username"], "handled_at": now_iso}
-            if not out.get("queued"):
+            if out.get("queued"):
+                patch["wa_send"] = "pending"             # the screen must not offer a second WhatsApp send (QA round 5)
+            else:
                 patch["status"] = "sent"
         elif ok and fn == "apiAutoReplyReview" and args.get("verdict") == "problem":
             patch = {"status": "action"}                 # "⚠ problem" reopens the ticket (the engine confirms on revalidate)
@@ -605,6 +647,8 @@ WRITE_FNS = ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote",
              "apiAutoCancelApprove", "apiAutoCancelReject", "apiAutoReplyReview", "apiWaTakeOver")
 SWITCH_KEYS = ("dryRun", "cancelEnabled", "cancelFrozen", "subscriptions")
 SWITCH_MAX_AGE_S = 15      # how stale DRY_RUN & co may be on a client (live E2E 2026-10-05: send stayed disabled)
+LIST_STARVE_S = 60         # QA round 5: a list older than this is refreshed at interactive priority, breaker or not
+TICKET_WAIT_S = 15         # an agent waits at most this long for a ticket; the fetch goes on and lands in the cache
 
 
 def register(app, d):

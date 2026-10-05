@@ -302,3 +302,56 @@ def test_server_timing_on_api_only(app, pw_hash, transport):
     h = post(c, tok, "/api/rozela/changes", {"since": 7}).headers["Server-Timing"]
     assert 'gas;desc="apiChanges";dur=12.0' in h                         # serverMs from the engine
     assert "Server-Timing" not in c.get("/cs").headers
+
+
+
+# ---------- QA round 5 ----------
+
+def test_list_refresh_is_never_starved_by_the_breaker(make_app, pw_hash, transport):
+    import engine_proxy as ep
+    now = [1000.0]
+    transport.reply = make_reply()
+    app = make_app()
+    cache = app.extensions["cs"]["ticket_cache"]
+    cache.clock = lambda: now[0]
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    post(c, tok, "/api/rozela/list", {})
+    ep.gate("rozela").trip_until = ep._clock() + 3600                  # breaker open for an hour
+    now[0] += 61                                                       # the list is starving
+    transport.calls.clear()
+    user = {"username": "noa", "roles": ["agent"], "brands": ["rozela"], "lang": "he"}
+    assert cache._background(("boot", "rozela"), lambda: cache._fetch_boot(user, "rozela")) is True
+    cache.drain()
+    assert "apiBoot" in fns(transport)                                  # refreshed despite the breaker
+    assert cache.synced_age("rozela") == 0
+
+
+def test_failing_apichanges_falls_back_to_a_full_list_when_starving(make_app, pw_hash, transport):
+    now = [1000.0]
+    base = make_reply()
+    transport.reply = lambda u, b: {"ok": False, "error": "busy"} if b["fn"] == "apiChanges" else base(u, b)
+    app = make_app()
+    cache = app.extensions["cs"]["ticket_cache"]
+    cache.clock = lambda: now[0]
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    post(c, tok, "/api/rozela/list", {})
+    now[0] += 30
+    j = post(c, tok, "/api/rozela/changes", {"since": 7}).get_json()
+    assert j["ok"] is False and j["syncedAge"] == 30                     # young enough: the failure is passed through
+    now[0] += 40
+    j = post(c, tok, "/api/rozela/changes", {"since": 7}).get_json()
+    assert j["ok"] and j["via"] == "apiBoot" and j["syncedAge"] == 0     # starving: one full apiBoot
+
+
+def test_ticket_wait_is_capped_and_the_fetch_lands_in_the_cache(make_app, pw_hash, transport, monkeypatch):
+    monkeypatch.setattr(ticket_cache, "TICKET_WAIT_S", 0.3)
+    transport.reply = make_reply(delay=0.8)
+    app = make_app()
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    t0 = time.perf_counter()
+    j = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()
+    assert time.perf_counter() - t0 < 0.7 and j["error"] == "engine_slow" and j["pending"] is True
+    app.extensions["cs"]["ticket_cache"].drain(5)
+    time.sleep(0.8)
+    j = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()
+    assert j["ok"] and j["cache"]["hit"] is True                         # the slow fetch finished and was cached

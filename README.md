@@ -27,7 +27,7 @@ Render disk and in each engine's `audit` sheet.
 | `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
-| `tests/` | pytest (270+ tests, incl. real-browser tests with Playwright) |
+| `tests/` | pytest (300+ tests, incl. real-browser tests with Playwright) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
 
 ## Environment (Render)
@@ -353,3 +353,25 @@ the work often ran. The screen used to say "המנוע סירב: get_not_support
   - an engine without `apiResult` keeps the "ייתכן שהפעולה בוצעה" message, never "refused".
   - `apiResult` is a read and can never enter this path (that once recursed). `rid_reuse` is never treated as an answer.
 - **No raw error code** is ever shown to an agent; unknown codes become a plain sentence, and the code stays in `error`.
+
+## QA round 5 (team live)
+
+- **WhatsApp double send.** A WhatsApp ticket is "queued" when its status is `wa_queued` (live engine) or, on an older
+  engine, `wa_send: "pending"`. While queued, the ticket shows "📤 נכנס לתור לוואטסאפ — אל תשלחו שוב" and offers no
+  send. After an unconfirmed WhatsApp send, sending stays **locked** until a fresh engine read of the ticket
+  arrives; the cached copy stays on screen meanwhile, with a "בדוק שוב" button. `{queued, already}` shows "already
+  queued — not sent twice". `already_sent` has its own text. The server never resends a WhatsApp send.
+- **Resend safety (all writes).** The same-rid resend happens only after `apiResult` says not found AND at least
+  40 s after the ORIGINAL call started. Before it, the ticket is read: if this user's write is already visible (sent,
+  queued, closed), that is the answer. "Already handled" on a send whose ticket shows OUR user becomes "sent".
+- **The list can't go stale.** The list refresh ignores the breaker, and once older than 60 s it runs at interactive
+  priority. A failing `apiChanges` falls back to one full `apiBoot` when the list is starving. `/list` and
+  `/changes` return `syncedAge`; over 2 min the screen shows "הרשימה לא עודכנה X דקות — מנסה לרענן" with a refresh
+  button (`/list {maxAge: 0}`).
+- **Ticket opens.** The list row is drawn at once, as a partial read-only view. The server waits at most 15 s for
+  the engine (`engine_slow`, while the fetch continues into the cache). The screen retries up to 3 times with "המנוע
+  איטי כרגע, מנסה שוב…", and the cached copy says "טוען גרסה עדכנית…". Never a bare error box.
+- **Search** answers instantly from the cached list rows (id, name, email, phone, order, subject, summary), then
+  merges the engine's results (including the archive) when they arrive. If the engine fails, the list results stay,
+  with a note.
+- **Unknown statuses and categories** show a neutral label, never a raw key.

@@ -84,6 +84,12 @@
       takeover_ok: 'השיחה אצלך — טיוטה תיכתב בריצה הבאה של המנוע', photo_dondy: '📷 תמונה — לצפייה בדונדי', photo_open: '📷 תמונה — פתיחה',
       photo_wait: '📷 תמונה — עוד לא הגיעה',
       err_bad_engine: 'המנוע החזיר תשובה לא תקינה. נסו שוב בעוד רגע.',
+      st_wa_queued: '📤 בתור לוואטסאפ', st_unknown: 'סטטוס אחר', cat_unknown: 'אחר',
+      wa_queued_chip: '📤 נכנס לתור לוואטסאפ — אל תשלחו שוב', wa_already: 'ההודעה כבר בתור לוואטסאפ — לא נשלחה פעם שנייה',
+      wa_locked: 'לא אושר אם ההודעה נכנסה לתור — השליחה נעולה עד שהמנוע יאשר את המצב', wa_check: 'לבדוק שוב',
+      list_stale: 'הרשימה לא עודכנה {m} דקות — מנסה לרענן', list_refresh: 'רענון עכשיו',
+      tk_partial: 'טוען את הפנייה המלאה…', tk_slow: 'המנוע איטי כרגע, מנסה שוב…', tk_failed: 'הפנייה המלאה לא נטענה כרגע.', tk_retry: 'לנסות שוב',
+      search_local: 'תוצאות מהרשימה — מחפש גם בארכיון…', search_engine_failed: 'החיפוש בארכיון לא הצליח כרגע — מוצגות תוצאות מהרשימה בלבד.',
       reconnecting: 'מתעדכן…', send_wa: 'שליחה בוואטסאפ', send_email: 'שליחה במייל', chan_all: 'הכול', wa_banner: 'פנייה בוואטסאפ',
       email_banner: 'פנייה במייל', err_restarting: 'השרת בעדכון — נסו שוב בעוד דקה.',
       err_restart_write: 'השרת התעדכן בדיוק ברגע הזה. רעננו את הפנייה ובדקו אם הפעולה בוצעה לפני שמנסים שוב.',
@@ -121,7 +127,7 @@
       ar_mode: 'מענה אוטומטי: {m}', mode_auto_reply: 'מענה אוטומטי: {v}', what_to_do: 'מה לעשות',
       set_AUTO_REPLY: 'מענה אוטומטי', set_AUTO_REPLY_help: 'כבוי / צל: מסמן מה היה נשלח / פעיל: עונה לבד על מיילים פשוטים ומסמן לבדיקה',
       set_AUTO_REPLY_note: 'מצב "פעיל" דורש שמצב ניסיון יהיה כבוי.',
-      syncing: 'מתעדכן…', sync_failed: 'לא עודכן ({m}) — מוצג עותק מ{when}', tk_updated: 'יש גרסה חדשה של הפנייה', apply_update: 'הצג',
+      syncing: 'טוען גרסה עדכנית…', sync_failed: 'לא עודכן ({m}) — מוצג עותק מ{when}', tk_updated: 'יש גרסה חדשה של הפנייה', apply_update: 'הצג',
       orders_err: 'בדיקת ההזמנות נכשלה: {m}', subs_err: 'בדיקת המנויים נכשלה: {m}',
       // users
       u_title: 'ניהול משתמשים', u_new: 'משתמש חדש', u_username: 'שם משתמש (לועזית)', u_display: 'שם תצוגה', u_roles: 'תפקיד', u_brands: 'מותגים',
@@ -193,6 +199,12 @@
       takeover_ok: 'The chat is yours — a draft will be written on the next engine run', photo_dondy: '📷 Photo — view in Dondy', photo_open: '📷 Photo — open',
       photo_wait: '📷 Photo — not arrived yet',
       err_bad_engine: 'The engine returned an invalid answer. Try again in a moment.',
+      st_wa_queued: '📤 Queued for WhatsApp', st_unknown: 'Other status', cat_unknown: 'Other',
+      wa_queued_chip: '📤 Queued for WhatsApp — do not send again', wa_already: 'Already queued for WhatsApp — not sent a second time',
+      wa_locked: 'Not confirmed whether the message was queued — sending is locked until the engine confirms', wa_check: 'Check again',
+      list_stale: 'The list has not updated for {m} minutes — trying to refresh', list_refresh: 'Refresh now',
+      tk_partial: 'Loading the full ticket…', tk_slow: 'The engine is slow right now, trying again…', tk_failed: 'The full ticket could not load right now.', tk_retry: 'Try again',
+      search_local: 'Results from the list — searching the archive too…', search_engine_failed: 'The archive search failed right now — showing results from the list only.',
       reconnecting: 'Reconnecting…', send_wa: 'Send on WhatsApp', send_email: 'Send by email', chan_all: 'All', wa_banner: 'WhatsApp conversation',
       email_banner: 'Email conversation', en_confirm_wa: 'Confirm translation and send on WhatsApp', en_confirm_email: 'Confirm translation and send by email', err_restarting: 'The server is updating — try again in a minute.',
       err_restart_write: 'The server restarted at exactly this moment. Refresh the ticket and check whether the action happened before trying again.',
@@ -230,7 +242,7 @@
       ar_mode: 'Auto-reply: {m}', mode_auto_reply: 'Auto-reply: {v}', what_to_do: 'What to do',
       set_AUTO_REPLY: 'Auto-reply', set_AUTO_REPLY_help: 'Off / shadow: marks what would be sent / on: answers simple emails by itself and flags them for review',
       set_AUTO_REPLY_note: '"On" requires test mode to be off.',
-      syncing: 'Updating…', sync_failed: 'Not updated ({m}) — showing a copy from {when}', tk_updated: 'A newer version of this ticket is ready', apply_update: 'Show',
+      syncing: 'Loading the latest version…', sync_failed: 'Not updated ({m}) — showing a copy from {when}', tk_updated: 'A newer version of this ticket is ready', apply_update: 'Show',
       orders_err: 'Order lookup failed: {m}', subs_err: 'Subscription lookup failed: {m}',
       tr_loading: 'Translating…', tr_failed: 'Translation failed: {m}', show_orig: 'Show original', show_en: 'Show English', tr_from: 'translated from {l}',
       en_draft: 'Your reply (write in English)', en_draft_loading: 'Translating the AI draft into English…', en_draft_ai: 'Prefilled with the AI draft, translated to English. Edit freely.',
@@ -314,6 +326,11 @@
     return svg;
   }
   function isWA(x) { return String((x && x.channel) || '').toLowerCase() === 'whatsapp'; }
+  /** QA round 5 (double WhatsApp send): queued = status wa_queued, or (older engine) wa_send pending on an open ticket. */
+  function waQueued(x) { return !!x && (x.status === 'wa_queued' || (isWA(x) && x.wa_send === 'pending')); }
+  const WA_LOCK = {};
+  function waLock(brand, id) { WA_LOCK[brand + '|' + id] = true; }
+  function waLocked(brand, id) { return !!WA_LOCK[brand + '|' + id]; }
   /** The one channel pill used everywhere: WhatsApp green with a chat icon, email blue with an envelope. */
   function chanPill(x, big) {
     const wa = isWA(x);
@@ -489,12 +506,11 @@
   }
   /** A write whose reply was lost: re-read the ticket from the engine and say so at the top of it. */
   function afterUnknownWrite(brand, id, msg) {
-    if (id) delete S.tkMemo[brand + '|' + id];
     setTimeout(async function () {
       if (brand !== S.brand) return;
       pollChanges(brand);
       if (id && S.tk && S.tk.id === id) {
-        await openTicket(id, { fresh: true });
+        await openTicket(id, { fresh: true, showMemo: true });   // the copy stays on screen (with its lock) meanwhile
         const slot = document.getElementById('tk-stale');
         if (slot && S.tk && S.tk.id === id) {
           clear(slot);
@@ -635,6 +651,12 @@
     if (S.view === 'users') return;
     const b = boot();
     if (b) el.append(modeBanner(b));
+    const age = listAge(S.brand);
+    if (b && age !== null && age > 120) {
+      el.append(h('div', { class: 'banner warn stale-list', role: 'status', 'data-test': 'list-stale' },
+        h('span', null, tx('list_stale', { m: Math.floor(age / 60) })), ' ',
+        h('button', { class: 'btn small', type: 'button', text: t('list_refresh'), onclick: function (e) { e.target.disabled = true; forceList(S.brand); } })));
+    }
     if (b && b.cancelFrozen) el.append(h('p', { class: 'banner danger', text: t('frozen') }));
   }
 
@@ -662,6 +684,16 @@
     return p;
   }
 
+  /** Seconds since the server last synced this brand's list with the engine (QA round 5: a 27-minute stale list). */
+  const SYNC = {};
+  function noteSync(brand, age) { if (typeof age === 'number') SYNC[brand] = { age: age, at: Date.now() }; }
+  function listAge(brand) { const x = SYNC[brand]; return x ? x.age + (Date.now() - x.at) / 1000 : null; }
+  async function forceList(brand) {
+    const r = await api('/api/' + encodeURIComponent(brand) + '/list', { maxAge: 0 });
+    if (r.ok && Array.isArray(r.tickets) && r.counts) { const cur = S.boots[brand]; S.boots[brand] = r; noteSync(brand, r.syncedAge || 0); if (cur) r._prev = null; }
+    if (brand === S.brand) { renderBanners(); renderTabs(); renderList(true); }
+  }
+
   function todayList(b) {
     const today = ilDay(Date.now());
     return (b.tickets || []).filter(function (x) {
@@ -676,6 +708,10 @@
     if (id === 'search') return '';
     const rows = (b.tickets || []).filter(function (x) { return x.status === id; }).length;
     if (OPEN.indexOf(id) >= 0) return rows;               // apiBoot carries EVERY open ticket: the rows are the truth
+    if (id === 'sent') {
+      const sr = (b.tickets || []).filter(function (x) { return x.status === 'sent' || x.status === 'wa_queued'; }).length;
+      return Math.max(sr, (Number((b.counts || {}).sent) || 0) + (Number((b.counts || {}).wa_queued) || 0));
+    }
     return Math.max(rows, Number((b.counts || {})[id]) || 0);
   }
   function renderTabs() {
@@ -711,7 +747,7 @@
     }
     if (r.ok && canWork() && String(r.subscriptions || '').toLowerCase() !== 'none') loadAuto(brand);
     if (r.ok && canWork()) AutoReply.load(brand);
-    if (r.ok) { S.boots[brand] = r; delete S.bootErr[brand]; }
+    if (r.ok) { S.boots[brand] = r; delete S.bootErr[brand]; noteSync(brand, r.syncedAge); }
     else if (!S.boots[brand]) { S.bootErr[brand] = r.msg || r.error; }               // keep the last good list on a bad reply
     if (brand !== S.brand) return;
     renderTop(); renderBanners(); renderTabs(); renderList(false); checkStale(); Draft.refreshSend(); EnDraft.refresh(); Assist.sync(); paintSubs(brand);
@@ -754,6 +790,8 @@
     let r;
     // background: one quiet attempt per tick; on a restart keep the last good state and try again next tick
     try { r = await api('/api/' + encodeURIComponent(brand) + '/changes', { since: b.version }, 'POST', { retry: false, quiet: true }); } finally { polling = false; }
+    if (r && typeof r.syncedAge === 'number') noteSync(brand, r.syncedAge);
+    if (brand === S.brand) renderBanners();                               // the stale banner follows the real age
     if (!r.ok || S.boots[brand] !== b || !Array.isArray(b.tickets)) return;
     if (!Array.isArray(r.changed || [])) return;
     const byId = {};
@@ -815,6 +853,7 @@
     if (!b) return null;
     if (tab === 'today') return sortRows(todayList(b), 'today');
     if (tab === 'search') return S.search.res;
+    if (tab === 'sent') return sortRows((b.tickets || []).filter(function (x) { return x.status === 'sent' || x.status === 'wa_queued'; }), 'sent');
     if (tab === 'autoreply') { const a = S.ar[S.brand]; return a ? (a.items || []) : null; }
     if (tab === 'auto') { const a = S.auto[S.brand]; return a ? (a.items || []) : null; }
     return sortRows((b.tickets || []).filter(function (x) { return x.status === tab; }), tab);
@@ -832,8 +871,8 @@
       age = tx('handled_by', { who: x.handled_by || '—', when: ago(x.handled_at) });
     }
     const chips = [];
-    if (opts.showStatus || !open || S.tab === 'search' || S.tab === 'today') chips.push(h('span', { class: 'chip st-' + x.status, text: t('st_' + x.status) }));
-    if (x.category) chips.push(h('span', { class: 'chip', text: t('cat_' + x.category) }));
+    if (opts.showStatus || !open || S.tab === 'search' || S.tab === 'today') chips.push(h('span', { class: 'chip st-' + x.status, text: label('st_', x.status, 'st_unknown') }));
+    if (x.category) chips.push(h('span', { class: 'chip', text: label('cat_', x.category, 'cat_unknown') }));
     chips.unshift(chanPill(x));
     if (Number(x.emails_count) > 1) chips.push(h('span', { class: 'chip outline', text: t('msgs', { n: x.emails_count }) }));
     if (x.language && x.language !== 'he' && x.language !== 'iw') chips.push(h('span', { class: 'chip outline', text: String(x.language).toUpperCase() }));
@@ -893,7 +932,7 @@
     if (S.tab === 'auto' && noSubs()) { go(listHash('ready'), true); return; }
     const err = S.bootErr[S.brand];
     const rows = rowsFor(S.tab);
-    const sig = JSON.stringify([S.brand, S.tab, S.ticketId, S.chan || 'all', err || '', S.tab === 'search' ? [S.search.q, S.search.err, S.search.res] : rows,
+    const sig = JSON.stringify([S.brand, S.tab, S.ticketId, S.chan || 'all', S.search.note || '', err || '', S.tab === 'search' ? [S.search.q, S.search.err, S.search.res] : rows,
       S.tab === 'auto' ? [S.auto[S.brand], S.autoMsg] : null, S.tab === 'autoreply' ? [S.ar[S.brand], S.autoMsg] : null, LANG === 'en' ? S.rowTr : null]);
     if (!force && sig === S.listSig) return;           // nothing changed: zero DOM work
     if (lp.contains(document.activeElement) && S.tab !== 'search' && !force) return;
@@ -920,6 +959,8 @@
       else if (S.search.res === null) res.append(h('div', { class: 'empty', text: S.search.q ? t('loading') : t('search_min') }));
       else if (!S.search.res.length) res.append(h('div', { class: 'empty' }, h('b', { text: t('search_none') })));
       else S.search.res.forEach(function (x) { res.append(rowEl(x, { showStatus: true })); });
+      // after the chain, never inside it (QA round 5: a note placed in the if/else hid every result row)
+      if (S.search.note && S.search.res && !S.search.err) res.prepend(h('div', { class: 'muted small search-note', 'data-test': 'search-note', text: S.search.note }));
       return;
     }
     if (S.tab === 'auto') { AutoCancel.render(lp, force); return; }
@@ -964,10 +1005,19 @@
     S.search.q = q;
     const seq = ++S.search.seq;
     if (q.length < 2) { S.search.res = null; S.search.err = null; renderList(true); return; }
-    S.search.res = null; S.search.err = null; renderList(true);
+    // QA round 5: the engine search took 35-62 s. Rows already on the screen answer at once; the engine adds the archive.
+    const ql = q.toLowerCase();
+    const local = ((boot() || {}).tickets || []).filter(function (x) {
+      return [x.id, x.name, x.email, x.phone, x.order_no, x.subject, x.summary].some(function (v) { return v && String(v).toLowerCase().indexOf(ql) >= 0; });
+    }).slice(0, 50);
+    S.search.res = local; S.search.err = null; S.search.note = t('search_local'); renderList(true);
     const r = await engine('apiSearch', { q: q });
     if (seq !== S.search.seq) return;            // an older answer must not overwrite a newer query
-    if (r.ok) S.search.res = r.tickets || []; else S.search.err = r.msg || r.error;
+    if (r.ok && Array.isArray(r.tickets)) {
+      const seen = {};
+      S.search.res = r.tickets.concat(local).filter(function (x) { if (!x || seen[x.id]) return false; seen[x.id] = 1; return true; });
+      S.search.note = null;
+    } else S.search.note = t('search_engine_failed');
     renderList(true);
   }
 
@@ -1031,17 +1081,25 @@
     S.tk = k;
     const tp = $('ticket-pane');
     const memo = S.tkMemo[brand + '|' + id];
-    if (memo && !opts.fresh) applyTicket(k, { ticket: memo.ticket, extras: memo.extras, extrasErr: memo.extrasErr, cache: { hit: true, age_s: (Date.now() - ms(memo.cachedAt)) / 1000 } });
-    else { clear(tp); tp.append(h('div', { class: 'tk-body' }, h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' }))); }
+    if (memo && (!opts.fresh || opts.showMemo)) applyTicket(k, { ticket: memo.ticket, extras: memo.extras, extrasErr: memo.extrasErr, cache: { hit: true, age_s: (Date.now() - ms(memo.cachedAt)) / 1000 } });
+    else renderPartial(brand, id, t('tk_partial'));
     markSelected(id);                                    // move the highlight only — no list rebuild on every open
     const t0 = performance.now();
     refreshSwitches(brand);                            // test mode / cancels no older than 15 s on every open
-    const r = await api('/api/' + encodeURIComponent(brand) + '/ticket', opts.fresh ? { id: id, fresh: true } : { id: id });
+    let r = await api('/api/' + encodeURIComponent(brand) + '/ticket', opts.fresh ? { id: id, fresh: true } : { id: id });
+    // QA round 5: the engine was slow (33-43 s) or answered badly ~1 in 3 at peak. Never an error first: the list row
+    // is on screen at once, the server keeps fetching (capped 15 s wait) and a quick retry usually hits its cache.
+    for (let tries = 0; !k.ticket && S.tk === k && !r.ok && (r.error === 'engine_slow' || r.error === 'engine_bad_response' || r.error === 'engine_timeout' || r.error === 'busy') && tries < (r.error === 'engine_slow' ? 3 : 1); tries++) {
+      renderPartial(brand, id, t('tk_slow'));
+      await new Promise(function (res) { setTimeout(res, 2500); });
+      if (S.tk !== k) return;
+      r = await api('/api/' + encodeURIComponent(brand) + '/ticket', { id: id });
+    }
     if (S.tk !== k) return;
     k.firstPaintMs = Math.round(performance.now() - t0);
     if (!r.ok) {
       k.syncing = false;
-      if (!k.ticket) { clear(tp); tp.append(h('div', { class: 'tk-body' }, backBtn(), h('div', { class: 'err-box', text: r.msg || r.error }))); return; }
+      if (!k.ticket) { renderPartial(brand, id, null, t('tk_failed')); return; }
       k.syncErr = r.msg || r.error; paintSync(); return;
     }
     if (!r.ticket || typeof r.ticket !== 'object') {
@@ -1050,8 +1108,10 @@
       k.syncErr = t('err_bad_engine'); paintSync(); return;
     }
     const hit = !!(r.cache && r.cache.hit);
+    if (!hit) delete WA_LOCK[brand + '|' + id];        // engine data: the real WhatsApp state is known again
     k.syncing = hit;                                   // a cache hit is shown now and revalidated right after
-    applyTicket(k, r, !memo);
+    applyTicket(k, r, !memo || !!opts.showMemo);
+    Draft.refreshSend();
     paintSync();
     if (!hit) return;
     const f = await api('/api/' + encodeURIComponent(brand) + '/ticket', { id: id, revalidate: true }, 'POST', { quiet: true });
@@ -1060,9 +1120,31 @@
     if (!f.ok) { k.syncErr = f.msg || f.error; paintSync(); return; }
     if (!f.ticket || typeof f.ticket !== 'object') { k.syncErr = t('err_bad_engine'); paintSync(); return; }
     k.syncErr = null;
+    delete WA_LOCK[brand + '|' + id];                  // the engine just told us the real state
     applyTicket(k, f, false);
+    Draft.refreshSend();
     paintSync();
   }
+  /** No full ticket yet: what the list already knows about it (read-only), and a note. Never an empty error box. */
+  function renderPartial(brand, id, note, failed) {
+    const tp = $('ticket-pane');
+    const b = S.boots[brand];
+    const row = b && (b.tickets || []).filter(function (x) { return x.id === id; })[0];
+    clear(tp);
+    const body = h('div', { class: 'tk-body', 'data-test': 'tk-partial' });
+    if (row) {
+      tp.append(h('div', { class: 'tk-head' }, h('div', { class: 'l1' }, backBtn(), h('h2', { dir: 'auto', text: row.name || row.email || t('no_name') }), statusChip(row.status)),
+        h('div', { class: 'contact' }, chanPill(row), row.email ? h('span', { class: 'val', text: row.email }) : null),
+        row.summary ? h('p', { class: 'summary-line', dir: 'auto', text: row.summary }) : null));
+      if (row.recommendation) body.append(h('div', { class: 'todo' }, h('b', { text: t('what_to_do') }), h('div', { dir: 'auto', text: row.recommendation })));
+    } else body.append(backBtn());
+    if (note) body.append(h('div', { class: 'stale', role: 'status' }, h('span', { class: 'spinner' }), ' ', note));
+    if (failed) body.append(h('div', { class: 'stale', role: 'status' }, h('span', { text: failed }), ' ',
+      h('button', { class: 'btn small', type: 'button', text: t('tk_retry'), onclick: function () { openTicket(id); } })));
+    if (!row) for (let i = 0; i < 2; i++) body.append(h('div', { class: 'skeleton' }));
+    tp.append(body);
+  }
+
   /** One ticket's panels after a write: from the server cache (already patched or revalidated), never a full pane rebuild. */
   async function fetchTicket(brand, id, revalidate) {
     return api('/api/' + encodeURIComponent(brand) + '/ticket', revalidate ? { id: id, revalidate: true } : { id: id });
@@ -1086,7 +1168,8 @@
     });
     return h('div', { class: 'sib-row' }, b);
   }
-  function statusChip(st) { return h('span', { class: 'chip st-' + st, text: t('st_' + st) }); }
+  function label(prefix, v, fallback) { const k = prefix + v; const x = t(k); return x === k ? t(fallback) : x; }
+  function statusChip(st) { return h('span', { class: 'chip st-' + String(st || '').replace(/[^a-z_]/g, ''), text: label('st_', st, 'st_unknown') }); }
 
   const ACTION_HE = [
     [/^cancel: contract lookup failed/i, 'הלקוח מבקש לבטל מנוי, אבל בדיקת המנויים נכשלה — לבדוק בקצ׳ינג ידנית.'],
@@ -1135,6 +1218,8 @@
     const body = h('div', { class: 'tk-body' });
     tp.append(body);
     body.append(h('div', { id: 'tk-stale' }));
+    if (x.status === 'wa_queued') body.append(h('div', { class: 'wa-note', role: 'status', 'data-test': 'wa-queued' },
+      h('span', { class: 'chip ch-wa big', text: t('wa_queued_chip') })));
     if (x.recommendation) body.append(h('div', { class: 'todo', role: 'note', 'data-test': 'what-to-do' },
       h('b', { text: t('what_to_do') }), h('div', { id: 'tk-reco', dir: 'auto', text: x.recommendation })));
     if (isOpen && x.action) {
@@ -1381,7 +1466,7 @@
       // Live, never captured at render time: a deep link can render this card before apiBoot answers.
       // Unknown mode = disabled (fail closed); loadBoot() calls refreshSend() when the answer lands.
       function isDry() { const b = S.boots[st.brand]; return !b || !!b.dryRun; }
-      function sendDisabled() { return isDry() || !ta.value.trim(); }
+      function sendDisabled() { return isDry() || !ta.value.trim() || waQueued(S.tk && S.tk.id === x.id ? S.tk.ticket : x) || waLocked(st.brand, x.id); }
       const actions = h('div', { class: 'actions' });
       const all = [];
       function lock(on) { all.forEach(function (b) { b.disabled = on || (b === sendBtn && sendDisabled()); }); }
@@ -1401,14 +1486,16 @@
         clear(errEl); errEl.hidden = true;
         clearTimeout(st.timer);
         const args = { id: x.id, text: text };
+        if (isWA(x)) args.channel = 'whatsapp';
         if (override) args.override = true;
         const r = await engine('apiSend', args, st.brand);
         if (r.ok) {
           st.dirty = false; dropLocal();
-          toast(r.queued ? t('queued_ok') : t('sent_ok'));
+          toast(r.queued && r.already ? t('wa_already') : r.queued ? t('queued_ok') : t('sent_ok'));
           await afterAction();
           return;
         }
+        if (isWA(x) && (r.refresh || r.error === 'server_restarted')) waLock(st.brand, x.id);   // unknown: never offer a 2nd send
         lock(false);
         showErr(r);
       }
@@ -1421,9 +1508,20 @@
         showErr(r);
       }
       const sendLabel = isWA(x) ? t('send_wa') : t('send_email');
+      const waNote = h('div', { class: 'wa-note', 'data-test': 'wa-queued' });
+      c.append(waNote);
+      function paintWa() {
+        clear(waNote);
+        const tk = S.tk && S.tk.id === x.id ? S.tk.ticket : x;
+        if (waQueued(tk) && tk.status !== 'wa_queued') waNote.append(h('span', { class: 'chip ch-wa big', text: t('wa_queued_chip') }));
+        else if (waLocked(st.brand, x.id)) waNote.append(h('span', { class: 'chip bad big', text: t('wa_locked') }), ' ',
+          h('button', { class: 'btn small', type: 'button', text: t('wa_check'), onclick: function () { openTicket(x.id, { fresh: true }); } }));
+        waNote.hidden = !waNote.firstChild;
+      }
       const sendBtn = armed(sendLabel, t('send_arm'), 'primary' + (isWA(x) ? ' wa' : ''), function () { if (!sendDisabled()) doSend(false); });
       sendBtn.setAttribute('data-test', 'send-btn');
       st.refreshSend = function () {
+        paintWa();
         if (sendBtn.classList.contains('arm')) return;
         sendBtn.disabled = sendDisabled();
         sendBtn.textContent = isDry() && S.boots[st.brand] ? t('send_dry') : sendLabel;
@@ -1538,7 +1636,7 @@
       const editBtn = h('button', { class: 'btn ghost', type: 'button', text: t('en_edit') });
       function refresh() {
         reviewBtn.disabled = me.busy || !ta.value.trim();
-        confirmBtn.disabled = me.busy || !me.translated || isDry();
+        confirmBtn.disabled = me.busy || !me.translated || isDry() || waQueued(S.tk && S.tk.id === x.id ? S.tk.ticket : x) || waLocked(brand, x.id);
         confirmBtn.textContent = isDry() && S.boots[brand] ? t('send_dry') : t(isWA(x) ? 'en_confirm_wa' : 'en_confirm_email');
         confirmBtn.title = isDry() ? t('dry_run') : '';
       }
@@ -1575,10 +1673,12 @@
         if (!me.translated || isDry()) return;
         me.busy = true; refresh(); clear(errEl);
         const args = { id: x.id, text: me.translated.out };
+        if (isWA(x)) args.channel = 'whatsapp';
         if (override) args.override = true;
         const r = await engine('apiSend', args, brand);
         me.busy = false;
-        if (r.ok) { try { localStorage.removeItem(key); } catch (e) { /* ignore */ } toast(r.queued ? t('queued_ok') : t('sent_ok')); await afterAction(); return; }
+        if (r.ok) { try { localStorage.removeItem(key); } catch (e) { /* ignore */ } toast(r.queued && r.already ? t('wa_already') : r.queued ? t('queued_ok') : t('sent_ok')); await afterAction(); return; }
+        if (isWA(x) && (r.refresh || r.error === 'server_restarted')) waLock(brand, x.id);
         refresh(); showErr(r, true);
       }
       confirmBtn.addEventListener('click', function () { send(false); });

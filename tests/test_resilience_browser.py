@@ -94,7 +94,7 @@ def test_read_rides_through_two_html_502s(page):
     pg.route("**/api/rozela/ticket", handler)
     pg.goto(base + "/cs#/b/rozela/t/t18f2a01")
     pg.wait_for_selector("[data-test=reconnecting]:not([hidden])", timeout=5000)      # the small pill while retrying
-    pg.wait_for_selector(".tk-head h2", timeout=15000)
+    pg.wait_for_selector(".draft", timeout=15000)                                       # the FULL ticket (not the instant partial view)
     assert pg.inner_text(".tk-head h2") == "מיכל לוי"
     assert len(hits) >= 3 and hits[2] - hits[0] >= 2.5                                 # backoff 1 s + 2 s
     pg.wait_for_selector("[data-test=reconnecting]", state="hidden", timeout=5000)
@@ -143,7 +143,8 @@ def test_poller_stays_silent_and_keeps_the_list(page):
 
 
 def test_own_json_502_is_an_answer_not_a_restart(page):
-    """engine_timeout / engine_bad_response are OUR JSON 5xx answers: shown at once, not retried as a restart."""
+    """engine_timeout is OUR JSON answer: never the 45 s restart loop. Since QA round 5 one friendly retry, then the
+    partial view says so — never the raw "invalid answer"."""
     pg, base = page
     hits = []
 
@@ -153,8 +154,9 @@ def test_own_json_502_is_an_answer_not_a_restart(page):
                       body='{"ok": false, "error": "engine_timeout", "msg": "המנוע לא ענה בזמן."}')
     pg.route("**/api/rozela/ticket", handler)
     pg.goto(base + "/cs#/b/rozela/t/t18f2a02")
-    pg.wait_for_selector("text=המנוע לא ענה בזמן.", timeout=5000)
-    assert len(hits) == 1
+    pg.wait_for_selector("text=הפנייה המלאה לא נטענה כרגע.", timeout=10000)
+    assert len(hits) == 2                                                               # one quick retry, not a restart loop
+    assert pg.locator("[data-test=reconnecting]:visible").count() == 0 and "תשובה לא תקינה" not in pg.inner_text("body")
 
 
 def test_unknown_write_refreshes_the_ticket_and_says_so(page):
