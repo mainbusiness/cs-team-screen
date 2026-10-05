@@ -672,6 +672,14 @@ class TicketCache:
             f = self.feed.get(brand)
         if f and float(e.get("t0", e.get("at", 0)) or 0) >= f["base_t"]:
             best = min(best, now - f["ok_at"])
+        elif f:
+            # read before the feed's base (e.g. before a restart): the per-ticket v (engine @35/36) still proves it. Our
+            # copy's v >= the row's v in a fresh feed = no change since we read it (the feed bumps on every change).
+            ev = self._int(e.get("v"))
+            tid = ((e.get("full") or {}).get("ticket") or {}).get("id")
+            rv = self._row_v(brand, tid) if ev and isinstance(tid, str) else None
+            if rv is not None and ev >= rv:
+                best = min(best, now - f["ok_at"])
         return max(0.0, best)
 
     def confirmed(self, brand, e, window=CONFIRM_S):
@@ -1064,3 +1072,26 @@ def register(app, d):
         if not isinstance(ids, list):
             return d["json_error"]("bad_request", 400, u.get("lang", "he"))
         return jsonify({"ok": True, "queued": cache.prefetch(u, brand, ids)})
+
+
+def test_a_copy_read_before_the_feed_base_is_vouched_by_its_ticket_version(make_app, pw_hash, transport):
+    now = [1000.0]
+    eng = Engine()
+    eng.change("t1", status="ready")                                         # t1 is at v8 in the engine
+    transport.reply = eng
+    app = make_app()
+    cache = cache_of(app)
+    cache.clock = lambda: now[0]
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    post(c, tok, "/api/rozela/list", {})
+    post(c, tok, "/api/rozela/changes", {"since": 7})                         # rows now carry v (t1: 8)
+    post(c, tok, "/api/rozela/ticket", {"id": "t1"})
+    cache._entry("rozela", "t1")["t0"] = 1.0                                  # as if read long before the feed began
+    now[0] += 100
+    post(c, tok, "/api/rozela/changes", {"since": 8})                         # fresh feed: nothing changed
+    m = post(c, tok, "/api/rozela/ticket", {"id": "t1", "open": True}).get_json()["cache"]
+    assert m["confirmed"] is True and m["vouched_s"] == 0
+    eng.change("t1", status="action")                                         # v9: the feed marks it, no vouch
+    now[0] += 5
+    post(c, tok, "/api/rozela/changes", {"since": 8})
+    assert post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]["confirmed"] is False
