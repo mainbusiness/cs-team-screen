@@ -458,3 +458,21 @@ def test_a_copy_read_before_the_feed_base_is_vouched_by_its_ticket_version(make_
     now[0] += 5
     post(c, tok, "/api/rozela/changes", {"since": 8})
     assert post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]["confirmed"] is False
+
+
+def test_the_list_is_reread_in_full_every_half_hour_even_when_the_feed_carries_switches(make_app, pw_hash, transport):
+    """2026-10-06: the engine added wa_send to every row; a list kept fresh by the feed alone never got the new column."""
+    now = [1000.0]
+    app, cache, c, tok, eng = setup(make_app, pw_hash, transport, now)
+    now[0] += 5
+    post(c, tok, "/api/rozela/changes", {"since": 7})
+    eng.calls.clear()
+    for _ in range(3):
+        now[0] += 5
+        post(c, tok, "/api/rozela/changes", {"since": 7})
+    cache.drain()
+    assert "apiBoot" not in eng.calls                                        # switches come with the feed
+    now[0] += ticket_cache.FULL_RELOAD_S
+    post(c, tok, "/api/rozela/changes", {"since": 7})
+    cache.drain()
+    assert eng.calls.count("apiBoot") == 1

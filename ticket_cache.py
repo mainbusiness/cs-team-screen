@@ -62,7 +62,9 @@ GUARD_FRESH_S = 12.0       # what the screen's send guards (WhatsApp lock, outbo
 WATCH_WAIT_S = 10.0        # /watch waits at most this long for the shared feed read
 WATCH_DIRECT_S = 20.0
 WATCH_FRESH_S = 5.0        # /watch makes no engine call for a copy vouched for this recently (by apiTicketLite or the feed)      # feed unreadable: the open ticket itself is re-read once its copy is older than this
-CHLOG_MAX = 3000           # (version, id) pairs kept for client deltas; older clients get the whole list (reset)
+CHLOG_MAX = 3000
+FULL_RELOAD_S = 1800       # the list is re-read in full at least this often (2026-10-06: a new column — wa_send — never reached
+                           # rows the feed did not touch, because the feed alone kept the list fresh)           # (version, id) pairs kept for client deltas; older clients get the whole list (reset)
 WAIT_FOR_INFLIGHT_S = 90   # a request sharing another one's in-flight engine fetch waits at most this long  # an engine without apiTicketFull / apiChanges is asked again after 10 min
 
 
@@ -228,7 +230,7 @@ class TicketCache:
 
     def _store_boot(self, brand, data):
         clean = {k: v for k, v in data.items() if k not in PER_USER and not k.startswith("_") and k != "msg"}
-        e = {"data": clean, "at": self.clock(), "full_at": self.clock(), "synced_at": self.clock()}
+        e = {"data": clean, "at": self.clock(), "full_at": self.clock(), "synced_at": self.clock(), "boot_at": self.clock()}
         prev = self._boot_entry(brand)
         old = {t.get("id"): t for t in ((prev or {}).get("data", {}).get("tickets") or []) if isinstance(t, dict)}
         new = {t.get("id"): t for t in (clean.get("tickets") or []) if isinstance(t, dict)}
@@ -490,14 +492,14 @@ class TicketCache:
                             if k in out:
                                 data[k] = out[k]
                         full_at = now
-                    entry = {"data": data, "at": now, "full_at": full_at, "synced_at": now}
+                    entry = {"data": data, "at": now, "full_at": full_at, "synced_at": now, "boot_at": cur.get("boot_at", 0)}
                     self._bucket(brand)["boot"] = entry
                     self._log(brand, prev_v, self._int(data.get("version")), ids)
                     base_t = feed["base_t"] if feed else cur.get("full_at", cur["at"])
                     self.feed[brand] = {"v": v_new if v_new is not None else since_i, "base_t": base_t, "ok_at": now}
                 self._stale(ids, brand)
                 self._write(os.path.join(self._dir(brand), "boot.json"), entry)
-                if now - full_at > SWITCH_MAX_AGE_S:          # apiChanges has no switches: refresh them behind the poll
+                if now - full_at > SWITCH_MAX_AGE_S or now - entry["boot_at"] > FULL_RELOAD_S:   # old switches / old columns
                     self._background(("boot", brand), lambda: self._fetch_boot(user, brand))
                 return {"ok": True}
             lacks_changes = out.get("error") in ("unauthorized", "forbidden_fn")
