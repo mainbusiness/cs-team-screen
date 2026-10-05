@@ -36,7 +36,7 @@ class Engine:
         with self.lock:
             self.calls.append(fn)
         if fn == "apiBoot":
-            return {"ok": True, "counts": {"ready": len(self.tickets)}, "tickets": [dict(t) for t in self.tickets.values()], "version": self.v,
+            return {"ok": True, "counts": {"ready": len(self.tickets)}, "tickets": [dict(t, v=self.tv(t["id"])) for t in self.tickets.values()], "version": self.v,
                     "serverTime": "2026-10-05T10:00:00Z", "dryRun": True, "cancelEnabled": False}
         if fn == "apiChanges":
             ids = []
@@ -57,7 +57,7 @@ class Engine:
                     "newMessages": [dict(m) for m in (conv[seen:] if isinstance(seen, int) else conv[-10:])]}
         if fn == "apiTicketFull":
             t = self.tickets[a["id"]]
-            return {"ok": True, "ticket": dict(t), "extras": {"conversation": list(self.conv[a["id"]])}, "snapshotAt": "s"}
+            return {"ok": True, "ticket": dict(t), "extras": {"conversation": list(self.conv[a["id"]])}, "snapshotAt": "s", "v": self.tv(a["id"])}
         return {"ok": False, "error": "unauthorized"}
 
 
@@ -164,7 +164,7 @@ def test_a_copy_the_feed_vouches_for_is_confirmed(make_app, pw_hash, transport):
     assert hit["confirmed"] is False and hit["stale"] is True               # the feed said it changed
 
 
-def test_a_copy_older_than_the_feed_base_is_never_confirmed(make_app, pw_hash, transport):
+def test_a_copy_older_than_the_feed_base_without_a_version_is_never_confirmed(make_app, pw_hash, transport):
     now = [1000.0]
     eng = Engine()
     transport.reply = eng
@@ -177,6 +177,7 @@ def test_a_copy_older_than_the_feed_base_is_never_confirmed(make_app, pw_hash, t
     post(c, tok, "/api/rozela/list", {})
     now[0] += 30
     post(c, tok, "/api/rozela/changes", {"since": 7})
+    cache._entry("rozela", "t1")["v"] = None                                  # a copy from before engine @37/38
     assert post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]["confirmed"] is False
 
 
@@ -415,3 +416,45 @@ def test_a_change_is_never_hidden_by_the_45s_window(make_app, pw_hash, transport
     now[0] += 6                                                              # well inside 45 s
     j = post(c, tok, "/api/rozela/watch", {"id": "t1", "at": at}).get_json()
     assert j["changed"] is True and j["extras"]["conversation"][-1]["text"] == "another one"
+
+
+def test_ticket_version_from_apiticketfull_and_zero_is_a_real_version(make_app, pw_hash, transport):
+    """Engine @37/38: v in every apiBoot row and in apiTicketFull; 0 = last change older than the log."""
+    now = [1000.0]
+    eng = Engine()                                                           # @37/38 shape: v in apiBoot rows + apiTicketFull
+    transport.reply = eng
+    app = make_app()
+    cache = cache_of(app)
+    cache.clock = lambda: now[0]
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    post(c, tok, "/api/rozela/ticket", {"id": "t2"})                           # read BEFORE the list / feed exists
+    assert cache._entry("rozela", "t2")["v"] == 0                              # v=0 kept, not "unknown"
+    now[0] += 50                                                               # the feed's base comes after this read
+    post(c, tok, "/api/rozela/list", {})
+    now[0] += 100
+    post(c, tok, "/api/rozela/changes", {"since": 7})
+    m = post(c, tok, "/api/rozela/ticket", {"id": "t2", "open": True}).get_json()["cache"]
+    assert m["confirmed"] is True and m["vouched_s"] == 0                     # v 0 >= row v 0, fresh feed
+
+
+def test_a_copy_read_before_the_feed_base_is_vouched_by_its_ticket_version(make_app, pw_hash, transport):
+    now = [1000.0]
+    eng = Engine()
+    eng.change("t1", status="ready")                                         # t1 is at v8 in the engine
+    transport.reply = eng
+    app = make_app()
+    cache = cache_of(app)
+    cache.clock = lambda: now[0]
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    post(c, tok, "/api/rozela/list", {})
+    post(c, tok, "/api/rozela/changes", {"since": 7})                         # rows now carry v (t1: 8)
+    post(c, tok, "/api/rozela/ticket", {"id": "t1"})
+    cache._entry("rozela", "t1")["t0"] = 1.0                                  # as if read long before the feed began
+    now[0] += 100
+    post(c, tok, "/api/rozela/changes", {"since": 8})                         # fresh feed: nothing changed
+    m = post(c, tok, "/api/rozela/ticket", {"id": "t1", "open": True}).get_json()["cache"]
+    assert m["confirmed"] is True and m["vouched_s"] == 0
+    eng.change("t1", status="action")                                         # v9: the feed marks it, no vouch
+    now[0] += 5
+    post(c, tok, "/api/rozela/changes", {"since": 8})
+    assert post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]["confirmed"] is False

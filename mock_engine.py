@@ -448,7 +448,8 @@ class MockEngines:
             counts[t["status"]] = counts.get(t["status"], 0) + 1
         sw = self.switches[brand]
         return {"ok": True, "brand": brand, "brandName": b["name"], "user": c["user"], "role": c["role"], "lang": c["lang"],
-                "counts": counts, "tickets": [{k: t[k] for k in SUMMARY_COLS} for t in b["tickets"]], "serverTime": self._now(),
+                "counts": counts, "tickets": [dict({k: t[k] for k in SUMMARY_COLS}, v=self.touched[brand].get(t["id"], 0)) for t in b["tickets"]],
+                "serverTime": self._now(),
                 "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]),
                 "subscriptions": "none" if brand == "selera" else "kaching", "version": self.version[brand]}
 
@@ -721,7 +722,7 @@ class MockEngines:
         if not t:
             return {"ok": False, "error": "not_found"}
         return {"ok": True, "ticket": copy.deepcopy(t), "extras": copy.deepcopy(self._b(brand)["snaps"].get(t["id"], {})),
-                "snapshotAt": self._now()}
+                "snapshotAt": self._now(), "v": self.touched[brand].get(t["id"], 0)}
 
     def apiChanges(self, brand, a, c):
         try:

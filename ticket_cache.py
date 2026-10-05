@@ -533,7 +533,10 @@ class TicketCache:
             out = self._call(user, brand, "apiTicketFull", {"id": tid, "fresh": True} if fresh else {"id": tid})
             if out.get("ok") and isinstance(out.get("ticket"), dict):
                 ex = out.get("extras") if isinstance(out.get("extras"), dict) else {}
-                return {"ticket": out["ticket"], "extras": ex, "snapshotAt": out.get("snapshotAt") or ex.get("snapshotAt")}, None
+                v = self._int(out.get("v"))                  # engine @37/38: the ticket's version (0 = older than the log)
+                if v is None:
+                    v = self._int(out["ticket"].get("v"))
+                return {"ticket": out["ticket"], "extras": ex, "snapshotAt": out.get("snapshotAt") or ex.get("snapshotAt"), "v": v}, None
             if out.get("ok") is False and out.get("error") not in ("unauthorized", "forbidden_fn"):
                 return None, out                                             # a real answer: not_found, busy, ...
             probed = True
@@ -572,8 +575,9 @@ class TicketCache:
                 return cur                       # a read that started later already landed: never go back in time
             # the feed saw a change after this read began: the copy may predate it -> keep it marked old
             stale = (self.changed_at.get(brand) or {}).get(tid, -1) > t0
-            if cur:                                  # a later read is at least as new as the copy it replaces
-                v = max(self._int(v) or 0, self._int(cur.get("v")) or 0) or None
+            if cur:                                  # a later read is at least as new as the copy it replaces (0 is a real v)
+                vs = [x for x in (self._int(v), self._int(cur.get("v"))) if x is not None]
+                v = max(vs) if vs else None
             e = {"full": full, "at": self.clock(), "t0": t0, "stale": stale, "v": v}
             t[tid] = e
             if len(t) > MAX_TICKETS_PER_BRAND:
@@ -601,7 +605,8 @@ class TicketCache:
         v0 = self._row_v(brand, tid)                 # read BEFORE the fetch: the copy is at least this new
         full, err = self._fetch_full(user, brand, tid, fresh)
         if full:
-            full = self._store_full(brand, tid, full, t0, v0)["full"]
+            vs = [x for x in (v0, self._int(full.pop("v", None))) if x is not None]
+            full = self._store_full(brand, tid, full, t0, max(vs) if vs else None)["full"]
         elif err and err.get("error") == "not_found":
             with self.lock:
                 self._bucket(brand)["t"].pop(tid, None)
@@ -677,7 +682,7 @@ class TicketCache:
             # copy's v >= the row's v in a fresh feed = no change since we read it (the feed bumps on every change).
             ev = self._int(e.get("v"))
             tid = ((e.get("full") or {}).get("ticket") or {}).get("id")
-            rv = self._row_v(brand, tid) if ev and isinstance(tid, str) else None
+            rv = self._row_v(brand, tid) if ev is not None and isinstance(tid, str) else None
             if rv is not None and ev >= rv:
                 best = min(best, now - f["ok_at"])
         return max(0.0, best)
@@ -1072,26 +1077,3 @@ def register(app, d):
         if not isinstance(ids, list):
             return d["json_error"]("bad_request", 400, u.get("lang", "he"))
         return jsonify({"ok": True, "queued": cache.prefetch(u, brand, ids)})
-
-
-def test_a_copy_read_before_the_feed_base_is_vouched_by_its_ticket_version(make_app, pw_hash, transport):
-    now = [1000.0]
-    eng = Engine()
-    eng.change("t1", status="ready")                                         # t1 is at v8 in the engine
-    transport.reply = eng
-    app = make_app()
-    cache = cache_of(app)
-    cache.clock = lambda: now[0]
-    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
-    post(c, tok, "/api/rozela/list", {})
-    post(c, tok, "/api/rozela/changes", {"since": 7})                         # rows now carry v (t1: 8)
-    post(c, tok, "/api/rozela/ticket", {"id": "t1"})
-    cache._entry("rozela", "t1")["t0"] = 1.0                                  # as if read long before the feed began
-    now[0] += 100
-    post(c, tok, "/api/rozela/changes", {"since": 8})                         # fresh feed: nothing changed
-    m = post(c, tok, "/api/rozela/ticket", {"id": "t1", "open": True}).get_json()["cache"]
-    assert m["confirmed"] is True and m["vouched_s"] == 0
-    eng.change("t1", status="action")                                         # v9: the feed marks it, no vouch
-    now[0] += 5
-    post(c, tok, "/api/rozela/changes", {"since": 8})
-    assert post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]["confirmed"] is False
