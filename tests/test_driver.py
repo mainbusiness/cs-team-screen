@@ -5,7 +5,7 @@ import driver, security
 
 SECRET = "S" * 40
 URL = lambda c: "https://script.google.com/macros/s/%s/exec" % (c * 30)
-ENV = {"TOKEN_SECRET": SECRET, "ENGINES_JSON": json.dumps({"rozela": URL("a"), "celesta": URL("b"), "apexmen": URL("c"), "velora": URL("d")})}
+ENV = {"TOKEN_SECRET": SECRET, "ENGINES_JSON": json.dumps({"rozela": URL("a"), "celesta": URL("b"), "apexmen": URL("c"), "velora": URL("d"), "selera": URL("e")})}
 
 
 def reply(body, **kw):
@@ -39,12 +39,12 @@ def test_default_brands_exclude_velora_and_each_brand_gets_its_own_token_and_url
     lines = []
     code = driver.main(["--window", "1"], dict(ENV), tr, lines.append)   # window 1: one call per brand (no chaining)
     assert code == 0
-    assert sorted(seen) == sorted([URL("a"), URL("b"), URL("c")])
+    assert sorted(seen) == sorted([URL("a"), URL("b"), URL("c"), URL("e")])
     for url, req in seen.items():
         assert req["fn"] == "apiAdminRun" and req["args"] == {"job": "runAgent", "budget": 22}
         payload = json.loads(__import__("base64").urlsafe_b64decode(req["token"].split(".")[0] + "=="))
         assert payload["role"] == "admin" and len(payload["brands"]) == 1
-    assert len(lines) == 3
+    assert len(lines) == 4
 
 
 def test_failures_are_nonzero_and_leak_nothing():
@@ -67,7 +67,7 @@ def test_one_brand_failing_does_not_hide_the_others_and_exit_is_the_worst():
         return 200, json.dumps(reply(body, ok=True, result={"processed": 0, "health": {}}))
     lines = []
     assert driver.main([], dict(ENV), tr, lines.append) == 1
-    assert len(lines) == 3 and sum("FAIL" in l for l in lines) == 1
+    assert len(lines) == 4 and sum("FAIL" in l for l in lines) == 1
 
 
 def test_running_elsewhere_is_fine_and_a_stale_brand_is_flagged():
@@ -173,3 +173,103 @@ def test_short_runs_are_chained_while_they_find_work_and_stop_when_idle():
     calls.clear()
     driver.main(["--brands", "rozela", "--budget", "120"], dict(ENV), tr, lambda s: None)
     assert calls[0] == 25, "a web run is capped at 25 s by the driver too"
+
+
+# ---------------- the weekly owner summary ----------------
+import datetime as _dt
+
+STATS = {"days": 7, "received": {"email": 12, "whatsapp": 30}, "sent": {"human": 25, "byAgent": {"noa": 10, "agent-two": 15}, "auto_reply": 3, "auto_cancel": 2},
+         "firstResponse": {"n": 25, "medianMin": 42, "p90Min": 210}, "open": {"now": 7, "oldestHours": 5.5}, "spamRescued": 2, "kachingCancels": 4, "kachingFailed": 1,
+         "sendRefusals": {"cancel_claim": 2}, "engineErrors": {"run: ai_unavailable": 3}, "alertsSuppressed": {"WhatsApp ingest failing for N minutes": 2},
+         "whatsapp": {"staleAlerts": 1, "stale": False}, "auditTruncated": False}
+
+
+def utc(y, m, d, h, mi):
+    return _dt.datetime(y, m, d, h, mi, tzinfo=_dt.timezone.utc)
+
+
+def test_the_window_is_thursday_1800_to_1804_israel_time_in_summer_and_winter():
+    assert driver.weekly_window(driver.israel_local(utc(2026, 10, 8, 15, 2)))      # Thursday, UTC+3 (DST until 25 Oct)
+    assert driver.weekly_window(driver.israel_local(utc(2026, 12, 3, 16, 2)))      # Thursday, UTC+2
+    for bad in [utc(2026, 10, 8, 14, 59), utc(2026, 10, 8, 15, 5), utc(2026, 10, 7, 15, 2), utc(2026, 12, 3, 15, 2), utc(2026, 10, 9, 15, 2)]:
+        assert not driver.weekly_window(driver.israel_local(bad)), bad
+    assert driver.iso_week_label(driver.israel_local(utc(2026, 10, 8, 15, 2))) == "2026-W41"
+
+
+def test_fallback_timezone_rule_agrees_with_zoneinfo_around_the_dst_change(monkeypatch):
+    import builtins
+    real = builtins.__import__
+    def no_zoneinfo(name, *a, **k):
+        if name == "zoneinfo":
+            raise ImportError
+        return real(name, *a, **k)
+    for when in [utc(2026, 10, 8, 15, 2), utc(2026, 12, 3, 16, 2), utc(2026, 3, 26, 15, 2), utc(2026, 3, 29, 23, 30)]:
+        want = driver.israel_local(when)
+        monkeypatch.setattr(builtins, "__import__", no_zoneinfo)
+        got = driver.israel_local(when)
+        monkeypatch.setattr(builtins, "__import__", real)
+        assert got.utcoffset() == want.utcoffset(), when
+
+
+def weekly_transport(sent_before=False, fail=()):
+    calls = []
+    def tr(url, body, timeout):
+        req = json.loads(body)
+        brand = {URL("a"): "rozela", URL("b"): "celesta", URL("c"): "apexmen", URL("e"): "selera"}.get(url, "?")
+        calls.append((brand, req["args"].get("job"), req["args"]))
+        job = req["args"].get("job")
+        if brand in fail and job in ("weeklyStats", "sendOwnerReport"):
+            return 200, json.dumps(reply(req and body, ok=False, error="bad_args"))
+        if job == "sendOwnerReport":
+            if req["args"].get("peek"):
+                return 200, json.dumps(reply(body, ok=True, result={"sent": sent_before}))
+            return 200, json.dumps(reply(body, ok=True, result={"sent": True}))
+        if job == "weeklyStats":
+            if brand == "rozela":
+                return 200, json.dumps(reply(body, ok=False, error="bad_job"))   # an engine that is not deployed yet
+            return 200, json.dumps(reply(body, ok=True, result=STATS))
+        return 200, json.dumps(reply(body, ok=True, result={"processed": 0, "health": {}}))
+    return tr, calls
+
+
+def test_weekly_is_sent_once_in_the_window_through_celesta_with_all_brands_in_one_text():
+    tr, calls = weekly_transport()
+    lines = []
+    code = driver.main(["--window", "1"], dict(ENV), tr, lines.append, now_utc=utc(2026, 10, 8, 15, 2))
+    assert code == 0
+    sends = [c for c in calls if c[1] == "sendOwnerReport" and not c[2].get("peek")]
+    assert len(sends) == 1 and sends[0][0] == "celesta"
+    a = sends[0][2]
+    assert a["week"] == "2026-W41"
+    assert "בסך הכל" in a["body"] and "— Celesta —" in a["body"] and "— Rozela —" in a["body"] and "לא זמין" in a["body"]
+    assert "התקבלו: 12 מיילים · 30 וואטסאפ" in a["body"] and "חציון 42 דק׳" in a["body"] and "3.5 שעות" in a["body"]
+    assert any("weekly: sent via celesta" in l for l in lines)
+    assert [c[0] for c in calls if c[1] == "weeklyStats"].count("selera") == 1
+
+
+def test_weekly_not_outside_the_window_not_twice_and_falls_back_to_apexmen():
+    tr, calls = weekly_transport()
+    driver.main(["--window", "1"], dict(ENV), tr, lambda s: None, now_utc=utc(2026, 10, 8, 14, 59))
+    assert not any(c[1] in ("sendOwnerReport", "weeklyStats") for c in calls)
+    tr, calls = weekly_transport(sent_before=True)
+    lines = []
+    driver.main(["--window", "1"], dict(ENV), tr, lines.append, now_utc=utc(2026, 10, 8, 15, 3))
+    assert not any(c[1] == "weeklyStats" for c in calls), "already sent: no stats are even collected"
+    assert any("already sent" in l for l in lines)
+    tr, calls = weekly_transport(fail=("celesta",))
+    lines = []
+    driver.main(["--window", "1"], dict(ENV), tr, lines.append, now_utc=utc(2026, 10, 8, 15, 3))
+    sends = [c for c in calls if c[1] == "sendOwnerReport" and not c[2].get("peek")]
+    assert [c[0] for c in sends] == ["celesta", "apexmen"], "celesta failed, apexmen sends"
+    assert any("via apexmen" in l for l in lines)
+
+
+def test_compose_is_plain_tidy_and_survives_a_missing_section():
+    local = driver.israel_local(utc(2026, 10, 8, 15, 2))
+    subject, body = driver.compose_weekly({"celesta": STATS, "rozela": None}, local)
+    assert subject.startswith("סיכום שבועי")
+    assert "<" not in body and "{" not in body
+    assert "נשלחו: 25 ידנית (agent-two 15, noa 10) · 3 תשובות אוטומטיות · 2 ביטולים אוטומטיים" in body
+    assert "דחיות שליחה: cancel_claim 2" in body and "שגיאות מנוע:" in body and "התראות שהושתקו: 2" in body
+    assert "וואטסאפ: תקין · התראות ניתוק: 1" in body
+    assert len(body) < 3000

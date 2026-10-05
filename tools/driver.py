@@ -6,14 +6,14 @@ their 5-minute trigger as a fallback and leave at once while this driver is aliv
 
   TOKEN_SECRET   the engines' Script Property (env, or the Keychain item cs-engine / all/TOKEN_SECRET on the Mac)
   ENGINES_JSON   {"rozela": "https://script.google.com/macros/s/<id>/exec", ...} (env, or --engines FILE, or deploy/deployments.json)
-  DRIVER_BRANDS  comma list, default rozela,celesta,apexmen (a brand not yet live must not be driven)
+  DRIVER_BRANDS  comma list, default rozela,celesta,apexmen,selera (a brand not yet live must not be driven)
 
 Brands run in parallel. Logs one status line per brand, never customer data. Exit 0 = every brand answered and is healthy,
 1 = a brand failed, 2 = a brand answers but has not completed a run for 15 minutes. Two drivers at once are harmless: the engine's run guard.
 """
 import argparse, uuid, base64, concurrent.futures, hashlib, hmac, json, os, re, subprocess, sys, time, urllib.error, urllib.request
 
-DEFAULT_BRANDS = "rozela,celesta,apexmen"
+DEFAULT_BRANDS = "rozela,celesta,apexmen,selera"
 URL_RE = re.compile(r"^https://script\.google\.com/(?:a/macros/[A-Za-z0-9.-]+|macros)/s/[A-Za-z0-9_-]{20,200}/exec$")
 STALE_MS = 15 * 60 * 1000
 TOKEN_TTL_S = 600
@@ -146,7 +146,145 @@ def run_brand_chain(brand, url, secret, transport, budget, idle, window_s):
     return code, lines[-1] if len(lines) == 1 else "%s [%d calls] last: %s" % (brand, len(lines), line)
 
 
-def main(argv=None, environ=None, transport=None, out=print):
+# ---------------- the weekly owner summary: Thursday 18:00 Israel time, ONE mail, counts only ----------------
+
+WEEKLY_SENDERS = ("celesta", "apexmen")      # the engines that mail it (rozela's engine cannot be deployed right now); the first that works sends
+BRAND_TITLES = {"rozela": "Rozela", "celesta": "Celesta", "apexmen": "ApexMen", "velora": "Velora", "selera": "Selera"}
+
+
+def israel_local(now_utc):
+    """Local time in Israel (DST handled). zoneinfo when the system has tzdata, else the statutory rule: DST from the Friday before the last Sunday of March
+    02:00 to the last Sunday of October 02:00 (local)."""
+    import datetime as dt
+    try:
+        from zoneinfo import ZoneInfo
+        return now_utc.astimezone(ZoneInfo("Asia/Jerusalem"))
+    except Exception:
+        def last_sunday(y, m):
+            d = dt.date(y, m, 31 if m in (3, 10) else 30)
+            while d.weekday() != 6:
+                d -= dt.timedelta(days=1)
+            return d
+        y = now_utc.year
+        start = dt.datetime.combine(last_sunday(y, 3) - dt.timedelta(days=2), dt.time(0, 0), tzinfo=dt.timezone.utc) + dt.timedelta(hours=2 - 2)
+        end = dt.datetime.combine(last_sunday(y, 10), dt.time(0, 0), tzinfo=dt.timezone.utc) + dt.timedelta(hours=-1)
+        off = 3 if start <= now_utc < end else 2
+        return now_utc.astimezone(dt.timezone(dt.timedelta(hours=off)))
+
+
+def weekly_window(local):
+    """Thursday 18:00 to 18:04 local."""
+    return local.weekday() == 3 and local.hour == 18 and local.minute < 5
+
+
+def iso_week_label(local):
+    y, w, _ = local.isocalendar()
+    return "%d-W%02d" % (y, w)
+
+
+def fmt_minutes(m):
+    if m is None:
+        return "אין נתונים"
+    if m < 120:
+        return "%d דק׳" % m
+    return ("%.1f" % (m / 60.0)).rstrip("0").rstrip(".") + " שעות"
+
+
+def _top(d, n=4):
+    items = sorted((d or {}).items(), key=lambda kv: -kv[1])[:n]
+    return ", ".join("%s %d" % (k, v) for k, v in items)
+
+
+def compose_weekly(stats, local, days=7):
+    """stats = {brand: weeklyStats dict | None}. Plain Hebrew text: totals first, then a short section per brand."""
+    import datetime as dt
+    start = (local - dt.timedelta(days=days)).strftime("%d.%m")
+    end = local.strftime("%d.%m.%Y")
+    ok = {b: s for b, s in stats.items() if s}
+    tot = {"received": 0, "sent": 0, "open": 0, "rescued": 0, "cancels": 0}
+    for s in ok.values():
+        tot["received"] += (s.get("received") or {}).get("email", 0) + (s.get("received") or {}).get("whatsapp", 0)
+        sent = s.get("sent") or {}
+        tot["sent"] += sent.get("human", 0) + sent.get("auto_reply", 0) + sent.get("auto_cancel", 0)
+        tot["open"] += (s.get("open") or {}).get("now", 0)
+        tot["rescued"] += s.get("spamRescued", 0)
+        tot["cancels"] += s.get("kachingCancels", 0)
+    lines = ["סיכום שבועי — %s עד %s" % (start, end), "",
+             "בסך הכל: התקבלו %d פניות · נשלחו %d תשובות · פתוחות עכשיו %d · הצלות מספאם %d · ביטולי מנוי %d" % (tot["received"], tot["sent"], tot["open"], tot["rescued"], tot["cancels"])]
+    for b in stats:
+        s = stats[b]
+        lines += ["", "— %s —" % BRAND_TITLES.get(b, b)]
+        if not s:
+            lines.append("לא זמין (המנוע לא ענה או עדיין לא עודכן)")
+            continue
+        rc, sent, fr, op = s.get("received") or {}, s.get("sent") or {}, s.get("firstResponse") or {}, s.get("open") or {}
+        lines.append("התקבלו: %d מיילים · %d וואטסאפ" % (rc.get("email", 0), rc.get("whatsapp", 0)))
+        by = _top(sent.get("byAgent"), 6)
+        lines.append("נשלחו: %d ידנית%s · %d תשובות אוטומטיות · %d ביטולים אוטומטיים" % (sent.get("human", 0), " (%s)" % by if by else "", sent.get("auto_reply", 0), sent.get("auto_cancel", 0)))
+        if fr.get("n"):
+            lines.append("זמן מענה ראשון: חציון %s · 90%% עד %s (על %d פניות)" % (fmt_minutes(fr.get("medianMin")), fmt_minutes(fr.get("p90Min")), fr["n"]))
+        else:
+            lines.append("זמן מענה ראשון: אין נתונים")
+        lines.append("פתוחות עכשיו: %d%s" % (op.get("now", 0), " (הישנה ביותר: %s)" % fmt_minutes(int(op["oldestHours"] * 60)) if op.get("oldestHours") is not None else ""))
+        lines.append("הצלות מספאם: %d · ביטולי מנוי ב-Kaching: %d%s" % (s.get("spamRescued", 0), s.get("kachingCancels", 0), " (נכשלו או נדחו: %d)" % s["kachingFailed"] if s.get("kachingFailed") else ""))
+        if s.get("sendRefusals"):
+            lines.append("דחיות שליחה: " + _top(s["sendRefusals"]))
+        if s.get("engineErrors"):
+            lines.append("שגיאות מנוע: " + _top(s["engineErrors"]))
+        sup = s.get("alertsSuppressed") or {}
+        if sup:
+            lines.append("התראות שהושתקו: %d (%s)" % (sum(sup.values()), _top(sup, 3)))
+        wa = s.get("whatsapp") or {}
+        lines.append("וואטסאפ: %s%s" % ("לא נראה כעת" if wa.get("stale") else "תקין", " · התראות ניתוק: %d" % wa.get("staleAlerts", 0) if wa.get("staleAlerts") else ""))
+        if s.get("auditTruncated"):
+            lines.append("שימו לב: היומן קוצר, חלק מהספירות חלקיות")
+    return "סיכום שבועי " + end, "\n".join(lines)
+
+
+def maybe_weekly(engines, secret, transport, brands, now_utc=None, out=print):
+    """Called every minute by the driver. In the Thursday 18:00-18:04 window, and only if this ISO week's report has not been sent (the engine that sends it keeps the stamp):
+    collect weeklyStats from every brand, compose ONE summary, send it through sendOwnerReport on the first sender engine that works. Never raises."""
+    import datetime as dt
+    try:
+        now_utc = now_utc or dt.datetime.now(dt.timezone.utc)
+        local = israel_local(now_utc)
+        if not weekly_window(local):
+            return None
+        week = iso_week_label(local)
+        senders = [b for b in WEEKLY_SENDERS if b in engines] + [b for b in brands if b in engines and b not in WEEKLY_SENDERS]   # last resort: any engine that has the job
+        for b in senders:   # already sent? one cheap call
+            try:
+                r = call_engine(engines[b], secret, b, transport, "apiAdminRun", {"job": "sendOwnerReport", "subject": "x", "body": "x", "week": week, "peek": 1}, 30)
+                if (r.get("result") or {}).get("sent"):
+                    return "weekly: already sent (%s)" % week
+                break
+            except Exception:
+                continue
+        stats = {}
+        for b in brands:
+            if b not in engines:
+                continue
+            try:
+                stats[b] = (call_engine(engines[b], secret, b, transport, "apiAdminRun", {"job": "weeklyStats", "days": 7}, 60).get("result") or None)
+                if stats[b] is not None and "received" not in stats[b]:
+                    stats[b] = None
+            except Exception:
+                stats[b] = None
+        subject, body = compose_weekly(stats, local)
+        for b in senders:
+            try:
+                r = call_engine(engines[b], secret, b, transport, "apiAdminRun", {"job": "sendOwnerReport", "subject": subject, "body": body, "week": week}, 60)
+                res = r.get("result") or {}
+                if res.get("sent") or res.get("skipped") == "already_sent":
+                    return "weekly: %s via %s (%s)" % ("sent" if res.get("sent") else "already sent", b, week)
+            except Exception:
+                continue
+        return "weekly: FAILED to send (%s)" % week
+    except Exception as e:
+        return "weekly: error %s" % type(e).__name__
+
+
+def main(argv=None, environ=None, transport=None, out=print, now_utc=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--brands", help="comma list (default env DRIVER_BRANDS or %s)" % DEFAULT_BRANDS)
     ap.add_argument("--engines", help="file with the ENGINES_JSON object")
@@ -174,6 +312,10 @@ def main(argv=None, environ=None, transport=None, out=print):
                 code, line = futs[b].result()
                 out(time.strftime("%H:%M:%S ") + line)
                 codes.append(code)
+    if todo:
+        line = maybe_weekly(engines, secret, transport, want, now_utc, out)
+        if line:
+            out(time.strftime("%H:%M:%S ") + line)
     return max(codes) if codes else 1
 
 
