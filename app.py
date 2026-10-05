@@ -33,6 +33,7 @@ import engine_proxy
 import ticket_cache
 import llm
 import messages
+import dashboard
 import security
 from users_store import ROLES, UserStore, UserStoreError, public_user
 
@@ -428,6 +429,11 @@ def create_app(overrides=None):
         ticket_cache.timing("engine", (time.perf_counter() - t0) * 1000, fn)
         if status == 200 and fn in ticket_cache.WRITE_FNS and isinstance(body.get("args"), dict):
             app.extensions["cs"]["ticket_cache"].after_write(u, str(brand).lower(), fn, body["args"], out)
+        if status == 200 and fn in dashboard.FN_KIND and isinstance(out, dict):
+            try:
+                app.extensions["cs"]["activity"]["after_engine"](u, str(brand).lower(), fn, body, out)
+            except Exception:                                           # noqa: BLE001 — the log never fails a send
+                log.exception("activity log failed")
         if status == 200 and fn == "apiSettings" and isinstance(body.get("args"), dict):
             app.extensions["cs"]["ticket_cache"].after_settings(str(brand).lower(), body["args"], out)
         return jsonify(out), status
@@ -552,6 +558,13 @@ def create_app(overrides=None):
         engines, transport, lambda: app.config["TOKEN_SECRET"])
     app.extensions["cs"]["ticket_cache"] = tcache
     ticket_cache.register(app, {"api_user": api_user, "json_error": json_error, "engines": engines, "cache": tcache, "ui_lang": ui_lang})
+
+    # managers' dashboard (Owner, 2026-10-06): activity log on the private disk, real work time per agent
+    act_log = o.get("ACTIVITY_LOG") or dashboard.ActivityLog(
+        o.get("ACTIVITY_DIR", os.environ.get("ACTIVITY_DIR", os.path.join(os.path.dirname(users_path), "activity"))))
+    dashboard.register(app, {"api_user": api_user, "json_error": json_error, "is_manager": is_manager, "store": store,
+                             "cache": tcache, "engines": engines, "log": act_log, "ui_lang": ui_lang,
+                             "start_thread": bool(o.get("DASH_SNAPSHOT_THREAD"))})
 
     assistant.register(app, {
         "ticket_cache": tcache, "ui_lang": ui_lang,

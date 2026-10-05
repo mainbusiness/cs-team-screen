@@ -469,3 +469,50 @@ Engine @35/36 (round 2, same day):
 - **"שלח שוב"** appears only when `wa_send` is `failed` (open_failed / chat_not_found / compose_failed), never for
   unknown or template_required. It sends the same text (`wa_out`) through the normal outbox with a new rid and moves
   to the next ticket. It is disabled under DRY_RUN, an open action, the WhatsApp lock, or a queued send.
+
+## Managers' dashboard (Owner, 2026-10-06)
+`#/dash` is shown only to **admin + user-manager**. Agents don't see the tab, and `GET /api/dash` answers them 403.
+It makes **no engine calls of its own**: it reads the activity log and the server's cached ticket lists.
+
+**Activity log.** Stored in `ACTIVITY_DIR` (default `<disk>/activity`, mode 0700), one append-only
+`act-YYYY-MM-DD.jsonl` file per Israel day.
+- **Fields:** user, brand, ticket id, channel, kind, category, ts. Never customer text.
+- **Kinds:**
+  - `open`: `/ticket {open:true}`, not revalidates;
+  - `edit`: `apiSaveDraft`, plus a typing heartbeat `POST /api/<brand>/activity` at most once a minute;
+  - `send` and `resend`: the outbox marks a re-send with `via:"resend"`; duplicates the engine reports as `already` are not counted;
+  - `close`, `cancel`, `autocancel`, `note`, `takeover`, `review`.
+- **Dedupe:** opens and edits count at most once per user, ticket and minute.
+
+**Work time is not login time.**
+- **Sessions:** actions at most `IDLE_GAP_S = 300` s (5 min) apart are one session; a longer gap ends it.
+  `SESSION_TAIL_S = 60` s is credited after a session's last action.
+- **Midnight:** a session that crosses midnight is split between the two days (Asia/Jerusalem).
+- **Handle time** of a reply runs from the agent's latest open of THAT ticket to the send, if within 2 h. AHT is the
+  median.
+- **Presence** (`pres-*.jsonl`): one mark per user per minute while the screen polls (polls stop when the tab is
+  hidden). It is used only for occupancy = active ÷ logged in.
+
+**Engine truth.** Each agent's sends and closes are also counted from the cached list (`handled_by` / `handled_at`) and
+shown next to the logged numbers ("במנוע N").
+
+**Brand overview.** Live from the cached list for today; for a past day, from the midnight snapshot (`snap-YYYY-MM-DD.json`,
+written by a thread in the single gunicorn process).
+- **Shown:** received / answered / closed with their % of received, open now, awaiting a reply, backlog age, FRT median,
+  % auto-replies, WhatsApp failures.
+- **Limit:** the list holds every open ticket but only the 100 most recent closed ones. A day that filled all 100 is
+  marked "≥ / חלקי".
+
+**KPIs**, with 2026 benchmarks:
+- FRT: email < 24h, chat < 90 s. FRT is a proxy, measured from the ticket's creation to its handling, because the engine
+  has no `first_reply_at`.
+- AHT: 4–6 min.
+- FCR proxy: a ticket with one send in the log, not reopened (the 72 h window is noted while it is open).
+- Reopen rate.
+- Occupancy: 75–85%.
+- Backlog.
+- SLA: WhatsApp ≤1h, email ≤24h.
+- **CSAT: missing (no survey).**
+
+**Charts** are plain SVG (strict CSP, no library). The page refreshes every 30 s while it is open. It has a day / 7 / 30
+selector and a date picker.

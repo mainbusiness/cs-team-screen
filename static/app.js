@@ -577,6 +577,7 @@
   function parseHash() {
     const p = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
     if (p[0] === 'users') return { view: 'users' };
+    if (p[0] === 'dash') return { view: 'dash' };
     if (p[0] === 'settings') return { view: 'settings', brand: p[1] };
     if (p[0] === 'b' && p[1]) {
       if (p[2] === 't' && p[3]) return { view: 'ticket', brand: p[1], id: p[3] };
@@ -596,6 +597,16 @@
   function route() {
     const r = parseHash();
     const myBrands = S.me.brands.map(function (b) { return b.id; });
+    $('dash-pane').hidden = true;
+    if (r.view === 'dash') {
+      if (!S.me.can_manage_users) return go('#/', true);           // admin + user-manager only (the server says 403 too)
+      S.view = 'dash';
+      $('users-pane').hidden = true;
+      $('settings-pane').hidden = true;
+      document.body.className = 'view-dash';
+      renderTop(); renderBanners(); Dash.show(); Assist.sync();
+      return;
+    }
     if (r.view === 'users') {
       if (!S.me.can_manage_users) return go('#/', true);
       S.view = 'users';
@@ -648,7 +659,8 @@
     clear(top);
     top.append(h('span', { class: 'title', text: t('app') }));
     const brands = S.me.brands;
-    if (brands.length > 1 && S.view !== 'users') {
+    if (S.me.can_manage_users && S.view !== 'dash') top.append(h('a', { class: 'dash-link', href: '#/dash', 'data-test': 'dash-link', text: '📊 ' + (LANG === 'en' ? 'Managers' : 'לוח מנהלים') }));
+    if (brands.length > 1 && S.view !== 'users' && S.view !== 'dash') {
       const sel = h('select', { class: 'brand', 'aria-label': 'brand' });
       brands.forEach(function (b) {
         sel.append(h('option', { value: b.id, text: brandName(b.id) + (b.connected ? '' : ' ·'), selected: b.id === S.brand ? 'selected' : null }));
@@ -659,7 +671,7 @@
         go(S.view === 'settings' ? '#/settings/' + encodeURIComponent(sel.value) : '#/b/' + encodeURIComponent(sel.value) + '/ready');
       });
       top.append(sel);
-    } else if (brands.length === 1 && S.view !== 'users') {
+    } else if (brands.length === 1 && S.view !== 'users' && S.view !== 'dash') {
       top.append(h('span', { class: 'who', text: brandName(brands[0].id) }));
     }
     top.append(h('span', { class: 'spacer' }));
@@ -684,7 +696,7 @@
     top.append(mb);
     if (S.menuOpen) {
       const m = h('div', { class: 'menu', role: 'menu' });
-      if (S.view === 'users' && canWork()) m.append(h('a', { href: '#/', text: t('to_tickets') }));
+      if ((S.view === 'users' || S.view === 'dash') && canWork()) m.append(h('a', { href: '#/', text: t('to_tickets') }));
       if (S.me.can_manage_users && S.view !== 'users') m.append(h('a', { href: '#/users', text: t('users') }));
       if (S.me.is_admin && S.view !== 'settings' && S.brand) m.append(h('a', { href: '#/settings/' + encodeURIComponent(S.brand), text: t('settings') }));
       if (S.view === 'settings' && canWork()) m.append(h('a', { href: '#/', text: t('to_tickets') }));
@@ -1475,7 +1487,7 @@
     const b0 = S.boots[k.brand];
     const btn = armed(t('wa_resend'), t('wa_resend_arm'), 'primary wa', function () {
       if (btn.disabled) return;
-      if (Outbox.start('apiSend', k.brand, x, { id: x.id, text: text, channel: 'whatsapp' })) goNext(k.brand, x.id);
+      if (Outbox.start('apiSend', k.brand, x, { id: x.id, text: text, channel: 'whatsapp' }, 'resend')) goNext(k.brand, x.id);
     });
     btn.setAttribute('data-test', 'wa-resend');
     btn.disabled = !b0 || !!b0.dryRun || Outbox.blocks(k.brand, x.id) || waLocked(k.brand, x.id) || waQueued(x);
@@ -1677,6 +1689,7 @@
       } else if (local) dropLocal();
 
       ta.addEventListener('input', function () {
+        pingEdit(st.brand, st.id);
         st.dirty = true;
         st.edited = true;                                    // for good: a saved edit is still the agent's text
         writeLocal();
@@ -1902,6 +1915,7 @@
         refresh();
       }
       ta.addEventListener('input', function () {
+        if (S.tk) pingEdit(S.tk.brand, S.tk.id);
         me.typed = true;
         try { localStorage.setItem(key, ta.value); } catch (e) { /* the server never holds this English text */ }
         if (me.translated) { me.translated = null; paintReview(); showErr({ msg: t('en_stale') }); }
@@ -2388,6 +2402,7 @@
     }
     async function run(it) {
       const body = { args: it.args, rid: it.rid };
+      if (it.via) body.via = it.via;                       // the dashboard counts a re-send apart
       const r = await api('/api/' + encodeURIComponent(it.brand) + '/' + it.fn, body);
       if (!items[it.rid]) return;
       settle(it, r);
@@ -2412,11 +2427,11 @@
       if (done && mine) { settle(it, { ok: true, queued: tk.status === 'wa_queued' || tk.wa_send === 'pending' }); return; }
       if (Date.now() - it.at > 90000 && OPEN.indexOf(tk.status) >= 0) { it.state = 'unsent'; it.msg = null; changed(it); }
     }
-    function start(fn, brand, x, args) {
+    function start(fn, brand, x, args, via) {
       const prev = forTicket(brand, x.id);
       if (prev && (prev.state === 'flight' || prev.state === 'checking' || prev.state === 'unknown')) { toast(t('ob_inflight_lock')); return null; }
       const it = { rid: newRid(), brand: brand, id: x.id, fn: fn, args: args, channel: isWA(x) ? 'whatsapp' : 'email',
-        name: x.name || x.email || x.phone || x.id, state: 'flight', at: Date.now() };
+        name: x.name || x.email || x.phone || x.id, state: 'flight', at: Date.now(), via: via || null };
       items[it.rid] = it;
       changed(it);
       run(it);
@@ -2764,6 +2779,268 @@
   })();
 
   // ---------------------------------------------------------------- system mode (admin)
+  // ---------------------------------------------------------------- managers' dashboard (Owner, 2026-10-06)
+  /** Admin + user-manager only (the server answers 403 to anyone else). Real work time from the activity log: actions
+   *  at most 5 min apart are one session; being logged in is not work. Charts are plain SVG (strict CSP, no libraries). */
+  const Dash = (function () {
+    const HE = {
+      title: 'לוח מנהלים', day: 'יום', d7: '7 ימים', d30: '30 ימים', updated: 'עודכן', loading: 'טוען…',
+      method: 'זמן עבודה = פעולות ברצף (פתיחה, עריכה, שליחה, סגירה). הפסקה של יותר מ-{m} דק׳ מסיימת רצף. זמן מחובר למסך לא נספר כעבודה.',
+      since: 'יומן הפעילות נאסף מ-{d}', received: 'נכנסו היום', answered: 'נענו', closed: 'נסגרו', of: 'מהנכנסות',
+      open_now: 'פתוחות עכשיו', awaiting: 'ממתינות למענה', frt: 'זמן למענה ראשון (חציון)', auto_pct: 'מענה אוטומטי',
+      wa_failed: 'כשלי שליחה בוואטסאפ', aging: 'גיל הממתינות', partial: 'חלקי: הרשימה מחזיקה רק 100 סגורות אחרונות',
+      src_snapshot: 'תמונת חצות', src_rebuilt: 'שוחזר מהרשימה הנוכחית', kpis: 'מדדים מול השוק (2026)',
+      frt_email: 'מענה ראשון — מייל', frt_wa: 'מענה ראשון — וואטסאפ', aht: 'זמן טיפול לתשובה (AHT)', fcr: 'פתרון במענה אחד (קירוב)',
+      reopen: 'נפתחו מחדש', occ: 'ניצולת (פעיל ÷ מחובר)', backlog: 'בקלוג', sla_wa: 'וואטסאפ נענה תוך שעה', sla_email: 'מייל נענה תוך 24 ש׳',
+      csat: 'שביעות רצון (CSAT)', csat_missing: 'חסר — אין סקר שביעות רצון', bench: 'יעד', n_a: 'אין עדיין נתונים',
+      fcr_note: 'חלון 72 השעות עוד פתוח', agents: 'נציגים', agent: 'נציג', active: 'זמן עבודה', replies: 'תשובות', closes: 'סגירות',
+      per_hour: 'תשובות לשעת עבודה', engine: 'במנוע', none: 'אין פעילות בטווח', by_brand: 'לפי מותג', by_channel: 'לפי ערוץ',
+      heat: 'מתי עובדים בפועל', heat_all: 'כל הנציגים', heat_total: 'סה״כ לפי שעה', pies: 'חלוקה', pie_brand: 'זמן עבודה לפי מותג',
+      pie_chan: 'לפי ערוץ', pie_cat: 'לפי נושא', pie_who: 'מי ענה', agents_w: 'נציגים', auto_w: 'מענה אוטומטי', email: 'מייל', whatsapp: 'וואטסאפ',
+      h: 'ש׳', m: 'דק׳', s: 'שנ׳', resends: 'מתוכן שליחה חוזרת', per_day: 'לפי יום', present: 'מחובר'
+    };
+    const EN = {
+      title: 'Managers', day: 'Day', d7: '7 days', d30: '30 days', updated: 'Updated', loading: 'Loading…',
+      method: 'Work time = consecutive actions (open, edit, send, close). A gap over {m} min ends a session. Being logged in is not work.',
+      since: 'Activity log collected since {d}', received: 'Received today', answered: 'Answered', closed: 'Closed', of: 'of received',
+      open_now: 'Open now', awaiting: 'Awaiting a reply', frt: 'First reply (median)', auto_pct: 'Auto-replies',
+      wa_failed: 'WhatsApp send failures', aging: 'Backlog age', partial: 'Partial: the list holds only the last 100 closed',
+      src_snapshot: 'Midnight snapshot', src_rebuilt: 'Rebuilt from the current list', kpis: 'KPIs vs 2026 benchmarks',
+      frt_email: 'First reply — email', frt_wa: 'First reply — WhatsApp', aht: 'Handle time per reply (AHT)', fcr: 'First-contact resolution (proxy)',
+      reopen: 'Reopened', occ: 'Occupancy (active ÷ logged in)', backlog: 'Backlog', sla_wa: 'WhatsApp answered within 1h', sla_email: 'Email answered within 24h',
+      csat: 'CSAT', csat_missing: 'Missing — no satisfaction survey', bench: 'Target', n_a: 'No data yet',
+      fcr_note: 'the 72h window is still open', agents: 'Agents', agent: 'Agent', active: 'Work time', replies: 'Replies', closes: 'Closed',
+      per_hour: 'Replies per work hour', engine: 'engine', none: 'No activity in range', by_brand: 'By brand', by_channel: 'By channel',
+      heat: 'When they actually work', heat_all: 'All agents', heat_total: 'Total per hour', pies: 'Split', pie_brand: 'Work time by brand',
+      pie_chan: 'By channel', pie_cat: 'By topic', pie_who: 'Who answered', agents_w: 'Agents', auto_w: 'Auto-reply', email: 'Email', whatsapp: 'WhatsApp',
+      h: 'h', m: 'min', s: 's', resends: 'of them re-sends', per_day: 'Per day', present: 'Logged in'
+    };
+    const L = LANG === 'en' ? EN : HE;
+    function d(k, v) { let s = L[k] || k; Object.keys(v || {}).forEach(function (x) { s = s.replace('{' + x + '}', v[x]); }); return s; }
+    const st = { range: '1', date: '', data: null, err: null, busy: false, who: 'all' };
+    let timer = null;
+    function fmtS(sec) {
+      if (sec === null || sec === undefined) return '—';
+      sec = Math.round(sec);
+      if (sec < 60) return sec + ' ' + L.s;
+      if (sec < 3600) return Math.round(sec / 60) + ' ' + L.m;
+      const hh = Math.floor(sec / 3600), mm = Math.round((sec % 3600) / 60);
+      return hh + ':' + (mm < 10 ? '0' : '') + mm + ' ' + L.h;
+    }
+    function pctS(p) { return p === null || p === undefined ? '—' : p + '%'; }
+    const NS = 'http://www.w3.org/2000/svg';
+    function sv(tag, attrs, kids) {
+      const el = document.createElementNS(NS, tag);
+      Object.keys(attrs || {}).forEach(function (k) { if (attrs[k] !== null && attrs[k] !== undefined) el.setAttribute(k, String(attrs[k])); });
+      (kids || []).forEach(function (c) { if (c) el.append(c); });
+      return el;
+    }
+    function catName(c) { const v = t('cat_' + c); return v === 'cat_' + c ? c : v; }
+    function nameOf(kind, k) { return kind === 'brand' ? brandName(k) : kind === 'channel' ? L[k] || k : kind === 'category' ? catName(k) : L[k + '_w'] || k; }
+    /** Donut + legend. data {key: value}; nothing -> a quiet "no data". */
+    function pie(title, kind, data, unit) {
+      const keys = Object.keys(data || {}).filter(function (k) { return data[k] > 0; }).sort(function (a, b) { return data[b] - data[a]; });
+      const total = keys.reduce(function (a, k) { return a + data[k]; }, 0);
+      const box = h('div', { class: 'dash-card pie', 'data-test': 'pie-' + kind }, h('h4', { text: title }));
+      if (!total) { box.append(h('div', { class: 'muted small', text: L.n_a })); return box; }
+      const g = sv('svg', { viewBox: '-1.1 -1.1 2.2 2.2', class: 'donut', role: 'img', 'aria-label': title });
+      let a0 = -Math.PI / 2;
+      keys.forEach(function (k, i) {
+        const frac = data[k] / total;
+        const cls = 'sl' + (i % 8);
+        if (frac >= 0.9999) { g.append(sv('circle', { cx: 0, cy: 0, r: 1, class: cls })); return; }
+        const a1 = a0 + frac * 2 * Math.PI;
+        const large = frac > 0.5 ? 1 : 0;
+        g.append(sv('path', { class: cls, d: 'M0 0 L' + Math.cos(a0).toFixed(4) + ' ' + Math.sin(a0).toFixed(4) +
+          ' A1 1 0 ' + large + ' 1 ' + Math.cos(a1).toFixed(4) + ' ' + Math.sin(a1).toFixed(4) + ' Z' }));
+        a0 = a1;
+      });
+      g.append(sv('circle', { cx: 0, cy: 0, r: 0.55, class: 'hole' }));
+      const leg = h('ul', { class: 'legend' });
+      keys.forEach(function (k, i) {
+        leg.append(h('li', null, h('span', { class: 'sw sl' + (i % 8) }), h('bdi', { text: nameOf(kind, k) }),
+          h('b', { text: Math.round(100 * data[k] / total) + '%' }), h('span', { class: 'muted small', text: unit === 's' ? fmtS(data[k]) : String(data[k]) })));
+      });
+      box.append(h('div', { class: 'pie-row' }, g, leg));
+      return box;
+    }
+    /** Horizontal bars (backlog age, total per hour): SVG rects, widths as attributes (no inline styles). */
+    function bars(items, cls) {
+      const max = Math.max.apply(null, items.map(function (x) { return x[1]; }).concat([1]));
+      const g = sv('svg', { viewBox: '0 0 100 ' + (items.length * 22), class: 'bars ' + (cls || ''), preserveAspectRatio: 'none',
+        width: '100%', height: items.length * 22 });                // one 22px row per label
+      items.forEach(function (x, i) { g.append(sv('rect', { x: 0, y: i * 22 + 5, height: 12, width: Math.max(0.5, 100 * x[1] / max).toFixed(2), class: 'bar' })); });
+      const lab = h('div', { class: 'bar-labels' }, items.map(function (x) { return h('div', null, h('span', { text: x[0] }), h('b', { text: String(x[2] !== undefined ? x[2] : x[1]) })); }));
+      return h('div', { class: 'bars-wrap' }, lab, g);
+    }
+    function big(label, value, sub, test) {
+      return h('div', { class: 'big', 'data-test': test }, h('div', { class: 'v', text: String(value) }), h('div', { class: 'l', text: label }),
+        sub ? h('div', { class: 'muted small', text: sub }) : null);
+    }
+    function brandCard(b, o) {
+      const pre = o.truncated ? '≥' : '';
+      const c = h('div', { class: 'dash-card brand', 'data-test': 'dash-brand', 'data-brand': b },
+        h('h3', null, brandName(b), o.source !== 'live' ? h('span', { class: 'chip outline', text: o.source === 'snapshot' ? L.src_snapshot : L.src_rebuilt }) : null));
+      c.append(h('div', { class: 'big-row' },
+        big(L.received, pre + o.received, null, 'ov-received'),
+        big(L.answered, pre + o.answered, o.answered_pct !== null ? pctS(o.answered_pct) + ' ' + L.of : null, 'ov-answered'),
+        big(L.closed, pre + o.closed, o.closed_pct !== null ? pctS(o.closed_pct) + ' ' + L.of : null, 'ov-closed')));
+      if (o.truncated) c.append(h('div', { class: 'muted small', text: L.partial }));
+      const grid = h('div', { class: 'stat-grid' });
+      [[L.open_now, o.open_now, 'ov-open'], [L.awaiting, o.awaiting, 'ov-awaiting'], [L.frt, fmtS(o.frt_median_s), 'ov-frt'],
+        [L.auto_pct, pctS(o.auto_pct), 'ov-auto'], [L.wa_failed, o.wa_failed, 'ov-wafail']].forEach(function (x) {
+        grid.append(h('div', { class: 'stat' + (x[2] === 'ov-wafail' && o.wa_failed ? ' bad' : ''), 'data-test': x[2] }, h('b', { text: String(x[1]) }), h('span', { text: x[0] })));
+      });
+      c.append(grid);
+      const ag = o.aging || {};
+      c.append(h('h4', { text: L.aging }), bars([['0–4 ' + L.h, ag['0-4h'] || 0], ['4–24 ' + L.h, ag['4-24h'] || 0], ['1–3 ' + (LANG === 'en' ? 'd' : 'ימים'), ag['1-3d'] || 0], ['3+ ' + (LANG === 'en' ? 'd' : 'ימים'), ag['3d+'] || 0]], 'aging'));
+      return c;
+    }
+    function kpi(label, value, bench, good, test, note) {
+      const cls = good === null || good === undefined ? '' : good ? ' good' : ' bad';
+      return h('div', { class: 'kpi' + cls, 'data-test': test }, h('div', { class: 'l', text: label }), h('div', { class: 'v', text: value }),
+        bench ? h('div', { class: 'b', text: L.bench + ': ' + bench }) : null, note ? h('div', { class: 'muted small', text: note }) : null);
+    }
+    function kpis(k, bench) {
+      const box = h('div', { class: 'kpi-grid' });
+      const lt = function (v, lim) { return v === null || v === undefined ? null : v <= lim; };
+      box.append(
+        kpi(L.frt_email, fmtS(k.frt_email_s), '< 24 ' + L.h, lt(k.frt_email_s, bench.frt_email_s), 'kpi-frt-email'),
+        kpi(L.frt_wa, fmtS(k.frt_wa_s), '< 90 ' + L.s, lt(k.frt_wa_s, bench.frt_wa_s), 'kpi-frt-wa'),
+        kpi(L.aht, fmtS(k.aht_s), '4–6 ' + L.m, k.aht_s === null ? null : k.aht_s <= bench.aht_s[1], 'kpi-aht'),
+        kpi(L.fcr, pctS(k.fcr_pct), null, null, 'kpi-fcr', k.fcr_window_open && k.fcr_pct !== null ? L.fcr_note : null),
+        kpi(L.reopen, pctS(k.reopen_pct), null, null, 'kpi-reopen'),
+        kpi(L.occ, k.occupancy === null ? '—' : Math.round(k.occupancy * 100) + '%', '75–85%',
+          k.occupancy === null ? null : k.occupancy >= bench.occupancy[0] && k.occupancy <= bench.occupancy[1], 'kpi-occ'),
+        kpi(L.backlog, String(k.backlog), null, null, 'kpi-backlog'),
+        kpi(L.sla_wa, pctS(k.sla_wa_pct), '≥ 90%', k.sla_wa_pct === null ? null : k.sla_wa_pct >= 90, 'kpi-sla-wa', k.sla_wa_n ? 'n=' + k.sla_wa_n : null),
+        kpi(L.sla_email, pctS(k.sla_email_pct), '≥ 90%', k.sla_email_pct === null ? null : k.sla_email_pct >= 90, 'kpi-sla-email', k.sla_email_n ? 'n=' + k.sla_email_n : null),
+        kpi(L.csat, '—', null, null, 'kpi-csat', L.csat_missing));
+      return box;
+    }
+    function agentsTable(list) {
+      const wrap = h('div', { class: 'table-wrap' });
+      if (!list.length) { wrap.append(h('div', { class: 'muted', text: L.none })); return wrap; }
+      const tb = h('table', { class: 'dash-table', 'data-test': 'dash-agents' });
+      tb.append(h('thead', null, h('tr', null, [L.agent, L.active, L.replies, L.closes, L.per_hour, 'AHT', L.occ].map(function (x) { return h('th', { text: x }); }))));
+      const body = h('tbody');
+      list.forEach(function (a) {
+        const tr = h('tr', { 'data-test': 'dash-agent', 'data-user': a.user },
+          h('td', null, h('bdi', { text: a.name })),
+          h('td', { 'data-test': 'ag-active', text: fmtS(a.active_s) }),
+          h('td', null, h('b', { text: String(a.sends) }), h('span', { class: 'muted small', text: ' (' + L.engine + ' ' + a.engine_sends + ')' })),
+          h('td', null, h('b', { text: String(a.closes) }), h('span', { class: 'muted small', text: ' (' + L.engine + ' ' + a.engine_closes + ')' })),
+          h('td', { text: a.per_hour === null ? '—' : String(a.per_hour) }),
+          h('td', { text: fmtS(a.aht_s) }),
+          h('td', { text: a.occupancy === null ? '—' : Math.round(a.occupancy * 100) + '%' }));
+        body.append(tr);
+        const det = h('details', { class: 'ag-det' }, h('summary', { text: L.by_brand + ' · ' + L.by_channel + ' · ' + L.per_day }));
+        const part = function (obj, kind) {
+          return h('ul', { class: 'mini' }, Object.keys(obj || {}).map(function (k) {
+            return h('li', null, h('bdi', { text: nameOf(kind, k) }), ': ' + fmtS(obj[k].active_s) + ' · ' + obj[k].sends + ' ' + L.replies + ' · ' + obj[k].closes + ' ' + L.closes);
+          }));
+        };
+        det.append(part(a.by_brand, 'brand'), part(a.by_channel, 'channel'));
+        if (a.days.length > 1) det.append(h('ul', { class: 'mini' }, a.days.map(function (x) { return h('li', null, x.day + ': ' + fmtS(x.active_s) + ' · ' + x.sends + ' ' + L.replies); })));
+        if (a.resends) det.append(h('div', { class: 'muted small', text: a.resends + ' ' + L.resends }));
+        det.append(h('div', { class: 'muted small', text: L.present + ': ' + fmtS(a.present_s) }));
+        body.append(h('tr', { class: 'det-row' }, h('td', { colspan: '7' }, det)));
+      });
+      tb.append(body);
+      wrap.append(tb);
+      return wrap;
+    }
+    function heatmap(data) {
+      const box = h('div', { class: 'dash-card heat-card' }, h('h3', { text: L.heat }));
+      const agents = data.agents.filter(function (a) { return a.active_s > 0; });
+      let rows;
+      if (data.days.length === 1) {
+        rows = agents.map(function (a) { return [a.name, data.heat[a.user][data.days[0]]]; });
+      } else {
+        const sel = h('select', { 'aria-label': L.agent, 'data-test': 'heat-who' }, h('option', { value: 'all', text: L.heat_all }),
+          agents.map(function (a) { return h('option', { value: a.user, text: a.name, selected: st.who === a.user ? 'selected' : null }); }));
+        sel.addEventListener('change', function () { st.who = sel.value; render(); });
+        box.append(sel);
+        rows = data.days.map(function (dd) {
+          const v = new Array(24).fill(0);
+          agents.forEach(function (a) { if (st.who === 'all' || st.who === a.user) (data.heat[a.user][dd] || []).forEach(function (x, i) { v[i] += x; }); });
+          return [dd.slice(5), v];
+        });
+      }
+      if (!rows.length) { box.append(h('div', { class: 'muted small', text: L.none })); return box; }
+      const max = Math.max.apply(null, rows.map(function (r) { return Math.max.apply(null, r[1]); }).concat([1]));
+      const grid = h('div', { class: 'heat', 'data-test': 'heatmap' });
+      grid.append(h('div', { class: 'hl' }));
+      for (let i = 0; i < 24; i++) grid.append(h('div', { class: 'hh', text: i % 3 === 0 ? String(i) : '' }));
+      rows.forEach(function (r) {
+        grid.append(h('div', { class: 'hl' }, h('bdi', { text: r[0] })));
+        r[1].forEach(function (x, i) {
+          const lvl = x <= 0 ? 0 : Math.min(5, 1 + Math.floor(4.999 * x / max));
+          grid.append(h('div', { class: 'hc lvl' + lvl, title: r[0] + ' ' + i + ':00 · ' + fmtS(x) }));
+        });
+      });
+      box.append(h('div', { class: 'heat-scroll' }, grid));
+      const tot = data.hour_total.map(function (x, i) { return [String(i) + ':00', x, fmtS(x)]; }).filter(function (x) { return x[1] > 0; });
+      if (tot.length) box.append(h('h4', { text: L.heat_total }), bars(tot, 'hours'));
+      return box;
+    }
+    function render() {
+      const p = $('dash-pane');
+      clear(p);
+      const head = h('div', { class: 'dash-head' }, h('h2', { text: L.title }));
+      const rg = h('div', { class: 'seg', role: 'group' });
+      [['1', L.day], ['7', L.d7], ['30', L.d30]].forEach(function (x) {
+        const b = h('button', { type: 'button', class: 'btn small' + (st.range === x[0] ? ' on' : ''), 'aria-pressed': st.range === x[0] ? 'true' : 'false', text: x[1], 'data-test': 'range-' + x[0] });
+        b.addEventListener('click', function () { st.range = x[0]; render(); load(); });
+        rg.append(b);
+      });
+      const di = h('input', { type: 'date', value: st.date || st.shown || '', max: st.shown || null, 'aria-label': 'date', 'data-test': 'dash-date' });
+      di.addEventListener('change', function () { st.date = di.value; load(); });
+      head.append(rg, di);
+      if (st.data) head.append(h('span', { class: 'muted small', 'data-test': 'dash-updated', text: L.updated + ' ' + new Date(st.data.generated_at * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL') }));
+      p.append(head);
+      if (st.err) p.append(h('div', { class: 'err-box', text: st.err }));
+      const x = st.data;
+      if (!x) { p.append(h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); return; }
+      p.append(h('div', { class: 'muted small dash-method', text: d('method', { m: Math.round(x.idle_gap_s / 60) }) + (x.log_since ? ' · ' + d('since', { d: x.log_since }) : '') }));
+      const bw = h('div', { class: 'brand-grid' });
+      Object.keys(x.brands).forEach(function (b) { bw.append(brandCard(b, x.brands[b])); });
+      p.append(bw);
+      p.append(h('h3', { text: L.kpis }), kpis(x.kpis, x.bench));
+      p.append(h('h3', { text: L.agents }), agentsTable(x.agents));
+      p.append(heatmap(x));
+      const pg = h('div', { class: 'pie-grid' });
+      pg.append(pie(L.pie_brand, 'brand', x.pies.brand, 's'), pie(L.pie_chan, 'channel', x.pies.channel, 's'),
+        pie(L.pie_cat, 'category', x.pies.category, 's'), pie(L.pie_who, 'who', x.pies.who, 'n'));
+      p.append(h('h3', { text: L.pies }), pg);
+    }
+    async function load() {
+      if (st.busy) return;
+      st.busy = true;
+      const q = '?range=' + encodeURIComponent(st.range) + (st.date ? '&date=' + encodeURIComponent(st.date) : '');
+      let r;
+      try { r = await api('/api/dash' + q, undefined, 'GET', { quiet: true }); } finally { st.busy = false; }
+      if (r && r.ok) { st.data = r; st.err = null; if (!st.date) st.shown = r.end_day; } else if (r) st.err = r.msg || r.error;
+      if (S.view === 'dash') render();
+    }
+    function show() {
+      $('dash-pane').hidden = false;
+      render();
+      load();
+      if (!timer) timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) load(); }, 30000);
+    }
+    return { show: show, load: load };
+  })();
+
+  /** Typing in a ticket is work: a quiet heartbeat at most once a minute (autosave alone waits for a pause). */
+  const EDIT_PING = {};
+  function pingEdit(brand, id) {
+    const k = brand + '|' + id;
+    if (Date.now() - (EDIT_PING[k] || 0) < 60000) return;
+    EDIT_PING[k] = Date.now();
+    api('/api/' + encodeURIComponent(brand) + '/activity', { id: id, kind: 'edit' }, 'POST', { quiet: true, retry: false });
+  }
+
   const Settings = (function () {
     const KEYS = [['DRY_RUN', ['on', 'off']], ['KACHING_WRITES', ['on', 'off']], ['AUTO_CANCEL', ['off', 'shadow', 'on']], ['AUTO_REPLY', ['off', 'shadow', 'on']]];
     function norm(key, v) {

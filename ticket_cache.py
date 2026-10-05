@@ -996,6 +996,13 @@ def register(app, d):
                 return jsonify({"ok": False, "error": "not_cached"})
             return jsonify(ticket_body(e["full"], cache.meta(brand, e, True)))
         fresh = body.get("fresh") is True
+        if body.get("open") is True and body.get("revalidate") is not True:   # an agent opened it (dashboard activity)
+            act = app.extensions["cs"].get("activity")
+            if act:
+                try:
+                    act["after_open"](u, brand, tid)
+                except Exception:                                      # noqa: BLE001 — the log never fails an open
+                    engine_proxy.log.exception("activity log failed")
         full, e, meta = cache.get_ticket(u, brand, tid, revalidate=body.get("revalidate") is True or fresh, fresh=fresh,
                                          top=body.get("open") is True)       # the ticket on the agent's screen: reserved slot
         if not full:
