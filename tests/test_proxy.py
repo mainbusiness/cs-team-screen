@@ -242,7 +242,8 @@ def test_engine_refusals_are_translated(app, pw_hash, transport):
     assert "\u2068" in j["msg"]                      # the inserted value is bidi-isolated inside the Hebrew sentence
     assert "מחיר שלא מופיע במדיניות: 99 ₪" in j["msg"].replace("\u2068", "").replace("\u2069", "") and j["problem"] == "price not in policy: 99 ₪"
     transport.reply = {"ok": False, "error": "something_new"}
-    assert "something_new" in call(c, tok, "rozela", "apiBoot").get_json()["msg"]
+    j = call(c, tok, "rozela", "apiBoot").get_json()
+    assert j["error"] == "something_new" and "something_new" not in j["msg"]          # never a raw code in front of an agent
 
 
 KACHING_GATE_MESSAGES = [
@@ -405,11 +406,12 @@ def test_http_transport_follows_the_redirect_and_delivers_the_token(make_app, pw
 
 def test_http_transport_errors_are_clean_hebrew(make_app, pw_hash, fake_gas, monkeypatch):
     monkeypatch.setattr(engine_proxy, "READ_TIMEOUT_S", 0.5)
+    monkeypatch.setattr(engine_proxy, "_sleep", lambda s: None)
     app = http_app(make_app, fake_gas)
     c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["celesta", "velora", "apexmen", "rozela"])
     r = call(c, tok, "celesta", "apiSend", {"id": "t1", "text": "x"})
-    assert r.status_code == 504 and r.get_json()["error"] == "engine_timeout"
-    assert "רעננו לפני שחוזרים" in r.get_json()["msg"]                 # a send may have happened: never "just retry"
+    j = r.get_json()                                                    # a send may have happened: resolved, then said plainly
+    assert j["error"] == "write_unknown" and j["refresh"] is True and "לא הצלחנו לאשר" in j["msg"]
     r = call(c, tok, "velora", "apiBoot")
     assert r.status_code == 502 and r.get_json()["error"] == "engine_bad_response"
     r = call(c, tok, "apexmen", "apiBoot")
@@ -474,24 +476,33 @@ def test_settings_get_is_a_read_but_set_is_not(app, pw_hash, transport, fast_ret
     c, tok = logged_in(app, pw_hash, "manager", ["admin"], ["rozela"])
     flaky(1, transport)
     assert call(c, tok, "rozela", "apiSettings", {"action": "get"}).get_json()["ok"]
+    assert [b["fn"] for _, b in transport.calls] == ["apiSettings", "apiSettings"]     # a read: plain retry
     transport.calls.clear()
     flaky(1, transport)
-    r = call(c, tok, "rozela", "apiSettings", {"action": "set", "key": "DRY_RUN", "value": "off"})
-    assert r.status_code == 502 and len(transport.calls) == 1
+    call(c, tok, "rozela", "apiSettings", {"action": "set", "key": "DRY_RUN", "value": "off"})
+    fns = [b["fn"] for _, b in transport.calls]
+    assert fns[0] == "apiSettings" and fns[1] == "apiResult"                          # a write: resolved, not retried
 
 
 @pytest.mark.parametrize("fn,args", [("apiSend", {"id": "t1", "text": "x"}), ("apiSaveDraft", {"id": "t1", "text": "x"}),
                                      ("apiMarkHandled", {"id": "t1"}), ("apiClose", {"id": "t1"}), ("apiNote", {"id": "t1", "text": "x"}),
                                      ("apiKachingCancel", {"id": "t1", "contractId": "gid://shopify/SubscriptionContract/1", "confirm": "0001"}),
                                      ("apiAutoReplyReview", {"id": "t1", "verdict": "ok"}), ("apiWaTakeOver", {"id": "t1"})])
-def test_write_is_attempted_exactly_once(app, pw_hash, transport, fast_retry, fn, args):
+def test_write_is_never_blindly_retried(app, pw_hash, transport, fast_retry, fn, args):
+    """QA round 4 contract: a lost write reply is resolved via apiResult first; only when the engine says "not found"
+    is the SAME call resent once with the SAME rid (idempotent on the engine). Never a third time, never a new rid."""
     flaky(1, transport)
     c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
-    app.extensions["cs"]["ticket_cache"]._background = lambda *a, **k: False      # count only the write itself
-    r = call(c, tok, "rozela", fn, args)
-    assert [b["fn"] for _, b in transport.calls] == [fn] and fast_retry == []
-    j = r.get_json()
-    assert j["error"] == "engine_bad_response" and "בדקו לפני שמנסים שוב" in j["msg"]
+    app.extensions["cs"]["ticket_cache"]._background = lambda *a, **k: False
+    j = call(c, tok, "rozela", fn, args).get_json()
+    writes = [b for _, b in transport.calls if b["fn"] == fn]
+    lookups = [b for _, b in transport.calls if b["fn"] == "apiResult"]
+    assert len(writes) == 2 and writes[0]["rid"] == writes[1]["rid"]
+    assert lookups and all(b["args"]["rid"] == writes[0]["rid"] for b in lookups)
+    order = [b["fn"] for _, b in transport.calls]
+    assert order.index("apiResult") < len(order) - 1 and order[-1] == fn             # the resend comes after the lookups
+    assert j["ok"] is True and j["recovered"] == "resend"
+    assert fast_retry == list(engine_proxy.RESULT_POLL_DELAYS_S)                      # no read-style retry of the write itself
 
 
 def test_real_http_html_then_json(make_app, pw_hash, fake_gas, fast_retry):

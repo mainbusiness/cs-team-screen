@@ -35,6 +35,8 @@ PROXY = {
     "engine_timeout": ("המנוע לא ענה בזמן. נסו שוב בעוד רגע — הפעולה אולי בוצעה, רעננו לפני שחוזרים ענציגה ב.",
                        "The engine did not answer in time. The action may have happened; refresh before repeating it."),
     "engine_unreachable": ("אין חיבור למנוע של המותג. נסו שוב בעוד רגע.", "Cannot reach the brand engine. Try again shortly."),
+    "write_unknown": ("לא הצלחנו לאשר אם הפעולה בוצעה — רעננו את הפנייה ובדקו.",
+                      "We could not confirm whether the action went through — refresh the ticket and check."),
     "engine_bad_response_write": ("המנוע החזיר שגיאה זמנית — ייתכן שהפעולה בוצעה. רעננו את הפנייה ובדקו לפני שמנסים שוב.",
                                   "The engine returned a temporary error — the action may have happened. Refresh the ticket and check before trying again."),
     "engine_bad_response": ("המנוע החזיר תשובה לא תקינה. אם זה חוזר — לדווח למנהל.",
@@ -240,4 +242,7 @@ def engine_error_msg(resp, fn, lang="he"):
     pair = ENGINE.get(code)
     if pair:
         return pair[_idx(lang)]
-    return ("המנוע סירב: {0}" if lang != "en" else "The engine refused: {0}").format(code or "?")
+    if code in PROXY:
+        return PROXY[code][_idx(lang)]
+    # never a raw code in front of an agent (QA round 4: "המנוע סירב: get_not_supported"); the code stays in `error`
+    return ("הפעולה לא הושלמה. רעננו את הפנייה ונסו שוב." if lang != "en" else "The action did not complete. Refresh the ticket and try again.")

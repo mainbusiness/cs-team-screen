@@ -37,6 +37,7 @@ def valid_reply(url, body):
         "apiSettings": {"settings": {}} if a.get("action") == "get" else {"key": a.get("key"), "to": a.get("value")},
         "apiSend": {"sent": True}, "apiSaveDraft": {"problem": None}, "apiKachingCancel": {"status": None, "message": "cancelled"},
         "apiAutoCancelApprove": {"id": tid, "state": "queued"}, "apiAutoCancelReject": {"id": tid}, "apiWaTakeOver": {"id": tid, "status": "action"},
+        "apiResult": {"found": False},
     }
     return dict(by_fn.get(fn, {}), ok=True)
 
@@ -62,8 +63,10 @@ def transport():
 @pytest.fixture(autouse=True)
 def fresh_gates():
     engine_proxy.reset_gates()                       # the per-brand gate and breaker are process-wide
+    engine_proxy.ECHO_SEEN.clear()
     yield
     engine_proxy.reset_gates()
+    engine_proxy.ECHO_SEEN.clear()
 
 
 @pytest.fixture

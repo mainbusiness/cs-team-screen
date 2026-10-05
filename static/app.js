@@ -481,8 +481,27 @@
       if (shown) { RECONNECTING--; paintReconnect(); }
     }
   }
-  function engine(fn, args, brand) {
-    return api('/api/' + encodeURIComponent(brand || S.brand) + '/' + fn, { args: args || {} });
+  async function engine(fn, args, brand) {
+    const b = brand || S.brand;
+    const r = await api('/api/' + encodeURIComponent(b) + '/' + fn, { args: args || {} });
+    if (r && r.refresh) afterUnknownWrite(b, args && args.id, r.msg);       // QA round 4: the write may have run
+    return r;
+  }
+  /** A write whose reply was lost: re-read the ticket from the engine and say so at the top of it. */
+  function afterUnknownWrite(brand, id, msg) {
+    if (id) delete S.tkMemo[brand + '|' + id];
+    setTimeout(async function () {
+      if (brand !== S.brand) return;
+      pollChanges(brand);
+      if (id && S.tk && S.tk.id === id) {
+        await openTicket(id, { fresh: true });
+        const slot = document.getElementById('tk-stale');
+        if (slot && S.tk && S.tk.id === id) {
+          clear(slot);
+          slot.append(h('div', { class: 'stale', role: 'status', 'data-test': 'write-unknown' }, h('span', { text: msg || t('err_bad_engine') })));
+        }
+      }
+    }, 800);
   }
 
   // ---------------------------------------------------------------- state

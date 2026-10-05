@@ -155,3 +155,20 @@ def test_own_json_502_is_an_answer_not_a_restart(page):
     pg.goto(base + "/cs#/b/rozela/t/t18f2a02")
     pg.wait_for_selector("text=המנוע לא ענה בזמן.", timeout=5000)
     assert len(hits) == 1
+
+
+def test_unknown_write_refreshes_the_ticket_and_says_so(page):
+    pg, base = page
+    pg.route("**/api/rozela/apiSend", lambda route, req: route.fulfill(status=502, content_type="application/json",
+             body='{"ok": false, "error": "write_unknown", "refresh": true, "msg": "לא הצלחנו לאשר אם הפעולה בוצעה — רעננו את הפנייה ובדקו."}'))
+    revalidations = []
+    pg.on("request", lambda r: revalidations.append(r.post_data or "") if r.url.endswith("/api/rozela/ticket") else None)
+    pg.goto(base + "/cs#/b/rozela/t/t18f2a01")
+    pg.wait_for_selector(".draft .btn.primary:not([disabled])", timeout=15000)
+    n0 = len(revalidations)
+    pg.click(".draft .btn.primary")
+    pg.click(".draft .btn.primary")
+    pg.wait_for_selector("[data-test=write-unknown]", timeout=10000)
+    assert "לא הצלחנו לאשר" in pg.inner_text("[data-test=write-unknown]")
+    assert any('"fresh": true' in d or '"fresh":true' in d for d in revalidations[n0:])     # re-read from the engine
+    assert "סירב" not in pg.inner_text("body")

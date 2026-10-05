@@ -66,6 +66,8 @@ INTERNAL_FNS = {
     "apiTicketFull": (WORK_ROLES, ("id", "fresh")),
     "apiAutoReplyList": (WORK_ROLES, ()),
     "apiChanges": (WORK_ROLES, ("since",)),        # final shape: agent/admin, since = int >= 0
+    # QA round 4: the stored final reply of a write, by the rid it was sent with (engine keeps it 30 min)
+    "apiResult": (WORK_ROLES, ("rid",)),
     "apiTicket": FN_TABLE["apiTicket"],
     "apiTicketExtras": FN_TABLE["apiTicketExtras"],
 }
@@ -88,7 +90,8 @@ log = logging.getLogger("cs_screen.engine")
 # after an engine redeploy). Those are retried; a write is NEVER retried (it may have landed). Timeouts are not
 # retried either: a slow engine would turn into minutes of waiting.
 READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "apiTicketExtras", "apiTickets", "apiSearch",
-                      "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup"))
+                      "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
+                      "apiResult"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
 # the time a server thread was held (70-110 s), the 16 threads ran out, Render's health check timed out and the
@@ -322,14 +325,28 @@ SCHEMAS = {
 }
 
 
-def reply_problem(fn, args, rid, r):
+# Brands whose engine has been seen echoing rid/fn. From then on a reply WITHOUT the echo is not an answer (QA round 4:
+# ~10% of calls came back as a 404 page, or a POST turned into GET -> {ok:false, error:'get_not_supported'}, no rid).
+# Per brand so a brand whose engine is not redeployed yet keeps working on the schema check alone.
+ECHO_SEEN = set()
+
+
+def reply_problem(fn, args, rid, r, brand=None):
     """None when the reply may be used, else a short reason (logged, never shown)."""
     if not isinstance(r, dict) or "ok" not in r:
         return "no ok field"
-    if "rid" in r and r.get("rid") != rid:
-        return "rid mismatch"                       # engine echoes rid/fn once deployed: a reply to ANOTHER call
-    if "fn" in r and r.get("fn") != fn:
-        return "fn mismatch"
+    if r.get("error") == "get_not_supported":
+        return "a GET reached the engine (the POST was lost on the redirect)"
+    if "rid" in r or "fn" in r:
+        if r.get("rid") != rid:
+            return "rid mismatch"                   # a reply to ANOTHER call
+        if r.get("fn") != fn:
+            return "fn mismatch"
+        if brand and brand not in ECHO_SEEN:
+            ECHO_SEEN.add(brand)
+            log.warning("engine %s echoes rid/fn: replies without the echo are rejected from now on", brand)
+    elif brand in ECHO_SEEN:
+        return "no rid/fn echo"                     # this engine always echoes: an answer without it is not ours
     if r.get("ok") is not True:
         if r.get("ok") is False and isinstance(r.get("error"), str) and r["error"]:
             return None
@@ -342,6 +359,75 @@ def reply_problem(fn, args, rid, r):
     if fn in LEGIT_BARE:
         return None                                 # verified by the transport (no doGet) and, once echoed, by rid
     return None
+
+
+# ---------- lost write replies (QA round 4) ----------
+WRITE_UNKNOWN_CODES = ("engine_bad_response", "engine_timeout", "engine_unreachable")
+RESULT_POLL_DELAYS_S = (1.0, 2.0, 3.0, 4.0, 5.0)        # ~15 s in total
+
+
+def _result_lookup(engines, transport, secret, user, brand, rid, lang):
+    """('found', reply) | ('missing', None) | ('unsupported', None) | ('error', None)."""
+    st, out = call(engines, transport, secret, user, brand, "apiResult", {"rid": rid}, lang, internal=True, retry=False)
+    if out.get("ok") is True:
+        stored = out.get("reply") if isinstance(out.get("reply"), dict) else out.get("result")
+        if isinstance(stored, dict):
+            return "found", stored
+        if out.get("found") is False or out.get("pending"):
+            return "missing", None
+        return "error", None
+    err = out.get("error")
+    if err in ("not_found", "no_result", "unknown_rid", "result_not_found", "pending"):
+        return "missing", None
+    if err == "rid_reuse":
+        return "error", None                        # same rid, different call: never treat as an answer
+    if err in ("unauthorized", "forbidden_fn", "unknown_fn", "bad_fn"):
+        return "unsupported", None                  # an engine without apiResult answers like any unknown fn
+    return "error", None
+
+
+def resolve_write(engines, transport, secret, user, brand, fn, clean, lang, rid, token, url, gate_, bg):
+    """The reply to a write was lost (HTML page, GET turned from POST, timeout). The engine stores the final reply of
+    every write by rid and treats a repeated rid as the same call. So: ask for the stored reply; if it never appears,
+    send the SAME call with the SAME rid once (idempotent); if that is lost too, say so plainly — never "refused"."""
+    t0 = _clock()
+    supported = None
+    for delay in RESULT_POLL_DELAYS_S:
+        _sleep(delay)
+        state, stored = _result_lookup(engines, transport, secret, user, brand, rid, lang)
+        if state == "unsupported":
+            supported = False
+            break
+        supported = True
+        if state == "found":
+            why = reply_problem(fn, clean, rid, stored, None)
+            if not why:
+                log.warning("engine %s %s reply recovered via apiResult after %d ms", brand, fn, int((_clock() - t0) * 1000))
+                out = localize(fn, stored, lang)
+                out["recovered"] = "apiResult"
+                return 200, out
+    if supported is False:
+        log.warning("engine %s %s reply lost; engine has no apiResult yet", brand, fn)
+        return 502, {"ok": False, "error": "engine_bad_response", "msg": messages.proxy_msg("engine_bad_response_write", lang),
+                     "refresh": True}
+    # not found: one resend with the same rid — the engine returns the stored reply or runs it exactly once
+    if gate_.acquire(bg):
+        err = None
+        try:
+            resp = transport(url, {"fn": fn, "args": clean, "token": token, "rid": rid})
+            if reply_problem(fn, clean, rid, resp, brand):
+                err = "invalid"
+        except ProxyError as x:
+            err = x.code
+        finally:
+            gate_.release(bg, 0, None if err is None else "engine_bad_response")
+        if err is None:
+            log.warning("engine %s %s resolved by a same-rid resend after %d ms", brand, fn, int((_clock() - t0) * 1000))
+            out = localize(fn, resp, lang)
+            out["recovered"] = "resend"
+            return 200, out
+    log.warning("engine %s %s outcome unknown after apiResult + resend (%d ms)", brand, fn, int((_clock() - t0) * 1000))
+    return 502, {"ok": False, "error": "write_unknown", "msg": messages.proxy_msg("write_unknown", lang), "refresh": True}
 
 
 def localize(fn, resp, lang):
@@ -403,7 +489,7 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
         err = None
         try:
             resp = transport(url, {"fn": fn, "args": clean, "token": token, "rid": rid})
-            why = reply_problem(fn, clean, rid, resp)
+            why = reply_problem(fn, clean, rid, resp, brand)
             if why:
                 log.warning("engine %s %s invalid reply: %s (keys: %s)", brand, fn, why, ",".join(sorted(resp)[:8]) if isinstance(resp, dict) else type(resp).__name__)
                 raise ProxyError("engine_bad_response", 502)
@@ -423,8 +509,9 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
                 _sleep(delays[attempt - 1])
                 continue
             code = e.code
-            if code == "engine_bad_response" and not is_read(fn, clean):
-                code = "engine_bad_response_write"              # a write may have landed: check before retrying
+            if not is_read(fn, clean) and fn != "apiResult" and code in WRITE_UNKNOWN_CODES:
+                # the write may well have run: find out instead of guessing (QA round 4)
+                return resolve_write(engines, transport, secret, user, brand, fn, clean, lang, rid, token, url, g, bg)
             return e.http, {"ok": False, "error": e.code, "msg": messages.proxy_msg(code, lang)}
     if attempt > 1:
         log.warning("engine %s %s recovered on attempt=%d total_ms=%d", brand, fn, attempt, int((_clock() - started) * 1000))

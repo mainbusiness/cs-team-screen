@@ -31,8 +31,9 @@ def test_cancel_claim_refusal_is_clear_hebrew():
         assert "המנוי עדיין פעיל" in msg, (problem, msg)
     for code in ("cancel_not_done", "cancel_claim"):
         assert "עדיין פעיל" in messages.engine_error_msg({"ok": False, "error": code}, "apiSend", "he")
-    # an unknown future code is never swallowed
-    assert "brand_new_code" in messages.engine_error_msg({"ok": False, "error": "brand_new_code"}, "apiSend", "he")
+    # an unknown future code: a plain sentence for the agent, the code only in the `error` field (QA round 4)
+    msg = messages.engine_error_msg({"ok": False, "error": "brand_new_code"}, "apiSend", "he")
+    assert "brand_new_code" not in msg and "רעננו" in msg
 
 
 def test_engine_hebrew_cancel_claim_reaches_the_agent_verbatim():

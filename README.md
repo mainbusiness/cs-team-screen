@@ -337,3 +337,19 @@ never happened. Now:
 - **Messages follow the page** (`X-UI-Lang` header): `/cs/en` gets English even for a Hebrew profile.
 - **The client** never renders a list, ticket or answer without its data. Open-status tab counts are derived from
   the rows, so they can no longer disagree with what is listed.
+
+## Lost write replies (QA round 4)
+
+About 10% of engine calls lost their reply (a 404 page, a POST turned into GET -> `get_not_supported`, timeouts) while
+the work often ran. The screen used to say "המנוע סירב: get_not_supported" after a send that went out.
+- **Echo:** every reply must echo the call's `rid` and `fn`. This is enforced per brand from the first echo seen,
+  and logged as "echoes rid/fn". `get_not_supported` is always invalid.
+- **Reads** with an invalid or lost reply follow the retry rules.
+- **Writes** with an invalid or lost reply are resolved in `engine_proxy.resolve_write`:
+  - poll `apiResult {rid}` after 1, 2, 3, 4 and 5 s (~15 s); if found, return the stored reply (`recovered: "apiResult"`);
+  - if not found, resend the SAME call with the SAME rid once. The engine makes it idempotent (`replayed: true`);
+  - if still unknown, `write_unknown`: "לא הצלחנו לאשר אם הפעולה בוצעה — רעננו את הפנייה ובדקו", with `refresh: true`.
+    The screen then re-reads the ticket from the engine and pins the message at its top;
+  - an engine without `apiResult` keeps the "ייתכן שהפעולה בוצעה" message, never "refused".
+  - `apiResult` is a read and can never enter this path (that once recursed). `rid_reuse` is never treated as an answer.
+- **No raw error code** is ever shown to an agent; unknown codes become a plain sentence, and the code stays in `error`.

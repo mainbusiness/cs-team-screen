@@ -57,8 +57,8 @@ def test_bare_send_never_says_sent(app, pw_hash, transport, no_wait):
     c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
     app.extensions["cs"]["ticket_cache"]._background = lambda *a, **k: False
     j = call(c, tok, "rozela", "apiSend", {"id": "t1", "text": "שלום"}).get_json()
-    assert j["ok"] is False and "sent" not in j and "ייתכן שהפעולה בוצעה" in j["msg"]
-    assert seen == ["apiSend"]                                               # a write: exactly one attempt
+    assert j["ok"] is False and "sent" not in j and j["error"] == "write_unknown" and j["refresh"] is True
+    assert seen.count("apiSend") == 2 and "apiResult" in seen                # resolved: lookup, then ONE same-rid resend
 
 
 def test_bare_knowledge_is_never_cached_and_a_bad_copy_is_evicted(make_app, pw_hash, transport, tmp_path, no_wait):
@@ -129,7 +129,7 @@ def test_doget_answer_is_detected_by_the_transport(make_app, pw_hash, no_wait):
         # apiClose is "legitimately bare" — so only the transport can catch this one
         app.extensions["cs"]["ticket_cache"]._background = lambda *a, **k: False
         j = call(c, tok, "rozela", "apiClose", {"id": "t1"}).get_json()
-        assert j["ok"] is False and j["error"] == "engine_bad_response" and "ייתכן שהפעולה בוצעה" in j["msg"]
+        assert j["ok"] is False and j["error"] == "write_unknown" and "סגירה" not in j["msg"] and "לא הצלחנו לאשר" in j["msg"]
     finally:
         srv.shutdown()
 
