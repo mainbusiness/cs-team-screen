@@ -55,7 +55,7 @@ def test_admin_sees_live_numbers_from_real_actions(server):
                 break
             ad.wait_for_timeout(300)
         assert ad.locator("[data-test=dash-fixing]").count() == 0
-        assert "אימות מול השיחות" in ad.inner_text("[data-test=dash-verify]")
+        assert "אומת מול השיחות: 14/15" in ad.inner_text("[data-test=dash-verify]")
         assert ad.inner_text("[data-test=dash-brand][data-brand=rozela] [data-test=ov-answered] .v") == "5"
         assert ad.inner_text("[data-test=src-answered-total] .v") == "5"
         assert ad.inner_text("[data-test=src-answered-fromDondy] .v") == "1" and "אדם 1" in ad.inner_text("[data-test=src-answered-fromDondy]")

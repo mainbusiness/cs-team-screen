@@ -48,7 +48,7 @@ ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 # activity" (work time, AHT, hours). Read in the background, cached on disk; a running day is re-read every DS_TTL_S.
 DS_TTL_S = 600
 DS_MAX_CHUNKS = 40
-VERIFY_NOTE = "אימות מול השיחות: וואטסאפ 8/10 · מייל בבדיקה"     # the coordinator's live reconciliation; replaced when final
+VERIFY_NOTE = "אומת מול השיחות: 14/15 (וואטסאפ 10/10 · מייל 4/5)"   # final live reconciliation, rozela 2026-10-05
 SOURCES = {"fromSystem": ("agent", "auto"), "fromDondy": ("human", "bot", "template", "close"), "fromEmail": ("direct",)}
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -425,6 +425,12 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
     for ds in ds_by_brand.values():
         for k, v in ((((ds or {}).get("data") or {}).get("attribution") or {}).get("bySender") or {}).items():
             by_sender[k] = by_sender.get(k, 0) + int(v or 0)
+    known = {u["username"] for u in users}
+    for k in list(by_sender):
+        if k in known and k not in {a["user"] for a in agents}:      # a screen user outside the roster (e.g. an admin)
+            agents.append({"user": k, "name": names.get(k, k), "active_s": 0, "sends": 0, "resends": 0, "closes": 0, "per_hour": None,
+                           "aht_s": None, "handled": 0, "present_s": 0, "occupancy": None, "engine_sends": 0, "engine_closes": 0,
+                           "by_brand": {}, "by_channel": {}, "days": []})
     for a in agents:
         a["ds_answered"] = by_sender.get(a["user"])
     agents.sort(key=lambda a: (-(a.get("ds_answered") or 0), -a["active_s"], -a["sends"], a["name"]))

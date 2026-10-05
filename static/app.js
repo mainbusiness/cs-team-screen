@@ -2776,7 +2776,7 @@
       onscreen: 'פעילות במסך', log_word: 'ביומן', from_conv: 'מהשיחות', computing: 'מחשב מהשיחות…',
       src_answered: 'נענו — לפי מקור', src_closed: 'נסגרו — לפי מקור', src_fromSystem: 'מהמערכת', src_fromDondy: 'מדונדי', src_fromEmail: 'מהמייל',
       sub_agent: 'נציג', sub_auto: 'אוטומטי', sub_human: 'אדם', sub_bot: 'בוט', sub_template: 'תבנית', sub_close: 'סגירה', sub_direct: 'ישיר', total: 'סה״כ',
-      conv_answered: 'ענו (מהשיחות)', direct_note: 'בלי שם נציג: ישירות בדונדי {d} · ישירות במייל {g} · אוטומטי {a} · בוט {b}', all_brands: 'כל המותגים', brand_col: 'מותג', idle_agents: '{n} משתמשים בלי פעילות בטווח', log_new: 'יומן הפעילות עוד ריק — זמן העבודה נספר מהפעולה הבאה של כל נציג; תשובות וסגירות כבר נספרות מהמנוע.'
+      conv_answered: 'ענו (מהשיחות)', direct_note: 'בלי שם נציג: ישירות בדונדי {d} · ישירות במייל {g} · אוטומטי {a} · בוט ותבניות {b}', others: 'אחרים', all_brands: 'כל המותגים', brand_col: 'מותג', idle_agents: '{n} משתמשים בלי פעילות בטווח', log_new: 'יומן הפעילות עוד ריק — זמן העבודה נספר מהפעולה הבאה של כל נציג; תשובות וסגירות כבר נספרות מהמנוע.'
     };
     const EN = {
       title: 'Managers', day: 'Day', d7: '7 days', d30: '30 days', updated: 'Updated', loading: 'Loading…',
@@ -2797,7 +2797,7 @@
       onscreen: 'On-screen activity', log_word: 'log', from_conv: 'from conversations', computing: 'Counting from conversations…',
       src_answered: 'Answered — by source', src_closed: 'Closed — by source', src_fromSystem: 'From the system', src_fromDondy: 'From Dondy', src_fromEmail: 'From email',
       sub_agent: 'agent', sub_auto: 'auto', sub_human: 'person', sub_bot: 'bot', sub_template: 'template', sub_close: 'close', sub_direct: 'direct', total: 'Total',
-      conv_answered: 'Answered (conversations)', direct_note: 'No agent name: directly in Dondy {d} · directly in email {g} · auto {a} · bot {b}', all_brands: 'All brands', brand_col: 'Brand', idle_agents: '{n} users with no activity in range', log_new: 'The activity log is still empty — work time counts from each agent\'s next action; replies and closes are already counted from the engine.'
+      conv_answered: 'Answered (conversations)', direct_note: 'No agent name: directly in Dondy {d} · directly in email {g} · auto {a} · bot and templates {b}', others: 'Others', all_brands: 'All brands', brand_col: 'Brand', idle_agents: '{n} users with no activity in range', log_new: 'The activity log is still empty — work time counts from each agent\'s next action; replies and closes are already counted from the engine.'
     };
     const L = LANG === 'en' ? EN : HE;
     function d(k, v) { let s = L[k] || k; Object.keys(v || {}).forEach(function (x) { s = s.replace('{' + x + '}', v[x]); }); return s; }
@@ -3041,7 +3041,13 @@
       p.append(h('h3', { text: L.kpis }), kpis(x.kpis, x.bench));
       p.append(h('h3', { text: L.agents + ' — ' + L.onscreen, 'data-test': 'dash-onscreen' }), agentsTable(x.agents));
       const sd = x.senders || {};
-      if (Object.keys(sd).length) p.append(h('div', { class: 'muted small', 'data-test': 'dash-direct', text: d('direct_note', { d: sd.dondy_direct || 0, g: sd.gmail_direct || 0, a: sd.auto || 0, b: (sd.bot || 0) + (sd.template || 0) }) }));
+      if (Object.keys(sd).length) {
+        const known = {}; x.agents.forEach(function (a) { known[a.user] = 1; });
+        const fixed = ['dondy_direct', 'gmail_direct', 'auto', 'auto-reply', 'bot', 'template'];
+        const other = Object.keys(sd).filter(function (k) { return !known[k] && fixed.indexOf(k) < 0 && sd[k]; }).map(function (k) { return k + ' ' + sd[k]; });
+        p.append(h('div', { class: 'muted small', 'data-test': 'dash-direct', text: d('direct_note', { d: sd.dondy_direct || 0, g: sd.gmail_direct || 0,
+          a: (sd.auto || 0) + (sd['auto-reply'] || 0), b: (sd.bot || 0) + (sd.template || 0) }) + (other.length ? ' · ' + L.others + ': ' + other.join(', ') : '') }));
+      }
       p.append(heatmap(x));
       const pg = h('div', { class: 'pie-grid' });
       pg.append(pie(L.pie_brand, 'brand', x.pies.brand, 's'), pie(L.pie_chan, 'channel', x.pies.channel, 's'),
