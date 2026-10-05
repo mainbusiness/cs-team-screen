@@ -3031,7 +3031,7 @@
       if (!x) { p.append(h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); return; }
       if (x.stats_source !== 'dayStats') p.append(h('div', { class: 'err-box dash-fixing', role: 'alert', 'data-test': 'dash-fixing' },
         h('b', { text: '⚠️ ' + L.fixing }), h('div', { class: 'small', text: L.fixing_sub })));
-      if (x.verify_note) p.append(h('div', { class: 'note-box warn', role: 'status', 'data-test': 'dash-verify', text: '🔎 ' + x.verify_note }));
+      if (x.verify_note) p.append(h('div', { class: 'verified', role: 'status', 'data-test': 'dash-verify', text: x.verify_note }));
       p.append(h('div', { class: 'muted small dash-method', text: d('method', { m: Math.round(x.idle_gap_s / 60) }) + (x.log_since ? ' · ' + d('since', { d: x.log_since }) : '') }));
       if (!x.log_since) p.append(h('div', { class: 'note-box', 'data-test': 'dash-log-new', text: L.log_new }));
       const bw = h('div', { class: 'brand-grid' });

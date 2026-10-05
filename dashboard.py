@@ -48,7 +48,8 @@ ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 # activity" (work time, AHT, hours). Read in the background, cached on disk; a running day is re-read every DS_TTL_S.
 DS_TTL_S = 600
 DS_MAX_CHUNKS = 40
-VERIFY_NOTE = "אומת מול השיחות: 14/15 (וואטסאפ 10/10 · מייל 4/5)"   # final live reconciliation, rozela 2026-10-05
+VERIFY_NOTE = "✓ אומת מול השיחות 15/15 (וואטסאפ 10/10 · מייל 5/5) · rozela 2026-10-05"   # final live reconciliation
+DS_FINAL_TTL_S = 6 * 3600   # a finished day is still re-read now and then: the engine can backfill (2026-10-06: 95 email replies)
 SOURCES = {"fromSystem": ("agent", "auto"), "fromDondy": ("human", "bot", "template", "close"), "fromEmail": ("direct",)}
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -580,11 +581,12 @@ def register(app, d):
             with ds_lock:
                 ds_busy.discard(b)
 
-    def ds_for(u, brands, day, now):
+    def ds_for(u, brands, day, now, force=False):
         out = {}
         for b in brands:
             e = ds_read(b, day) or {}
-            stale = not e or (not e.get("final") and now - float(e.get("at", 0)) > DS_TTL_S)
+            age = now - float(e.get("at", 0))
+            stale = force or not e or age > (DS_FINAL_TTL_S if e.get("final") else DS_TTL_S)
             with ds_lock:
                 start = stale and b not in ds_busy       # one dayStats per brand at a time (its state is one property)
                 if start:
@@ -619,7 +621,8 @@ def register(app, d):
         except ValueError:
             return d["json_error"]("bad_request", 400, d["ui_lang"](u))
         brands = [b for b in u.get("brands", []) if b in d["engines"]]
-        return jsonify(build(log, rows_for(u, brands), d["store"].all(), brands, end, ndays, now, ds_for(u, brands, end, now)))
+        force = request.args.get("refresh") == "1" and "admin" in u.get("roles", [])    # admin: re-read the day from the engine now
+        return jsonify(build(log, rows_for(u, brands), d["store"].all(), brands, end, ndays, now, ds_for(u, brands, end, now, force)))
 
     @app.post("/api/<brand>/activity")
     def activity(brand):

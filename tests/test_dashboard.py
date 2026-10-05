@@ -285,3 +285,25 @@ def test_daystats_failure_keeps_the_not_final_banner(app, pw_hash, transport):
 def test_daystats_is_never_reachable_from_the_browser_route(app, pw_hash, transport):
     a, tok = logged_in(app, pw_hash, "boss", ["admin"], ["rozela"])
     assert call(a, tok, "rozela", "apiDayStats", {"date": DAY}).status_code == 404 and transport.calls == []
+
+
+def test_a_finished_day_is_reread_after_a_while_or_on_an_admin_refresh(app, pw_hash, transport):
+    """2026-10-06: the engine backfilled 95 email replies into finished days — a final copy must not live forever."""
+    calls = []
+    transport.reply = ds_reply(calls)
+    now = [D.day_start(D.next_day(DAY)) + 3600]                               # the day is over: the copy is final
+    act = dash_now(app, now)
+    a, _ = logged_in(app, pw_hash, "boss", ["admin"], ["rozela"])
+    a.get("/api/dash?date=%s" % DAY); act["ds_drain"]()
+    assert len(calls) == 2
+    now[0] += D.DS_TTL_S + 1
+    a.get("/api/dash?date=%s" % DAY); act["ds_drain"]()
+    assert len(calls) == 2                                                      # final: not every 10 minutes
+    a.get("/api/dash?date=%s&refresh=1" % DAY); act["ds_drain"]()
+    assert len(calls) == 4                                                      # an admin can re-read it now
+    m, _ = logged_in(app, pw_hash, "mgr", ["user-manager"], ["rozela"])
+    m.get("/api/dash?date=%s&refresh=1" % DAY); act["ds_drain"]()
+    assert len(calls) == 4                                                      # a user-manager cannot force engine work
+    now[0] += D.DS_FINAL_TTL_S + 1
+    a.get("/api/dash?date=%s" % DAY); act["ds_drain"]()
+    assert len(calls) == 6

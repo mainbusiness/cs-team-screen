@@ -511,3 +511,4 @@ body.view-dash .banners { display: none; }      /* brand banners (test mode, fro
 .src-split { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 10px; }
 @media (min-width: 900px) { .src-split { grid-template-columns: minmax(280px, 1fr) 2fr; } }
 .note-box.warn { background: var(--warn-bg); color: var(--warn-ink); font-weight: 600; }
+.verified { display: inline-block; background: var(--ready-bg); color: var(--ready); border: 1px solid var(--ready); border-radius: 999px; padding: 3px 12px; font-size: 13px; font-weight: 700; margin-bottom: 10px; }
