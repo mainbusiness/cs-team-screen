@@ -293,6 +293,26 @@ def main():
                     problems.append("WhatsApp send button label")
                 ctx.close()
 
+            # ---------- background sends (Owner, 2026-10-05) ----------
+            for width, height in ((390, 844), (1280, 860)):
+                ctx, page, errs = session("agent-one", width, height)
+                tab, tid = ("ready", "t18f2c02") if width == 390 else ("delay", "t18f2a06")   # each pass its own open ticket
+                page.goto(base + "/cs#/b/rozela/" + tab)
+                page.wait_for_selector("a.row[data-id=%s]" % tid)
+                page.click("a.row[data-id=%s]" % tid)
+                page.wait_for_selector(".draft textarea:not([readonly])")
+                page.fill(".draft textarea", "היי, בדיקה ✓" if width == 390 else "היי, זה 100% מובטח")   # 1280: a refusal
+                page.click("[data-test=send-btn]")
+                page.click("[data-test=send-btn]")
+                page.wait_for_selector("[data-test=outbox-indicator]", timeout=5000)
+                if width == 1280:
+                    page.wait_for_selector("[data-test=row-outbox][data-state=refused]", state="attached", timeout=15000)
+                    page.goto(base + "/cs#/b/rozela/delay")
+                    page.wait_for_selector("a.row")
+                    page.click("[data-test=outbox-indicator]")
+                shot(page, errs, "34_background_send", width, full=False)
+                ctx.close()
+
             # ---------- deploy resilience: the "reconnecting" pill while a read rides through Render's 502 ----------
             ctx, page, errs = session("agent-one", 390, 844)
             page.route("**/api/rozela/ticket", lambda route, req: route.fulfill(status=502, content_type="text/html", body="<html>502</html>"))

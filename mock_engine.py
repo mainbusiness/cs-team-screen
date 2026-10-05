@@ -36,7 +36,10 @@ TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTick
          "apiSearch": WORK, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
          "apiNote": WORK, "apiKachingCancel": WORK, "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
-         "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK}
+         "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK,
+         "apiResult": WORK}
+MOCK_WRITES = ("apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiWaTakeOver",
+               "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject")
 CONTRACT_RE_PREFIX = "gid://shopify/SubscriptionContract/"
 
 
@@ -368,6 +371,13 @@ class MockEngines:
                          "apexmen": {"dry": True, "writes": True, "frozen": "2026-10-05T09:00:00Z — daily limit of 100 cancellations reached", "auto": "off"}}
         self.auto = {b: build_auto(b, now) for b in MOCK_BRANDS}
         self.autoreply = {b: build_auto_reply(b, now) for b in MOCK_BRANDS}
+        self.results = {b: {} for b in MOCK_BRANDS}          # rid -> (fn, user, reply): like the live engine (30 min)
+        # MOCK_SLOW_FNS="apiSend:12000,apiClose:8000" — a slow engine for one fn, to test background sends
+        self.slow = {}
+        for part in os.environ.get("MOCK_SLOW_FNS", "").split(","):
+            if ":" in part:
+                f, ms = part.split(":", 1)
+                self.slow[f.strip()] = int(ms) / 1000.0
         self.version = {b: 1 for b in MOCK_BRANDS}
         self.touched = {b: {} for b in MOCK_BRANDS}     # ticket id -> version of its last change
 
@@ -375,8 +385,18 @@ class MockEngines:
         brand = url.split("mock://", 1)[1]
         if self.latency:
             time.sleep(self.latency)
+        if body.get("fn") in self.slow:
+            time.sleep(self.slow[body["fn"]])
         with self.lock:
+            rid, fn = body.get("rid"), body.get("fn")
+            if fn in MOCK_WRITES and rid in self.results[brand]:          # same rid again: idempotent, never twice
+                sfn, _u, stored = self.results[brand][rid]
+                return dict(stored, replayed=True, fn=fn, rid=rid) if sfn == fn else {"ok": False, "error": "rid_reuse", "fn": fn, "rid": rid}
             out = self.dispatch(brand, body)
+            if fn in MOCK_WRITES and out.get("ok") and rid:
+                self.results[brand][rid] = (fn, "", dict(out))
+            if isinstance(out, dict) and rid:
+                out = dict(out, fn=fn, rid=rid)                            # the live engine echoes both
             if out.get("ok") and body.get("fn") in ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel"):
                 self.version[brand] += 1
                 self.touched[brand][(body.get("args") or {}).get("id")] = self.version[brand]
@@ -748,3 +768,10 @@ class MockEngines:
         self.version[brand] += 1
         self.touched[brand][t["id"]] = self.version[brand]
         return {"ok": True, "id": t["id"], "status": "action"}
+
+    def apiResult(self, brand, a, c):
+        hit = self.results[brand].get(a.get("rid"))
+        if not hit:
+            return {"ok": True, "found": False}
+        fn, _u, reply = hit
+        return {"ok": True, "found": True, "forFn": fn, "reply": dict(reply, fn=fn, rid=a.get("rid"))}

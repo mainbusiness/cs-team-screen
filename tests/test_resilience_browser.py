@@ -102,6 +102,7 @@ def test_read_rides_through_two_html_502s(page):
 
 
 def test_write_is_sent_exactly_once_and_says_check_first(page):
+    """Render's HTML 502 on a send: one request, never re-sent; the outbox asks /result instead (background sends)."""
     pg, base = page
     sends = []
 
@@ -112,11 +113,12 @@ def test_write_is_sent_exactly_once_and_says_check_first(page):
     pg.goto(base + "/cs#/b/rozela/t/t18f2a01")
     pg.wait_for_selector(".draft .btn.primary:not([disabled])", timeout=15000)
     pg.click(".draft .btn.primary")
-    pg.click(".draft .btn.primary")                                                    # armed: second click sends
-    pg.wait_for_selector("text=השרת התעדכן בדיוק ברגע הזה", timeout=10000)
+    pg.click(".draft .btn.primary")                                                    # armed: second click hands off
+    pg.wait_for_selector("[data-test=row-outbox][data-state=checking]", state="attached", timeout=10000)
     pg.wait_for_timeout(4000)                                                          # longer than the first two read backoffs
     assert len(sends) == 1
     assert "תשובה לא תקינה" not in pg.inner_text("body")
+
 
 
 def test_poller_stays_silent_and_keeps_the_list(page):
@@ -159,18 +161,17 @@ def test_own_json_502_is_an_answer_not_a_restart(page):
     assert pg.locator("[data-test=reconnecting]:visible").count() == 0 and "תשובה לא תקינה" not in pg.inner_text("body")
 
 
-def test_unknown_write_refreshes_the_ticket_and_says_so(page):
+def test_unknown_write_flags_and_locks_the_ticket(page):
     pg, base = page
     pg.route("**/api/rozela/apiSend", lambda route, req: route.fulfill(status=502, content_type="application/json",
              body='{"ok": false, "error": "write_unknown", "refresh": true, "msg": "לא הצלחנו לאשר אם הפעולה בוצעה — רעננו את הפנייה ובדקו."}'))
-    revalidations = []
-    pg.on("request", lambda r: revalidations.append(r.post_data or "") if r.url.endswith("/api/rozela/ticket") else None)
     pg.goto(base + "/cs#/b/rozela/t/t18f2a01")
     pg.wait_for_selector(".draft .btn.primary:not([disabled])", timeout=15000)
-    n0 = len(revalidations)
     pg.click(".draft .btn.primary")
     pg.click(".draft .btn.primary")
-    pg.wait_for_selector("[data-test=write-unknown]", timeout=10000)
-    assert "לא הצלחנו לאשר" in pg.inner_text("[data-test=write-unknown]")
-    assert any('"fresh": true' in d or '"fresh":true' in d for d in revalidations[n0:])     # re-read from the engine
-    assert "סירב" not in pg.inner_text("body")
+    pg.wait_for_selector("[data-test=row-outbox][data-state=unknown]", state="attached", timeout=10000)
+    pg.goto(base + "/cs#/b/rozela/t/t18f2a01")
+    pg.wait_for_selector("[data-test=outbox-banner][data-state=unknown]")
+    assert "לא אושר — לבדוק" in pg.inner_text("[data-test=outbox-banner]") and "לא הצלחנו לאשר" in pg.inner_text("[data-test=outbox-banner]")
+    pg.fill(".draft textarea", "שוב")
+    assert pg.is_disabled(".draft .btn.primary") and "סירב" not in pg.inner_text("body")

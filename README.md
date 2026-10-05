@@ -27,7 +27,7 @@ Render disk and in each engine's `audit` sheet.
 | `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
-| `tests/` | pytest (300+ tests, incl. real-browser tests with Playwright) |
+| `tests/` | pytest (310+ tests, incl. real-browser tests with Playwright and a gunicorn test) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
 
 ## Environment (Render)
@@ -375,3 +375,26 @@ the work often ran. The screen used to say "המנוע סירב: get_not_support
   merges the engine's results (including the archive) when they arrive. If the engine fails, the list results stay,
   with a note.
 - **Unknown statuses and categories** show a neutral label, never a raw key.
+
+## Background sends (Owner, 2026-10-05)
+
+An agent never waits for the engine. On the second click of send, "טופל" or "סגירה":
+- The action goes into the client **outbox** (memory and localStorage): `{rid, brand, id, fn, args, channel}`. The
+  **browser makes the `rid`** (`/api/<brand>/<fn>` passes it to the engine), and the agent is moved to the next ticket
+  of the tab at once (measured under 1 s against an 8 s engine).
+- The request runs in the background through the normal chain (apiResult, lost-reply handling, a WhatsApp send never
+  resent). The **server finishes it even if the tab closes**; a test runs real gunicorn and gives up on the request
+  after 0.5 s.
+- **Markers** on the row, on the ticket and in a toast:
+  - while running: ⏳ "נשלח ברקע…";
+  - success: ✅ "נשלח" / "נשלח לוואטסאפ" / 📤 "נכנס לתור";
+  - refusal: ⚠️ "לא נשלח — צריך תיקון", with the ticket flagged at the top and the reason (plus the override, where
+    allowed) shown when opened; the text stays saved;
+  - unknown: ❓ "לא אושר — לבדוק", with the ticket flagged and send locked.
+
+  "טופל" and "סגירה" take the row off the list at once and bring it back flagged if they fail. The header shows
+  "בתהליך שליחה (N)" with the list of in-flight and failed actions.
+- **One open action per ticket.** While one is in flight, checking or unknown, that ticket offers no send.
+- **After a reload or a closed tab,** in-flight items become "checking" and ask `POST /api/<brand>/result {rid}`
+  (`apiResult`). They are **never resent**. An unknown item is decided by a fresh engine read of the ticket: if it shows
+  our send, it is ok; if it is still open after 90 s, it becomes "unsent — you can send again".

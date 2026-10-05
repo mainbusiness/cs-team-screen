@@ -480,7 +480,10 @@ def localize(fn, resp, lang):
     return out
 
 
-def call(engines, transport, secret, user, brand, fn, args, lang, now=None, internal=False, retry=True, bg=False):
+CLIENT_RID_RE = re.compile(r"^[A-Za-z0-9_.:-]{16,64}$")
+
+
+def call(engines, transport, secret, user, brand, fn, args, lang, now=None, internal=False, retry=True, bg=False, rid=None):
     """Returns (http_status, json). Raises nothing for expected failures.
     internal=True is used ONLY by server code (assistant.py) to reach INTERNAL_FNS; the browser route never sets it."""
     roles = user.get("roles", [])
@@ -510,7 +513,8 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
     except ValueError:
         return 500, {"ok": False, "error": "server_misconfigured", "msg": messages.proxy_msg("server_misconfigured", lang)}
     started = _clock()
-    rid = secrets.token_hex(8)
+    # background sends (Owner, 2026-10-05): the browser makes the rid so a reloaded page can still ask apiResult about it
+    rid = rid if (isinstance(rid, str) and CLIENT_RID_RE.match(rid)) else secrets.token_hex(8)
     delays = READ_RETRY_DELAYS_S if (retry and is_read(fn, clean)) else ()
     attempt = 0
     g = gate(brand)

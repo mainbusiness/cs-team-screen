@@ -422,7 +422,9 @@ def create_app(overrides=None):
             return json_error("bad_request", 400)
         t0 = time.perf_counter()
         status, out = engine_proxy.call(engines, transport, app.config["TOKEN_SECRET"], u, str(brand).lower(), fn,
-                                        body.get("args", {}), ui_lang(u))
+                                        body.get("args", {}), ui_lang(u), rid=body.get("rid"))
+        if isinstance(body.get("rid"), str):
+            out = dict(out, rid=body["rid"])                       # the outbox matches the answer to its item
         ticket_cache.timing("engine", (time.perf_counter() - t0) * 1000, fn)
         if status == 200 and fn in ticket_cache.WRITE_FNS and isinstance(body.get("args"), dict):
             app.extensions["cs"]["ticket_cache"].after_write(u, str(brand).lower(), fn, body["args"], out)

@@ -717,6 +717,26 @@ def register(app, d):
         return jsonify({"ok": True, "ticket": full.get("ticket"), "extras": full.get("extras") or {}, "snapshotAt": full.get("snapshotAt"),
                         "extrasErr": full.get("extrasError"), "cache": meta})
 
+    @app.post("/api/<brand>/result")
+    def outbox_result(brand):
+        """The background-send outbox (after a reload or a lost reply): what became of the write sent with this rid?
+        {ok, found, reply} — the stored reply is localized like a direct answer; refusals are never stored."""
+        brand = str(brand).lower()
+        u, err = gate(brand, work=True)
+        if err:
+            return err
+        rid = (request.get_json(silent=True) or {}).get("rid")
+        if not isinstance(rid, str) or not engine_proxy.CLIENT_RID_RE.match(rid):
+            return d["json_error"]("bad_request", 400, d["ui_lang"](u))
+        _, out = engine_proxy.call(d["engines"], cache.transport, cache.secret(), u, brand, "apiResult", {"rid": rid},
+                                   d["ui_lang"](u), internal=True)
+        if not out.get("ok"):
+            return jsonify(localized(out, d["ui_lang"](u), "apiResult"))
+        stored, fn = out.get("reply"), out.get("forFn")
+        if out.get("found") and isinstance(stored, dict) and isinstance(fn, str) and not engine_proxy.reply_problem(fn, {}, rid, stored, None):
+            return jsonify({"ok": True, "found": True, "forFn": fn, "reply": engine_proxy.localize(fn, stored, d["ui_lang"](u))})
+        return jsonify({"ok": True, "found": False})
+
     @app.post("/api/<brand>/related")
     def cached_related(brand):
         brand = str(brand).lower()

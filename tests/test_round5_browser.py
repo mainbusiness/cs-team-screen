@@ -18,6 +18,8 @@ def test_whatsapp_queued_blocks_a_second_send(page):
     pg.fill(".draft textarea", "היי, כן יש משלוח לאילת")
     pg.click("[data-test=send-btn]")
     pg.click("[data-test=send-btn]")
+    pg.wait_for_timeout(500)
+    pg.goto(base + "/cs#/b/rozela/t/w8ab77c1")                                        # back to it after the hand-off
     pg.wait_for_selector("text=📤 נכנס לתור לוואטסאפ — אל תשלחו שוב", timeout=15000)
     assert pg.locator("[data-test=send-btn]").count() == 0 or pg.is_disabled("[data-test=send-btn]")
     assert len(sends) == 1
@@ -26,26 +28,28 @@ def test_whatsapp_queued_blocks_a_second_send(page):
     assert pg.locator("[data-test=send-btn]").count() == 0 or pg.is_disabled("[data-test=send-btn]")
 
 
+
 def test_unconfirmed_whatsapp_send_locks_until_the_engine_answers(page):
+    """(Its own WhatsApp ticket: the module shares one mock server, and another test queues w8ab77c1.)
+    Unknown outcome: locked. Once the original can no longer be running (90 s) and a FRESH engine read shows the
+    ticket still open and not queued, the send is offered again."""
     pg, base = page
-    pg.route("**/api/rozela/apiSend", lambda route, req: route.fulfill(status=502, content_type="application/json",
-             body=json.dumps({"ok": False, "error": "write_unknown", "refresh": True, "msg": "לא הצלחנו לאשר אם הפעולה בוצעה — רעננו את הפנייה ובדקו."})))
-    pg.route("**/api/rozela/ticket", lambda route, req: route.abort() if '"fresh": true' in (req.post_data or "") or '"fresh":true' in (req.post_data or "") else route.continue_())
-    pg.goto(base + "/cs#/b/rozela/t/w8ab77c2")
-    pg.wait_for_selector("[data-test=takeover]")
-    pg.click("[data-test=takeover]")
-    pg.click("[data-test=takeover]")
-    pg.wait_for_selector(".draft textarea", timeout=15000)
-    pg.fill(".draft textarea", "היי שני, מצטערים על הבקבוק")
-    pg.click("[data-test=send-btn]")
-    pg.click("[data-test=send-btn]")
-    pg.wait_for_selector("text=השליחה נעולה", timeout=15000)                  # the fresh read failed: stay locked
-    assert pg.is_disabled("[data-test=send-btn]")
-    pg.unroute("**/api/rozela/ticket")
-    pg.click("text=לבדוק שוב")                                                # now the engine answers
-    pg.wait_for_selector("text=השליחה נעולה", state="detached", timeout=15000)
-    pg.fill(".draft textarea", "היי שני, מצטערים על הבקבוק!")
+    stale = {"r" * 32: {"rid": "r" * 32, "brand": "rozela", "id": "w8ab7700", "fn": "apiSend", "args": {"id": "w8ab7700", "text": "x", "channel": "whatsapp"},
+                        "channel": "whatsapp", "name": "לקוחה 00", "state": "unknown", "at": int(time.time() * 1000) - 5000}}
+    pg.goto(base + "/cs#/b/rozela/ready")
+    pg.evaluate("v => localStorage.setItem('cs.outbox', v)", json.dumps(stale))
+    pg.goto(base + "/cs#/b/rozela/t/w8ab7700")
+    pg.reload()
+    pg.wait_for_selector("[data-test=outbox-banner][data-state=unknown]")
+    pg.fill(".draft textarea", "היי")
+    assert pg.is_disabled("[data-test=send-btn]")                                     # 5 s old: the original may still run
+    stale["r" * 32]["at"] = int(time.time() * 1000) - 120000                           # two minutes old
+    pg.evaluate("v => localStorage.setItem('cs.outbox', v)", json.dumps(stale))
+    pg.reload()
+    pg.wait_for_selector("[data-test=outbox-banner][data-state=unsent]", timeout=15000)  # a fresh engine read decided
+    pg.fill(".draft textarea", "היי!")
     assert not pg.is_disabled("[data-test=send-btn]")
+
 
 
 def test_unknown_status_is_never_shown_raw(page):

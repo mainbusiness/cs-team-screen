@@ -84,6 +84,11 @@
       takeover_ok: 'השיחה אצלך — טיוטה תיכתב בריצה הבאה של המנוע', photo_dondy: '📷 תמונה — לצפייה בדונדי', photo_open: '📷 תמונה — פתיחה',
       photo_wait: '📷 תמונה — עוד לא הגיעה',
       err_bad_engine: 'המנוע החזיר תשובה לא תקינה. נסו שוב בעוד רגע.',
+      ob_flight_send: '⏳ נשלח ברקע…', ob_flight_close: '⏳ נסגר ברקע…', ob_ok_email: '✅ נשלח', ob_ok_wa: '✅ נשלח לוואטסאפ', ob_ok_queued: '📤 נכנס לתור',
+      ob_ok_close: '✅ טופל', ob_refused: '⚠️ לא נשלח — צריך תיקון', ob_refused_close: '⚠️ לא נסגר — צריך תיקון', ob_unknown: '❓ לא אושר — לבדוק',
+      ob_checking: '⏳ בודק מה קרה לשליחה…', ob_unsent: '⚠️ השליחה לא בוצעה — אפשר לשלוח שוב', ob_header: 'בתהליך שליחה ({n})', ob_none: 'אין שליחות בתהליך',
+      ob_toast_ok: '{name}: נשלח', ob_toast_queued: '{name}: נכנס לתור לוואטסאפ', ob_toast_refused: '{name}: לא נשלח — צריך תיקון', ob_toast_unknown: '{name}: לא אושר — לבדוק',
+      ob_toast_closed: '{name}: טופל', ob_why: 'הסיבה:', ob_inflight_lock: 'השליחה הקודמת עדיין בדרך — אין לשלוח שוב.',
       st_wa_queued: '📤 בתור לוואטסאפ', st_unknown: 'סטטוס אחר', cat_unknown: 'אחר',
       wa_queued_chip: '📤 נכנס לתור לוואטסאפ — אל תשלחו שוב', wa_already: 'ההודעה כבר בתור לוואטסאפ — לא נשלחה פעם שנייה',
       wa_locked: 'לא אושר אם ההודעה נכנסה לתור — השליחה נעולה עד שהמנוע יאשר את המצב', wa_check: 'לבדוק שוב',
@@ -199,6 +204,11 @@
       takeover_ok: 'The chat is yours — a draft will be written on the next engine run', photo_dondy: '📷 Photo — view in Dondy', photo_open: '📷 Photo — open',
       photo_wait: '📷 Photo — not arrived yet',
       err_bad_engine: 'The engine returned an invalid answer. Try again in a moment.',
+      ob_flight_send: '⏳ Sending in the background…', ob_flight_close: '⏳ Closing in the background…', ob_ok_email: '✅ Sent', ob_ok_wa: '✅ Sent to WhatsApp', ob_ok_queued: '📤 Queued',
+      ob_ok_close: '✅ Handled', ob_refused: '⚠️ Not sent — needs a fix', ob_refused_close: '⚠️ Not closed — needs a fix', ob_unknown: '❓ Not confirmed — check',
+      ob_checking: '⏳ Checking what happened to the send…', ob_unsent: '⚠️ The send did not happen — you can send again', ob_header: 'Sending ({n})', ob_none: 'Nothing in progress',
+      ob_toast_ok: '{name}: sent', ob_toast_queued: '{name}: queued for WhatsApp', ob_toast_refused: '{name}: not sent — needs a fix', ob_toast_unknown: '{name}: not confirmed — check',
+      ob_toast_closed: '{name}: handled', ob_why: 'Reason:', ob_inflight_lock: 'The previous send is still on its way — do not send again.',
       st_wa_queued: '📤 Queued for WhatsApp', st_unknown: 'Other status', cat_unknown: 'Other',
       wa_queued_chip: '📤 Queued for WhatsApp — do not send again', wa_already: 'Already queued for WhatsApp — not sent a second time',
       wa_locked: 'Not confirmed whether the message was queued — sending is locked until the engine confirms', wa_check: 'Check again',
@@ -444,7 +454,7 @@
    *    and check, never "invalid answer".
    *  - Our OWN JSON answers (also 502/504, e.g. engine_timeout) are real answers and pass straight through.
    */
-  const READ_FNS = ['list', 'changes', 'ticket', 'prefetch', 'translate', 'translate-rows', 'translate-autoreply', 'translate-out',
+  const READ_FNS = ['list', 'changes', 'ticket', 'prefetch', 'result', 'related', 'queue', 'translate', 'translate-rows', 'translate-autoreply', 'translate-out',
     'assistant', 'apiBoot', 'apiStatus', 'apiTicket', 'apiTicketExtras', 'apiTickets', 'apiSearch', 'apiAutoReplyList', 'apiAutoCancelList'];
   const RETRY_MS = [1000, 2000, 4000, 8000, 15000, 15000];
   function isRead(path, method, body) {
@@ -623,6 +633,21 @@
       top.append(h('span', { class: 'who', text: brandName(brands[0].id) }));
     }
     top.append(h('span', { class: 'spacer' }));
+    const pend = Outbox.pending();
+    if (pend.length) {
+      const ob = h('button', { class: 'ob-btn' + (pend.some(function (i) { return i.state !== 'flight' && i.state !== 'checking'; }) ? ' warn' : ''), type: 'button', 'data-test': 'outbox-indicator' },
+        tx('ob_header', { n: pend.length }));
+      ob.addEventListener('click', function (e) { e.stopPropagation(); S.obOpen = !S.obOpen; renderTop(); });
+      top.append(ob);
+      if (S.obOpen) {
+        const m = h('div', { class: 'menu ob-menu', 'data-test': 'outbox-menu' });
+        pend.forEach(function (it) {
+          m.append(h('a', { href: '#/b/' + encodeURIComponent(it.brand) + '/t/' + encodeURIComponent(it.id) },
+            h('span', { class: 'chip ' + Outbox.cls(it), text: Outbox.label(it) }), ' ', h('bdi', { text: it.name })));
+        });
+        top.append(m);
+      }
+    }
     top.append(h('span', { class: 'who', text: S.me.user.display_name || S.me.user.username }));
     const mb = h('button', { class: 'menu-btn', type: 'button', text: '☰', 'aria-label': t('menu'), 'aria-expanded': S.menuOpen ? 'true' : 'false' });
     mb.addEventListener('click', function (e) { e.stopPropagation(); S.menuOpen = !S.menuOpen; renderTop(); });
@@ -641,7 +666,7 @@
       top.append(m);
     }
   }
-  document.addEventListener('click', function () { if (S.menuOpen) { S.menuOpen = false; renderTop(); } });
+  document.addEventListener('click', function () { if (S.menuOpen || S.obOpen) { S.menuOpen = false; S.obOpen = false; renderTop(); } });
 
   function renderBanners() {
     const el = $('banners');
@@ -880,6 +905,8 @@
     if (x.cancelled) chips.push(h('span', { class: 'chip ok', text: t('cancelled_here') }));
     if (Number(x.siblings) > 0) chips.push(h('span', { class: 'chip sib', text: t('siblings_short', { n: Number(x.siblings) }) }));
     if (isAutoReplied(x)) chips.unshift(h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }));
+    const ob = Outbox.forTicket(S.brand, x.id);
+    if (ob && (ob.state !== 'ok' || Date.now() - ob.at < 15 * 60000)) chips.unshift(h('span', { class: 'chip ' + Outbox.cls(ob), text: Outbox.label(ob), 'data-test': 'row-outbox', 'data-state': ob.state }));
     if (x.archived) chips.push(h('span', { class: 'chip', text: t('archived') }));
     const inner = [
       h('div', { class: 'l1' }, h('span', { class: 'name', dir: 'auto', text: x.name || x.email || x.phone || t('no_name') }),
@@ -931,9 +958,9 @@
     }
     if (S.tab === 'auto' && noSubs()) { go(listHash('ready'), true); return; }
     const err = S.bootErr[S.brand];
-    const rows = rowsFor(S.tab);
+    let rows = rowsFor(S.tab);
     const sig = JSON.stringify([S.brand, S.tab, S.ticketId, S.chan || 'all', S.search.note || '', err || '', S.tab === 'search' ? [S.search.q, S.search.err, S.search.res] : rows,
-      S.tab === 'auto' ? [S.auto[S.brand], S.autoMsg] : null, S.tab === 'autoreply' ? [S.ar[S.brand], S.autoMsg] : null, LANG === 'en' ? S.rowTr : null]);
+      S.tab === 'auto' ? [S.auto[S.brand], S.autoMsg] : null, Outbox.ver(), S.tab === 'autoreply' ? [S.ar[S.brand], S.autoMsg] : null, LANG === 'en' ? S.rowTr : null]);
     if (!force && sig === S.listSig) return;           // nothing changed: zero DOM work
     if (lp.contains(document.activeElement) && S.tab !== 'search' && !force) return;
     if (S.tab === 'auto' && !force && AutoCancel.busy()) return;     // never rebuild under an edited reply
@@ -986,6 +1013,8 @@
       return;
     }
     const work = OPEN.indexOf(S.tab) >= 0 || S.tab === 'bot';
+    if (work) rows = rows.filter(function (x) { return !Outbox.hidesRow(S.brand, x.id); });              // closed in the background
+    rows = rows.filter(function (x) { return Outbox.flagged(S.brand, x.id); }).concat(rows.filter(function (x) { return !Outbox.flagged(S.brand, x.id); }));   // needs a fix -> top
     const fresh = work ? rows.filter(function (x) { return !isOld(x); }) : rows;
     const old = work ? rows.filter(isOld) : [];
     fresh.forEach(function (x) { lp.append(rowEl(x)); });
@@ -1108,7 +1137,7 @@
       k.syncErr = t('err_bad_engine'); paintSync(); return;
     }
     const hit = !!(r.cache && r.cache.hit);
-    if (!hit) delete WA_LOCK[brand + '|' + id];        // engine data: the real WhatsApp state is known again
+    if (!hit) { delete WA_LOCK[brand + '|' + id]; Outbox.reconcile(brand, id, r.ticket); }   // engine data: the real state is known again
     k.syncing = hit;                                   // a cache hit is shown now and revalidated right after
     applyTicket(k, r, !memo || !!opts.showMemo);
     Draft.refreshSend();
@@ -1121,6 +1150,7 @@
     if (!f.ticket || typeof f.ticket !== 'object') { k.syncErr = t('err_bad_engine'); paintSync(); return; }
     k.syncErr = null;
     delete WA_LOCK[brand + '|' + id];                  // the engine just told us the real state
+    Outbox.reconcile(brand, id, f.ticket);
     applyTicket(k, f, false);
     Draft.refreshSend();
     paintSync();
@@ -1218,6 +1248,7 @@
     const body = h('div', { class: 'tk-body' });
     tp.append(body);
     body.append(h('div', { id: 'tk-stale' }));
+    body.append(h('div', { id: 'tk-outbox' }));
     if (x.status === 'wa_queued') body.append(h('div', { class: 'wa-note', role: 'status', 'data-test': 'wa-queued' },
       h('span', { class: 'chip ch-wa big', text: t('wa_queued_chip') })));
     if (x.recommendation) body.append(h('div', { class: 'todo', role: 'note', 'data-test': 'what-to-do' },
@@ -1256,6 +1287,7 @@
     body.append(h('div', { id: 'related-card' }, relatedCard()));
     body.append(detailsCard(x));
     if (k.extrasErr) body.insertBefore(h('div', { class: 'err-box', text: k.extrasErr }), body.children[1]);
+    Outbox.paintBanner();
     if (enMode(x)) {
       if (k.tr && k.tr.ok) { Translate.paint(k); EnDraft.prefill(x.id, k.tr.draft); } else Translate.load(k);
     }
@@ -1466,9 +1498,13 @@
       // Live, never captured at render time: a deep link can render this card before apiBoot answers.
       // Unknown mode = disabled (fail closed); loadBoot() calls refreshSend() when the answer lands.
       function isDry() { const b = S.boots[st.brand]; return !b || !!b.dryRun; }
-      function sendDisabled() { return isDry() || !ta.value.trim() || waQueued(S.tk && S.tk.id === x.id ? S.tk.ticket : x) || waLocked(st.brand, x.id); }
+      function sendDisabled() { return isDry() || !ta.value.trim() || waQueued(S.tk && S.tk.id === x.id ? S.tk.ticket : x) || waLocked(st.brand, x.id) || Outbox.blocks(st.brand, x.id); }
       const actions = h('div', { class: 'actions' });
       const all = [];
+      const prevOb = Outbox.forTicket(st.brand, x.id);
+      if (prevOb && prevOb.state === 'refused' && prevOb.fn === 'apiSend' && prevOb.err && prevOb.err.error === 'draft_problem') {
+        setTimeout(function () { showErr({ error: 'draft_problem', msg: prevOb.msg, problem: prevOb.err.problem }); }, 0);
+      }
       function lock(on) { all.forEach(function (b) { b.disabled = on || (b === sendBtn && sendDisabled()); }); }
       function showErr(r) {
         clear(errEl);
@@ -1482,30 +1518,20 @@
       }
       async function doSend(override) {
         const text = ta.value;
-        lock(true);
         clear(errEl); errEl.hidden = true;
         clearTimeout(st.timer);
+        writeLocal();                                        // the text is safe on this device whatever happens
         const args = { id: x.id, text: text };
         if (isWA(x)) args.channel = 'whatsapp';
         if (override) args.override = true;
-        const r = await engine('apiSend', args, st.brand);
-        if (r.ok) {
-          st.dirty = false; dropLocal();
-          toast(r.queued && r.already ? t('wa_already') : r.queued ? t('queued_ok') : t('sent_ok'));
-          await afterAction();
-          return;
-        }
-        if (isWA(x) && (r.refresh || r.error === 'server_restarted')) waLock(st.brand, x.id);   // unknown: never offer a 2nd send
-        lock(false);
-        showErr(r);
+        // Owner, 2026-10-05: the agent never waits for the engine — hand it to the outbox and go to the next ticket
+        if (Outbox.start('apiSend', st.brand, x, args)) { st.dirty = false; goNext(st.brand, x.id); }
+        return;
       }
       async function doClose(fn, okMsg) {
-        lock(true);
         clear(errEl); errEl.hidden = true;
-        const r = await engine(fn, { id: x.id }, st.brand);
-        if (r.ok) { st.dirty = false; dropLocal(); toast(okMsg); await afterAction(); return; }
-        lock(false);
-        showErr(r);
+        if (Outbox.start(fn, st.brand, x, { id: x.id })) goNext(st.brand, x.id);   // optimistic: off the list, next ticket
+        return;
       }
       const sendLabel = isWA(x) ? t('send_wa') : t('send_email');
       const waNote = h('div', { class: 'wa-note', 'data-test': 'wa-queued' });
@@ -1636,7 +1662,7 @@
       const editBtn = h('button', { class: 'btn ghost', type: 'button', text: t('en_edit') });
       function refresh() {
         reviewBtn.disabled = me.busy || !ta.value.trim();
-        confirmBtn.disabled = me.busy || !me.translated || isDry() || waQueued(S.tk && S.tk.id === x.id ? S.tk.ticket : x) || waLocked(brand, x.id);
+        confirmBtn.disabled = me.busy || !me.translated || isDry() || waQueued(S.tk && S.tk.id === x.id ? S.tk.ticket : x) || waLocked(brand, x.id) || Outbox.blocks(brand, x.id);
         confirmBtn.textContent = isDry() && S.boots[brand] ? t('send_dry') : t(isWA(x) ? 'en_confirm_wa' : 'en_confirm_email');
         confirmBtn.title = isDry() ? t('dry_run') : '';
       }
@@ -1675,19 +1701,11 @@
         const args = { id: x.id, text: me.translated.out };
         if (isWA(x)) args.channel = 'whatsapp';
         if (override) args.override = true;
-        const r = await engine('apiSend', args, brand);
-        me.busy = false;
-        if (r.ok) { try { localStorage.removeItem(key); } catch (e) { /* ignore */ } toast(r.queued && r.already ? t('wa_already') : r.queued ? t('queued_ok') : t('sent_ok')); await afterAction(); return; }
-        if (isWA(x) && (r.refresh || r.error === 'server_restarted')) waLock(brand, x.id);
-        refresh(); showErr(r, true);
+        if (Outbox.start('apiSend', brand, x, args)) goNext(brand, x.id);
       }
       confirmBtn.addEventListener('click', function () { send(false); });
       async function doClose(fn, okMsg) {
-        me.busy = true; refresh();
-        const r = await engine(fn, { id: x.id }, brand);
-        me.busy = false;
-        if (r.ok) { try { localStorage.removeItem(key); } catch (e) { /* ignore */ } toast(okMsg); await afterAction(); return; }
-        refresh(); showErr(r);
+        if (Outbox.start(fn, brand, x, { id: x.id })) goNext(brand, x.id);
       }
       const handledBtn = armed(t('handled'), t('handled_arm'), '', function () { doClose('apiMarkHandled', t('handled_ok')); });
       const closeBtn = armed(t('close'), t('close_arm'), 'ghost', function () { doClose('apiClose', t('closed_ok')); });
@@ -2049,6 +2067,180 @@
       dlg.showModal();
       setTimeout(function () { no.focus(); }, 0);
     });
+  }
+
+  // ---------------------------------------------------------------- background sends (Owner, 2026-10-05)
+  /*
+   * An agent never waits for the engine: send / handled / close are handed to this outbox and the agent moves on.
+   * Each item: {rid, brand, id, fn, args, channel, name, state, at, msg, reply}
+   *   state: flight -> ok | refused | unknown;  checking (after a reload) -> ok | unknown;  unknown -> ok | unsent
+   * The rid is made HERE, so after a reload the page can still ask the server (/result -> apiResult) what happened;
+   * the server finishes the request even if the browser left. One open item per ticket; a ticket with an item in
+   * flight / checking / unknown never offers another send.
+   */
+  const Outbox = (function () {
+    const KEY = 'cs.outbox';
+    let items = {};
+    let ver = 0;
+    function newRid() {
+      if (window.crypto && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '');
+      const a = new Uint8Array(16); crypto.getRandomValues(a);
+      return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+    }
+    function save() {
+      try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) { /* memory still has it */ }
+    }
+    function load() {
+      try { items = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { items = {}; }
+      const now = Date.now();
+      Object.keys(items).forEach(function (r) { if (now - (items[r].at || 0) > 24 * 3600000) delete items[r]; });
+    }
+    function changed(it) {
+      ver++;
+      save();
+      renderTop();
+      if (it && it.brand === S.brand) {
+        renderList(false);
+        if (S.tk && S.tk.id === it.id) { paintBanner(); Draft.refreshSend(); EnDraft.refresh(); }
+      }
+    }
+    function forTicket(brand, id) {
+      let best = null;
+      Object.keys(items).forEach(function (r) { const it = items[r]; if (it.brand === brand && it.id === id && (!best || it.at > best.at)) best = it; });
+      return best;
+    }
+    function blocks(brand, id) {
+      const it = forTicket(brand, id);
+      return !!it && (it.state === 'flight' || it.state === 'checking' || it.state === 'unknown');
+    }
+    function hidesRow(brand, id) {                      // a close / handled in flight or done takes the row off the list
+      const it = forTicket(brand, id);
+      return !!it && it.fn !== 'apiSend' && (it.state === 'flight' || it.state === 'checking' || it.state === 'ok');
+    }
+    function flagged(brand, id) {
+      const it = forTicket(brand, id);
+      return !!it && (it.state === 'refused' || it.state === 'unknown' || it.state === 'unsent');
+    }
+    function label(it) {
+      if (!it) return '';
+      const close = it.fn !== 'apiSend';
+      if (it.state === 'flight') return close ? t('ob_flight_close') : t('ob_flight_send');
+      if (it.state === 'checking') return t('ob_checking');
+      if (it.state === 'ok') return close ? t('ob_ok_close') : it.reply && it.reply.queued ? t('ob_ok_queued') : it.channel === 'whatsapp' ? t('ob_ok_wa') : t('ob_ok_email');
+      if (it.state === 'refused') return close ? t('ob_refused_close') : t('ob_refused');
+      if (it.state === 'unsent') return t('ob_unsent');
+      return t('ob_unknown');
+    }
+    function cls(it) {
+      return it.state === 'ok' ? 'ok' : (it.state === 'flight' || it.state === 'checking') ? 'st-sent' : 'bad';
+    }
+    function patchRow(it) {                              // what the engine now says, before the next poll brings it
+      const b = S.boots[it.brand];
+      const row = b && (b.tickets || []).filter(function (x) { return x.id === it.id; })[0];
+      if (!row) return;
+      if (it.fn === 'apiSend') { row.status = it.reply && it.reply.queued ? 'wa_queued' : 'sent'; }
+      else row.status = 'done';
+      row.handled_by = S.me.user.username;
+      row.handled_at = new Date().toISOString();
+      delete S.tkMemo[it.brand + '|' + it.id];
+    }
+    function settle(it, r) {
+      if (r && r.ok) {
+        it.state = 'ok'; it.reply = { queued: !!r.queued, already: !!r.already }; it.msg = null;
+        patchRow(it);
+        if (it.fn === 'apiSend') { try { localStorage.removeItem('cs.draft.' + it.brand + '.' + it.id); localStorage.removeItem('cs.draft.en.' + it.brand + '.' + it.id); } catch (e) { /* ignore */ } }
+        toast(tx(it.fn !== 'apiSend' ? 'ob_toast_closed' : r.queued ? 'ob_toast_queued' : 'ob_toast_ok', { name: it.name }).textContent);
+      } else if (r && (r.error === 'network' || r.error === 'server_restarted' || r.error === 'bad_response')) {
+        // the connection dropped (a reload, a restart): the server is most likely still finishing it — ask it soon
+        it.state = 'checking'; it.msg = null;
+        later(it, 4000);
+      } else if (r && (r.refresh || r.error === 'write_unknown')) {
+        it.state = 'unknown'; it.msg = r.msg || null;
+        toast(tx('ob_toast_unknown', { name: it.name }).textContent);
+        later(it, 20000);                                // ask the server again in a moment
+      } else {
+        it.state = 'refused'; it.msg = (r && (r.msg || r.error)) || null; it.err = r ? { error: r.error, problem: r.problem, problem_msg: r.problem_msg } : null;
+        toast(tx('ob_toast_refused', { name: it.name }).textContent);
+      }
+      changed(it);
+    }
+    async function run(it) {
+      const body = { args: it.args, rid: it.rid };
+      const r = await api('/api/' + encodeURIComponent(it.brand) + '/' + it.fn, body);
+      if (!items[it.rid]) return;
+      settle(it, r);
+    }
+    /** After a reload, or when the reply was lost: ask the server for the stored reply of this rid. Never resends. */
+    async function check(it) {
+      const r = await api('/api/' + encodeURIComponent(it.brand) + '/result', { rid: it.rid }, 'POST', { quiet: true });
+      if (!items[it.rid] || (it.state !== 'checking' && it.state !== 'unknown')) return;
+      if (r.ok && r.found && r.reply && r.reply.ok) { settle(it, r.reply); return; }
+      const age = Date.now() - it.at;
+      if (it.state === 'checking' && age < 150000) { later(it, 6000); return; }         // the server may still be working on it
+      if (it.state === 'checking') { it.state = 'unknown'; changed(it); }
+      if (age < 600000) later(it, 30000);
+    }
+    function later(it, ms) { setTimeout(function () { if (items[it.rid]) check(it); }, ms); }
+    /** A fresh ENGINE read of the ticket: decides an unknown item (never while its own request may still be running). */
+    function reconcile(brand, id, tk) {
+      const it = forTicket(brand, id);
+      if (!it || (it.state !== 'unknown' && it.state !== 'checking') || !tk) return;
+      const mine = tk.handled_by === S.me.user.username;
+      const done = it.fn === 'apiSend' ? (tk.status === 'sent' || tk.status === 'done' || tk.status === 'wa_queued' || tk.wa_send === 'pending') : tk.status === 'done';
+      if (done && mine) { settle(it, { ok: true, queued: tk.status === 'wa_queued' || tk.wa_send === 'pending' }); return; }
+      if (Date.now() - it.at > 90000 && OPEN.indexOf(tk.status) >= 0) { it.state = 'unsent'; it.msg = null; changed(it); }
+    }
+    function start(fn, brand, x, args) {
+      const prev = forTicket(brand, x.id);
+      if (prev && (prev.state === 'flight' || prev.state === 'checking' || prev.state === 'unknown')) { toast(t('ob_inflight_lock')); return null; }
+      const it = { rid: newRid(), brand: brand, id: x.id, fn: fn, args: args, channel: isWA(x) ? 'whatsapp' : 'email',
+        name: x.name || x.email || x.phone || x.id, state: 'flight', at: Date.now() };
+      items[it.rid] = it;
+      changed(it);
+      run(it);
+      return it;
+    }
+    function list() {
+      return Object.keys(items).map(function (r) { return items[r]; })
+        .filter(function (it) { return it.state !== 'ok' || Date.now() - it.at < 60000; })
+        .sort(function (a, b) { return b.at - a.at; });
+    }
+    function pending() { return list().filter(function (it) { return it.state !== 'ok'; }); }
+    function dismiss(it) { delete items[it.rid]; changed(it); }
+    function paintBanner() {
+      const slot = document.getElementById('tk-outbox');
+      if (!slot || !S.tk) return;
+      clear(slot);
+      const it = forTicket(S.tk.brand, S.tk.id);
+      if (!it || (it.state === 'ok' && Date.now() - it.at > 15 * 60000)) return;
+      const box = h('div', { class: 'outbox-banner ' + cls(it), role: 'status', 'data-test': 'outbox-banner', 'data-state': it.state }, h('b', { text: label(it) }));
+      if (it.msg && it.state !== 'ok') box.append(h('div', { class: 'small' }, t('ob_why') + ' ', h('span', { dir: 'auto', text: it.msg })));
+      if (it.state === 'refused' || it.state === 'unsent') box.append(h('button', { class: 'btn small ghost', type: 'button', text: '✕', 'aria-label': 'dismiss', onclick: function () { dismiss(it); } }));
+      slot.append(box);
+    }
+    function boot() {
+      load();
+      Object.keys(items).forEach(function (r) {
+        const it = items[r];
+        if (it.state === 'flight') { it.state = 'checking'; later(it, 1500); }     // the page died mid-send: ask, never resend
+        else if (it.state === 'checking' || it.state === 'unknown') later(it, 1500);
+      });
+      save();
+    }
+    return { start: start, forTicket: forTicket, blocks: blocks, hidesRow: hidesRow, flagged: flagged, label: label, cls: cls,
+      list: list, pending: pending, reconcile: reconcile, paintBanner: paintBanner, boot: boot, ver: function () { return ver; } };
+  })();
+
+  /** After a hand-off: the next ticket of the current tab (or the list), within a frame. */
+  function goNext(brand, fromId) {
+    if (brand !== S.brand) return;
+    const tab = ['ready', 'action', 'health', 'delay', 'bot'].indexOf(S.tab) >= 0 ? S.tab : null;
+    const rows = tab ? (rowsFor(tab) || []).filter(function (x) { return !isOld(x) && !Outbox.blocks(brand, x.id) && !Outbox.hidesRow(brand, x.id); }) : [];
+    const all = tab ? (rowsFor(tab) || []).filter(function (x) { return !isOld(x); }) : [];
+    const pos = all.map(function (x) { return x.id; }).indexOf(fromId);
+    const after = rows.filter(function (x) { return all.map(function (y) { return y.id; }).indexOf(x.id) > pos && x.id !== fromId; });
+    const next = after[0] || rows.filter(function (x) { return x.id !== fromId; })[0];
+    if (next) go(ticketHash(next.id)); else go(listHash(tab || 'ready'));
   }
 
   // ---------------------------------------------------------------- automatic cancellations queue
@@ -2566,6 +2758,7 @@
       return;
     }
     S.me = r;
+    Outbox.boot();                                     // sends that were in flight when the page closed: ask, never resend
     window.addEventListener('hashchange', route);
     route();
   }

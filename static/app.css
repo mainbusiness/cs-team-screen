@@ -395,3 +395,18 @@ button.chip.sib { cursor: pointer; }
 .banner.stale-list { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .chip.st-wa_queued { background: var(--wa-bg); color: var(--wa-ink); }
 .search-note { margin: 6px 2px 10px; }
+
+/* ---------- background sends ---------- */
+.ob-btn { background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 4px 10px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.ob-btn.warn { background: #fef3c7; color: #78350f; border-color: #fcd34d; }
+.ob-menu { min-width: 260px; }
+.ob-menu a { display: flex; gap: 6px; align-items: center; }
+.outbox-banner { border-radius: var(--radius); padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; border: 1px solid var(--line); }
+.outbox-banner.ok { background: var(--ready-bg); color: var(--ready); }
+.outbox-banner.st-sent { background: var(--sent-bg); color: var(--sent); }
+.outbox-banner.bad { background: #fef3c7; color: #78350f; border-color: #fcd34d; }
+.outbox-banner .small { flex-basis: 100%; }
+@media (max-width: 600px) {
+  .top .ob-btn ~ .who { display: none; }        /* the send indicator matters more than the agent's own name */
+  .ob-btn { padding: 4px 8px; font-size: 12px; }
+}
