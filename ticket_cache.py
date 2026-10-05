@@ -74,6 +74,7 @@ class TicketCache:
         # parallel fallback — takes one of these slots. A user's own click never waits behind prefetch.
         self.bg_slots = threading.BoundedSemaphore(workers)
         self._tl = threading.local()
+        self.brand_bg = {}                           # brand -> semaphore(engine_proxy.GATE_BG_CAP): prefetch fan-out 2/brand
         self.inflight = {}               # key -> Future (dedupe: one engine fetch per key at a time)
         self.no_full = {}
         self.no_changes = {}
@@ -84,10 +85,10 @@ class TicketCache:
     def _call(self, user, brand, fn, args, bg=None):
         bg = getattr(self._tl, "bg", False) if bg is None else bg
         t0 = time.perf_counter()
-        if bg:                                       # background: never retried — the next tick is the retry
+        if bg:                                       # background: never retried, dropped by the brand gate under load
             with self.bg_slots:
                 _, out = engine_proxy.call(self.engines, self.transport, self.secret(), user, brand, fn, args,
-                                           user.get("lang", "he"), internal=True, retry=False)
+                                           user.get("lang", "he"), internal=True, retry=False, bg=True)
         else:
             _, out = engine_proxy.call(self.engines, self.transport, self.secret(), user, brand, fn, args,
                                        user.get("lang", "he"), internal=True)
@@ -151,16 +152,31 @@ class TicketCache:
             with self.lock:
                 self.inflight.pop(key, None)
 
+    def _brand_sem(self, brand):
+        with self.lock:
+            s = self.brand_bg.get(brand)
+            if s is None:
+                s = self.brand_bg[brand] = threading.BoundedSemaphore(engine_proxy.GATE_BG_CAP)
+            return s
+
     def _background(self, key, fn):
         with self.lock:
             if key in self.inflight:
                 return False
+        brand = key[1] if len(key) > 1 else ""
+        if engine_proxy.gate(brand).tripped():       # breaker open: the engine is struggling, leave it alone
+            return False
         def job():
             self._tl.bg = True
+            sem = self._brand_sem(brand)
+            sem.acquire()                            # queue here (2 per brand), not at the engine
             try:
+                if engine_proxy.gate(brand).tripped():
+                    return
                 with contextlib.suppress(Exception):
                     self._once(key, fn)
             finally:
+                sem.release()
                 self._tl.bg = False
         self.bg.append(self.pool.submit(job))
         self.bg = [f for f in self.bg if not f.done()]
@@ -370,12 +386,18 @@ class TicketCache:
                 return None, out                                             # a real answer: not_found, busy, ...
             probed = True
         bg = getattr(self._tl, "bg", False)
-        with ThreadPoolExecutor(max_workers=2) as ex:                        # never one after the other
-            fa = ex.submit(self._call, user, brand, "apiTicket", {"id": tid}, bg)     # bg -> both halves take a slot
-            fb = ex.submit(self._call, user, brand, "apiTicketExtras", {"id": tid}, bg)
-            a, b = fa.result(), fb.result()
+        if bg:                                       # background: one after the other — a pair never takes 2 of the brand's slots
+            a = self._call(user, brand, "apiTicket", {"id": tid}, True)
+            b = self._call(user, brand, "apiTicketExtras", {"id": tid}, True) if a.get("ok") else {"ok": False}
+        else:
+            with ThreadPoolExecutor(max_workers=2) as ex:                    # interactive: never one after the other
+                fa = ex.submit(self._call, user, brand, "apiTicket", {"id": tid}, False)
+                fb = ex.submit(self._call, user, brand, "apiTicketExtras", {"id": tid}, False)
+                a, b = fa.result(), fb.result()
         if not a.get("ok"):
             return None, a
+        if b.get("error") == "dropped":              # never cache a ticket without its extras
+            return None, b
         if probed:                                                           # the pair works, so the engine lacks apiTicketFull
             self.no_full[brand] = self.clock() + UNSUPPORTED_RETRY_S
         return {"ticket": a.get("ticket") or {}, "extras": (b.get("extras") or {}) if b.get("ok") else {},
@@ -428,6 +450,8 @@ class TicketCache:
         return full, err, {"hit": False, "age_s": 0, "stale": False}
 
     def prefetch(self, user, brand, ids):
+        if engine_proxy.gate(brand).tripped():
+            return 0                                 # circuit breaker: no prefetch for ~60 s after a slow/HTML answer
         n = 0
         for tid in ids[:PREFETCH_MAX]:
             if not isinstance(tid, str) or not ID_RE.match(tid):

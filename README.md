@@ -27,7 +27,7 @@ Render disk and in each engine's `audit` sheet.
 | `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
-| `tests/` | pytest (223 tests, incl. real-browser tests with Playwright) |
+| `tests/` | pytest (251 tests, incl. real-browser tests with Playwright) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
 
 ## Environment (Render)
@@ -293,3 +293,22 @@ Why the limits, measured live: right after this shipped without them, the engine
 work. Retrying them held a server thread for 70-110 s, the 16 threads ran out, Render's health check timed out
 (`server_failed`, 02:57:12 UTC), and the edge served 502 pages. The service also now runs **32** threads.
 Each attempt is logged as `engine <brand> <fn> attempt=N ms=M -> <code>` (no arguments, no customer data).
+
+## Per-brand engine gate (2026-10-05)
+
+**Root cause** of the burst of HTML errors (02:56-03:04 UTC, every read on three brands at once, ~30 s then HTML):
+Apps Script runs the web app as the deploying user, and that user has about **30 simultaneous executions** in total.
+Over that, calls queue and then fail. The retry deploy, prefetch and verification opens together produced the storm.
+
+`engine_proxy.BrandGate` (one per brand, for every engine call in this process):
+- At most **6** calls in flight per brand engine. Interactive calls (an agent's open, send, save, search) wait for a
+  slot, and after **15 s** get "busy, try again" instead of piling up.
+- Background calls (prefetch, revalidation, list refresh) take only a free slot, at most **2** per brand, never
+  while an agent is waiting, and are **dropped, not queued**. Prefetch fan-out is 2 per brand.
+- A **breaker** opens for **60 s** after an HTML answer or a slow (over 10 s) answer. While it is open, background
+  calls and prefetch are skipped; agents are still served.
+- A background fallback pair (`apiTicket` + `apiTicketExtras`) runs one call after the other, and a half-dropped pair
+  is never cached.
+
+Measured with `tools/load_test.py` (mock only: 4 agents x 3 brands, 0.8 s engine, prefetch on): the peak was
+6 in flight per brand, 0 busy answers and 0 errors. **Never run the load test against a live engine.**

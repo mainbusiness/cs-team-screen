@@ -16,6 +16,7 @@ Safety model:
 import json
 import logging
 import re
+import threading
 import time
 
 import requests
@@ -95,6 +96,81 @@ RETRY_FAST_FAIL_S = 8.0
 RETRY_TOTAL_BUDGET_S = 20.0
 _sleep = time.sleep
 _clock = time.monotonic
+
+
+# ---------- per-brand gate (2026-10-05) ----------
+# Apps Script runs the web app as the deploying user, and that user has ~30 simultaneous executions in total. Over
+# it, calls queue ~30 s and then fail with Google's HTML page — measured: one burst at 02:56-03:04 UTC hit every read
+# on three brands at once (our retry deploy + prefetch + verification opens). So this process never has more than
+# GATE_CAP calls in flight per brand engine. Interactive calls (an agent's open, send, save, search) wait for a slot
+# (at most GATE_WAIT_S, then "busy"); background calls (prefetch, revalidation, list refresh) take only a FREE slot,
+# at most GATE_BG_CAP at a time, never while an interactive call is waiting, and are dropped (not queued) otherwise.
+# A slow (> BREAKER_SLOW_S) or HTML answer trips a per-brand breaker that stops background calls for BREAKER_S.
+GATE_CAP = 6
+GATE_BG_CAP = 2
+GATE_WAIT_S = 15.0
+BREAKER_SLOW_S = 10.0
+BREAKER_S = 60.0
+
+
+class BrandGate:
+    def __init__(self):
+        self.cond = threading.Condition()
+        self.inflight = 0
+        self.bg_inflight = 0
+        self.fg_waiting = 0
+        self.peak = 0
+        self.dropped = 0
+        self.busy = 0
+        self.trip_until = 0.0
+
+    def tripped(self):
+        return _clock() < self.trip_until
+
+    def acquire(self, bg):
+        with self.cond:
+            if bg:
+                if (self.inflight >= GATE_CAP or self.bg_inflight >= GATE_BG_CAP or self.fg_waiting or self.tripped()):
+                    self.dropped += 1
+                    return False
+                self.bg_inflight += 1
+            else:
+                self.fg_waiting += 1
+                try:
+                    if not self.cond.wait_for(lambda: self.inflight < GATE_CAP, GATE_WAIT_S):
+                        self.busy += 1
+                        return False
+                finally:
+                    self.fg_waiting -= 1
+            self.inflight += 1
+            self.peak = max(self.peak, self.inflight)
+            return True
+
+    def release(self, bg, took_s, code):
+        with self.cond:
+            self.inflight -= 1
+            if bg:
+                self.bg_inflight -= 1
+            if code == "engine_bad_response" or took_s > BREAKER_SLOW_S:
+                self.trip_until = _clock() + BREAKER_S
+            self.cond.notify_all()
+
+
+_gates = {}
+_gates_lock = threading.Lock()
+
+
+def gate(brand):
+    with _gates_lock:
+        g = _gates.get(brand)
+        if g is None:
+            g = _gates[brand] = BrandGate()
+        return g
+
+
+def reset_gates():
+    with _gates_lock:
+        _gates.clear()
 
 
 def is_read(fn, args):
@@ -216,7 +292,7 @@ def localize(fn, resp, lang):
     return out
 
 
-def call(engines, transport, secret, user, brand, fn, args, lang, now=None, internal=False, retry=True):
+def call(engines, transport, secret, user, brand, fn, args, lang, now=None, internal=False, retry=True, bg=False):
     """Returns (http_status, json). Raises nothing for expected failures.
     internal=True is used ONLY by server code (assistant.py) to reach INTERNAL_FNS; the browser route never sets it."""
     roles = user.get("roles", [])
@@ -246,14 +322,31 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
     started = _clock()
     delays = READ_RETRY_DELAYS_S if (retry and is_read(fn, clean)) else ()
     attempt = 0
+    g = gate(brand)
     while True:
         attempt += 1
+        w0 = _clock()
+        if not g.acquire(bg):
+            if bg:
+                return 200, {"ok": False, "error": "dropped", "background": True}       # quietly: the next tick retries
+            log.warning("engine %s %s busy: no slot within %.0f s (in flight %d)", brand, fn, GATE_WAIT_S, g.inflight)
+            return 503, {"ok": False, "error": "busy", "msg": messages.proxy_msg("busy", lang)}
+        waited = _clock() - w0
+        if waited > 1:
+            log.warning("engine %s %s waited %.1f s for a slot", brand, fn, waited)
         t0 = _clock()
+        err = None
         try:
             resp = transport(url, {"fn": fn, "args": clean, "token": token})
-            break
-        except ProxyError as e:
+        except ProxyError as x:
+            err = x
+        finally:
             took = _clock() - t0
+            g.release(bg, took, err.code if err else None)
+        if err is None:
+            break
+        e = err
+        if e:
             # timing line: brand, fn, attempt, duration, outcome — never args, never customer data
             log.warning("engine %s %s attempt=%d ms=%d -> %s", brand, fn, attempt, int(took * 1000), e.code)
             if (e.code == "engine_bad_response" and attempt <= len(delays) and took < RETRY_FAST_FAIL_S

@@ -42,6 +42,13 @@ def transport():
     return FakeTransport()
 
 
+@pytest.fixture(autouse=True)
+def fresh_gates():
+    engine_proxy.reset_gates()                       # the per-brand gate and breaker are process-wide
+    yield
+    engine_proxy.reset_gates()
+
+
 @pytest.fixture
 def make_app(tmp_path, transport):
     import json

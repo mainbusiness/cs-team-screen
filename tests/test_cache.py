@@ -232,7 +232,7 @@ def test_prefetch_warms_with_at_most_three_engine_calls_at_once(make_app, pw_has
     j = post(c, tok, "/api/rozela/prefetch", {"ids": ids}).get_json()
     assert j["queued"] == 15                                           # first 15 only
     cache_of(app).drain(15)
-    assert 2 <= counter["max"] <= 3                                     # really parallel, and capped
+    assert counter["max"] == 2                                         # really parallel, and capped at 2 per brand
     n = len(transport.calls)
     assert all(post(c, tok, "/api/rozela/ticket", {"id": i}).get_json()["cache"]["hit"] for i in ids[:15])
     assert len(transport.calls) == n
