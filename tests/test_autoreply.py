@@ -1,3 +1,4 @@
+import contextlib
 """Auto-reply review (Owner, 2026-10-05): proxy rules, write-through, English translation sourced server-side, mock flow."""
 import json
 
@@ -65,7 +66,9 @@ def test_problem_verdict_reopens_in_the_cache_at_once(app, pw_hash, transport):
     post(c, tok, "/api/rozela/ticket", {"id": "t1"})
     cache = app.extensions["cs"]["ticket_cache"]
     cache.pool.submit(lambda: None).result()
-    with cache.bg_slots, cache.bg_slots, cache.bg_slots:            # hold every background slot: we read the write-through itself
+    with contextlib.ExitStack() as hold:                             # hold every background slot: we read the write-through itself
+        for _ in range(cache.bg_slots._initial_value):
+            hold.enter_context(cache.bg_slots)
         call(c, tok, "rozela", "apiAutoReplyReview", {"id": "t1", "verdict": "problem", "note": "wrong tracking link"})
         e0 = dict(cache.mem["rozela"]["t"]["t1"])
         assert e0["full"]["ticket"]["status"] == "action" and e0["stale"] is True

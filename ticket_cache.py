@@ -52,6 +52,14 @@ PREFETCH_FRESH_S = 120     # a prefetched ticket younger than this is not fetche
 DISK_HORIZON_S = 7 * 86400
 MAX_TICKETS_PER_BRAND = 3000
 UNSUPPORTED_RETRY_S = 600
+# P0 speed (Owner, 2026-10-05). The brand's change feed (apiChanges) is SHARED: one engine call per brand per window, whoever
+# asks; every client gets its own delta from a log kept here. A cached ticket the feed has not marked changed is
+# "confirmed" — it is shown without another engine round-trip.
+CHANGES_SHARED_S = 4.0     # /changes and /watch reuse a feed read younger than this
+CONFIRM_S = 12.0           # a copy is confirmed fresh if the engine (ticket read or change feed) vouched for it this recently
+WATCH_WAIT_S = 10.0        # /watch waits at most this long for the shared feed read
+WATCH_DIRECT_S = 20.0      # feed unreadable: the open ticket itself is re-read once its copy is older than this
+CHLOG_MAX = 3000           # (version, id) pairs kept for client deltas; older clients get the whole list (reset)
 WAIT_FOR_INFLIGHT_S = 90   # a request sharing another one's in-flight engine fetch waits at most this long  # an engine without apiTicketFull / apiChanges is asked again after 10 min
 
 
@@ -71,7 +79,7 @@ def timing(name, dur_ms=None, desc=None):
 
 
 class TicketCache:
-    def __init__(self, root, engines, transport, secret_getter, workers=3, clock=time.time):
+    def __init__(self, root, engines, transport, secret_getter, workers=6, clock=time.time):
         self.root, self.engines, self.transport, self.secret = root, engines, transport, secret_getter
         self.clock = clock
         os.makedirs(root, mode=0o700, exist_ok=True)
@@ -85,15 +93,21 @@ class TicketCache:
         self._tl = threading.local()
         self.brand_bg = {}                           # brand -> semaphore(engine_proxy.GATE_BG_CAP): prefetch fan-out 2/brand
         self.fg_pool = ThreadPoolExecutor(max_workers=16, thread_name_prefix="cs-open")   # interactive opens (capped wait)
+        # the ticket on an agent's screen never waits for a thread behind other reads (Codex 2026-10-05)
+        self.top_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="cs-top")
         self.inflight = {}               # key -> Future (dedupe: one engine fetch per key at a time)
         self.no_full = {}
         self.no_changes = {}
         self.bg = []                     # background futures (tests drain them)
+        self.chlog = {}                  # brand -> {"floor": version, "items": [(version, id)]}: deltas for /changes
+        self.changed_at = {}             # brand -> {id: when the feed last said it changed}
+        self.feed = {}                   # brand -> {"v": feed version, "base_t": stale marks complete since, "ok_at": last read}
 
     # ---------- plumbing ----------
 
-    def _call(self, user, brand, fn, args, bg=None):
+    def _call(self, user, brand, fn, args, bg=None, top=None):
         bg = getattr(self._tl, "bg", False) if bg is None else bg
+        top = getattr(self._tl, "top", False) if top is None else top
         t0 = time.perf_counter()
         if bg:                                       # background: never retried, dropped by the brand gate under load
             with self.bg_slots:
@@ -101,7 +115,7 @@ class TicketCache:
                                            user.get("lang", "he"), internal=True, retry=False, bg=True)
         else:
             _, out = engine_proxy.call(self.engines, self.transport, self.secret(), user, brand, fn, args,
-                                       user.get("lang", "he"), internal=True)
+                                       user.get("lang", "he"), internal=True, top=bool(top))
         timing("engine", (time.perf_counter() - t0) * 1000, fn)
         if isinstance(out.get("serverMs"), (int, float)):
             timing("gas", float(out["serverMs"]), fn)      # time spent inside Apps Script (final engine shape)
@@ -141,8 +155,8 @@ class TicketCache:
             return None
         return e if self.clock() - float(e.get("at", 0)) < DISK_HORIZON_S else None
 
-    def _once(self, key, fn):
-        """Run fn once per key at a time; concurrent callers wait for the same result."""
+    def _once(self, key, fn, wait=WAIT_FOR_INFLIGHT_S):
+        """Run fn once per key at a time; concurrent callers wait (at most `wait` s) for the same result."""
         with self.lock:
             fut = self.inflight.get(key)
             owner = fut is None
@@ -151,7 +165,7 @@ class TicketCache:
                 self.inflight[key] = fut
         if not owner:
             try:
-                return fut.result(timeout=WAIT_FOR_INFLIGHT_S)
+                return fut.result(timeout=wait)
             except FutureTimeout:
                 # QA round 3: this waiter used to raise -> HTTP 500 on /list. Answer like an engine timeout instead.
                 err = {"ok": False, "error": "engine_timeout"}
@@ -176,7 +190,7 @@ class TicketCache:
 
     def _background(self, key, fn):
         with self.lock:
-            if key in self.inflight:
+            if key in self.inflight or (key[0] == "t" and key + ("top",) in self.inflight):
                 return False
         brand = key[1] if len(key) > 1 else ""
         if engine_proxy.gate(brand).tripped() and key[0] != "boot":    # breaker: leave the engine alone — except the list
@@ -210,10 +224,33 @@ class TicketCache:
     def _store_boot(self, brand, data):
         clean = {k: v for k, v in data.items() if k not in PER_USER and not k.startswith("_") and k != "msg"}
         e = {"data": clean, "at": self.clock(), "full_at": self.clock(), "synced_at": self.clock()}
+        prev = self._boot_entry(brand)
+        old = {t.get("id"): t for t in ((prev or {}).get("data", {}).get("tickets") or []) if isinstance(t, dict)}
+        new = {t.get("id"): t for t in (clean.get("tickets") or []) if isinstance(t, dict)}
+        moved = [i for i, t in new.items() if old.get(i) != t] + [i for i in old if i not in new]
         with self.lock:
             self._bucket(brand)["boot"] = e
+            self._log(brand, self._int((prev or {}).get("data", {}).get("version")), self._int(clean.get("version")), moved)
+        if prev:                                     # a first load has nothing to diff against (its copies predate the feed base)
+            self._stale(moved, brand)
         self._write(os.path.join(self._dir(brand), "boot.json"), e)
         return e
+
+    def _log(self, brand, prev_v, v, ids):
+        """Record which list rows changed at version v (caller holds the lock). A jump we cannot describe resets the log:
+        every client then gets the whole list once."""
+        lg = self.chlog.get(brand)
+        if v is None:
+            self.chlog[brand] = {"floor": None, "items": []}
+            return
+        if lg is None or lg["floor"] is None or prev_v is None or v < prev_v or not (lg["floor"] <= prev_v):
+            self.chlog[brand] = lg = {"floor": v, "items": []}
+            return
+        lg["items"].extend((v, i) for i in ids if isinstance(i, str))
+        if len(lg["items"]) > CHLOG_MAX:
+            cut = len(lg["items"]) - CHLOG_MAX
+            lg["floor"] = max(lg["floor"], lg["items"][cut - 1][0])
+            lg["items"] = [x for x in lg["items"][cut:] if x[0] > lg["floor"]]
 
     def _boot_entry(self, brand):
         b = self._bucket(brand)
@@ -363,65 +400,121 @@ class TicketCache:
         return i if i >= 0 else None
 
     def changes(self, user, brand, since):
-        """Final engine shape: apiChanges {since:int} -> {version, tickets, removed} | {version, reset:true, tickets:<all>}."""
+        """The client's list delta since ITS version. The engine is read at most once per CHANGES_SHARED_S per brand
+        (single-flight, shared by every agent); the answer is cut from the log kept here."""
+        if self._boot_entry(brand) is None:
+            out = self._once(("boot", brand), lambda: self._fetch_boot(user, brand))
+            if not out.get("ok"):
+                return 200, out
+        else:
+            age = self.synced_age(brand)
+            if age is None or age > CHANGES_SHARED_S:
+                out = self._once(("chg", brand), lambda: self._sync(user, brand))
+                if not out.get("ok"):
+                    age = self.synced_age(brand)
+                    return 200, dict(out, syncedAge=age)
+        return 200, self._delta(brand, since)
+
+    def _delta(self, brand, since):
+        e = self._boot_entry(brand)
+        data = e["data"]
+        rows = {t.get("id"): t for t in (data.get("tickets") or []) if isinstance(t, dict)}
+        ver = data.get("version")
+        s_i, v_i = self._int(since), self._int(ver)
+        with self.lock:
+            lg = self.chlog.get(brand) or {"floor": None, "items": []}
+            items = list(lg["items"])
+            floor = lg["floor"]
+        out = {"ok": True, "version": ver, "counts": data.get("counts", {}), "serverTime": data.get("serverTime"),
+               "via": "feed", "syncedAge": self.synced_age(brand), "switches": {k: data[k] for k in SWITCH_KEYS if k in data}}
+        if since is not None and (since == ver or (s_i is not None and v_i is not None and s_i == v_i)):
+            out.update(changed=[], removed=[])
+        elif s_i is not None and v_i is not None and floor is not None and floor <= s_i <= v_i:
+            ids, seen = [], set()
+            for v, i in items:
+                if v > s_i and i not in seen:
+                    seen.add(i)
+                    ids.append(i)
+            out.update(changed=[rows[i] for i in ids if i in rows], removed=[i for i in ids if i not in rows])
+        else:
+            out.update(changed=list(rows.values()), removed=[], reset=True)   # the client replaces its whole list
+        return out
+
+    def _sync(self, user, brand):
+        """One read of the brand's change feed: rows patched into the list, changed tickets marked stale, delta logged.
+        Falls back to a full apiBoot when the engine lacks apiChanges, our version is too old, or the list is starving."""
         e = self._boot_entry(brand)
         now = self.clock()
         try:
             work = security.engine_role(user.get("roles", [])) in WORK_ROLES
         except ValueError:
             work = False
-        since_i = self._int(since)
-        if since_i is None and e:
-            since_i = self._int(e["data"].get("version"))
+        with self.lock:
+            feed = self.feed.get(brand)
+        since_i = feed["v"] if feed else self._int(e["data"].get("version")) if e else None
+        lacks_changes = False
         if e and work and since_i is not None and now > self.no_changes.get(brand, 0):
             out = self._call(user, brand, "apiChanges", {"since": since_i})
+            v_chk = self._int(out.get("version"))
+            if (out.get("ok") and isinstance(out.get("tickets"), list) and not out.get("reset")
+                    and (v_chk is None or v_chk < since_i)):
+                # no monotonic version: nothing here can vouch for a cached ticket (Codex 2026-10-05)
+                engine_proxy.log.warning("engine %s apiChanges: version %r after since=%s — not trusted", brand, out.get("version"), since_i)
+                out = {"ok": False, "error": "engine_bad_response"}
             if out.get("ok") and isinstance(out.get("tickets"), list) and not out.get("reset"):
-                rows = out["tickets"]
+                rows = [r for r in out["tickets"] if isinstance(r, dict)]
                 removed = [i for i in (out.get("removed") or []) if isinstance(i, str)]
+                ids = [r.get("id") for r in rows] + removed
+                v_new = self._int(out.get("version"))
                 with self.lock:
-                    data = self._apply_rows(json.loads(json.dumps(e["data"])), rows, removed)
-                    data["version"] = out.get("version", data.get("version"))
+                    cur = self._bucket(brand)["boot"] or e
+                    data = self._apply_rows(json.loads(json.dumps(cur["data"])), rows, removed)
+                    prev_v = self._int(data.get("version"))
+                    if v_new is not None and (prev_v is None or v_new >= prev_v):
+                        data["version"] = v_new
                     data["serverTime"] = out.get("serverTime", data.get("serverTime"))
-                    full_at = e.get("full_at", e["at"])
-                    self._bucket(brand)["boot"] = {"data": data, "at": now, "full_at": full_at, "synced_at": now}
-                self._write(os.path.join(self._dir(brand), "boot.json"), {"data": data, "at": now, "full_at": full_at, "synced_at": now})
+                    full_at = cur.get("full_at", cur["at"])
+                    if all(k in out for k in ("dryRun", "cancelEnabled")):    # an engine that sends its switches with the feed
+                        for k in SWITCH_KEYS:
+                            if k in out:
+                                data[k] = out[k]
+                        full_at = now
+                    entry = {"data": data, "at": now, "full_at": full_at, "synced_at": now}
+                    self._bucket(brand)["boot"] = entry
+                    self._log(brand, prev_v, self._int(data.get("version")), ids)
+                    base_t = feed["base_t"] if feed else cur.get("full_at", cur["at"])
+                    self.feed[brand] = {"v": v_new if v_new is not None else since_i, "base_t": base_t, "ok_at": now}
+                self._stale(ids, brand)
+                self._write(os.path.join(self._dir(brand), "boot.json"), entry)
                 if now - full_at > SWITCH_MAX_AGE_S:          # apiChanges has no switches: refresh them behind the poll
                     self._background(("boot", brand), lambda: self._fetch_boot(user, brand))
-                self._stale([r.get("id") for r in rows if isinstance(r, dict)] + removed, brand)
-                return 200, {"ok": True, "version": data.get("version"), "changed": rows, "removed": removed,
-                             "counts": data.get("counts", {}), "serverTime": data.get("serverTime"), "via": "apiChanges", "syncedAge": 0,
-                             "switches": {k: data[k] for k in SWITCH_KEYS if k in data}}
+                return {"ok": True}
             lacks_changes = out.get("error") in ("unauthorized", "forbidden_fn")
             if lacks_changes:
                 pass                                                         # recorded below, only if apiBoot then works
+            elif out.get("ok") and out.get("reset"):
+                self._stale_all(brand)                                       # too far behind: no ticket copy is vouched for
+                with self.lock:
+                    self.feed.pop(brand, None)
             elif not out.get("ok") and out.get("error") not in ("bad_since",):
                 age = self.synced_age(brand)
                 if age is None or age < LIST_STARVE_S:
-                    return 200, dict(out, syncedAge=age)
+                    return out
                 # apiChanges keeps failing and the list is starving: fall through to one full apiBoot
-            # reset:true (our version is too old) or bad_since -> one full apiBoot below, so the counts are right
-        else:
-            lacks_changes = False
-        # fallback: a full apiBoot, diffed here so the browser still patches only what changed
-        old = {t.get("id"): t for t in (e["data"].get("tickets") or [])} if e else {}
+        # fallback: a full apiBoot (diffed and logged in _store_boot, so every client still gets only what changed)
         out = self._once(("boot", brand), lambda: self._fetch_boot(user, brand))
         if not out.get("ok"):
-            return 200, out
+            return out
         if lacks_changes:
             # "unauthorized" is also what Api.gs says for an unknown fn; apiBoot just worked with the same kind of
             # token, so the engine really lacks apiChanges (Codex 2026-10-05: never disable on a plain auth failure)
             self.no_changes[brand] = now + UNSUPPORTED_RETRY_S
-        new = {t.get("id"): t for t in (out.get("tickets") or [])}
-        changed = [t for i, t in new.items() if old.get(i) != t]
-        removed = [i for i in old if i not in new]
-        self._stale([t.get("id") for t in changed], brand)
-        return 200, {"ok": True, "version": out.get("version") or out.get("serverTime"), "changed": changed, "removed": removed,
-                     "counts": out.get("counts", {}), "serverTime": out.get("serverTime"), "via": "apiBoot", "syncedAge": 0,
-                     "switches": {k: out[k] for k in SWITCH_KEYS if k in out}}
+        return {"ok": True}
 
     # ---------- full tickets ----------
 
     def _fetch_full(self, user, brand, tid, fresh=False):
+        top = getattr(self._tl, "top", False)
         """({ticket, extras, snapshotAt}, None) or (None, engine error). fresh=True asks the engine to re-read the
         store and Kaching (rate-limited there: 30/10 min), so only an explicit refresh click sends it."""
         probed = False
@@ -439,8 +532,8 @@ class TicketCache:
             b = self._call(user, brand, "apiTicketExtras", {"id": tid}, True) if a.get("ok") else {"ok": False}
         else:
             with ThreadPoolExecutor(max_workers=2) as ex:                    # interactive: never one after the other
-                fa = ex.submit(self._call, user, brand, "apiTicket", {"id": tid}, False)
-                fb = ex.submit(self._call, user, brand, "apiTicketExtras", {"id": tid}, False)
+                fa = ex.submit(self._call, user, brand, "apiTicket", {"id": tid}, False, top)
+                fb = ex.submit(self._call, user, brand, "apiTicketExtras", {"id": tid}, False, top)
                 a, b = fa.result(), fb.result()
         if not a.get("ok"):
             return None, a
@@ -451,10 +544,16 @@ class TicketCache:
         return {"ticket": a.get("ticket") or {}, "extras": (b.get("extras") or {}) if b.get("ok") else {},
                 "snapshotAt": None, "extrasError": None if b.get("ok") else (b.get("msg") or b.get("error"))}, None
 
-    def _store_full(self, brand, tid, full):
-        e = {"full": full, "at": self.clock(), "stale": False}
+    def _store_full(self, brand, tid, full, t0=None):
+        t0 = self.clock() if t0 is None else t0
         with self.lock:
             t = self._bucket(brand)["t"]
+            cur = t.get(tid)
+            if cur and float(cur.get("t0", cur.get("at", 0)) or 0) > t0:
+                return cur                       # a read that started later already landed: never go back in time
+            # the feed saw a change after this read began: the copy may predate it -> keep it marked old
+            stale = (self.changed_at.get(brand) or {}).get(tid, -1) > t0
+            e = {"full": full, "at": self.clock(), "t0": t0, "stale": stale}
             t[tid] = e
             if len(t) > MAX_TICKETS_PER_BRAND:
                 for k, _ in sorted(t.items(), key=lambda kv: kv[1]["at"])[: len(t) - MAX_TICKETS_PER_BRAND]:
@@ -477,15 +576,33 @@ class TicketCache:
         return e
 
     def _refresh(self, user, brand, tid, fresh=False):
+        t0 = self.clock()
         full, err = self._fetch_full(user, brand, tid, fresh)
         if full:
-            self._store_full(brand, tid, full)
+            full = self._store_full(brand, tid, full, t0)["full"]
         elif err and err.get("error") == "not_found":
             with self.lock:
                 self._bucket(brand)["t"].pop(tid, None)
         return full, err
 
-    def get_ticket(self, user, brand, tid, revalidate=False, fresh=False):
+    def confirmed(self, brand, e):
+        """Is this cached copy vouched for by the engine within CONFIRM_S — read itself, or covered by a feed read that
+        would have marked it changed? Then the open ticket needs no second round-trip."""
+        if not e or e.get("stale"):
+            return False
+        now = self.clock()
+        if now - e["at"] <= CONFIRM_S:
+            return True
+        with self.lock:
+            f = self.feed.get(brand)
+        return bool(f and now - f["ok_at"] <= CONFIRM_S and float(e.get("t0", e.get("at", 0)) or 0) >= f["base_t"])
+
+    def meta(self, brand, e, hit):
+        age = self.clock() - e["at"]
+        return {"hit": hit, "age_s": round(age, 1), "stale": bool(e.get("stale")), "at": e["at"],
+                "confirmed": self.confirmed(brand, e)}
+
+    def get_ticket(self, user, brand, tid, revalidate=False, fresh=False, top=False):
         if not ID_RE.match(tid):
             return None, {"ok": False, "error": "bad_id"}, {}
         if not revalidate:
@@ -495,15 +612,18 @@ class TicketCache:
                 timing("cache", None, "ticket-hit")
                 if e.get("stale") or age > TICKET_TTL_S:
                     self._background(("t", brand, tid), lambda: self._refresh(user, brand, tid))
-                return e["full"], None, {"hit": True, "age_s": round(age, 1), "stale": bool(e.get("stale"))}
+                return e["full"], None, self.meta(brand, e, True)
         # QA round 5: an agent waits at most TICKET_WAIT_S; the fetch keeps going and lands in the cache for the retry
+        key = ("t", brand, tid, "top") if top else ("t", brand, tid)    # the open ticket never queues behind a prefetch
         def work():
             _collect.items = []
+            self._tl.top = top
             try:
-                return self._once(("t", brand, tid), lambda: self._refresh(user, brand, tid, fresh)), _collect.items
+                return self._once(key, lambda: self._refresh(user, brand, tid, fresh)), _collect.items
             finally:
                 _collect.items = None
-        fut = self.fg_pool.submit(work)
+                self._tl.top = False
+        fut = (self.top_pool if top else self.fg_pool).submit(work)
         try:
             (full, err), tims = fut.result(timeout=TICKET_WAIT_S)
             for t_ in tims:
@@ -512,10 +632,34 @@ class TicketCache:
             timing("cache", None, "ticket-slow")
             e = self._entry(brand, tid)
             if e:                                    # an older copy beats a spinner
-                return e["full"], None, {"hit": True, "age_s": round(self.clock() - e["at"], 1), "stale": True, "slow": True}
+                return e["full"], None, dict(self.meta(brand, e, True), stale=True, slow=True, confirmed=False)
             return None, {"ok": False, "error": "engine_slow", "pending": True}, {}
         timing("cache", None, "ticket-miss" if not revalidate else "ticket-revalidate")
-        return full, err, {"hit": False, "age_s": 0, "stale": False}
+        e = self._entry(brand, tid) if full else None
+        meta = dict(self.meta(brand, e, False), age_s=0) if e else {"hit": False, "age_s": 0, "stale": False}
+        return full, err, meta
+
+    def watch(self, user, brand, tid, have_at):
+        """The open ticket, every ~5 s per agent. Cheap: it rides the brand's shared feed read (one apiChanges per brand per
+        CHANGES_SHARED_S, however many agents watch) and reads the ticket itself only when the feed says it changed.
+        -> (copy newer than have_at | None, error | None, meta)"""
+        if not ID_RE.match(tid):
+            return None, {"ok": False, "error": "bad_id"}, {}
+        age = self.synced_age(brand)
+        feed_ok = True
+        if age is None or age > CHANGES_SHARED_S:
+            feed_ok = bool(self._once(("chg", brand), lambda: self._sync(user, brand), wait=WATCH_WAIT_S).get("ok"))
+        e = self._entry(brand, tid)
+        if (e is None or e.get("stale") or (not feed_ok and not self.confirmed(brand, e)
+                                             and self.clock() - e["at"] > WATCH_DIRECT_S)):
+            full, err, _ = self.get_ticket(user, brand, tid, revalidate=True, top=True)
+            if not full:
+                return None, err, {}
+            e = self._entry(brand, tid)
+        if not e:
+            return None, {"ok": False, "error": "engine_slow", "pending": True}, {}
+        meta = self.meta(brand, e, True)
+        return (e["full"] if e["at"] > have_at + 0.0005 else None), None, meta
 
     # ---------- related tickets: secondary information, never allowed to crowd out an agent's work ----------
     RELATED_TTL_S = 300
@@ -586,18 +730,31 @@ class TicketCache:
             if not isinstance(tid, str) or not ID_RE.match(tid):
                 continue
             e = self._entry(brand, tid)
-            if e and not e.get("stale") and self.clock() - e["at"] < PREFETCH_FRESH_S:
+            if e and not e.get("stale") and (self.clock() - e["at"] < PREFETCH_FRESH_S or self.confirmed(brand, e)):
                 continue
             if self._background(("t", brand, tid), lambda t=tid: self._refresh(user, brand, t)):
                 n += 1
         return n
 
     def _stale(self, ids, brand):
+        now = self.clock()
         with self.lock:
             t = self._bucket(brand)["t"]
+            ch = self.changed_at.setdefault(brand, {})
             for i in ids:
+                if not isinstance(i, str):
+                    continue
+                ch[i] = now
                 if i in t:
                     t[i]["stale"] = True
+            if len(ch) > 4 * MAX_TICKETS_PER_BRAND:
+                for k, _ in sorted(ch.items(), key=lambda kv: kv[1])[: len(ch) - 2 * MAX_TICKETS_PER_BRAND]:
+                    ch.pop(k, None)
+
+    def _stale_all(self, brand):
+        with self.lock:
+            for e in self._bucket(brand)["t"].values():
+                e["stale"] = True
 
     # ---------- writes made through the screen ----------
 
@@ -710,12 +867,40 @@ def register(app, d):
         tid = body.get("id")
         if not isinstance(tid, str) or not ID_RE.match(tid):
             return d["json_error"]("bad_request", 400, u.get("lang", "he"))
+        if body.get("peek") is True:                    # warming the page's memory: a cached copy or nothing, never the engine
+            e = cache._entry(brand, tid)
+            if not e:
+                return jsonify({"ok": False, "error": "not_cached"})
+            return jsonify(ticket_body(e["full"], cache.meta(brand, e, True)))
         fresh = body.get("fresh") is True
-        full, e, meta = cache.get_ticket(u, brand, tid, revalidate=body.get("revalidate") is True or fresh, fresh=fresh)
+        full, e, meta = cache.get_ticket(u, brand, tid, revalidate=body.get("revalidate") is True or fresh, fresh=fresh,
+                                         top=body.get("open") is True)       # the ticket on the agent's screen: reserved slot
         if not full:
             return jsonify(localized(dict(e or {"ok": False, "error": "server_error"}), d["ui_lang"](u), "apiTicket")), 200
-        return jsonify({"ok": True, "ticket": full.get("ticket"), "extras": full.get("extras") or {}, "snapshotAt": full.get("snapshotAt"),
-                        "extrasErr": full.get("extrasError"), "cache": meta})
+        return jsonify(ticket_body(full, meta))
+
+    def ticket_body(full, meta):
+        return {"ok": True, "ticket": full.get("ticket"), "extras": full.get("extras") or {}, "snapshotAt": full.get("snapshotAt"),
+                "extrasErr": full.get("extrasError"), "cache": meta}
+
+    @app.post("/api/<brand>/watch")
+    def watch_ticket(brand):
+        """The open ticket, polled every ~5 s: {id, at} -> {changed:false} or {changed:true, ticket, extras, ...}."""
+        brand = str(brand).lower()
+        u, err = gate(brand, work=True)
+        if err:
+            return err
+        body = request.get_json(silent=True) or {}
+        tid, at = body.get("id"), body.get("at")
+        if not isinstance(tid, str) or not ID_RE.match(tid):
+            return d["json_error"]("bad_request", 400, d["ui_lang"](u))
+        at = float(at) if isinstance(at, (int, float)) and not isinstance(at, bool) else 0.0
+        full, e, meta = cache.watch(u, brand, tid, at)
+        if e:
+            return jsonify(localized(dict(e), d["ui_lang"](u), "apiTicket"))
+        if not full:
+            return jsonify({"ok": True, "changed": False, "cache": meta, "syncedAge": cache.synced_age(brand)})
+        return jsonify(dict(ticket_body(full, meta), changed=True, syncedAge=cache.synced_age(brand)))
 
     @app.post("/api/<brand>/result")
     def outbox_result(brand):

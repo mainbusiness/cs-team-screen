@@ -398,3 +398,38 @@ An agent never waits for the engine. On the second click of send, "טופל" or 
 - **After a reload or a closed tab,** in-flight items become "checking" and ask `POST /api/<brand>/result {rid}`
   (`apiResult`). They are **never resent**. An unknown item is decided by a fresh engine read of the ticket: if it shows
   our send, it is ok; if it is still open after 90 s, it becomes "unsent — you can send again".
+
+## P0 speed (Owner, 2026-10-05: "the most important thing in this system is speed")
+Baseline measured live, read-only: the open-ticket confirmation was capped at the 15 s wait, and every agent's own
+`/changes` called `apiChanges` itself. On rozela and celesta, 6 of 6 of those calls failed after 9–79 s.
+- **Shared change feed.** `/changes` and `/watch` read the engine **at most once per brand per 4 s**
+  (`CHANGES_SHARED_S`). The read is single-flight and shared by every agent. The server keeps a log of
+  `(version, id)` pairs, so each client gets only its own delta. A client older than the log gets `reset:true` and
+  the whole list.
+  - A full `apiBoot` (switch refresh or a starving list) is diffed and logged, so clients stay on deltas.
+  - Engines that send `dryRun` and `cancelEnabled` with `apiChanges` also save the 15 s `apiBoot` switch refresh.
+- **Confirmed copies.** A cached ticket is "confirmed" when the engine vouched for it within 12 s (`CONFIRM_S`):
+  either it was read in that window, or a feed read in that window did not mark it changed.
+  - The feed's stale marks are race-safe: a read that started before a change stays stale. An older read never
+    overwrites a newer one.
+  - A feed with no monotonic version vouches for nothing.
+  - **Opening a confirmed copy takes ONE request; there is no second round-trip.**
+- **The open ticket first.**
+  - **Reserved gate slot:** of a brand's 6 engine slots, `GATE_RESERVED=1` is kept for `top` reads (the open ticket:
+    `/ticket {open:true}` and the `/watch` re-read). The cap of 6 still holds.
+  - **Priority:** a `top` waiter is served before every other waiter.
+  - **Threads:** `top` reads get their own threads (`top_pool`), so they never queue behind other reads.
+  - **Writes are never top.**
+- **`/watch` every 5 s** for the ticket on screen. It costs only the shared feed read; the ticket itself is read only
+  when the feed says it changed. If the feed can't be read, the ticket is read directly once its copy is 20 s old.
+- **In-place update, never under the agent's fingers:**
+  - **Agent idle and the draft never edited:** the ticket is redrawn, with the scroll kept.
+  - **Agent typing, or the draft edited in this open (an autosaved edit counts):** only the conversation is
+    replaced. The draft and the caret stay put, and the engine's new draft is **offered** ("החלף לטיוטה החדשה").
+  - **New customer messages:** announced with "התקבלה הודעה חדשה" and the text.
+- **Send → next lands warm.** Opening a ticket prefetches the next 5 in the tab at background priority. Three of
+  them are copied into the page's memory 2.5 s later via `/ticket {peek:true}`, which is cache only and never calls
+  the engine.
+- The list poll runs every 10 s (it was 15 s); it costs the same shared feed read.
+
+What the ENGINE should add (requested through the coordinator) is in the final report.

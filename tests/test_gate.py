@@ -41,6 +41,9 @@ def direct(meter, brand, fn, args, bg=False, user=None):
     return engine_proxy.call(ENGINES, meter, "t" * 40, user, brand, fn, args, "he", internal=True, retry=False, bg=bg)
 
 
+SHARED = engine_proxy.GATE_CAP - engine_proxy.GATE_RESERVED          # what everything but the open ticket may use
+
+
 def test_twenty_simultaneous_opens_never_exceed_the_cap():
     m = Meter(delay=0.15)
     res = []
@@ -63,11 +66,11 @@ def test_brands_have_separate_caps():
 def test_background_uses_only_free_slots_and_is_dropped_under_load():
     release = threading.Event()
     m = Meter(block=release)
-    fg = [threading.Thread(target=direct, args=(m, "rozela", "apiTicketFull", {"id": "f%d" % i})) for i in range(6)]
+    fg = [threading.Thread(target=direct, args=(m, "rozela", "apiTicketFull", {"id": "f%d" % i})) for i in range(SHARED)]
     [t.start() for t in fg]
-    time.sleep(0.2)                                                       # all 6 slots busy with agents' opens
+    time.sleep(0.2)                                                       # every shared slot busy with agents' calls
     st, out = direct(m, "rozela", "apiTicketFull", {"id": "bg"}, bg=True)
-    assert out == {"ok": False, "error": "dropped", "background": True} and len(m.calls) == 6
+    assert out == {"ok": False, "error": "dropped", "background": True} and len(m.calls) == SHARED
     release.set()
     [t.join() for t in fg]
 
@@ -88,7 +91,7 @@ def test_background_is_capped_at_two_per_brand():
 def test_interactive_waits_and_background_yields_to_it(monkeypatch):
     release = threading.Event()
     m = Meter(block=release)
-    fg = [threading.Thread(target=direct, args=(m, "rozela", "apiTicketFull", {"id": "f%d" % i})) for i in range(6)]
+    fg = [threading.Thread(target=direct, args=(m, "rozela", "apiTicketFull", {"id": "f%d" % i})) for i in range(SHARED)]
     [t.start() for t in fg]
     time.sleep(0.2)
     waiter = threading.Thread(target=direct, args=(m, "rozela", "apiSearch", {"q": "dana"}))
@@ -260,3 +263,67 @@ def test_switch_change_invalidates_its_queue(app, pw_hash, transport):
     d.post("/api/rozela/queue", json={"fn": "apiAutoReplyList"}, headers=H)
     call(d, td, "rozela", "apiSettings", {"action": "set", "key": "AUTO_REPLY", "value": "shadow"})
     assert d.post("/api/rozela/queue", json={"fn": "apiAutoReplyList"}, headers=H).get_json()["cache"]["hit"] is False
+
+
+# ---------- P0 speed (Owner, 2026-10-05): the open ticket has a reserved, top-priority slot ----------
+
+def top(meter, brand, fn, args):
+    user = {"username": "noa", "roles": ["agent"], "brands": [brand], "lang": "he"}
+    return engine_proxy.call(ENGINES, meter, "t" * 40, user, brand, fn, args, "he", internal=True, retry=False, top=True)
+
+
+def test_open_ticket_gets_the_reserved_slot_while_everything_else_is_full():
+    release = threading.Event()
+    m = Meter(block=release)
+    fg = [threading.Thread(target=direct, args=(m, "rozela", "apiBoot", {})) for _ in range(SHARED + 3)]
+    [t.start() for t in fg]
+    time.sleep(0.2)
+    assert len(m.calls) == SHARED and engine_proxy.gate("rozela").fg_waiting == 3      # list/other calls queue at 5
+    got = []
+    t = threading.Thread(target=lambda: got.append(top(m, "rozela", "apiTicketFull", {"id": "open"})))
+    t.start()
+    time.sleep(0.2)
+    assert ("rozela", "apiTicketFull") in m.calls and len(m.calls) == SHARED + 1         # straight in: never queued
+    assert engine_proxy.gate("rozela").inflight == engine_proxy.GATE_CAP                  # and the cap of 6 still holds
+    release.set()
+    t.join()
+    [x.join() for x in fg]
+    assert got[0][1]["ok"] and m.peak["rozela"] <= engine_proxy.GATE_CAP
+
+
+def test_open_ticket_is_served_before_every_waiter_when_all_six_are_busy():
+    release = threading.Event()
+    m = Meter(block=release)
+    hold = [threading.Thread(target=top, args=(m, "rozela", "apiTicketFull", {"id": "o%d" % i})) for i in range(engine_proxy.GATE_CAP)]
+    [t.start() for t in hold]
+    time.sleep(0.2)
+    assert len(m.calls) == engine_proxy.GATE_CAP
+    order = []
+    waiter = threading.Thread(target=lambda: (direct(m, "rozela", "apiBoot", {}), order.append("list")))
+    waiter.start()
+    time.sleep(0.1)
+    opener = threading.Thread(target=lambda: (top(m, "rozela", "apiTicketFull", {"id": "mine"}), order.append("open")))
+    opener.start()
+    time.sleep(0.1)
+    g = engine_proxy.gate("rozela")
+    assert g.top_waiting == 1 and g.fg_waiting == 1
+    m.calls_before = len(m.calls)
+    release.set()
+    [t.join() for t in hold + [waiter, opener]]
+    i_open = m.calls.index(("rozela", "apiTicketFull"), engine_proxy.GATE_CAP)
+    i_list = m.calls.index(("rozela", "apiBoot"))
+    assert i_open < i_list                                                  # the open ticket went first
+    assert m.peak["rozela"] <= engine_proxy.GATE_CAP
+
+
+def test_background_never_takes_the_reserved_slot_and_writes_never_get_top():
+    release = threading.Event()
+    m = Meter(block=release)
+    fg = [threading.Thread(target=direct, args=(m, "rozela", "apiBoot", {})) for _ in range(SHARED - 1)]
+    [t.start() for t in fg]
+    time.sleep(0.2)
+    assert direct(m, "rozela", "apiTicketFull", {"id": "bg"}, bg=True)[1].get("error") is None   # 1 shared slot free: ok
+    # a write marked top is treated as an ordinary call (it waits for a shared slot; the reserved one is for reads)
+    assert not engine_proxy.is_read("apiSend", {})
+    release.set()
+    [t.join() for t in fg]

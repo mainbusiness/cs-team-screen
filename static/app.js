@@ -133,6 +133,8 @@
       set_AUTO_REPLY: 'מענה אוטומטי', set_AUTO_REPLY_help: 'כבוי / צל: מסמן מה היה נשלח / פעיל: עונה לבד על מיילים פשוטים ומסמן לבדיקה',
       set_AUTO_REPLY_note: 'מצב "פעיל" דורש שמצב ניסיון יהיה כבוי.',
       syncing: 'טוען גרסה עדכנית…', sync_failed: 'לא עודכן ({m}) — מוצג עותק מ{when}', tk_updated: 'יש גרסה חדשה של הפנייה', apply_update: 'הצג',
+      live_new_msg: 'התקבלה הודעה חדשה', live_new_msgs: 'התקבלו {n} הודעות חדשות', live_ok: 'הבנתי',
+      draft_new_avail: 'המנוע כתב טיוטה חדשה — הטיוטה שלך לא נגעה.', use_new_draft: 'החלף לטיוטה החדשה', draft_updated: 'הטיוטה עודכנה לפי ההודעה החדשה.',
       orders_err: 'בדיקת ההזמנות נכשלה: {m}', subs_err: 'בדיקת המנויים נכשלה: {m}',
       // users
       u_title: 'ניהול משתמשים', u_new: 'משתמש חדש', u_username: 'שם משתמש (לועזית)', u_display: 'שם תצוגה', u_roles: 'תפקיד', u_brands: 'מותגים',
@@ -253,6 +255,8 @@
       set_AUTO_REPLY: 'Auto-reply', set_AUTO_REPLY_help: 'Off / shadow: marks what would be sent / on: answers simple emails by itself and flags them for review',
       set_AUTO_REPLY_note: '"On" requires test mode to be off.',
       syncing: 'Loading the latest version…', sync_failed: 'Not updated ({m}) — showing a copy from {when}', tk_updated: 'A newer version of this ticket is ready', apply_update: 'Show',
+      live_new_msg: 'A new message arrived', live_new_msgs: '{n} new messages arrived', live_ok: 'Got it',
+      draft_new_avail: 'The engine wrote a new draft — yours is untouched.', use_new_draft: 'Use the new draft', draft_updated: 'The draft was updated for the new message.',
       orders_err: 'Order lookup failed: {m}', subs_err: 'Subscription lookup failed: {m}',
       tr_loading: 'Translating…', tr_failed: 'Translation failed: {m}', show_orig: 'Show original', show_en: 'Show English', tr_from: 'translated from {l}',
       en_draft: 'Your reply (write in English)', en_draft_loading: 'Translating the AI draft into English…', en_draft_ai: 'Prefilled with the AI draft, translated to English. Edit freely.',
@@ -454,7 +458,7 @@
    *    and check, never "invalid answer".
    *  - Our OWN JSON answers (also 502/504, e.g. engine_timeout) are real answers and pass straight through.
    */
-  const READ_FNS = ['list', 'changes', 'ticket', 'prefetch', 'result', 'related', 'queue', 'translate', 'translate-rows', 'translate-autoreply', 'translate-out',
+  const READ_FNS = ['list', 'changes', 'watch', 'ticket', 'prefetch', 'result', 'related', 'queue', 'translate', 'translate-rows', 'translate-autoreply', 'translate-out',
     'assistant', 'apiBoot', 'apiStatus', 'apiTicket', 'apiTicketExtras', 'apiTickets', 'apiSearch', 'apiAutoReplyList', 'apiAutoCancelList'];
   const RETRY_MS = [1000, 2000, 4000, 8000, 15000, 15000];
   function isRead(path, method, body) {
@@ -819,15 +823,24 @@
     if (brand === S.brand) renderBanners();                               // the stale banner follows the real age
     if (!r.ok || S.boots[brand] !== b || !Array.isArray(b.tickets)) return;
     if (!Array.isArray(r.changed || [])) return;
+    let touched = false;
+    if (r.reset) {                                                   // the server's log does not reach back to our version
+      const old = {};
+      b.tickets.forEach(function (x) { old[x.id] = JSON.stringify(x); });
+      r.changed.forEach(function (row) { if (row && row.id && old[row.id] !== JSON.stringify(row)) delete S.tkMemo[brand + '|' + row.id]; });
+      b.tickets = r.changed.filter(function (row) { return row && row.id; }).map(function (row) { return Object.assign({}, row); });
+      touched = true;
+      r = Object.assign({}, r, { changed: [], removed: [] });
+    }
     const byId = {};
     b.tickets.forEach(function (x, i) { byId[x.id] = i; });
-    let touched = false;
     (r.changed || []).forEach(function (row) {
       if (!row || !row.id) return;
       touched = true;
       if (byId[row.id] !== undefined) b.tickets[byId[row.id]] = Object.assign({}, b.tickets[byId[row.id]], row);
       else { b.tickets.push(row); byId[row.id] = b.tickets.length - 1; }
       delete S.tkMemo[brand + '|' + row.id];                       // its full copy is now old
+      if (S.tk && S.tk.brand === brand && S.tk.id === row.id) Watch.kick();   // the open chat: fetch it now, not in 5 s
     });
     if ((r.removed || []).length) { touched = true; b.tickets = b.tickets.filter(function (x) { return r.removed.indexOf(x.id) < 0; }); }
     if (r.counts && typeof r.counts === 'object') b.counts = r.counts;
@@ -840,10 +853,11 @@
     if (touched) { checkStale(); prefetchTab(brand); }
   }
 
+  // P0 speed (Owner, 2026-10-05): every 10 s. Cheap — the server shares one engine read per brand among all agents.
   setInterval(function () {
     if (document.hidden || !S.brand || S.view === 'users' || S.view === 'settings') return;
     pollChanges(S.brand);
-  }, 15000);
+  }, 10000);
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && S.brand && S.view !== 'users') {
       const b = boot();
@@ -1115,14 +1129,14 @@
     markSelected(id);                                    // move the highlight only — no list rebuild on every open
     const t0 = performance.now();
     refreshSwitches(brand);                            // test mode / cancels no older than 15 s on every open
-    let r = await api('/api/' + encodeURIComponent(brand) + '/ticket', opts.fresh ? { id: id, fresh: true } : { id: id });
+    let r = await api('/api/' + encodeURIComponent(brand) + '/ticket', opts.fresh ? { id: id, fresh: true, open: true } : { id: id, open: true });
     // QA round 5: the engine was slow (33-43 s) or answered badly ~1 in 3 at peak. Never an error first: the list row
     // is on screen at once, the server keeps fetching (capped 15 s wait) and a quick retry usually hits its cache.
     for (let tries = 0; !k.ticket && S.tk === k && !r.ok && (r.error === 'engine_slow' || r.error === 'engine_bad_response' || r.error === 'engine_timeout' || r.error === 'busy') && tries < (r.error === 'engine_slow' ? 3 : 1); tries++) {
       renderPartial(brand, id, t('tk_slow'));
       await new Promise(function (res) { setTimeout(res, 2500); });
       if (S.tk !== k) return;
-      r = await api('/api/' + encodeURIComponent(brand) + '/ticket', { id: id });
+      r = await api('/api/' + encodeURIComponent(brand) + '/ticket', { id: id, open: true });
     }
     if (S.tk !== k) return;
     k.firstPaintMs = Math.round(performance.now() - t0);
@@ -1137,13 +1151,18 @@
       k.syncErr = t('err_bad_engine'); paintSync(); return;
     }
     const hit = !!(r.cache && r.cache.hit);
-    if (!hit) { delete WA_LOCK[brand + '|' + id]; Outbox.reconcile(brand, id, r.ticket); }   // engine data: the real state is known again
-    k.syncing = hit;                                   // a cache hit is shown now and revalidated right after
+    // a copy the engine vouched for within seconds (read itself, or untouched by the shared change feed) needs no
+    // second round-trip: it IS the fresh copy (P0 speed, the owner 2026-10-05)
+    const confirmed = !!(r.cache && r.cache.confirmed && !r.cache.stale);
+    if (!hit || confirmed) { delete WA_LOCK[brand + '|' + id]; Outbox.reconcile(brand, id, r.ticket); }   // engine data: the real state is known again
+    k.syncing = hit && !confirmed;                     // an unconfirmed cache hit is shown now and revalidated right after
+    k.srvAt = r.cache && typeof r.cache.at === 'number' ? r.cache.at : 0;
     applyTicket(k, r, !memo || !!opts.showMemo);
     Draft.refreshSend();
     paintSync();
-    if (!hit) return;
-    const f = await api('/api/' + encodeURIComponent(brand) + '/ticket', { id: id, revalidate: true }, 'POST', { quiet: true });
+    prefetchNext(brand, id);
+    if (!k.syncing) return;
+    const f = await api('/api/' + encodeURIComponent(brand) + '/ticket', { id: id, revalidate: true, open: true }, 'POST', { quiet: true });
     if (S.tk !== k) return;
     k.syncing = false;
     if (!f.ok) { k.syncErr = f.msg || f.error; paintSync(); return; }
@@ -1151,10 +1170,110 @@
     k.syncErr = null;
     delete WA_LOCK[brand + '|' + id];                  // the engine just told us the real state
     Outbox.reconcile(brand, id, f.ticket);
-    applyTicket(k, f, false);
+    if (f.cache && typeof f.cache.at === 'number') k.srvAt = f.cache.at;
+    liveUpdate(k, f);
     Draft.refreshSend();
     paintSync();
   }
+  /** "send → next" lands on a warm ticket: the next 5 of this tab are read on the server at background priority, and the
+   *  next 3 copied into this page's memory a moment later (cache only — never an engine call from here). */
+  function prefetchNext(brand, id) {
+    if (!canWork() || brand !== S.brand) return;
+    const tab = ['ready', 'action', 'health', 'delay', 'bot'].indexOf(S.tab) >= 0 ? S.tab : null;
+    if (!tab) return;
+    const rows = (rowsFor(tab) || []).filter(function (x) { return !isOld(x) && !Outbox.hidesRow(brand, x.id); });
+    const pos = rows.map(function (x) { return x.id; }).indexOf(id);
+    const ids = rows.slice(pos + 1, pos + 6).map(function (x) { return x.id; }).filter(function (x) { return x !== id; });
+    if (!ids.length) return;
+    api('/api/' + encodeURIComponent(brand) + '/prefetch', { ids: ids }, 'POST', { quiet: true });
+    setTimeout(function () {
+      ids.slice(0, 3).forEach(async function (nid) {
+        if (S.tkMemo[brand + '|' + nid]) return;
+        const r = await api('/api/' + encodeURIComponent(brand) + '/ticket', { id: nid, peek: true }, 'POST', { retry: false, quiet: true });
+        if (!r || !r.ok || !r.ticket || typeof r.ticket !== 'object' || S.tkMemo[brand + '|' + nid]) return;
+        S.tkMemo[brand + '|' + nid] = { ticket: r.ticket, extras: r.extras || {}, extrasErr: r.extrasErr || null, sig: tkSig(r.ticket, r.extras),
+          cachedAt: new Date(Date.now() - ((r.cache && r.cache.age_s) || 0) * 1000).toISOString() };
+      });
+    }, 2500);
+  }
+
+  function msgKey(m) { return [m && m.who, m && m.at, String((m && m.text) || '').slice(0, 120)].join('|'); }
+  /** A newer copy of the OPEN ticket (watch / revalidate). Never under the agent's fingers:
+   *  - idle  -> the whole ticket is redrawn in place (scroll kept);
+   *  - typing in, or an edited draft -> only the conversation is replaced; the draft is never touched — a new engine
+   *    draft is OFFERED next to it;
+   *  - a dialog / the English editor busy -> the old "newer version · show" chip.
+   *  Customer messages that were not on screen are announced: "התקבלה הודעה חדשה". */
+  function liveUpdate(k, r) {
+    if (S.tk !== k || !r || !r.ticket || typeof r.ticket !== 'object') return;
+    if (r.cache && typeof r.cache.at === 'number') k.srvAt = Math.max(k.srvAt || 0, r.cache.at);
+    const had = {};
+    ((k.extras && k.extras.conversation) || []).forEach(function (m) { had[msgKey(m)] = 1; });
+    const fresh = k.ticket ? ((r.extras && r.extras.conversation) || []).filter(function (m) { return m && m.who !== 'us' && !had[msgKey(m)]; }) : [];
+    if (k.ticket && tkSig(r.ticket, r.extras) === k.sig) { k.pending = null; paintSync(); return; }
+    const a = document.activeElement;
+    const typing = a && $('ticket-pane').contains(a) && /^(TEXTAREA|INPUT|SELECT)$/.test(a.tagName);
+    const touched = typing || Draft.isDirty() || Draft.edited();      // edited once = the agent's text, even after autosave
+    const hard = EnDraft.busy() || $('cancel-dlg').open || $('confirm-dlg').open || (enMode(k.ticket || r.ticket) && touched);
+    if (fresh.length) k.live = (k.live || []).concat(fresh);
+    if (!k.ticket || hard) { applyTicket(k, r, !k.ticket); paintLive(k); return; }
+    if (!touched) { applyTicket(k, r, true); paintLive(k); return; }
+    // the agent is working in this ticket: swap the conversation only, keep the draft and the caret where they are
+    const pane = $('ticket-pane');
+    const old = document.getElementById('tk-conv');
+    const anchor = typing ? a : old;
+    const y0 = anchor ? anchor.getBoundingClientRect().top : 0;
+    const prevDraft = String((k.ticket && k.ticket.draft_text) || '');
+    k.ticket = r.ticket; k.extras = r.extras || {}; k.extrasErr = r.extrasErr || null; k.sig = tkSig(r.ticket, r.extras); k.pending = null;
+    k.cachedAt = new Date().toISOString();
+    S.tkMemo[k.brand + '|' + k.id] = { ticket: k.ticket, extras: k.extras, extrasErr: k.extrasErr, sig: k.sig, cachedAt: k.cachedAt };
+    if (old) {
+      const cc = convCard(k.extras.conversation || []);
+      cc.id = 'tk-conv';
+      if (isWA(k.ticket)) cc.classList.add('wa');
+      old.replaceWith(cc);
+    }
+    const nd = String(r.ticket.draft_text || '');
+    if (nd !== prevDraft) Draft.offer(nd);
+    Draft.refreshSend();
+    if (anchor && anchor.isConnected) {
+      const d = anchor.getBoundingClientRect().top - y0;
+      if (d) { if (pane.scrollHeight > pane.clientHeight) pane.scrollTop += d; else window.scrollBy(0, d); }
+    }
+    paintLive(k);
+    paintSync();
+  }
+  function paintLive(k) {
+    const el = document.getElementById('tk-live');
+    if (!el || S.tk !== k) return;
+    clear(el);
+    const ms_ = k.live || [];
+    el.hidden = !ms_.length;
+    if (!ms_.length) return;
+    const last = ms_[ms_.length - 1];
+    el.append(h('div', { class: 'live-head' }, h('b', { text: ms_.length > 1 ? t('live_new_msgs', { n: ms_.length }) : t('live_new_msg') }),
+      h('button', { class: 'btn small ghost', type: 'button', text: t('live_ok'), onclick: function () { k.live = []; paintLive(k); } })));
+    el.append(h('div', { class: 'live-text', dir: 'auto', text: String(last.text || '').slice(0, 400) }));
+  }
+
+  /** The open ticket, every 5 s: cheap on the server (it rides the brand's shared change feed). */
+  const Watch = (function () {
+    let busy = false;
+    async function tick() {
+      const k = S.tk;
+      if (busy || !k || !k.ticket || k.syncing || document.hidden || S.view !== 'ticket' || !canWork()) return;
+      busy = true;
+      let r;
+      try { r = await api('/api/' + encodeURIComponent(k.brand) + '/watch', { id: k.id, at: k.srvAt || 0 }, 'POST', { retry: false, quiet: true }); }
+      finally { busy = false; }
+      if (S.tk !== k || !r || !r.ok) return;
+      if (typeof r.syncedAge === 'number') noteSync(k.brand, r.syncedAge);
+      if (r.changed && r.ticket) liveUpdate(k, r);
+    }
+    setInterval(tick, 5000);
+    return { kick: function () { setTimeout(tick, 0); }, tick: tick };
+  })();
+
   /** No full ticket yet: what the list already knows about it (read-only), and a note. Never an empty error box. */
   function renderPartial(brand, id, note, failed) {
     const tp = $('ticket-pane');
@@ -1249,6 +1368,7 @@
     tp.append(body);
     body.append(h('div', { id: 'tk-stale' }));
     body.append(h('div', { id: 'tk-outbox' }));
+    body.append(h('div', { id: 'tk-live', class: 'live-note', role: 'status', 'aria-live': 'polite', 'data-test': 'tk-live', hidden: true }));
     if (x.status === 'wa_queued') body.append(h('div', { class: 'wa-note', role: 'status', 'data-test': 'wa-queued' },
       h('span', { class: 'chip ch-wa big', text: t('wa_queued_chip') })));
     if (x.recommendation) body.append(h('div', { class: 'todo', role: 'note', 'data-test': 'what-to-do' },
@@ -1259,6 +1379,7 @@
         lines.map(function (l) { return h('div', null, h('span', { text: l.text }), l.text !== l.raw ? h('div', null, h('bdi', { class: 'raw', text: l.raw })) : null); })));
     }
     const cc = convCard(ex.conversation || []);
+    cc.id = 'tk-conv';
     if (isWA(x)) cc.classList.add('wa');
     body.append(cc);
     if (x.status === 'bot') {
@@ -1288,6 +1409,7 @@
     body.append(detailsCard(x));
     if (k.extrasErr) body.insertBefore(h('div', { class: 'err-box', text: k.extrasErr }), body.children[1]);
     Outbox.paintBanner();
+    paintLive(k);
     if (enMode(x)) {
       if (k.tr && k.tr.ok) { Translate.paint(k); EnDraft.prefill(x.id, k.tr.draft); } else Translate.load(k);
     }
@@ -1460,9 +1582,10 @@
       const stateEl = h('div', { class: 'save-state', 'aria-live': 'polite' });
       const problemEl = h('div', { class: 'problem', hidden: true });
       const note = h('div');
-      st.stateEl = stateEl; st.problemEl = problemEl;
+      const offerEl = h('div', { class: 'stale', hidden: true, 'data-test': 'draft-offer' });
+      st.stateEl = stateEl; st.problemEl = problemEl; st.offerEl = offerEl;
       const errEl = h('div', { hidden: true });
-      const c = h('div', { class: 'card draft' }, h('h3', { text: t('draft') }), note, ta, stateEl, problemEl, errEl);
+      const c = h('div', { class: 'card draft' }, h('h3', { text: t('draft') }), note, offerEl, ta, stateEl, problemEl, errEl);
       if (!isOpen) {
         ta.readOnly = true;
         if (local) dropLocal();
@@ -1472,6 +1595,7 @@
       if (local && local.text !== server && local.text.trim()) {
         ta.value = local.text;
         st.dirty = true;
+        st.edited = true;
         if (local.base === server) {
           note.append(h('div', { class: 'muted small', text: t('restored') }));
           st.timer = setTimeout(save, 800);
@@ -1487,6 +1611,7 @@
 
       ta.addEventListener('input', function () {
         st.dirty = true;
+        st.edited = true;                                    // for good: a saved edit is still the agent's text
         writeLocal();
         setState('local');
         clearTimeout(st.timer);
@@ -1561,7 +1686,37 @@
       c.append(actions);
       return c;
     }
-    return { card: card, flush: flush, detach: detach, isDirty: function () { return !!(st && (st.dirty || st.saving)); },
+    /** The engine wrote a new draft while this one is on screen. Untouched text is replaced (and said so); an edited
+     *  one is never overwritten — the new draft is offered next to it. */
+    function offer(text) {
+      if (!st || !st.ta || !st.offerEl || st.ta.readOnly) return;
+      const mine = st;
+      if (text === mine.ta.value || text === mine.base) return;
+      clear(mine.offerEl);
+      if (!mine.edited && !mine.dirty && !mine.saving && mine.ta.value === mine.base) {
+        const pos = mine.ta.selectionStart;
+        mine.ta.value = text; mine.base = text;
+        if (document.activeElement === mine.ta) { try { mine.ta.setSelectionRange(Math.min(pos, text.length), Math.min(pos, text.length)); } catch (e) { /* ignore */ } }
+        mine.offerEl.append(h('span', { class: 'small', text: t('draft_updated') }));
+        mine.offerEl.hidden = false;
+        if (mine.refreshSend) mine.refreshSend();
+        return;
+      }
+      mine.offerEl.append(h('span', { text: t('draft_new_avail') }), ' ',
+        h('button', { class: 'btn small', type: 'button', text: t('use_new_draft'), 'data-test': 'use-new-draft', onclick: function () {
+          if (st !== mine) return;
+          clearTimeout(mine.timer);
+          const inFlight = mine.saving;                    // an autosave of the old text is on its way: save this after it
+          mine.ta.value = text; mine.edited = false;
+          if (inFlight) { mine.dirty = true; mine.again = true; writeLocal(); }
+          else { mine.base = text; mine.dirty = false; dropLocal(); setState('', ''); }
+          clear(mine.offerEl); mine.offerEl.hidden = true;
+          if (mine.refreshSend) mine.refreshSend();
+        } }));
+      mine.offerEl.hidden = false;
+    }
+    return { card: card, flush: flush, detach: detach, offer: offer, isDirty: function () { return !!(st && (st.dirty || st.saving)); },
+      edited: function () { return !!(st && st.edited); },
       refreshSend: function () { if (st && st.refreshSend) st.refreshSend(); } };
   })();
 

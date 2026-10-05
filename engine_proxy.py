@@ -113,6 +113,10 @@ _clock = time.monotonic
 # A slow (> BREAKER_SLOW_S) or HTML answer trips a per-brand breaker that stops background calls for BREAKER_S.
 GATE_CAP = 6
 GATE_BG_CAP = 2
+# P0 speed (Owner, 2026-10-05: "the most important thing is speed"): of the 6 slots, GATE_RESERVED are kept for the ticket an
+# agent has OPEN. Ordinary interactive calls (list, writes, assistant) use at most GATE_CAP - GATE_RESERVED; background
+# calls only that much too. A "top" call may take any free slot and is served before every other waiter.
+GATE_RESERVED = 1
 GATE_WAIT_S = 15.0
 BREAKER_SLOW_S = 10.0
 BREAKER_S = 60.0
@@ -124,6 +128,8 @@ class BrandGate:
         self.inflight = 0
         self.bg_inflight = 0
         self.fg_waiting = 0
+        self.top_waiting = 0
+        self.top_served = 0
         self.peak = 0
         self.dropped = 0
         self.busy = 0
@@ -132,17 +138,29 @@ class BrandGate:
     def tripped(self):
         return _clock() < self.trip_until
 
-    def acquire(self, bg):
+    def acquire(self, bg, top=False):
+        shared = GATE_CAP - GATE_RESERVED            # what everything but the open ticket may use
         with self.cond:
             if bg:
-                if (self.inflight >= GATE_CAP or self.bg_inflight >= GATE_BG_CAP or self.fg_waiting or self.tripped()):
+                if (self.inflight >= shared or self.bg_inflight >= GATE_BG_CAP or self.fg_waiting or self.top_waiting
+                        or self.tripped()):
                     self.dropped += 1
                     return False
                 self.bg_inflight += 1
+            elif top:
+                self.top_waiting += 1
+                try:
+                    if not self.cond.wait_for(lambda: self.inflight < GATE_CAP, GATE_WAIT_S):
+                        self.busy += 1
+                        return False
+                finally:
+                    self.top_waiting -= 1
+                    self.cond.notify_all()
+                self.top_served += 1
             else:
                 self.fg_waiting += 1
                 try:
-                    if not self.cond.wait_for(lambda: self.inflight < GATE_CAP, GATE_WAIT_S):
+                    if not self.cond.wait_for(lambda: self.inflight < shared and not self.top_waiting, GATE_WAIT_S):
                         self.busy += 1
                         return False
                 finally:
@@ -483,7 +501,8 @@ def localize(fn, resp, lang):
 CLIENT_RID_RE = re.compile(r"^[A-Za-z0-9_.:-]{16,64}$")
 
 
-def call(engines, transport, secret, user, brand, fn, args, lang, now=None, internal=False, retry=True, bg=False, rid=None):
+def call(engines, transport, secret, user, brand, fn, args, lang, now=None, internal=False, retry=True, bg=False, rid=None,
+         top=False):
     """Returns (http_status, json). Raises nothing for expected failures.
     internal=True is used ONLY by server code (assistant.py) to reach INTERNAL_FNS; the browser route never sets it."""
     roles = user.get("roles", [])
@@ -521,7 +540,7 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
     while True:
         attempt += 1
         w0 = _clock()
-        if not g.acquire(bg):
+        if not g.acquire(bg, top and not bg and is_read(fn, clean)):     # top priority: reads of the open ticket only
             if bg:
                 return 200, {"ok": False, "error": "dropped", "background": True}       # quietly: the next tick retries
             log.warning("engine %s %s busy: no slot within %.0f s (in flight %d)", brand, fn, GATE_WAIT_S, g.inflight)

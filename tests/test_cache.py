@@ -239,35 +239,40 @@ def test_prefetch_warms_with_at_most_three_engine_calls_at_once(make_app, pw_has
     assert post(c, tok, "/api/rozela/prefetch", {"ids": ids[:15]}).get_json()["queued"] == 0   # already warm
 
 
-def test_changes_patch_rows_and_fall_back_to_boot(app, pw_hash, transport):
+def test_changes_patch_rows_and_fall_back_to_boot(app, pw_hash, transport, monkeypatch):
+    monkeypatch.setattr(ticket_cache, "CHANGES_SHARED_S", -1)      # every call reads the feed here
     transport.reply = make_reply()
     c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
     post(c, tok, "/api/rozela/list", {})
     j = post(c, tok, "/api/rozela/changes", {"since": 7}).get_json()
-    assert j["via"] == "apiChanges" and j["version"] == 8 and j["changed"][0]["status"] == "done"
+    assert j["via"] == "feed" and j["version"] == 8 and j["changed"][0]["status"] == "done"
     assert [b["args"] for _, b in transport.calls if b["fn"] == "apiChanges"][0]["since"] == 7       # int, final shape
     assert post(c, tok, "/api/rozela/list", {}).get_json()["tickets"][0]["status"] == "done"
     transport.reply = make_reply(changes=False)
+    transport.calls.clear()
     j = post(c, tok, "/api/rozela/changes", {"since": 8}).get_json()
-    assert j["via"] == "apiBoot" and j["changed"][0]["status"] == "ready"   # diff vs the cached rows
+    assert "apiBoot" in fns(transport) and j["changed"][0]["status"] == "ready"   # full list, diffed/logged here
     transport.calls.clear()
     post(c, tok, "/api/rozela/changes", {"since": 8})
     assert "apiChanges" not in fns(transport)                           # remembered: engine has no apiChanges yet
 
 
-def test_changes_reset_and_removed(app, pw_hash, transport):
+def test_changes_reset_and_removed(app, pw_hash, transport, monkeypatch):
+    monkeypatch.setattr(ticket_cache, "CHANGES_SHARED_S", -1)      # every call reads the feed here
     transport.reply = make_reply(changes="reset")
     c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
     post(c, tok, "/api/rozela/list", {})
+    transport.calls.clear()
     j = post(c, tok, "/api/rozela/changes", {"since": 7}).get_json()
-    assert j["via"] == "apiBoot"                                        # reset -> one full apiBoot (counts stay right)
+    assert "apiBoot" in fns(transport)                                  # reset -> one full apiBoot (counts stay right)
     base = make_reply()
     transport.reply = lambda u, b: {"ok": True, "version": 10, "tickets": [], "removed": ["t1"]} if b["fn"] == "apiChanges" else base(u, b)
     j = post(c, tok, "/api/rozela/changes", {"since": 9}).get_json()
     assert j["removed"] == ["t1"] and post(c, tok, "/api/rozela/list", {}).get_json()["tickets"] == []
 
 
-def test_user_manager_polls_without_apichanges(app, pw_hash, transport):
+def test_user_manager_polls_without_apichanges(app, pw_hash, transport, monkeypatch):
+    monkeypatch.setattr(ticket_cache, "CHANGES_SHARED_S", -1)      # every call reads the feed here
     transport.reply = make_reply()
     c, tok = logged_in(app, pw_hash, "mgr", ["user-manager"], ["rozela"])
     post(c, tok, "/api/rozela/list", {})
@@ -293,7 +298,8 @@ def test_internal_perf_fns_not_reachable_from_browser(app, pw_hash, transport):
     assert transport.calls == []
 
 
-def test_server_timing_on_api_only(app, pw_hash, transport):
+def test_server_timing_on_api_only(app, pw_hash, transport, monkeypatch):
+    monkeypatch.setattr(ticket_cache, "CHANGES_SHARED_S", -1)      # every call reads the feed here
     transport.reply = make_reply()
     c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
     h = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).headers["Server-Timing"]
@@ -340,7 +346,7 @@ def test_failing_apichanges_falls_back_to_a_full_list_when_starving(make_app, pw
     assert j["ok"] is False and j["syncedAge"] == 30                     # young enough: the failure is passed through
     now[0] += 40
     j = post(c, tok, "/api/rozela/changes", {"since": 7}).get_json()
-    assert j["ok"] and j["via"] == "apiBoot" and j["syncedAge"] == 0     # starving: one full apiBoot
+    assert j["ok"] and "apiBoot" in fns(transport) and j["syncedAge"] == 0     # starving: one full apiBoot
 
 
 def test_ticket_wait_is_capped_and_the_fetch_lands_in_the_cache(make_app, pw_hash, transport, monkeypatch):
