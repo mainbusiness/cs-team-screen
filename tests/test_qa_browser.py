@@ -74,3 +74,24 @@ def test_all_tabs_fit_at_1280(server, width):
         lp = pg.locator("#list-pane").bounding_box()                                  # the list pane fills the rest of the screen
         assert lp["y"] + lp["height"] <= 861
         browser.close()
+
+
+def test_engine_notes_drive_the_fact_panel(server):
+    base, pwd = server
+    with pw.sync_playwright() as p:
+        browser, pg = login(p, base, "agent1", pwd)
+        pg.goto(base + "/cs#/b/rozela/t/t18f2a11")                                     # notes: chip_only + subscriptions error
+        pg.wait_for_selector("[data-test=orders-note]")
+        assert pg.inner_text("[data-test=orders-note]") == "פרטי ההזמנה לא נשמרו"
+        assert pg.inner_text("[data-test=subs-empty]") == "לא ניתן לבדוק כרגע"
+        txt = pg.inner_text("#ticket-pane")
+        assert "לא נמצאה הזמנה" not in txt and "undefined" not in txt and "רגיל עד" not in txt
+        pg.goto(base + "/cs#/b/rozela/t/w8ab77c1")                                     # notes: not_checked_no_email
+        pg.wait_for_selector("[data-test=subs-empty]")
+        assert pg.inner_text("[data-test=subs-empty]") == "מנויים: לא נבדק (אין מייל)"
+        assert pg.inner_text("[data-test=orders-note]") == "הזמנות: לא נבדק"
+        pg.goto(base + "/cs#/b/rozela/search")                                         # merged = closed, labelled
+        pg.fill(".search-box input", "michal.levi")
+        pg.wait_for_selector(".results .row[data-id=t18f2a12] .chip.st-merged")
+        assert pg.inner_text(".results .row[data-id=t18f2a12] .chip.st-merged") == "אוחד"
+        browser.close()

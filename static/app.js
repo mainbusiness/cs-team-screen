@@ -74,6 +74,8 @@
       pick_ticket: 'בחרו פנייה מהרשימה',
       menu: 'תפריט', users: 'ניהול משתמשים', change_pw: 'החלפת סיסמה', logout: 'יציאה', to_en: 'English UI', to_he: 'ממשק בעברית', to_tickets: 'חזרה לפניות',
       err_network: 'אין חיבור לאינטרנט או לשרת. שום דבר לא נשלח — נסו שוב.', err_bad_response: 'תשובה לא תקינה מהשרת.', err_login: 'צריך להתחבר מחדש.',
+      orders_chip_only: 'פרטי ההזמנה לא נשמרו', check_error: 'לא ניתן לבדוק כרגע', orders_not_checked: 'הזמנות: לא נבדק', subs_not_checked: 'מנויים: לא נבדק',
+      st_merged: 'אוחד',
       old_section: 'ישנים (30+ יום)', subs_no_email: 'מנויים: לא נבדק (אין מייל)', subs_unavailable: 'בדיקת המנויים לא זמינה כרגע.',
       siblings: 'ללקוח יש עוד {n} פניות פתוחות', siblings_one: 'ללקוח יש עוד פנייה פתוחה אחת', siblings_short: '+{n} פתוחות',
       tab_bot: '🤖 הבוט של דונדי מטפל', empty_bot: 'אין כרגע שיחות שהבוט של דונדי מטפל בהן', st_bot: '🤖 בוט',
@@ -179,6 +181,8 @@
       pick_ticket: 'Pick a ticket from the list',
       menu: 'Menu', users: 'Users', change_pw: 'Change password', logout: 'Sign out', to_en: 'English UI', to_he: 'Hebrew UI', to_tickets: 'Back to tickets',
       err_network: 'No connection. Nothing was sent — try again.', err_bad_response: 'Invalid server answer.', err_login: 'Please sign in again.',
+      orders_chip_only: 'Order details were not saved', check_error: 'Cannot check right now', orders_not_checked: 'Orders: not checked', subs_not_checked: 'Subscriptions: not checked',
+      st_merged: 'Merged',
       old_section: 'Older than 30 days', subs_no_email: 'Subscriptions: not checked (no email)', subs_unavailable: 'Subscription lookup unavailable right now.',
       siblings: 'This customer has {n} more open tickets', siblings_one: 'This customer has 1 more open ticket', siblings_short: '+{n} open',
       tab_bot: '🤖 Dondy bot is handling', empty_bot: 'The Dondy bot is not handling any chat right now', st_bot: '🤖 Bot',
@@ -1125,7 +1129,8 @@
     if (dcard) body.append(dcard);
     body.append(ordersCard(ex, x));
     // Rendered only once apiBoot says the brand HAS subscriptions; a deep link can arrive first (paintSubs fills it later).
-    body.append(h('div', { id: 'subs-card' }, S.boots[k.brand] && !noSubs(k.brand) ? subsCard(ex, x) : null));
+    const subsHidden = !!(ex.notes && ex.notes.subscriptions === 'brand_none');
+    body.append(h('div', { id: 'subs-card' }, S.boots[k.brand] && !noSubs(k.brand) && !subsHidden ? subsCard(ex, x) : null));
     body.append(h('div', { id: 'notes-card' }, notesCard(x)));
     body.append(h('div', { id: 'related-card' }, relatedCard()));
     body.append(detailsCard(x));
@@ -1646,7 +1651,7 @@
   function paintSubs(brand) {
     const slot = document.getElementById('subs-card');
     if (!slot || !S.tk || !S.tk.ticket || S.tk.brand !== brand || !S.boots[brand]) return;
-    if (noSubs(brand)) { clear(slot); return; }
+    if (noSubs(brand) || (S.tk.extras && S.tk.extras.notes && S.tk.extras.notes.subscriptions === 'brand_none')) { clear(slot); return; }
     if (!slot.firstChild) slot.append(subsCard(S.tk.extras || {}, S.tk.ticket));
   }
 
@@ -1668,9 +1673,15 @@
     }
     if (ex.ordersError) c.append(h('div', { class: 'problem' }, tx('orders_err', { m: String(ex.ordersError) })));
     if (!orders.length) {
-      const chip = (sh && sh.state && sh.state !== 'unknown' && sh.orderName) || (x && x.order_no);
-      if (!chip) c.append(h('div', { class: 'muted', text: ex.lookup === 'error' ? t('lookup_error') : t('no_orders') }));
-      else if (!(sh && sh.orderName)) c.append(h('p', { class: 'small ship-line' }, h('bdi', { class: 'chip outline', text: x.order_no })));
+      const note = (ex.notes && typeof ex.notes === 'object') ? ex.notes.orders : undefined;
+      const chipNo = (sh && sh.state && sh.state !== 'unknown' && sh.orderName) || (ex.notes && ex.notes.orderNo) || (x && x.order_no);
+      if (chipNo && !(sh && sh.orderName)) c.append(h('p', { class: 'small ship-line' }, h('bdi', { class: 'chip outline', text: chipNo })));
+      let line = null;
+      if (note === 'chip_only' || (note === undefined && chipNo)) line = note === 'chip_only' ? t('orders_chip_only') : null;
+      else if (note === 'error' || (note === undefined && ex.lookup === 'error')) line = t('check_error');
+      else if (note === 'not_checked') line = t('orders_not_checked');
+      else if (note === 'none' || note === undefined) line = chipNo ? null : t('no_orders');
+      if (line) c.append(h('div', { class: 'muted', 'data-test': 'orders-note', text: line }));
       return c;                                           // an order chip is never next to "no order found"
     }
     const list = h('div', { class: 'sub-list' });
@@ -1714,7 +1725,10 @@
     const subs = Array.isArray(ex.subscriptions) ? ex.subscriptions : [];
     if (ex.subscriptionsError) c.append(h('div', { class: 'problem' }, tx('subs_err', { m: String(ex.subscriptionsError) })));
     if (!subs.length) {
-      const why = !String(x.email || '').trim() ? t('subs_no_email')
+      const note = (ex.notes && typeof ex.notes === 'object') ? ex.notes.subscriptions : undefined;
+      const why = note === 'not_checked_no_email' ? t('subs_no_email') : note === 'error' ? t('check_error')
+        : note === 'not_checked' ? t('subs_not_checked') : note === 'none' ? t('no_subs')
+        : !String(x.email || '').trim() ? t('subs_no_email')
         : (typeof ex.subscriptions === 'string' && /unavailable|error/i.test(ex.subscriptions)) ? t('subs_unavailable') : t('no_subs');
       c.append(h('div', { class: 'muted', 'data-test': 'subs-empty', text: why }));
       return c;

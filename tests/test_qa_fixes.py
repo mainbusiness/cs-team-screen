@@ -33,3 +33,9 @@ def test_cancel_claim_refusal_is_clear_hebrew():
         assert "עדיין פעיל" in messages.engine_error_msg({"ok": False, "error": code}, "apiSend", "he")
     # an unknown future code is never swallowed
     assert "brand_new_code" in messages.engine_error_msg({"ok": False, "error": "brand_new_code"}, "apiSend", "he")
+
+
+def test_engine_hebrew_cancel_claim_reaches_the_agent_verbatim():
+    problem = "הטיוטה אומרת שהמנוי בוטל, אבל במערכת המנוי עדיין פעיל. קודם לבטל בכפתור, ואז לשלוח."
+    msg = messages.engine_error_msg({"ok": False, "error": "draft_problem", "problem": problem}, "apiSend", "he")
+    assert problem in msg and msg.startswith("בדיקת הבטיחות עצרה את השליחה")

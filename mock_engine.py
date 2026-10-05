@@ -251,8 +251,12 @@ def build_brand(brand, now):
         add({"id": "t18f2a11", "status": "action", "category": "shipping", "name": "אגי ל.", "email": "agi.l@example.com", "channel": "email",
              "subject": "עיכוב", "summary": "שואלת על הזמנה #4400 — 19 ימים מההזמנה.", "waiting_since": h(4), "created_at": h(4), "language": "he",
              "order_no": "#4400", "draft_text": "היי אגי, ההזמנה בדרך." + sig}, _conv(now, ("customer", 4, "איפה הזמנה 4400?")))
-        snaps["t18f2a11"]["shipping"] = {"state": "late", "orderName": "#4400", "daysSinceOrder": 19, "normalDays": 17, "lateDays": 21,
+        snaps["t18f2a11"]["shipping"] = {"state": "late", "orderName": "#4400", "daysSinceOrder": 19,      # new engine: no thresholds
                                          "shipped": True, "trackingUrl": "", "trackingNumber": "", "carrier": ""}
+        snaps["t18f2a11"]["notes"] = {"orders": "chip_only", "subscriptions": "error", "orderNo": "#4400"}
+        add({"id": "t18f2a12", "status": "merged", "category": "shipping", "name": "מיכל לוי", "email": "michal.levi@example.com",
+             "channel": "email", "subject": "עוד שאלה", "summary": "אוחד לפנייה של מיכל לוי.", "created_at": h(30),
+             "handled_by": "engine", "handled_at": h(29), "language": "he"}, _conv(now, ("customer", 30, "ושוב שאלה")))
         bot_conv = _conv(now, ("customer", 0.9, "היי, הגיע לי בקבוק שבור, מצרפת תמונות"), ("us", 0.85, "היי! מצטערים לשמוע, אפשר לשלוח תמונה של הבקבוק?"),
                          ("customer", 0.8, "הנה"))
         bot_conv[0]["photos"] = [{"ref": "m1-0", "file": None, "unavailable": True}]
@@ -286,6 +290,9 @@ def build_brand(brand, now):
             _conv(now, ("customer", 9, "לא ביקשתי שום מנוי ולקחו לי כסף שוב.")),
             [_order(now, "#2215", 1, [(product, 1)], ful="UNFULFILLED")],
             [_sub("5550001112223", "ACTIVE", "1 month", [(product, 1)], 31, now)])
+    for wid in ("w8ab77c1", "w8ab77c2"):                       # new-engine notes on the WhatsApp chats (no email)
+        if wid in snaps:
+            snaps[wid]["notes"] = {"orders": "not_checked", "subscriptions": "not_checked_no_email"}
     return {"name": name, "tickets": tickets, "archive": archive, "snaps": snaps}
 
 

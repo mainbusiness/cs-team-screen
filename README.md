@@ -27,7 +27,7 @@ Render disk and in each engine's `audit` sheet.
 | `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
-| `tests/` | pytest (220 tests, incl. real-browser tests with Playwright) |
+| `tests/` | pytest (223 tests, incl. real-browser tests with Playwright) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
 
 ## Environment (Render)
@@ -272,3 +272,11 @@ The rule, enforced in `api()` in `static/app.js`:
 - **Cancel-claim refusal:** `draft_problem` with a cancel-claim reason, or a dedicated `cancel_not_done` /
   `cancel_claim` code, shows "הטיוטה אומרת שהמנוי בוטל, אבל הוא עדיין פעיל — קודם לבטל בכפתור…". The override stays
   as it was: offered only for `draft_problem`, two clicks, audited by the engine. Unknown codes are shown, never swallowed.
+- **Engine `extras.notes`** (new engine; the old engine falls back to the inference above):
+  - orders `chip_only` → "פרטי ההזמנה לא נשמרו" next to the chip; `error` → "לא ניתן לבדוק כרגע"; `not_checked` →
+    "הזמנות: לא נבדק"; `none` → "לא נמצאה הזמנה" only when there is no chip.
+  - subscriptions `not_checked_no_email` → "מנויים: לא נבדק (אין מייל)"; `brand_none` → no subscriptions panel;
+    `error` → "לא ניתן לבדוק כרגע".
+  - `shipping.normalDays` / `lateDays` are never read.
+- **Status `merged`:** closed, labelled "אוחד" / "Merged".
+- The engine's Hebrew cancel-claim `problem` is shown verbatim inside the safety-check message.
