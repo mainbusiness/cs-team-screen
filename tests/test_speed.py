@@ -160,8 +160,10 @@ def test_a_copy_the_feed_vouches_for_is_confirmed(make_app, pw_hash, transport):
     eng.change("t1", draft_text="new draft")
     now[0] += 5
     post(c, tok, "/api/rozela/changes", {"since": 7})
-    hit = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]
-    assert hit["confirmed"] is False and hit["stale"] is True               # the feed said it changed
+    assert cache._entry("rozela", "t1")["stale"] is True or cache._entry("rozela", "t1")["full"]["ticket"]["draft_text"] == "new draft"
+    cache.drain()                                                            # the feed's background re-read (warm cache)
+    j = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()
+    assert j["cache"]["confirmed"] is True and j["ticket"]["draft_text"] == "new draft"     # never the old copy as "confirmed"
 
 
 def test_a_copy_older_than_the_feed_base_without_a_version_is_never_confirmed(make_app, pw_hash, transport):
@@ -476,3 +478,14 @@ def test_the_list_is_reread_in_full_every_half_hour_even_when_the_feed_carries_s
     post(c, tok, "/api/rozela/changes", {"since": 7})
     cache.drain()
     assert eng.calls.count("apiBoot") == 1
+
+
+def test_the_feed_rereads_changed_open_tickets_in_the_background(make_app, pw_hash, transport):
+    now = [1000.0]
+    app, cache, c, tok, eng = setup(make_app, pw_hash, transport, now)
+    eng.change("t2", status="action")
+    eng.calls.clear()
+    now[0] += 5
+    post(c, tok, "/api/rozela/changes", {"since": 7})
+    cache.drain()
+    assert eng.calls.count("apiTicketFull") == 1                              # t2 is warm before anyone clicks it

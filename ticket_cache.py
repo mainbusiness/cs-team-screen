@@ -44,6 +44,7 @@ import security
 BRAND_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,29}$")
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 WORK_ROLES = ("agent", "admin")
+OPEN_STATUSES = ("ready", "action", "health", "delay")
 PER_USER = ("user", "role", "lang")
 LIST_TTL_S = 10            # older list -> served, and refreshed in the background
 TICKET_TTL_S = 60          # older ticket -> served, and refreshed in the background
@@ -498,6 +499,9 @@ class TicketCache:
                     base_t = feed["base_t"] if feed else cur.get("full_at", cur["at"])
                     self.feed[brand] = {"v": v_new if v_new is not None else since_i, "base_t": base_t, "ok_at": now}
                 self._stale(ids, brand)
+                # keep the cache warm while agents work (QA 2026-10-06: an uncached ticket took ~3 s to open): every open ticket
+                # the feed says changed is re-read in the background, so the agent's click lands on a fresh copy
+                self.prefetch(user, brand, [r.get("id") for r in rows if r.get("status") in OPEN_STATUSES])
                 self._write(os.path.join(self._dir(brand), "boot.json"), entry)
                 if now - full_at > SWITCH_MAX_AGE_S or now - entry["boot_at"] > FULL_RELOAD_S:   # old switches / old columns
                     self._background(("boot", brand), lambda: self._fetch_boot(user, brand))
@@ -859,6 +863,30 @@ class TicketCache:
                 continue
             if self._background(("t", brand, tid), lambda t=tid: self._refresh(user, brand, t)):
                 n += 1
+        return n
+
+    def warm(self, user, brand, ids, deadline, max_age=12 * 3600):
+        """Morning warm-up of ONE brand, run in its own thread: every open ticket without a recent copy is read, one at a time,
+        at background priority (dropped by the gate when agents are busy — the next one is tried). Returns how many were read."""
+        self._tl.bg = True
+        n = 0
+        try:
+            for tid in ids:
+                if self.clock() > deadline:
+                    break
+                if not isinstance(tid, str) or not ID_RE.match(tid):
+                    continue
+                e = self._entry(brand, tid)
+                if e and not e.get("stale") and self.clock() - e["at"] < max_age:
+                    continue
+                if engine_proxy.gate(brand).tripped():
+                    time.sleep(5)
+                    continue
+                with contextlib.suppress(Exception):
+                    full, _ = self._once(("t", brand, tid), lambda t=tid: self._refresh(user, brand, t))
+                    n += bool(full)
+        finally:
+            self._tl.bg = False
         return n
 
     def _stale(self, ids, brand):

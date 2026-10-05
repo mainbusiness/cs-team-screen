@@ -47,6 +47,8 @@ ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 # conversations: our screen, Dondy directly, Gmail directly, bots, templates). The screen's own log is only "on-screen
 # activity" (work time, AHT, hours). Read in the background, cached on disk; a running day is re-read every DS_TTL_S.
 DS_TTL_S = 600
+WARM_AT = (7, 20, 7, 40)   # Israel time window for the morning warm-up (the team starts ~08:00)
+WARM_USER = {"username": "warmup", "roles": ["admin"], "brands": [], "lang": "he"}
 DS_MAX_CHUNKS = 40
 VERIFY_NOTE = "✓ אומת מול השיחות 15/15 (וואטסאפ 10/10 · מייל 5/5) · rozela 2026-10-05"   # final live reconciliation
 DS_FINAL_TTL_S = 6 * 3600   # a finished day is still re-read now and then: the engine can backfill (2026-10-06: 95 email replies)
@@ -717,6 +719,59 @@ def register(app, d):
 
     app.extensions["cs"]["activity"]["snapshot_once"] = snapshot_once
     app.extensions["cs"]["activity"]["ds_drain"] = ds_drain
+    warmed = {}
+
+    def warm_once():
+        """07:20-07:40 Israel, once a day (coordinator 2026-10-06: the team starts in the morning). The web service never
+        sleeps (paid plan) and the driver keeps the engines warm; what is cold after a quiet night is OUR copy: every
+        brand's list in full, the first open tickets of each, and today's dayStats — so the first open is instant."""
+        now = log.clock()
+        lt = datetime.fromtimestamp(now, TZ)
+        day = lt.date().isoformat()
+        h0, m0, h1, m1 = WARM_AT
+        if warmed.get("day") == day or not ((h0, m0) <= (lt.hour, lt.minute) < (h1, m1)):
+            return False
+        warmed["day"] = day
+        deep_warm(now + 35 * 60)
+        return True
+
+    def deep_warm(deadline):
+        """Every brand's list in full, then EVERY open ticket into the server's cache (one thread per brand, background
+        priority), and today's dayStats. An open then never waits for the engine: a cached copy shows at once."""
+        u = dict(WARM_USER, brands=sorted(d["engines"]))
+        threads = []
+        for b in sorted(d["engines"]):
+            def one(b=b):
+                try:
+                    out = cache._fetch_boot(u, b)
+                    rows = (out.get("tickets") or []) if out.get("ok") else list(cache.cached_rows(b).values())
+                    ids = [r.get("id") for r in rows if r.get("status") in OPEN_ST]
+                    n = cache.warm(u, b, ids, deadline)
+                    app.logger.warning("warm-up %s: %d open, %d read into the cache", b, len(ids), n)
+                except Exception:                     # noqa: BLE001 — a brand that fails is warmed on first use instead
+                    app.logger.exception("warm-up failed for %s", b)
+            th = threading.Thread(target=one, name="cs-warm-" + b, daemon=True)
+            th.start()
+            threads.append(th)
+        ds_for(u, sorted(d["engines"]), il_day(log.clock()), log.clock())
+        return threads
+
+    @app.post("/api/dash/warm")
+    def dash_warm():
+        u, err = d["api_user"]()
+        if err:
+            return err
+        if "admin" not in u.get("roles", []):
+            return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
+        if warmed.get("running_until", 0) > log.clock():
+            return jsonify({"ok": True, "already": True})
+        warmed["running_until"] = log.clock() + 35 * 60
+        deep_warm(log.clock() + 35 * 60)
+        return jsonify({"ok": True, "started": sorted(d["engines"])})
+
+    app.extensions["cs"]["activity"]["deep_warm"] = deep_warm
+
+    app.extensions["cs"]["activity"]["warm_once"] = warm_once
     if d.get("start_thread"):
         def loop():
             while True:
@@ -725,4 +780,8 @@ def register(app, d):
                     snapshot_once()
                 except Exception:                     # noqa: BLE001 — a failed snapshot must never take the screen down
                     app.logger.exception("dashboard snapshot failed")
+                try:
+                    warm_once()
+                except Exception:                     # noqa: BLE001
+                    app.logger.exception("morning warm-up failed")
         threading.Thread(target=loop, name="cs-dash-snapshot", daemon=True).start()

@@ -369,3 +369,52 @@ def test_admin_rebuilds_a_past_snapshot_with_the_current_logic(app, pw_hash, tra
     m, mt = logged_in(app, pw_hash, "mgr", ["user-manager"], ["rozela"])
     assert m.post("/api/dash/snapshot", json={"date": y}, headers={"X-CSRF-Token": mt}).status_code == 403
     assert a.post("/api/dash/snapshot", json={"date": D.il_day(act["log"].clock())}, headers={"X-CSRF-Token": tok}).status_code == 400
+
+
+def test_morning_warm_up_reads_every_brand_once_in_the_window(app, pw_hash, transport):
+    calls = []
+    transport.reply = ds_reply(calls)
+    act = app.extensions["cs"]["activity"]
+    now = [T0 + 7 * 3600 + 10 * 60]                                           # 07:10: too early
+    act["log"].clock = lambda: now[0]
+    app.extensions["cs"]["ticket_cache"].clock = lambda: now[0]
+    assert act["warm_once"]() is False
+    now[0] = T0 + 7 * 3600 + 25 * 60                                          # 07:25
+    transport.calls.clear()
+    assert act["warm_once"]() is True and act["warm_once"]() is False          # once a day
+    fns = [b["fn"] for _, b in transport.calls]
+    import time as _t
+    _t.sleep(0.5)
+    from conftest import ENGINES
+    fns = [b["fn"] for _, b in transport.calls]
+    assert fns.count("apiBoot") == len(ENGINES)                               # every brand's list, in full
+    act["ds_drain"]()
+    assert any(c.get("date") == DAY for c in calls)                            # today's dayStats started
+    now[0] = T0 + 8 * 3600
+    assert act["warm_once"]() is False
+
+
+def test_deep_warm_reads_every_open_ticket_and_skips_recent_copies(app, pw_hash, transport):
+    import time as _t
+    rows = [{"id": "o%d" % i, "status": "action"} for i in range(30)] + [{"id": "s1", "status": "sent"}]
+
+    def reply(url, body):
+        fn, a = body["fn"], body.get("args") or {}
+        if fn == "apiBoot":
+            return {"ok": True, "version": 1, "counts": {"action": 30}, "tickets": rows}
+        if fn == "apiTicketFull":
+            return {"ok": True, "ticket": {"id": a["id"], "status": "action"}, "extras": {}}
+        from conftest import valid_reply
+        return valid_reply(url, body)
+    transport.reply = reply
+    act = app.extensions["cs"]["activity"]
+    cache = app.extensions["cs"]["ticket_cache"]
+    cache._store_full("rozela", "o0", {"ticket": {"id": "o0"}, "extras": {}})       # a recent copy: not read again
+    for th in act["deep_warm"](_t.time() + 60):
+        th.join(20)
+    full = [b["args"]["id"] for u, b in transport.calls if b["fn"] == "apiTicketFull" and "rozela" in u]
+    assert len(full) == 29 and "o0" not in full and "s1" not in full
+    a, tok = logged_in(app, pw_hash, "boss", ["admin"], ["rozela"])
+    assert a.post("/api/dash/warm", json={}, headers={"X-CSRF-Token": tok}).get_json()["ok"]
+    g, gt = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    assert g.post("/api/dash/warm", json={}, headers={"X-CSRF-Token": gt}).status_code == 403

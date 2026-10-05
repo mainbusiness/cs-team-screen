@@ -72,3 +72,17 @@ def test_resend_requeues_the_same_text_through_the_outbox_with_a_new_rid(page):
     pg.goto(base + "/cs#/b/rozela/t/w8ab77f1")
     pg.wait_for_selector("[data-test=wa-queued]", timeout=15000)                    # back in the WhatsApp queue
     assert pg.locator("[data-test=wa-resend]").count() == 0 and pg.locator(".tk-head [data-test=wa-fail-chip]").count() == 0
+
+
+
+def test_why_panel_never_says_no_draft_next_to_a_draft(page):
+    """QA 2026-10-06: every open ticket has a draft; "no automatic draft" beside one sent agents looking for nothing."""
+    pg, base = page
+    pg.goto(base + "/cs#/b/rozela/t/w8ab77f3")                                      # action "whatsapp: waiting for a draft" + a draft
+    pg.wait_for_selector(".draft textarea")
+    assert pg.input_value(".draft textarea").strip()
+    why = pg.inner_text("[data-test=why-human]")
+    assert "אין טיוטה" not in why and "יש טיוטה למטה" in why
+    pg.goto(base + "/cs#/b/rozela/t/w8ab77c1")                                      # really no draft: the old line stays
+    pg.wait_for_selector("[data-test=why-human]")
+    assert "אין טיוטה אוטומטית" in pg.inner_text("[data-test=why-human]")

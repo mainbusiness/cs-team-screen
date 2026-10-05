@@ -6,14 +6,14 @@ their 5-minute trigger as a fallback and leave at once while this driver is aliv
 
   TOKEN_SECRET   the engines' Script Property (env, or the Keychain item cs-engine / all/TOKEN_SECRET on the Mac)
   ENGINES_JSON   {"rozela": "https://script.google.com/macros/s/<id>/exec", ...} (env, or --engines FILE, or deploy/deployments.json)
-  DRIVER_BRANDS  comma list, default rozela,celesta,apexmen,selera (a brand not yet live must not be driven)
+  DRIVER_BRANDS  comma list, default rozela,celesta,apexmen,selera,velora (a brand not yet live must not be driven)
 
 Brands run in parallel. Logs one status line per brand, never customer data. Exit 0 = every brand answered and is healthy,
 1 = a brand failed, 2 = a brand answers but has not completed a run for 15 minutes. Two drivers at once are harmless: the engine's run guard.
 """
 import argparse, tempfile, uuid, base64, concurrent.futures, hashlib, hmac, json, os, re, subprocess, sys, time, urllib.error, urllib.request
 
-DEFAULT_BRANDS = "rozela,celesta,apexmen,selera"
+DEFAULT_BRANDS = "rozela,celesta,apexmen,selera,velora"
 URL_RE = re.compile(r"^https://script\.google\.com/(?:a/macros/[A-Za-z0-9.-]+|macros)/s/[A-Za-z0-9_-]{20,200}/exec$")
 STALE_MS = 15 * 60 * 1000
 TOKEN_TTL_S = 600

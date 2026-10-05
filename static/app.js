@@ -1389,10 +1389,14 @@
     [/^voc/i, 'תשובה לא ברורה לשאלת המחקר — אדם מחליט.'],
     [/^customer has \d+ open tickets/i, 'ללקוח יש כמה פניות פתוחות — לבדוק.'],
     [/^refund/i, 'בקשת החזר כספי — החזרים מתבצעים ידנית.'],
-    [/draft blocked|draft problem|safety/i, 'בדיקת הבטיחות עצרה את הטיוטה.']
+    [/draft blocked|draft problem|safety/i, null]       // the owner 2026-10-06: a content check never blocks a send — not shown at all
   ];
-  function actionLines(action) {
-    return String(action || '').split(' | ').filter(Boolean).map(function (part) {
+  function actionLines(action, hasDraft) {
+    return String(action || '').split(' | ').filter(Boolean).filter(function (part) {
+      return !/draft blocked|draft problem|safety/i.test(part);
+    }).map(function (part) {
+      // QA 2026-10-06: every open ticket has a draft now; "no automatic draft" next to one is wrong
+      if (hasDraft && /^whatsapp/i.test(part) && LANG !== 'en') return { text: 'הודעת וואטסאפ — יש טיוטה למטה: לבדוק ולשלוח.', raw: part };
       let he = null;
       if (LANG !== 'en') for (let i = 0; i < ACTION_HE.length; i++) if (ACTION_HE[i][0].test(part)) { he = ACTION_HE[i][1]; break; }
       return { text: he || part, raw: part };
@@ -1434,9 +1438,10 @@
       h('span', { class: 'chip ch-wa big', text: t('wa_queued_chip') })));
     if (x.recommendation) body.append(h('div', { class: 'todo', role: 'note', 'data-test': 'what-to-do' },
       h('b', { text: t('what_to_do') }), h('div', { id: 'tk-reco', dir: 'auto', text: x.recommendation })));
-    if (isOpen && x.action) {
-      const lines = actionLines(x.action);
-      body.append(h('div', { class: 'why' + (x.status === 'health' ? ' health' : ''), role: 'note' }, h('b', { text: t('why_human') }),
+    const whyLines = isOpen && x.action ? actionLines(x.action, !!String(x.draft_text || '').trim()) : [];
+    if (whyLines.length) {
+      const lines = whyLines;
+      body.append(h('div', { class: 'why' + (x.status === 'health' ? ' health' : ''), role: 'note', 'data-test': 'why-human' }, h('b', { text: t('why_human') }),
         lines.map(function (l) { return h('div', null, h('span', { text: l.text }), l.text !== l.raw ? h('div', null, h('bdi', { class: 'raw', text: l.raw })) : null); })));
     }
     const cc = convCard(ex.conversation || []);

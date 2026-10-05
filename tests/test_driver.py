@@ -30,7 +30,7 @@ def test_short_secret_refused():
         pass
 
 
-def test_default_brands_exclude_velora_and_each_brand_gets_its_own_token_and_url():
+def test_default_brands_include_velora_and_each_brand_gets_its_own_token_and_url():
     seen = {}
     def tr(url, body, timeout):
         req = json.loads(body)
@@ -39,12 +39,12 @@ def test_default_brands_exclude_velora_and_each_brand_gets_its_own_token_and_url
     lines = []
     code = driver.main(["--window", "1"], dict(ENV), tr, lines.append)   # window 1: one call per brand (no chaining)
     assert code == 0
-    assert sorted(seen) == sorted([URL("a"), URL("b"), URL("c"), URL("e")])
+    assert sorted(seen) == sorted([URL("a"), URL("b"), URL("c"), URL("d"), URL("e")])
     for url, req in seen.items():
         assert req["fn"] == "apiAdminRun" and req["args"] == {"job": "runAgent", "budget": 22}
         payload = json.loads(__import__("base64").urlsafe_b64decode(req["token"].split(".")[0] + "=="))
         assert payload["role"] == "admin" and len(payload["brands"]) == 1
-    assert len(lines) == 4
+    assert len(lines) == 5
 
 
 def test_failures_are_nonzero_and_leak_nothing():
@@ -67,7 +67,7 @@ def test_one_brand_failing_does_not_hide_the_others_and_exit_is_the_worst():
         return 200, json.dumps(reply(body, ok=True, result={"processed": 0, "health": {}}))
     lines = []
     assert driver.main([], dict(ENV), tr, lines.append) == 1
-    assert len(lines) == 4 and sum("FAIL" in l for l in lines) == 1
+    assert len(lines) == 5 and sum("FAIL" in l for l in lines) == 1
 
 
 def test_running_elsewhere_is_fine_and_a_stale_brand_is_flagged():
