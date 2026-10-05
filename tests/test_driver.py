@@ -37,11 +37,11 @@ def test_default_brands_exclude_velora_and_each_brand_gets_its_own_token_and_url
         seen[url] = req
         return 200, json.dumps(reply(body, ok=True, result={"processed": 1, "health": {"lastRunAgeMs": 1000}}))
     lines = []
-    code = driver.main([], dict(ENV), tr, lines.append)
+    code = driver.main(["--window", "1"], dict(ENV), tr, lines.append)   # window 1: one call per brand (no chaining)
     assert code == 0
     assert sorted(seen) == sorted([URL("a"), URL("b"), URL("c")])
     for url, req in seen.items():
-        assert req["fn"] == "apiAdminRun" and req["args"] == {"job": "runAgent", "budget": 150}
+        assert req["fn"] == "apiAdminRun" and req["args"] == {"job": "runAgent", "budget": 22}
         payload = json.loads(__import__("base64").urlsafe_b64decode(req["token"].split(".")[0] + "=="))
         assert payload["role"] == "admin" and len(payload["brands"]) == 1
     assert len(lines) == 3
@@ -131,3 +131,45 @@ def test_second_driver_sends_idle_and_other_driver_fresh_is_fine():
     seen.clear()
     driver.main(["--brands", "rozela"], dict(ENV), tr, lambda s: None)
     assert "idle" not in seen[0]["args"], "the primary driver never asks"
+
+
+def test_a_lost_reply_is_advisory_the_engine_status_decides():
+    import datetime
+    now = datetime.datetime.now(datetime.timezone.utc)
+    def lost_but_ran(url, body, timeout):
+        req = json.loads(body)
+        if req["fn"] == "apiAdminRun":
+            return 200, "<html>Google error page</html>"
+        return 200, json.dumps({"ok": True, "fn": req["fn"], "rid": req["rid"], "lastAttempt": now.isoformat()})
+    lines = []
+    assert driver.main(["--brands", "rozela", "--window", "1"], dict(ENV), lost_but_ran, lines.append) == 0
+    assert "reply_lost" in lines[0] and "FAIL" not in lines[0]
+    def lost_and_idle(url, body, timeout):
+        req = json.loads(body)
+        if req["fn"] == "apiAdminRun":
+            return 200, '{"ok": true}'
+        return 200, json.dumps({"ok": True, "fn": req["fn"], "rid": req["rid"], "lastAttempt": (now - datetime.timedelta(minutes=10)).isoformat()})
+    lines = []
+    assert driver.main(["--brands", "rozela", "--window", "1"], dict(ENV), lost_and_idle, lines.append) == 1
+    assert "FAIL" in lines[0] and "no run seen" in lines[0]
+    def refused(url, body, timeout):
+        req = json.loads(body)
+        return 200, json.dumps({"ok": False, "error": "unauthorized", "fn": req["fn"], "rid": req["rid"]})
+    lines = []
+    assert driver.main(["--brands", "rozela", "--window", "1"], dict(ENV), refused, lines.append) == 1, "a real refusal is never advisory"
+
+
+def test_short_runs_are_chained_while_they_find_work_and_stop_when_idle():
+    calls = []
+    def tr(url, body, timeout):
+        req = json.loads(body)
+        calls.append(req["args"].get("budget"))
+        busy = len(calls) < 3
+        return 200, json.dumps(reply(body, ok=True, result={"processed": 5 if busy else 0, "waDrafted": 0, "health": {}}))
+    lines = []
+    assert driver.main(["--brands", "rozela"], dict(ENV), tr, lines.append) == 0
+    assert len(calls) == 3 and all(b == 22 for b in calls), calls
+    assert "[3 calls]" in lines[0]
+    calls.clear()
+    driver.main(["--brands", "rozela", "--budget", "120"], dict(ENV), tr, lambda s: None)
+    assert calls[0] == 25, "a web run is capped at 25 s by the driver too"
