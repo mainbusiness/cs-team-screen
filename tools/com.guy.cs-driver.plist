@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.guy.cs-driver</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/Shared/cs_driver/driver.py</string>
+    <string>--engines</string>
+    <string>/Users/Shared/cs_driver/engines.json</string>
+  </array>
+  <!-- every 60 s; a run still in progress makes the next call a no-op (engine run guard). TOKEN_SECRET comes from the Keychain item cs-engine / all/TOKEN_SECRET -->
+  <key>StartInterval</key><integer>60</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/Users/Shared/cs_driver/driver.log</string>
+  <key>StandardErrorPath</key><string>/Users/Shared/cs_driver/driver.log</string>
+</dict>
+</plist>
