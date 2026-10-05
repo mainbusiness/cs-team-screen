@@ -447,3 +447,14 @@ Engine @35/36 (round 2, same day):
   with the same rid. The 8–42 s is Google's front door, not the engine. Writes and background reads are never retried.
 - **Open-ticket reads are hedged:** a second identical request after 4 s with no answer, only if a SHARED slot is free
   (never the reserved one, never over 6). The first valid answer wins; the other gives its slot back when it ends.
+- **`CONFIRM_S=45`** (the owner via the coordinator, 2026-10-05: speed first). A copy the engine vouched for within 45 s
+  opens with no engine call; the 5 s `apiTicketLite` check still brings in every change.
+  - The send guards (WhatsApp lock, outbox decisions) trust only a vouch ≤12 s old (`vouched_s` in the meta). An
+    older confirmed copy triggers an immediate background check, and that check settles them.
+  - **"מתעדכן…"** (`#tk-check`): small and never blocking. It shows only while a check of the open chat is running
+    (periodic checks only after 0.8 s).
+  - A copy read before the feed's base is vouched for by its ticket `v` (≥ the row's `v` in a fresh feed).
+- **Breaker** (coordinator, 2026-10-05): it trips on an error answer (`engine_bad_response` / `engine_unreachable`) or
+  on the engine's own work (`serverMs`) above 10 s. It **never trips on wall time**: 30 s of wall time with
+  `serverMs` 40 is Google's gateway, and dropping prefetch for it only made opens slower. Timeouts don't trip it either
+  (they are wall time). The cap of 6 per brand and the reserved slot are unchanged; they are what bounds the load.

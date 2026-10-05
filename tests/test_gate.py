@@ -131,13 +131,33 @@ def test_breaker_trips_on_html_and_on_slow_and_recovers(monkeypatch):
     assert direct(m, "rozela", "apiTicketFull", {"id": "x"})[1]["ok"]                               # agents are still served
     clock[0] += 61
     assert not g.tripped() and direct(m, "rozela", "apiTicketFull", {"id": "y"}, bg=True)[1]["ok"]  # recovered
-    # a slow (> 10 s) success trips it too
+    # Coordinator 2026-10-05: wall time alone (Google's gateway) never trips it; the engine's own work (serverMs) does
+    def gateway_slow(url, body):
+        clock[0] += 30
+        return dict(valid_reply(url, body), serverMs=40)
+    direct(gateway_slow, "rozela", "apiBoot", {})
+    assert not g.tripped()
 
-    def slow(url, body):
-        clock[0] += 11
+    def no_server_ms(url, body):
+        clock[0] += 30
         return valid_reply(url, body)
-    direct(slow, "rozela", "apiBoot", {})
+    direct(no_server_ms, "rozela", "apiBoot", {})
+    assert not g.tripped()
+
+    def timeout(url, body):
+        clock[0] += 13
+        raise engine_proxy.ProxyError("engine_timeout", 504)
+    direct(timeout, "rozela", "apiBoot", {})
+    assert not g.tripped()
+
+    def engine_slow(url, body):
+        return dict(valid_reply(url, body), serverMs=10500)
+    direct(engine_slow, "rozela", "apiBoot", {})
     assert g.tripped()
+    clock[0] += 61
+    m.fail = "engine_unreachable"
+    direct(m, "rozela", "apiBoot", {})
+    assert g.tripped()                                                   # an error answer still trips it
 
 
 def test_prefetch_is_skipped_while_the_breaker_is_open(app, pw_hash, transport):

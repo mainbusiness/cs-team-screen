@@ -120,7 +120,8 @@ _clock = time.monotonic
 # GATE_CAP calls in flight per brand engine. Interactive calls (an agent's open, send, save, search) wait for a slot
 # (at most GATE_WAIT_S, then "busy"); background calls (prefetch, revalidation, list refresh) take only a FREE slot,
 # at most GATE_BG_CAP at a time, never while an interactive call is waiting, and are dropped (not queued) otherwise.
-# A slow (> BREAKER_SLOW_S) or HTML answer trips a per-brand breaker that stops background calls for BREAKER_S.
+# An error answer (HTML/404/unreachable) or engine work (serverMs) > BREAKER_SLOW_S trips a per-brand breaker that stops
+# background calls for BREAKER_S. Wall time alone never trips it (2026-10-05: that is Google's gateway, not engine load).
 GATE_CAP = 6
 GATE_BG_CAP = 2
 # P0 speed (Owner, 2026-10-05: "the most important thing is speed"): of the 6 slots, GATE_RESERVED are kept for the ticket an
@@ -130,6 +131,7 @@ GATE_RESERVED = 1
 GATE_WAIT_S = 15.0
 BREAKER_SLOW_S = 10.0
 BREAKER_S = 60.0
+BREAKER_CODES = ("engine_bad_response", "engine_unreachable")    # error answers; a timeout is wall time (see release)
 
 
 class BrandGate:
@@ -189,13 +191,19 @@ class BrandGate:
             self.hedges = getattr(self, "hedges", 0) + 1
             return True
 
-    def release(self, bg, took_s, code):
+    def release(self, bg, took_s, code, server_ms=None):
+        """Coordinator, 2026-10-05: the breaker protects the ENGINE, so it trips on an error answer or on the engine's own
+        work (serverMs) over BREAKER_SLOW_S — never on wall time. A slow wall time with a small serverMs is Google's
+        gateway (302 queue), not engine load; the cap of 6 per brand and the reserved slot bound our load either way.
+        A timeout carries no serverMs: it is wall time, so it does not trip it either."""
         with self.cond:
             self.inflight -= 1
             if bg:
                 self.bg_inflight -= 1
-            if code == "engine_bad_response" or took_s > BREAKER_SLOW_S:
+            engine_slow = isinstance(server_ms, (int, float)) and not isinstance(server_ms, bool) and server_ms > BREAKER_SLOW_S * 1000
+            if code in BREAKER_CODES or engine_slow:
                 self.trip_until = _clock() + BREAKER_S
+                self.trips = getattr(self, "trips", 0) + 1
             self.cond.notify_all()
 
 
@@ -541,7 +549,8 @@ def _attempt(g, bg, transport, url, wire, kw, fn, clean, rid, brand, hedge=False
             err = x
         finally:
             took = _clock() - t0
-            g.release(bg, took, err.code if err else None)
+            g.release(bg, took, err.code if err else None,
+                      resp.get("serverMs") if err is None and isinstance(resp, dict) else None)
         return resp, err, took
     if not hedge:
         return one()
