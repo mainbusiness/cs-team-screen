@@ -350,3 +350,22 @@ def test_engine_frthuman_and_a_gmail_block_are_read(tmp_path):
                            "frt": {"all": {"n": 7, "medianMin": 0}}, "frtHuman": {"n": 4, "medianMin": 11},
                            "sourceStatus": {"whatsapp": "ok", "email": "gmail_blocked"}, "totalsExcludeEmail": True})
     assert o["frt_human_s"] == 660 and o["email_status"] == "gmail_blocked" and o["totals_exclude_email"] is True
+
+
+def test_human_first_reply_per_channel_from_the_engine_shape(tmp_path):
+    o = D.ds_overview({}, {"received": {}, "answered": {}, "closedToday": {}, "awaitingNow": {},
+                           "frt": {"all": {"n": 5, "medianMin": 0}, "human": {"n": 3, "medianMin": 20, "email": {"n": 2, "medianMin": 30},
+                                                                              "whatsapp": {"n": 1, "medianMin": 4}}}})
+    assert o["frt_human_email_s"] == 1800 and o["frt_human_wa_s"] == 240 and o["frt_human_n"]["email"] == 2
+
+
+def test_admin_rebuilds_a_past_snapshot_with_the_current_logic(app, pw_hash, transport):
+    act = app.extensions["cs"]["activity"]
+    y = D.prev_day(D.il_day(act["log"].clock()))
+    act["snapshot_once"]()
+    a, tok = logged_in(app, pw_hash, "boss", ["admin"], ["rozela"])
+    r = a.post("/api/dash/snapshot", json={"date": y}, headers={"X-CSRF-Token": tok}).get_json()
+    assert r["ok"] and r["snapshot"]["rebuilt"] is True
+    m, mt = logged_in(app, pw_hash, "mgr", ["user-manager"], ["rozela"])
+    assert m.post("/api/dash/snapshot", json={"date": y}, headers={"X-CSRF-Token": mt}).status_code == 403
+    assert a.post("/api/dash/snapshot", json={"date": D.il_day(act["log"].clock())}, headers={"X-CSRF-Token": tok}).status_code == 400

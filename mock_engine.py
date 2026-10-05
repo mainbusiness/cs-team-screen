@@ -259,6 +259,11 @@ def build_brand(brand, now):
              "wa_out": "היי דוד, סליחה על העיכוב.", "draft_text": "היי דוד, סליחה על העיכוב.",
              "waiting_since": h(30), "created_at": h(30), "handled_by": "agent1", "handled_at": h(26), "language": "he"},
             _conv(now, ("customer", 30, "יש עדכון?")))
+        add({"id": "w8ab77f3", "status": "action", "category": "other", "name": "אורי (לא ידוע)", "phone": "+972521116677",
+             "channel": "whatsapp", "subject": "WhatsApp", "summary": "השליחה לא אושרה — לבדוק בדונדי.",
+             "action": "whatsapp: waiting for a draft", "wa_send": "unknown:dondy-ext:1", "wa_out": "היי אורי, בדקנו.",
+             "draft_text": "היי אורי, בדקנו.", "waiting_since": h(3), "created_at": h(3), "language": "he"},
+            _conv(now, ("customer", 3, "יש חדש?")))
         for n, days in (("00", 82), ("01", 84)):
             add({"id": "w8ab77" + n, "status": "ready", "category": "other", "name": "לקוחה %s" % n, "phone": "+97250000%s11" % n,
                  "channel": "whatsapp", "subject": "WhatsApp", "summary": "תגובה להודעת עגלה נטושה מיולי.",
@@ -461,7 +466,7 @@ class MockEngines:
             counts[t["status"]] = counts.get(t["status"], 0) + 1
         sw = self.switches[brand]
         return {"ok": True, "brand": brand, "brandName": b["name"], "user": c["user"], "role": c["role"], "lang": c["lang"],
-                "counts": counts, "tickets": [dict({k: t[k] for k in SUMMARY_COLS}, v=self.touched[brand].get(t["id"], 0)) for t in b["tickets"]],
+                "counts": counts, "tickets": [self._row(brand, t) for t in b["tickets"]],
                 "serverTime": self._now(),
                 "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]),
                 "subscriptions": "none" if brand == "selera" else "kaching", "version": self.version[brand]}
@@ -733,13 +738,20 @@ class MockEngines:
         return {"ok": True, "ticket": copy.deepcopy(t), "extras": copy.deepcopy(self._b(brand)["snaps"].get(t["id"], {})),
                 "snapshotAt": self._now(), "v": self.touched[brand].get(t["id"], 0)}
 
+    def _row(self, brand, t):
+        """A list row like engine @47/48: the summary columns, the ticket's v, and wa_send (state only) on WhatsApp rows."""
+        r = dict({k: t[k] for k in SUMMARY_COLS}, v=self.touched[brand].get(t["id"], 0))
+        if t.get("channel") == "whatsapp":
+            r["wa_send"] = str(t.get("wa_send") or "").split(":")[0]
+        return r
+
     def apiChanges(self, brand, a, c):
         try:
             since = int(str(a.get("since") or 0))
         except ValueError:
             since = 0
         ids = [i for i, v in self.touched[brand].items() if v > since]
-        rows = [dict({k: t[k] for k in SUMMARY_COLS}, v=self.touched[brand].get(t["id"], 0))
+        rows = [self._row(brand, t)
                 for t in self._b(brand)["tickets"] if t["id"] in ids]
         sw = self.switches[brand]                    # engine @35/36: the switches ride along with every feed reply
         return {"ok": True, "version": self.version[brand], "tickets": rows, "removed": [], "serverMs": 40, "serverTime": self._now(),

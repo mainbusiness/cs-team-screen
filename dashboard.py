@@ -324,7 +324,8 @@ def ds_overview(o, ds):
     aw, frt = ds.get("awaitingNow") or {}, ds.get("frt") or {}
     mins = lambda x: None if not isinstance(x, dict) or x.get("medianMin") is None else round(x["medianMin"] * 60.0, 1)  # noqa: E731
     hum = frt.get("human") if isinstance(frt.get("human"), dict) else (ds.get("frtHuman") if isinstance(ds.get("frtHuman"), dict) else None)
-    hbc = frt.get("humanByChannel") if isinstance(frt.get("humanByChannel"), dict) else {}
+    hbc = frt.get("humanByChannel") if isinstance(frt.get("humanByChannel"), dict) else \
+        {k: (hum or {}).get(k) for k in ("email", "whatsapp") if isinstance((hum or {}).get(k), dict)}   # engine: frt.human.email / .whatsapp
     src = ds.get("sources") or {}
     auto = (((src.get("answered") or {}).get("fromSystem") or {}).get("auto")) or 0
     n_ans = ans.get("total") or 0
@@ -689,16 +690,30 @@ def register(app, d):
 
     app.extensions["cs"]["activity"] = {"log": log, "after_engine": after_engine, "after_open": after_open}
 
-    def snapshot_once():
-        """Midnight Asia/Jerusalem: keep what the live overview said about the day that just ended."""
+    def snapshot_once(day=None, force=False):
+        """Midnight Asia/Jerusalem: keep what the live overview said about the day that just ended. force: an admin rebuilds
+        a past day's snapshot with the current logic (its "now" numbers — open, aging, failures — are as of the rebuild)."""
         now = log.clock()
-        y = prev_day(il_day(now))
-        if log.read_snap(y):
+        y = day or prev_day(il_day(now))
+        if log.read_snap(y) and not force:
             return False
         brands = sorted(d["engines"])
         rows = {b: list(cache.cached_rows(b).values()) for b in brands}
-        log.write_snap(y, {"day": y, "at": now, "brands": {b: overview(rows[b], y, now) for b in brands}})
+        log.write_snap(y, {"day": y, "at": now, "rebuilt": bool(force), "brands": {b: overview(rows[b], y, now) for b in brands}})
         return True
+
+    @app.post("/api/dash/snapshot")
+    def dash_snapshot():
+        u, err = d["api_user"]()
+        if err:
+            return err
+        if "admin" not in u.get("roles", []):
+            return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
+        day = (request.get_json(silent=True) or {}).get("date")
+        if not isinstance(day, str) or not DAY_RE.match(day) or day >= il_day(log.clock()):
+            return d["json_error"]("bad_request", 400, d["ui_lang"](u))
+        snapshot_once(day, force=True)
+        return jsonify({"ok": True, "snapshot": log.read_snap(day)})
 
     app.extensions["cs"]["activity"]["snapshot_once"] = snapshot_once
     app.extensions["cs"]["activity"]["ds_drain"] = ds_drain

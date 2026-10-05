@@ -349,8 +349,8 @@
   }
   function isWA(x) { return String((x && x.channel) || '').toLowerCase() === 'whatsapp'; }
   /** QA round 5 (double WhatsApp send): queued = status wa_queued, or (older engine) wa_send pending on an open ticket. */
-  /** A failed WhatsApp send (engine @37/38): wa_send failed | template_required | unknown (claim expired), the ticket back in
-   *  "action", the action line starting with ⚠️. List rows carry no wa_send (summary columns): there the ⚠️ line decides.
+  /** A failed WhatsApp send: wa_send failed | template_required | unknown (claim expired), the ticket back in "action".
+   *  Engine @47/48: every WhatsApp list row carries wa_send (state) — it decides; the action line only when it is missing.
    *  -> 'failed' | 'template_required' | 'unknown' | null */
   const WA_FAIL_STATES = ['failed', 'template_required', 'unknown'];
   function waFail(x) {
