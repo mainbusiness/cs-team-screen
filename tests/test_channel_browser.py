@@ -3,11 +3,11 @@ import pytest
 
 from test_resilience_browser import server  # noqa: F401  (module-scoped mock app)
 
-pw = pytest.importorskip("playwright.sync_api")
+from pw_launch import launch, pw  # noqa: E402  (bundled Chromium, else installed Chrome)
 
 
 def login(p, base, user, pwd, width=390):
-    browser = p.chromium.launch()
+    browser = launch(p)
     pg = browser.new_context(viewport={"width": width, "height": 844}).new_page()
     pg.goto(base + ("/cs/en/login" if user.endswith("-en") else "/cs/login"))
     pg.fill("input[name=username]", user)

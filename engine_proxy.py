@@ -14,6 +14,7 @@ Safety model:
 """
 
 import json
+import logging
 import re
 import time
 
@@ -76,6 +77,21 @@ KNOWN_BRANDS = ("velora", "rozela", "celesta", "apexmen")    # + EXTRA_BRANDS (s
 CONNECT_TIMEOUT_S = 5
 READ_TIMEOUT_S = 45            # Api.gs holds its lock up to 20s; a Gmail send adds a few seconds
 MAX_RESPONSE_BYTES = 3_000_000
+
+
+log = logging.getLogger("cs_screen.engine")
+
+# Idempotent reads: Apps Script sometimes answers with Google's HTML error page (a few times an hour, often minutes
+# after an engine redeploy). Those are retried; a write is NEVER retried (it may have landed). Timeouts are not
+# retried either: a slow engine would turn into minutes of waiting.
+READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "apiTicketExtras", "apiTickets", "apiSearch",
+                      "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup"))
+READ_RETRY_DELAYS_S = (1.5, 3.0)
+_sleep = time.sleep
+
+
+def is_read(fn, args):
+    return fn in READ_FNS or (fn == "apiSettings" and isinstance(args, dict) and args.get("action") == "get")
 
 
 class ProxyError(Exception):
@@ -221,10 +237,29 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
     except ValueError:
         return 500, {"ok": False, "error": "server_misconfigured", "msg": messages.proxy_msg("server_misconfigured", lang)}
     started = time.monotonic()
-    try:
-        resp = transport(url, {"fn": fn, "args": clean, "token": token})
-    except ProxyError as e:
-        return e.http, {"ok": False, "error": e.code, "msg": messages.proxy_msg(e.code, lang)}
+    delays = READ_RETRY_DELAYS_S if is_read(fn, clean) else ()
+    attempt = 0
+    while True:
+        attempt += 1
+        t0 = time.monotonic()
+        try:
+            resp = transport(url, {"fn": fn, "args": clean, "token": token})
+            break
+        except ProxyError as e:
+            ms = int((time.monotonic() - t0) * 1000)
+            # timing line: brand, fn, attempt, duration, outcome — never args, never customer data
+            log.warning("engine %s %s attempt=%d ms=%d -> %s", brand, fn, attempt, ms, e.code)
+            if e.code == "engine_bad_response" and attempt <= len(delays):
+                _sleep(delays[attempt - 1])
+                continue
+            code = e.code
+            if code == "engine_bad_response" and not is_read(fn, clean):
+                code = "engine_bad_response_write"              # a write may have landed: check before retrying
+            return e.http, {"ok": False, "error": e.code, "msg": messages.proxy_msg(code, lang)}
+    if attempt > 1:
+        log.warning("engine %s %s recovered on attempt=%d total_ms=%d", brand, fn, attempt, int((time.monotonic() - started) * 1000))
     out = localize(fn, resp, lang)
     out["_ms"] = int((time.monotonic() - started) * 1000)
+    if attempt > 1:
+        out["_attempts"] = attempt
     return 200, out

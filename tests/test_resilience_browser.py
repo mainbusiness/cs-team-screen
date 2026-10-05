@@ -14,7 +14,7 @@ import urllib.request
 
 import pytest
 
-pw = pytest.importorskip("playwright.sync_api")
+from pw_launch import launch, pw  # noqa: E402  (bundled Chromium, else installed Chrome)
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RENDER_502 = "<!DOCTYPE html><html><head><title>502 Bad Gateway</title></head><body>" + "x" * 2000 + "</body></html>"
 
@@ -59,10 +59,7 @@ def server():
 def page(server):
     base, pwd = server
     with pw.sync_playwright() as p:
-        try:
-            browser = p.chromium.launch()
-        except Exception as e:
-            pytest.skip("no chromium: %s" % e)
+        browser = launch(p)                     # fails loudly with the reasons; never skips
         ctx = browser.new_context(viewport={"width": 390, "height": 844})
         pg = ctx.new_page()
         pg.goto(base + "/cs/login")

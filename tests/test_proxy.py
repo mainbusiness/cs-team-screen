@@ -323,6 +323,7 @@ def test_auto_cancel_and_settings_errors_have_hebrew(fn, code, extra):
 
 class FakeAppsScript(BaseHTTPRequestHandler):
     posts = []
+    flaky = 0
 
     def log_message(self, *a):
         pass
@@ -339,6 +340,17 @@ class FakeAppsScript(BaseHTTPRequestHandler):
             time.sleep(1.5)
             self.send_response(200)
             self.end_headers()
+        elif path.startswith("/macros/s/AKfycbFLAKY"):
+            FakeAppsScript.flaky += 1
+            if FakeAppsScript.flaky == 1:
+                self.send_response(500)
+                self.send_header("Content-Type", "text/html")
+                self.end_headers()
+                self.wfile.write(b"<html><title>Error</title>Google Apps Script: Service unavailable</html>")
+            else:
+                self.send_response(302)
+                self.send_header("Location", "/echo?user_content_key=abc")
+                self.end_headers()
         elif path.startswith("/macros/s/AKfycbHTML"):
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
@@ -366,6 +378,7 @@ def fake_gas():
     th = threading.Thread(target=srv.serve_forever, daemon=True)
     th.start()
     FakeAppsScript.posts = []
+    FakeAppsScript.flaky = 0
     yield "http://127.0.0.1:%d" % srv.server_address[1]
     srv.shutdown()
 
@@ -416,3 +429,76 @@ def test_not_logged_in_api_is_401(app):
     c = client_for(app)
     assert c.post("/api/rozela/apiBoot", json={}).status_code in (401, 403)
     assert c.get("/api/me").status_code == 401
+
+
+
+# ---------- Google's HTML error page: reads retry, writes never (2026-10-05) ----------
+
+@pytest.fixture
+def fast_retry(monkeypatch):
+    slept = []
+    monkeypatch.setattr(engine_proxy, "_sleep", lambda s: slept.append(s))
+    return slept
+
+
+def flaky(n_bad, transport):
+    left = [n_bad]
+
+    def reply(url, body):
+        if left[0] > 0:
+            left[0] -= 1
+            raise engine_proxy.ProxyError("engine_bad_response", 502)
+        return {"ok": True, "tickets": [], "ticket": {"id": "t1"}}
+    transport.reply = reply
+
+
+@pytest.mark.parametrize("fn,args", [("apiBoot", {}), ("apiTicket", {"id": "t1"}), ("apiSearch", {"q": "dana"}),
+                                     ("apiAutoReplyList", {}), ("apiTicketExtras", {"id": "t1"})])
+def test_read_survives_one_html_answer(app, pw_hash, transport, fast_retry, fn, args):
+    flaky(1, transport)
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    r = call(c, tok, "rozela", fn, args)
+    assert r.status_code == 200 and r.get_json()["ok"] and r.get_json()["_attempts"] == 2
+    assert [b["fn"] for _, b in transport.calls] == [fn, fn] and fast_retry == [1.5]
+
+
+def test_read_gives_up_after_two_retries(app, pw_hash, transport, fast_retry):
+    flaky(5, transport)
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    r = call(c, tok, "rozela", "apiBoot")
+    assert r.status_code == 502 and r.get_json()["error"] == "engine_bad_response"
+    assert len(transport.calls) == 3 and fast_retry == [1.5, 3.0]
+
+
+def test_settings_get_is_a_read_but_set_is_not(app, pw_hash, transport, fast_retry):
+    c, tok = logged_in(app, pw_hash, "manager", ["admin"], ["rozela"])
+    flaky(1, transport)
+    assert call(c, tok, "rozela", "apiSettings", {"action": "get"}).get_json()["ok"]
+    transport.calls.clear()
+    flaky(1, transport)
+    r = call(c, tok, "rozela", "apiSettings", {"action": "set", "key": "DRY_RUN", "value": "off"})
+    assert r.status_code == 502 and len(transport.calls) == 1
+
+
+@pytest.mark.parametrize("fn,args", [("apiSend", {"id": "t1", "text": "x"}), ("apiSaveDraft", {"id": "t1", "text": "x"}),
+                                     ("apiMarkHandled", {"id": "t1"}), ("apiClose", {"id": "t1"}), ("apiNote", {"id": "t1", "text": "x"}),
+                                     ("apiKachingCancel", {"id": "t1", "contractId": "gid://shopify/SubscriptionContract/1", "confirm": "0001"}),
+                                     ("apiAutoReplyReview", {"id": "t1", "verdict": "ok"}), ("apiWaTakeOver", {"id": "t1"})])
+def test_write_is_attempted_exactly_once(app, pw_hash, transport, fast_retry, fn, args):
+    flaky(1, transport)
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    app.extensions["cs"]["ticket_cache"]._background = lambda *a, **k: False      # count only the write itself
+    r = call(c, tok, "rozela", fn, args)
+    assert [b["fn"] for _, b in transport.calls] == [fn] and fast_retry == []
+    j = r.get_json()
+    assert j["error"] == "engine_bad_response" and "בדקו לפני שמנסים שוב" in j["msg"]
+
+
+def test_real_http_html_then_json(make_app, pw_hash, fake_gas, fast_retry):
+    """The real transport against a local fake Apps Script that answers Google's HTML page once, then JSON."""
+    engines = {"rozela": fake_gas + "/macros/s/AKfycbFLAKY0000000000000000000/exec"}
+    app = make_app(ENGINES_JSON=json.dumps(engines), TRANSPORT=None,
+                   ENGINE_URL_RE=re.compile(r"^http://127\.0\.0\.1:\d+/macros/s/[A-Za-z0-9_-]{20,200}/exec$"))
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    r = call(c, tok, "rozela", "apiBoot")
+    assert r.status_code == 200 and r.get_json()["echo"] == "apiBoot" and FakeAppsScript.flaky == 2

@@ -3,11 +3,11 @@ import pytest
 
 from test_resilience_browser import server  # noqa: F401
 
-pw = pytest.importorskip("playwright.sync_api")
+from pw_launch import launch, pw  # noqa: E402  (bundled Chromium, else installed Chrome)
 
 
 def login(p, base, user, pwd, path="/cs/login"):
-    browser = p.chromium.launch()
+    browser = launch(p)
     pg = browser.new_context(viewport={"width": 390, "height": 844}).new_page()
     pg.goto(base + path)
     pg.fill("input[name=username]", user)

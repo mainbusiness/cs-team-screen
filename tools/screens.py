@@ -68,7 +68,9 @@ def main():
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch()
+            sys.path.insert(0, os.path.join(ROOT, "tests"))
+            from pw_launch import launch
+            browser = launch(p)
 
             def session(user, width, height):
                 ctx = browser.new_context(viewport={"width": width, "height": height}, device_scale_factor=2, locale="he-IL",
