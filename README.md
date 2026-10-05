@@ -27,7 +27,7 @@ Render disk and in each engine's `audit` sheet.
 | `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
-| `tests/` | pytest (209 tests, incl. real-browser tests with Playwright) |
+| `tests/` | pytest (220 tests, incl. real-browser tests with Playwright) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
 
 ## Environment (Render)
@@ -254,3 +254,21 @@ The rule, enforced in `api()` in `static/app.js`:
     (polled every 15 s).
   - Opening a ticket re-reads them with `/list {maxAge: 15}`.
   - A change made directly in the engine is picked up in the background once the cached switches are older than 15 s.
+
+## Live QA fixes (2026-10-05)
+
+- **Sorting:** work tabs are newest-first by `waiting_since`. Tickets waiting more than 30 days go into a collapsed
+  "ישנים (30+ יום)" / "Older than 30 days" section with a count. Prefetch skips them.
+- **Fact panel:**
+  - Never shows the internal shipping thresholds, only בזמן / מאחר / מאחר מאוד plus days since the order.
+  - Never shows "לא נמצאה הזמנה" next to an order chip.
+  - With no email it shows "מנויים: לא נבדק (אין מייל)".
+- **`siblings`** (engine field, optional): a yellow "ללקוח יש עוד N פניות פתוחות" chip that opens a search for the
+  customer's email (or phone). Absent or 0 means no chip.
+- **Favicon:** `/favicon.ico` (cached 7 days).
+- **Desktop tabs** wrap and are compressed, so every tab is visible at 1280 px. The desktop layout follows the real
+  height of the header, banners and tabs (flex column) instead of a fixed `calc(100vh - 104px)`.
+- **The assistant answers in the page's UI language** (`/cs` vs `/cs/en`), sent as `lang` with every question.
+- **Cancel-claim refusal:** `draft_problem` with a cancel-claim reason, or a dedicated `cancel_not_done` /
+  `cancel_claim` code, shows "הטיוטה אומרת שהמנוי בוטל, אבל הוא עדיין פעיל — קודם לבטל בכפתור…". The override stays
+  as it was: offered only for `draft_problem`, two clicks, audited by the engine. Unknown codes are shown, never swallowed.

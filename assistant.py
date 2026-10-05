@@ -357,8 +357,9 @@ def register(app, d):
         u, err = gate(brand)
         if err:
             return err
-        lang = u.get("lang", "he")
         body = request.get_json(silent=True) or {}
+        # answer in the language of the PAGE it was asked from (/cs vs /cs/en), not the profile (live QA 2026-10-05)
+        lang = body.get("lang") if body.get("lang") in ("he", "en") else u.get("lang", "he")
         msgs = clean_messages(body.get("messages"))
         tid = body.get("ticketId")
         if msgs is None or (tid is not None and (not isinstance(tid, str) or not ID_RE.match(tid))):

@@ -89,6 +89,10 @@ ENGINE = {
     "newer_message": ("הלקוח כתב הודעה חדשה מאז שהטיוטה נכתבה. רעננו וקראו אותה לפני שליחה.",
                       "The customer wrote again since the draft was made. Refresh and read it first."),
     "bad_job": ("משימה לא מוכרת.", "Unknown job."),
+    "cancel_not_done": ("הטיוטה אומרת שהמנוי בוטל, אבל הוא עדיין פעיל. קודם לבטל בכפתור בפאנל המנויים, ואז לשלוח.",
+                        "The draft says the subscription was cancelled, but it is still active. Cancel it with the button first, then send."),
+    "cancel_claim": ("הטיוטה אומרת שהמנוי בוטל, אבל הוא עדיין פעיל. קודם לבטל בכפתור בפאנל המנויים, ואז לשלוח.",
+                     "The draft says the subscription was cancelled, but it is still active. Cancel it with the button first, then send."),
     "not_bot": ("השיחה כבר לא אצל הבוט — רעננו את הפנייה.", "The bot is no longer handling this chat — refresh the ticket."),
     "rate_limited": ("המנוע מגביל קריאות כרגע. נסו שוב בעוד כמה דקות.", "The engine is rate-limiting. Try again in a few minutes."),
     "bad_since": ("גרסת רשימה לא תקינה.", "Invalid list version."),
@@ -108,6 +112,10 @@ DRAFT_PROBLEMS = [
     (r"^percentage not in policy: (.*)$", "אחוז שלא מופיע במדיניות: {0}", "a percentage not in the policy: {0}"),
     (r"^discount wording not in policy: (.*)$", "ניסוח הנחה שלא במדיניות: {0}", "discount wording not in the policy: {0}"),
     (r"^apologises for a delay that is not a delay$", "התנצלות על עיכוב שאינו עיכוב", "an apology for a delay that is not one"),
+    # engine (in progress, 2026-10-05): the draft says "cancelled" but Kaching still shows the contract active
+    (r"(?i)^.*cancel.*(still active|not cancelled|is active|active contract).*$",
+     "הטיוטה אומרת שהמנוי בוטל, אבל המנוי עדיין פעיל — קודם לבטל בכפתור בפאנל המנויים, ואז לשלוח",
+     "the draft says the subscription was cancelled, but it is still active — cancel it with the button first, then send"),
 ]
 
 # Kaching.gs kachingCancelContract() messages

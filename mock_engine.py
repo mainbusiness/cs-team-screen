@@ -26,11 +26,11 @@ CS_ROLES = ("agent", "admin", "user-manager")
 OPEN = ("ready", "action", "health", "delay")
 SUMMARY_COLS = ['id', 'status', 'category', 'name', 'email', 'subject', 'summary', 'action', 'waiting_since',
                 'created_at', 'handled_by', 'handled_at', 'language', 'order_no', 'channel', 'emails_count',
-                'cancelled', 'watch', 'ship_state', 'recommendation']
+                'cancelled', 'watch', 'ship_state', 'recommendation', 'siblings']
 TICKET_COLS = ['id', 'status', 'category', 'name', 'email', 'phone', 'channel', 'subject', 'summary', 'action',
                'draft_text', 'draft_id', 'thread_id', 'message_id', 'waiting_since', 'created_at', 'handled_by',
                'handled_at', 'language', 'order_no', 'order_date', 'tracking', 'carrier', 'ship_state', 'wa_sig',
-               'wa_out', 'wa_send', 'notes', 'watch', 'emails_count', 'cancelled', 'recommendation']
+               'wa_out', 'wa_send', 'notes', 'watch', 'emails_count', 'cancelled', 'recommendation', 'siblings']
 WORK = ("agent", "admin")
 TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTicketExtras": WORK, "apiTickets": WORK,
          "apiSearch": WORK, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
@@ -188,7 +188,7 @@ def build_brand(brand, now):
             _conv(now, ("customer", 5, "שלום, קיבלתי את החבילה. כמה כמוסות צריך לקחת ביום? ואפשר עם אוכל?")),
             [_order(now, "#4498", 9, [(product, 1)], shipped_days_ago=7, track_no="JY4498120033")])
         sub_cid = "9876543210123"
-        add({"id": "t18f2a03", "status": "action", "category": "cancel_subscription", "name": "יוסי מזרחי",
+        add({"id": "t18f2a03", "status": "action", "category": "cancel_subscription", "name": "יוסי מזרחי", "siblings": 1,
              "email": "yossi.m@example.com", "phone": "+972544445566", "channel": "email", "subject": "Re: ההזמנה שלך נשלחה",
              "summary": "כועס: לא ביקש מנוי, חויב שוב. רוצה לבטל מיד ומאיים בביטול עסקה.",
              "action": "cancel: " + CONTRACT_RE_PREFIX + sub_cid, "waiting_since": h(26), "created_at": h(30), "language": "he",
@@ -243,6 +243,16 @@ def build_brand(brand, now):
              "channel": "whatsapp", "subject": "WhatsApp", "summary": "הודעת וואטסאפ חדשה",
              "action": "whatsapp: no automatic draft in this phase", "waiting_since": h(0.6), "created_at": h(0.6), "language": "he"},
             _conv(now, ("customer", 0.6, "היי יש לכם משלוח לאילת?")))
+        for n, days in (("00", 82), ("01", 84)):
+            add({"id": "w8ab77" + n, "status": "ready", "category": "other", "name": "לקוחה %s" % n, "phone": "+97250000%s11" % n,
+                 "channel": "whatsapp", "subject": "WhatsApp", "summary": "תגובה להודעת עגלה נטושה מיולי.",
+                 "waiting_since": _iso(now - timedelta(days=days)), "created_at": _iso(now - timedelta(days=days)), "language": "he",
+                 "draft_text": "היי, תודה שחזרת אלינו!" + sig}, _conv(now, ("customer", days * 24, "כן מה המחיר?")))
+        add({"id": "t18f2a11", "status": "action", "category": "shipping", "name": "אגי ל.", "email": "agi.l@example.com", "channel": "email",
+             "subject": "עיכוב", "summary": "שואלת על הזמנה #4400 — 19 ימים מההזמנה.", "waiting_since": h(4), "created_at": h(4), "language": "he",
+             "order_no": "#4400", "draft_text": "היי אגי, ההזמנה בדרך." + sig}, _conv(now, ("customer", 4, "איפה הזמנה 4400?")))
+        snaps["t18f2a11"]["shipping"] = {"state": "late", "orderName": "#4400", "daysSinceOrder": 19, "normalDays": 17, "lateDays": 21,
+                                         "shipped": True, "trackingUrl": "", "trackingNumber": "", "carrier": ""}
         bot_conv = _conv(now, ("customer", 0.9, "היי, הגיע לי בקבוק שבור, מצרפת תמונות"), ("us", 0.85, "היי! מצטערים לשמוע, אפשר לשלוח תמונה של הבקבוק?"),
                          ("customer", 0.8, "הנה"))
         bot_conv[0]["photos"] = [{"ref": "m1-0", "file": None, "unavailable": True}]

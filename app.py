@@ -25,7 +25,7 @@ import secrets
 import time
 from urllib.parse import urlparse
 
-from flask import Flask, abort, g, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, abort, g, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import assistant
@@ -270,6 +270,11 @@ def create_app(overrides=None):
         except Exception:
             return "users store unreadable", 500
         return "ok", 200
+
+    @app.get("/favicon.ico")
+    def favicon():
+        resp = send_from_directory(app.static_folder, "favicon.ico", mimetype="image/x-icon", max_age=7 * 86400)
+        return resp
 
     @app.get("/")
     def root():

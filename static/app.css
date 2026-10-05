@@ -370,3 +370,20 @@ html[dir=rtl] .ch-banner.wa { box-shadow: inset -4px 0 0 var(--wa); }
 a.chip.photo { color: var(--accent); }
 .chip.photo.dondy { background: var(--wa-bg); color: var(--wa-ink); border-color: #bfe8cc; }
 .chip.photo.wait { color: var(--muted); }
+
+/* ---------- live QA fixes (2026-10-05) ---------- */
+.old-section { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.old-section > summary { cursor: pointer; color: var(--muted); font-size: 14px; font-weight: 600; padding: 6px 2px; display: flex; gap: 8px; align-items: center; }
+.old-section > summary .n { font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--bg); }
+.old-section .row { opacity: .85; }
+.chip.sib { background: #fef3c7; color: #78350f; border: 1px solid #fcd34d; font-weight: 600; }
+button.chip.sib { cursor: pointer; }
+.sib-row { margin-top: 6px; }
+/* desktop: every tab visible, no sideways scroll; the layout follows the real height of the chrome */
+@media (min-width: 1000px) {
+  .app { display: flex; flex-direction: column; height: 100vh; }
+  .app > .main { flex: 1 1 auto; min-height: 0; height: auto; }
+  .tabs { flex-wrap: wrap; overflow: visible; gap: 4px; padding: 6px 10px; position: static; }
+  .tab { padding: 4px 10px; font-size: 13px; }
+  .top { position: static; }
+}

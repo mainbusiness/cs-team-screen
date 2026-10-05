@@ -242,6 +242,26 @@ def main():
             shot(page, errs, "17_draft_save_refused_rollback", 390, full=False)
             ctx.close()
 
+            # ---------- live QA fixes (2026-10-05) ----------
+            for width, height in ((390, 844), (1280, 860)):
+                ctx, page, errs = session("agent-one", width, height)
+                page.goto(base + "/cs#/b/rozela/ready")
+                page.wait_for_selector("[data-test=old-section]")
+                page.locator("[data-test=old-section]").scroll_into_view_if_needed()
+                shot(page, errs, "31_newest_first_old_section", width, full=False)
+                if width == 1280:
+                    over = page.evaluate("(() => { const t = document.getElementById('tabs'); return t.scrollWidth - t.clientWidth; })()")
+                    if over > 1:
+                        problems.append("tabs still scroll sideways at 1280 (%dpx)" % over)
+                page.goto(base + "/cs#/b/rozela/t/t18f2a03")
+                page.wait_for_selector("[data-test=siblings]")
+                shot(page, errs, "32_siblings_chip", width, full=False)
+                page.goto(base + "/cs#/b/rozela/t/t18f2a11")
+                page.wait_for_selector(".ship-line")
+                page.locator(".ship-line").scroll_into_view_if_needed()
+                shot(page, errs, "33_fact_panel", width, full=False)
+                ctx.close()
+
             # ---------- Dondy bot + WhatsApp photos (engine @18) ----------
             for width, height in ((390, 844), (1280, 860)):
                 ctx, page, errs = session("agent-one", width, height)

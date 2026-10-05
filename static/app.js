@@ -49,8 +49,8 @@
       safety: 'בדיקת בטיחות: {p}',
       orders: 'הזמנות', no_orders: 'לא נמצאה הזמנה (הזמנות מעל 60 יום לא נראות).', lookup_error: 'בדיקת ההזמנות נכשלה ברגע הכתיבה.',
       track: 'מעקב', items: 'פריטים', ordered: 'הוזמן', shipped_on: 'נשלח',
-      ship_not_late: 'בזמן', ship_late: 'באיחור', ship_very_late: 'באיחור חמור', ship_unknown: 'לא ידוע', ship_not_applicable: 'לא רלוונטי',
-      ship_line: '{state} · {d} ימים מההזמנה (רגיל עד {n}, איחור אחרי {l})',
+      ship_not_late: 'בזמן', ship_late: 'מאחר', ship_very_late: 'מאחר מאוד', ship_unknown: 'לא ידוע', ship_not_applicable: 'לא רלוונטי',
+      ship_line: '{state} · {d} ימים מההזמנה',
       fin_PAID: 'שולם', fin_PENDING: 'ממתין לתשלום', fin_REFUNDED: 'הוחזר', fin_PARTIALLY_REFUNDED: 'הוחזר חלקית', fin_VOIDED: 'בוטל',
       fin_AUTHORIZED: 'מאושר', fin_PARTIALLY_PAID: 'שולם חלקית',
       ful_FULFILLED: 'נשלח', ful_UNFULFILLED: 'עוד לא נשלח', ful_PARTIALLY_FULFILLED: 'נשלח חלקית', ful_IN_PROGRESS: 'בהכנה',
@@ -74,6 +74,8 @@
       pick_ticket: 'בחרו פנייה מהרשימה',
       menu: 'תפריט', users: 'ניהול משתמשים', change_pw: 'החלפת סיסמה', logout: 'יציאה', to_en: 'English UI', to_he: 'ממשק בעברית', to_tickets: 'חזרה לפניות',
       err_network: 'אין חיבור לאינטרנט או לשרת. שום דבר לא נשלח — נסו שוב.', err_bad_response: 'תשובה לא תקינה מהשרת.', err_login: 'צריך להתחבר מחדש.',
+      old_section: 'ישנים (30+ יום)', subs_no_email: 'מנויים: לא נבדק (אין מייל)', subs_unavailable: 'בדיקת המנויים לא זמינה כרגע.',
+      siblings: 'ללקוח יש עוד {n} פניות פתוחות', siblings_one: 'ללקוח יש עוד פנייה פתוחה אחת', siblings_short: '+{n} פתוחות',
       tab_bot: '🤖 הבוט של דונדי מטפל', empty_bot: 'אין כרגע שיחות שהבוט של דונדי מטפל בהן', st_bot: '🤖 בוט',
       bot_banner: 'הבוט של דונדי מטפל בשיחה הזאת. אין טיוטה — המנוע בודק אותה בכל ריצה.', takeover: 'לקחת את השיחה', takeover_arm: 'לחצו שוב כדי לקחת את השיחה',
       takeover_ok: 'השיחה אצלך — טיוטה תיכתב בריצה הבאה של המנוע', photo_dondy: '📷 תמונה — לצפייה בדונדי', photo_open: '📷 תמונה — פתיחה',
@@ -153,7 +155,7 @@
       orders: 'Orders', no_orders: 'No order found (orders older than 60 days are invisible).', lookup_error: 'The order lookup failed when the draft was written.',
       track: 'Tracking', items: 'Items', ordered: 'Ordered', shipped_on: 'Shipped',
       ship_not_late: 'On time', ship_late: 'Late', ship_very_late: 'Very late', ship_unknown: 'Unknown', ship_not_applicable: 'Not applicable',
-      ship_line: '{state} · {d} days since the order (normal up to {n}, late after {l})',
+      ship_line: '{state} · {d} days since the order',
       fin_PAID: 'Paid', fin_PENDING: 'Payment pending', fin_REFUNDED: 'Refunded', fin_PARTIALLY_REFUNDED: 'Partially refunded', fin_VOIDED: 'Voided',
       fin_AUTHORIZED: 'Authorized', fin_PARTIALLY_PAID: 'Partially paid',
       ful_FULFILLED: 'Shipped', ful_UNFULFILLED: 'Not shipped yet', ful_PARTIALLY_FULFILLED: 'Partially shipped', ful_IN_PROGRESS: 'In progress',
@@ -177,6 +179,8 @@
       pick_ticket: 'Pick a ticket from the list',
       menu: 'Menu', users: 'Users', change_pw: 'Change password', logout: 'Sign out', to_en: 'English UI', to_he: 'Hebrew UI', to_tickets: 'Back to tickets',
       err_network: 'No connection. Nothing was sent — try again.', err_bad_response: 'Invalid server answer.', err_login: 'Please sign in again.',
+      old_section: 'Older than 30 days', subs_no_email: 'Subscriptions: not checked (no email)', subs_unavailable: 'Subscription lookup unavailable right now.',
+      siblings: 'This customer has {n} more open tickets', siblings_one: 'This customer has 1 more open ticket', siblings_short: '+{n} open',
       tab_bot: '🤖 Dondy bot is handling', empty_bot: 'The Dondy bot is not handling any chat right now', st_bot: '🤖 Bot',
       bot_banner: 'The Dondy bot is handling this chat. No draft — the engine re-checks it every run.', takeover: 'Take over', takeover_arm: 'Click again to take over',
       takeover_ok: 'The chat is yours — a draft will be written on the next engine run', photo_dondy: '📷 Photo — view in Dondy', photo_open: '📷 Photo — open',
@@ -684,7 +688,7 @@
   /** Warm the first 15 tickets of the visible tab on the server (it caps engine concurrency at 3). */
   function prefetchTab(brand) {
     if (!canWork() || brand !== S.brand || S.tab === 'search' || S.tab === 'auto' || S.tab === 'autoreply') return;
-    const rows = rowsFor(S.tab) || [];
+    const rows = (rowsFor(S.tab) || []).filter(function (x) { return !isOld(x); });
     const key = brand + '|' + S.tab;
     if (!rows.length || Date.now() - (S.prefetchedAt[key] || 0) < 60000) return;
     S.prefetchedAt[key] = Date.now();
@@ -751,9 +755,13 @@
   });
 
   // ---------------------------------------------------------------- list
+  const OLD_MS = 30 * 86400000;
+  function waitedSince(x) { return ms(x.waiting_since) || ms(x.created_at) || 0; }
+  function isOld(x) { const w = waitedSince(x); return !!w && Date.now() - w > OLD_MS; }
   function sortRows(rows, tab) {
+    // newest first everywhere (live QA 2026-10-05: 80-day-old abandoned-cart chats sat at the top of "new")
     const key = function (x) {
-      if (OPEN.indexOf(tab) >= 0) return ms(x.waiting_since) || ms(x.created_at) || 0;
+      if (OPEN.indexOf(tab) >= 0 || tab === 'bot') return -waitedSince(x);
       return -(ms(x.handled_at) || ms(x.created_at) || 0);
     };
     return rows.slice().sort(function (a, b) { return key(a) - key(b); });
@@ -797,6 +805,7 @@
     if (x.language && x.language !== 'he' && x.language !== 'iw') chips.push(h('span', { class: 'chip outline', text: String(x.language).toUpperCase() }));
     if (x.order_no) chips.push(h('span', { class: 'chip outline ltr', text: x.order_no }));
     if (x.cancelled) chips.push(h('span', { class: 'chip ok', text: t('cancelled_here') }));
+    if (Number(x.siblings) > 0) chips.push(h('span', { class: 'chip sib', text: t('siblings_short', { n: Number(x.siblings) }) }));
     if (isAutoReplied(x)) chips.unshift(h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }));
     if (x.archived) chips.push(h('span', { class: 'chip', text: t('archived') }));
     const inner = [
@@ -808,7 +817,7 @@
     ];
     const ch = isWA(x) ? ' wa' : ' email';
     if (x.archived || opts.static) return h('div', { class: 'row' + ch, 'data-id': x.id }, inner);
-    return h('a', { class: 'row' + ch + (x.id === S.ticketId ? ' selected' : ''), href: ticketHash(x.id), 'data-id': x.id }, inner);
+    return h('a', { class: 'row' + ch + (x.id === S.ticketId ? ' selected' : ''), href: ticketHash(x.id), 'data-id': x.id, 'data-w': String(waitedSince(x)) }, inner);
   }
 
   /** Handled by the engine's auto-reply. Tolerant: the engine's exact marker is not final (handled_by / a flag). */
@@ -901,7 +910,18 @@
       lp.append(h('div', { class: 'empty' }, h('b', { text: t('empty_' + S.tab) }), h('span', { text: t('empty_hint') })));
       return;
     }
-    rows.forEach(function (x) { lp.append(rowEl(x)); });
+    const work = OPEN.indexOf(S.tab) >= 0 || S.tab === 'bot';
+    const fresh = work ? rows.filter(function (x) { return !isOld(x); }) : rows;
+    const old = work ? rows.filter(isOld) : [];
+    fresh.forEach(function (x) { lp.append(rowEl(x)); });
+    if (old.length) {
+      S.oldOpen = S.oldOpen || {};
+      const det = h('details', { class: 'old-section', open: !!S.oldOpen[S.brand + '|' + S.tab], 'data-test': 'old-section' },
+        h('summary', null, t('old_section'), h('span', { class: 'n', text: String(old.length) })));
+      det.addEventListener('toggle', function () { S.oldOpen[S.brand + '|' + S.tab] = det.open; });
+      old.forEach(function (x) { det.append(rowEl(x)); });
+      lp.append(det);
+    }
     translateRows(rows);
   }
 
@@ -1012,6 +1032,20 @@
     return h('button', { class: 'back-btn', type: 'button', text: (LANG === 'en' ? '← ' : '→ ') + t('back'), onclick: function () { go(listHash()); } });
   }
 
+  /** engine field `siblings` = other OPEN tickets of the same customer. Absent -> nothing. Click -> search. */
+  function siblingsChip(x) {
+    const n = Number(x && x.siblings);
+    if (!(n > 0)) return null;
+    const q = String(x.email || x.phone || '').trim();
+    const b = h('button', { class: 'chip sib big', type: 'button', 'data-test': 'siblings' }, n === 1 ? t('siblings_one') : t('siblings', { n: n }));
+    b.addEventListener('click', function () {
+      if (q.length < 2) return;
+      S.search.q = q; S.search.res = null; S.listSig = '';
+      go('#/b/' + encodeURIComponent(S.brand) + '/search');
+      setTimeout(function () { const inp = $('list-pane').querySelector('.search-box input'); if (inp) inp.value = q; runSearch(q); }, 0);
+    });
+    return h('div', { class: 'sib-row' }, b);
+  }
   function statusChip(st) { return h('span', { class: 'chip st-' + st, text: t('st_' + st) }); }
 
   const ACTION_HE = [
@@ -1054,6 +1088,7 @@
       h('div', { class: 'ch-banner ' + (isWA(x) ? 'wa' : 'email'), 'data-test': isWA(x) ? 'wa-banner' : 'email-banner' },
         icon(isWA(x) ? 'wa' : 'mail'), t(isWA(x) ? 'wa_banner' : 'email_banner')),
       contact,
+      siblingsChip(x),
       x.summary ? h('p', { class: 'summary-line', id: 'tk-summary', dir: 'auto', text: x.summary }) : null);
     tp.append(head);
 
@@ -1088,7 +1123,7 @@
       h3.after(h('div', { class: 'todo-chip', 'data-test': 'what-to-do-chip' }, h('b', { text: t('what_to_do') + ': ' }), h('span', { class: 'tk-reco2', dir: 'auto', text: x.recommendation })));
     }
     if (dcard) body.append(dcard);
-    body.append(ordersCard(ex));
+    body.append(ordersCard(ex, x));
     // Rendered only once apiBoot says the brand HAS subscriptions; a deep link can arrive first (paintSubs fills it later).
     body.append(h('div', { id: 'subs-card' }, S.boots[k.brand] && !noSubs(k.brand) ? subsCard(ex, x) : null));
     body.append(h('div', { id: 'notes-card' }, notesCard(x)));
@@ -1586,7 +1621,7 @@
       ui.ta.value = '';
       s.busy = true; s.err = null;
       render();
-      const body = { messages: s.msgs.map(function (m) { return { role: m.role, content: m.content }; }) };
+      const body = { lang: LANG, messages: s.msgs.map(function (m) { return { role: m.role, content: m.content }; }) };
       if (s.withTicket && S.view === 'ticket' && S.ticketId) body.ticketId = S.ticketId;
       const r = await api('/api/' + encodeURIComponent(brand) + '/assistant', body);
       s.busy = false;
@@ -1623,18 +1658,20 @@
   }
 
   // ---- orders
-  function ordersCard(ex) {
+  function ordersCard(ex, x) {
     const c = h('div', { class: 'card' }, h('h3', { text: t('orders') }));
     const orders = ex.orders || [];
     const sh = ex.shipping || null;
     if (sh && sh.state && sh.state !== 'unknown' && sh.orderName) {
-      c.append(h('p', { class: 'small ship-line' }, h('span', { class: 'chip ' + (sh.state === 'not_late' ? 'ok' : sh.state === 'not_applicable' ? '' : 'bad'), text: sh.orderName }), ' ',
-        t('ship_line', { state: t('ship_' + sh.state), d: sh.daysSinceOrder, n: sh.normalDays, l: sh.lateDays })));
+      c.append(h('p', { class: 'small ship-line' }, h('bdi', { class: 'chip ' + (sh.state === 'not_late' ? 'ok' : sh.state === 'not_applicable' ? '' : 'bad'), text: sh.orderName }), ' ',
+        t('ship_line', { state: t('ship_' + sh.state), d: sh.daysSinceOrder })));             // never the internal thresholds
     }
     if (ex.ordersError) c.append(h('div', { class: 'problem' }, tx('orders_err', { m: String(ex.ordersError) })));
     if (!orders.length) {
-      c.append(h('div', { class: 'muted', text: ex.lookup === 'error' ? t('lookup_error') : t('no_orders') }));
-      return c;
+      const chip = (sh && sh.state && sh.state !== 'unknown' && sh.orderName) || (x && x.order_no);
+      if (!chip) c.append(h('div', { class: 'muted', text: ex.lookup === 'error' ? t('lookup_error') : t('no_orders') }));
+      else if (!(sh && sh.orderName)) c.append(h('p', { class: 'small ship-line' }, h('bdi', { class: 'chip outline', text: x.order_no })));
+      return c;                                           // an order chip is never next to "no order found"
     }
     const list = h('div', { class: 'sub-list' });
     orders.forEach(function (o) {
@@ -1676,7 +1713,12 @@
     const c = h('div', { class: 'card' }, h('h3', { text: t('subs') }));
     const subs = Array.isArray(ex.subscriptions) ? ex.subscriptions : [];
     if (ex.subscriptionsError) c.append(h('div', { class: 'problem' }, tx('subs_err', { m: String(ex.subscriptionsError) })));
-    if (!subs.length) { c.append(h('div', { class: 'muted', text: t('no_subs') })); return c; }
+    if (!subs.length) {
+      const why = !String(x.email || '').trim() ? t('subs_no_email')
+        : (typeof ex.subscriptions === 'string' && /unavailable|error/i.test(ex.subscriptions)) ? t('subs_unavailable') : t('no_subs');
+      c.append(h('div', { class: 'muted', 'data-test': 'subs-empty', text: why }));
+      return c;
+    }
     const done = String(x.cancelled || '').split(',').filter(Boolean);
     const isOpen = OPEN.indexOf(x.status) >= 0;
     const list = h('div', { class: 'sub-list' });
