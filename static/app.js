@@ -3018,12 +3018,13 @@
       const rg = h('div', { class: 'seg', role: 'group' });
       [['1', L.day], ['7', L.d7], ['30', L.d30]].forEach(function (x) {
         const b = h('button', { type: 'button', class: 'btn small' + (st.range === x[0] ? ' on' : ''), 'aria-pressed': st.range === x[0] ? 'true' : 'false', text: x[1], 'data-test': 'range-' + x[0] });
-        b.addEventListener('click', function () { st.range = x[0]; render(); load(); });
+        b.addEventListener('click', function () { st.range = x[0]; st.data = null; render(); load(); });   // never old numbers under a new choice
         rg.append(b);
       });
       const di = h('input', { type: 'date', value: st.date || st.shown || '', max: st.shown || null, 'aria-label': 'date', 'data-test': 'dash-date' });
-      di.addEventListener('change', function () { st.date = di.value; load(); });
+      di.addEventListener('change', function () { st.date = di.value; st.data = null; render(); load(); });
       head.append(rg, di);
+      if (st.data) head.append(h('b', { class: 'shown-day', 'data-test': 'dash-shown', text: st.data.days.length > 1 ? st.data.days[0] + ' – ' + st.data.end_day : st.data.end_day }));
       if (st.data) head.append(h('span', { class: 'muted small', 'data-test': 'dash-updated', text: L.updated + ' ' + new Date(st.data.generated_at * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL') }));
       p.append(head);
       if (st.err) p.append(h('div', { class: 'err-box', text: st.err }));

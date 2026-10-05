@@ -64,5 +64,7 @@ def test_admin_sees_live_numbers_from_real_actions(server):
         assert ad.inner_text("[data-test=dash-agent][data-user=agent1] [data-test=ag-conv]") == "2"
         assert "ישירות בדונדי 1" in ad.inner_text("[data-test=dash-direct]")
         ad.click("[data-test=range-7]")
+        assert ad.locator("[data-test=dash-brand]").count() == 0                          # cleared until the new range arrives
         ad.wait_for_selector("[data-test=heat-who]")
+        assert " – " in ad.inner_text("[data-test=dash-shown]")
         b.close()
