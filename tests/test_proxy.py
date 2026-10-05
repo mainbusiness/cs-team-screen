@@ -462,7 +462,9 @@ def test_read_survives_one_html_answer(app, pw_hash, transport, fast_retry, fn, 
     c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
     r = call(c, tok, "rozela", fn, args)
     assert r.status_code == 200 and r.get_json()["ok"] and r.get_json()["_attempts"] == 2
-    assert [b["fn"] for _, b in transport.calls] == [fn, fn] and fast_retry == [1.5]
+    # engine @35/36: a fast read is retried AT ONCE with the same rid (the front door failed, not the engine)
+    assert [b["fn"] for _, b in transport.calls] == [fn, fn] and fast_retry == ([] if fn in engine_proxy.FAST_READS else [1.5])
+    assert transport.calls[0][1]["rid"] == transport.calls[1][1]["rid"]
 
 
 def test_read_gives_up_after_two_retries(app, pw_hash, transport, fast_retry):

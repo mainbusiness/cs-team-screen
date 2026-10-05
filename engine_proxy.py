@@ -66,6 +66,8 @@ INTERNAL_FNS = {
     "apiTicketFull": (WORK_ROLES, ("id", "fresh")),
     "apiAutoReplyList": (WORK_ROLES, ()),
     "apiChanges": (WORK_ROLES, ("since",)),        # final shape: agent/admin, since = int >= 0
+    # engine @35/36 (2026-10-05): the open ticket's cheap check. {id, since: ticket v, seen: messages we hold}
+    "apiTicketLite": (WORK_ROLES, ("id", "since", "seen")),
     # QA round 4: the stored final reply of a write, by the rid it was sent with (engine keeps it 30 min)
     "apiResult": (WORK_ROLES, ("rid",)),
     "apiTicket": FN_TABLE["apiTicket"],
@@ -91,7 +93,7 @@ log = logging.getLogger("cs_screen.engine")
 # retried either: a slow engine would turn into minutes of waiting.
 READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "apiTicketExtras", "apiTickets", "apiSearch",
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
-                      "apiResult"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
+                      "apiResult", "apiTicketLite"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
 # the time a server thread was held (70-110 s), the 16 threads ran out, Render's health check timed out and the
@@ -99,6 +101,14 @@ READ_RETRY_DELAYS_S = (1.5, 3.0)
 # (prefetch, revalidation, polling) is never retried at all — its next tick is the retry.
 RETRY_FAST_FAIL_S = 8.0
 RETRY_TOTAL_BUDGET_S = 20.0
+# Engine agent, 2026-10-05: these run in 11-77 ms inside Apps Script; the 8-42 s we saw is Google's front door (302 queue,
+# POST->GET, 404) BEFORE the engine runs. So: a short read timeout and ONE immediate retry with the same rid (reads
+# only — a write is never retried), and for the open ticket a hedge: a second identical request after HEDGE_AFTER_S,
+# only if a SHARED slot is free (never the reserved one, never over the cap of 6).
+FAST_READS = frozenset(("apiTicketLite", "apiChanges", "apiTicketFull", "apiTicket", "apiTicketExtras", "apiResult"))
+FAST_READ_TIMEOUT_S = 12.0
+FAST_RETRY_BUDGET_S = 26.0
+HEDGE_AFTER_S = 4.0
 _sleep = time.sleep
 _clock = time.monotonic
 
@@ -167,6 +177,16 @@ class BrandGate:
                     self.fg_waiting -= 1
             self.inflight += 1
             self.peak = max(self.peak, self.inflight)
+            return True
+
+    def try_hedge(self):
+        """A second copy of an open-ticket read: only a free SHARED slot, nobody waiting, never the reserved one."""
+        with self.cond:
+            if self.inflight >= GATE_CAP - GATE_RESERVED or self.fg_waiting or self.top_waiting:
+                return False
+            self.inflight += 1
+            self.peak = max(self.peak, self.inflight)
+            self.hedges = getattr(self, "hedges", 0) + 1
             return True
 
     def release(self, bg, took_s, code):
@@ -241,7 +261,7 @@ def clean_args(fn, args, table=None):
     for k in keys:
         if k in args:
             v = args[k]
-            if k == "since":
+            if k in ("since", "seen"):
                 if isinstance(v, bool) or not isinstance(v, int) or v < 0:
                     raise ProxyError("bad_request", 400)
                 out[k] = v
@@ -284,10 +304,10 @@ def http_transport(session=None):
     """Real engine call: POST, follow Apps Script's 302 to googleusercontent (requests turns it into GET)."""
     s = session or requests.Session()
 
-    def call(url, body):
+    def call(url, body, timeout=None):
         try:
             r = s.post(url, data=json.dumps(body), headers={"Content-Type": "application/json"},
-                       timeout=(CONNECT_TIMEOUT_S, READ_TIMEOUT_S), allow_redirects=True)
+                       timeout=(CONNECT_TIMEOUT_S, timeout or READ_TIMEOUT_S), allow_redirects=True)
         except requests.Timeout:
             raise ProxyError("engine_timeout", 504)
         except requests.RequestException:
@@ -308,6 +328,7 @@ def http_transport(session=None):
             raise ProxyError("engine_bad_response", 502)
         return data
 
+    call.accepts_timeout = True
     return call
 
 
@@ -328,6 +349,8 @@ SCHEMAS = {
     "apiChanges": lambda r, a: isinstance(r.get("tickets"), list) and "version" in r,
     "apiTicket": lambda r, a: _tid_ok(r, "ticket", a.get("id")),
     "apiTicketFull": lambda r, a: _tid_ok(r, "ticket", a.get("id")) and isinstance(r.get("extras"), dict),
+    "apiTicketLite": lambda r, a: (isinstance(r.get("v"), int) and isinstance(r.get("changed"), bool)
+                                   and (r["changed"] is False or isinstance(r.get("newMessages"), list))),
     "apiTicketExtras": lambda r, a: isinstance(r.get("extras"), dict) and r.get("id") == a.get("id"),
     "apiTickets": lambda r, a: isinstance(r.get("tickets"), list),
     "apiSearch": lambda r, a: isinstance(r.get("tickets"), list),
@@ -501,6 +524,49 @@ def localize(fn, resp, lang):
 CLIENT_RID_RE = re.compile(r"^[A-Za-z0-9_.:-]{16,64}$")
 
 
+def _attempt(g, bg, transport, url, wire, kw, fn, clean, rid, brand, hedge=False):
+    """One engine round-trip on a slot the caller already holds -> (reply, ProxyError|None, seconds). With hedge=True a
+    second identical request (same rid) starts after HEDGE_AFTER_S if a shared slot is free; the first VALID answer wins,
+    the other finishes in the background and gives its slot back when done (so the cap always counts it)."""
+    def one():
+        t0 = _clock()
+        err, resp = None, None
+        try:
+            resp = transport(url, wire, **kw)
+            why = reply_problem(fn, clean, rid, resp, brand)
+            if why:
+                log.warning("engine %s %s invalid reply: %s (keys: %s)", brand, fn, why, ",".join(sorted(resp)[:8]) if isinstance(resp, dict) else type(resp).__name__)
+                raise ProxyError("engine_bad_response", 502)
+        except ProxyError as x:
+            err = x
+        finally:
+            took = _clock() - t0
+            g.release(bg, took, err.code if err else None)
+        return resp, err, took
+    if not hedge:
+        return one()
+    import queue as _q
+    box = _q.Queue()
+    t_start = _clock()
+    threading.Thread(target=lambda: box.put(one()), daemon=True).start()
+    try:
+        return box.get(timeout=HEDGE_AFTER_S)
+    except _q.Empty:
+        pass
+    n = 1
+    if g.try_hedge():
+        n = 2
+        log.warning("engine %s %s no answer after %.0f s: hedged with a second request", brand, fn, HEDGE_AFTER_S)
+        threading.Thread(target=lambda: box.put(one()), daemon=True).start()
+    first = None
+    for _ in range(n):
+        res = box.get()
+        if res[1] is None:
+            return res[0], None, _clock() - t_start
+        first = first or res
+    return first[0], first[1], _clock() - t_start
+
+
 def call(engines, transport, secret, user, brand, fn, args, lang, now=None, internal=False, retry=True, bg=False, rid=None,
          top=False):
     """Returns (http_status, json). Raises nothing for expected failures.
@@ -548,26 +614,22 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
         waited = _clock() - w0
         if waited > 1:
             log.warning("engine %s %s waited %.1f s for a slot", brand, fn, waited)
-        t0 = _clock()
-        err = None
-        try:
-            resp = transport(url, {"fn": fn, "args": _wire(clean), "token": token, "rid": rid})
-            why = reply_problem(fn, clean, rid, resp, brand)
-            if why:
-                log.warning("engine %s %s invalid reply: %s (keys: %s)", brand, fn, why, ",".join(sorted(resp)[:8]) if isinstance(resp, dict) else type(resp).__name__)
-                raise ProxyError("engine_bad_response", 502)
-        except ProxyError as x:
-            err = x
-        finally:
-            took = _clock() - t0
-            g.release(bg, took, err.code if err else None)
+        fast = fn in FAST_READS and is_read(fn, clean)
+        kw = {"timeout": FAST_READ_TIMEOUT_S} if fast and getattr(transport, "accepts_timeout", False) else {}
+        wire = {"fn": fn, "args": _wire(clean), "token": token, "rid": rid}
+        resp, err, took = _attempt(g, bg, transport, url, wire, kw, fn, clean, rid, brand,
+                                   hedge=top and fast and not bg)
         if err is None:
             break
         e = err
         if e:
             # timing line: brand, fn, attempt, duration, outcome — never args, never customer data
             log.warning("engine %s %s attempt=%d ms=%d -> %s", brand, fn, attempt, int(took * 1000), e.code)
-            if (e.code == "engine_bad_response" and attempt <= len(delays) and took < RETRY_FAST_FAIL_S
+            if (fast and retry and not bg and attempt == 1
+                    and e.code in ("engine_timeout", "engine_bad_response", "engine_unreachable")
+                    and (_clock() - started) + FAST_READ_TIMEOUT_S <= FAST_RETRY_BUDGET_S):
+                continue                                    # at once, same rid: the front door, not the engine, failed
+            if (not fast and e.code == "engine_bad_response" and attempt <= len(delays) and took < RETRY_FAST_FAIL_S
                     and (_clock() - started) + delays[attempt - 1] < RETRY_TOTAL_BUDGET_S):
                 _sleep(delays[attempt - 1])
                 continue

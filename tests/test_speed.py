@@ -14,7 +14,8 @@ AGENT = {"username": "noa", "roles": ["agent"], "brands": ["rozela"], "lang": "h
 class Engine:
     """A small stateful rozela engine: a change log with versions, tickets that can change, apiChanges like Api.gs."""
 
-    def __init__(self):
+    def __init__(self, lite=True):
+        self.lite = lite
         self.v = 7
         self.log = []
         self.tickets = {"t1": dict(ROZ), "t2": dict(ROZ, id="t2", name="Second"), "t3": dict(ROZ, id="t3", name="Third")}
@@ -26,6 +27,9 @@ class Engine:
         self.tickets[tid].update(patch)
         self.v += 1
         self.log.append((self.v, tid))
+
+    def tv(self, tid):
+        return max([v for v, i in self.log if i == tid] or [0])
 
     def __call__(self, url, body):
         fn, a = body["fn"], body["args"]
@@ -39,15 +43,26 @@ class Engine:
             for v, i in self.log:
                 if v > a["since"] and i not in ids:
                     ids.append(i)
-            return {"ok": True, "version": self.v, "tickets": [dict(self.tickets[i]) for i in ids], "removed": [], "serverMs": 5}
+            return {"ok": True, "version": self.v, "tickets": [dict(self.tickets[i], v=self.tv(i)) for i in ids], "removed": [],
+                    "serverMs": 5, "dryRun": True, "cancelEnabled": False, "cancelFrozen": False, "subscriptions": "kaching"}
+        if fn == "apiTicketLite" and self.lite:
+            tid, v = a["id"], self.tv(a["id"])
+            if v <= a["since"]:
+                return {"ok": True, "v": v, "changed": False, "serverMs": 12}
+            conv = self.conv[tid]
+            seen = a.get("seen")
+            t = self.tickets[tid]
+            return {"ok": True, "v": v, "changed": True, "status": t["status"], "draft_text": t.get("draft_text", ""),
+                    "action": t.get("action", ""), "handled_by": t.get("handled_by", ""), "msgCount": len(conv),
+                    "newMessages": [dict(m) for m in (conv[seen:] if isinstance(seen, int) else conv[-10:])]}
         if fn == "apiTicketFull":
             t = self.tickets[a["id"]]
             return {"ok": True, "ticket": dict(t), "extras": {"conversation": list(self.conv[a["id"]])}, "snapshotAt": "s"}
         return {"ok": False, "error": "unauthorized"}
 
 
-def setup(make_app, pw_hash, transport, now):
-    eng = Engine()
+def setup(make_app, pw_hash, transport, now, lite=True):
+    eng = Engine(lite)
     transport.reply = eng
     app = make_app()
     cache = cache_of(app)
@@ -201,11 +216,10 @@ def test_watch_is_cheap_while_nothing_changes(make_app, pw_hash, transport):
     at = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]["at"]
     eng.calls.clear()
     for _ in range(6):                                                       # 30 s of an agent reading a ticket
-        now[0] += 5
+        now[0] += 5.5
         j = post(c, tok, "/api/rozela/watch", {"id": "t1", "at": at}).get_json()
         assert j["ok"] and j["changed"] is False and j["cache"]["confirmed"] is True
-    assert eng.calls.count("apiChanges") == 6 and "apiTicketFull" not in eng.calls   # the shared feed, never the ticket
-    # (apiBoot appears only as the 15 s DRY_RUN refresh — see the next test for the engine change that removes it)
+    assert eng.calls == ["apiTicketLite"] * 6                               # "anything new since v?" — never the full ticket
 
 
 def test_watch_brings_a_new_customer_message_within_one_tick(make_app, pw_hash, transport):
@@ -214,37 +228,76 @@ def test_watch_brings_a_new_customer_message_within_one_tick(make_app, pw_hash, 
     at = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]["at"]
     eng.conv["t1"].append({"who": "customer", "at": "2026-10-05T10:05:00Z", "text": "where is my order?"})
     eng.change("t1", draft_text="engine draft v2")
-    now[0] += 5
+    now[0] += 5.5
     before = engine_proxy.gate("rozela").top_served
+    eng.calls.clear()
     j = post(c, tok, "/api/rozela/watch", {"id": "t1", "at": at}).get_json()
-    assert j["changed"] is True and j["extras"]["conversation"][-1]["text"] == "where is my order?"
+    assert j["changed"] is True and [m["text"] for m in j["extras"]["conversation"]] == ["hello", "where is my order?"]
     assert j["ticket"]["draft_text"] == "engine draft v2" and j["cache"]["at"] > at
-    assert engine_proxy.gate("rozela").top_served > before                  # the re-read used the reserved slot
-    now[0] += 5
-    j2 = post(c, tok, "/api/rozela/watch", {"id": "t1", "at": j["cache"]["at"]}).get_json()
-    assert j2["changed"] is False                                            # delivered once
+    assert eng.calls[0] == "apiTicketLite" and "apiTicketFull" not in eng.calls[:1]   # merged from the lite reply
+    assert engine_proxy.gate("rozela").top_served > before                  # the reserved slot
+    cache.drain()                                                            # summary/recommendation filled in behind
+    now[0] += 5.5
+    j2 = post(c, tok, "/api/rozela/watch", {"id": "t1", "at": cache._entry("rozela", "t1")["at"]}).get_json()
+    assert j2["changed"] is False and len(j2.get("extras", {}).get("conversation", [])) in (0, 2)
 
 
-def test_two_agents_watching_share_the_feed_read(make_app, pw_hash, transport):
+def test_lite_reply_that_cannot_be_merged_falls_back_to_the_full_ticket(make_app, pw_hash, transport):
+    now = [1000.0]
+    app, cache, c, tok, eng = setup(make_app, pw_hash, transport, now)
+    at = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]["at"]
+    eng.conv["t1"] = []                                                      # the engine holds FEWER than we do
+    eng.change("t1", status="action")
+    now[0] += 5.5
+    eng.calls.clear()
+    j = post(c, tok, "/api/rozela/watch", {"id": "t1", "at": at}).get_json()
+    assert eng.calls[:2] == ["apiTicketLite", "apiTicketFull"] and j["changed"] is True
+    assert j["extras"]["conversation"] == [] and j["ticket"]["status"] == "action"
+
+
+def test_two_agents_on_the_same_ticket_share_one_check(make_app, pw_hash, transport):
     now = [1000.0]
     app, cache, c, tok, eng = setup(make_app, pw_hash, transport, now)
     c2, tok2 = logged_in(app, pw_hash, "dana", ["agent"], ["rozela"])
-    at1 = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]["at"]
-    at2 = post(c2, tok2, "/api/rozela/ticket", {"id": "t2"}).get_json()["cache"]["at"]
+    at = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]["at"]
     eng.calls.clear()
-    now[0] += 5
-    post(c, tok, "/api/rozela/watch", {"id": "t1", "at": at1})
-    post(c2, tok2, "/api/rozela/watch", {"id": "t2", "at": at2})
-    post(c, tok, "/api/rozela/changes", {"since": 7})
-    assert eng.calls == ["apiChanges"]
+    now[0] += 5.5
+    post(c, tok, "/api/rozela/watch", {"id": "t1", "at": at})
+    post(c2, tok2, "/api/rozela/watch", {"id": "t1", "at": at})
+    assert eng.calls == ["apiTicketLite"]
 
 
-def test_watch_reads_the_ticket_itself_when_the_feed_is_down(make_app, pw_hash, transport):
+def test_open_revalidate_uses_lite(make_app, pw_hash, transport):
+    now = [1000.0]
+    app, cache, c, tok, eng = setup(make_app, pw_hash, transport, now)
+    post(c, tok, "/api/rozela/ticket", {"id": "t1"})
+    now[0] += 60
+    eng.calls.clear()
+    j = post(c, tok, "/api/rozela/ticket", {"id": "t1", "revalidate": True, "open": True}).get_json()
+    assert eng.calls == ["apiTicketLite"] and j["cache"]["confirmed"] is True
+    j = post(c, tok, "/api/rozela/ticket", {"id": "t1", "fresh": True, "open": True}).get_json()
+    assert eng.calls[-1] == "apiTicketFull"                                  # an explicit refresh is always the full read
+
+
+def test_engine_without_lite_watches_through_the_shared_feed(make_app, pw_hash, transport):
+    now = [1000.0]
+    app, cache, c, tok, eng = setup(make_app, pw_hash, transport, now, lite=False)
+    at = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]["at"]
+    now[0] += 5.5
+    assert post(c, tok, "/api/rozela/watch", {"id": "t1", "at": at}).get_json()["changed"] is False
+    eng.change("t1", draft_text="v2")
+    eng.calls.clear()
+    now[0] += 5.5
+    j = post(c, tok, "/api/rozela/watch", {"id": "t1", "at": at}).get_json()
+    assert "apiTicketLite" not in eng.calls and j["changed"] is True and j["ticket"]["draft_text"] == "v2"
+
+
+def test_watch_reads_the_ticket_itself_when_lite_keeps_failing(make_app, pw_hash, transport):
     now = [1000.0]
     app, cache, c, tok, eng = setup(make_app, pw_hash, transport, now)
     at = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()["cache"]["at"]
     real = transport.reply
-    transport.reply = lambda u, b: {"ok": False, "error": "busy"} if b["fn"] == "apiChanges" else real(u, b)
+    transport.reply = lambda u, b: {"ok": False, "error": "busy"} if b["fn"] == "apiTicketLite" else real(u, b)
     eng.calls.clear()
     now[0] += 10
     j = post(c, tok, "/api/rozela/watch", {"id": "t1", "at": at}).get_json()
@@ -252,6 +305,20 @@ def test_watch_reads_the_ticket_itself_when_the_feed_is_down(make_app, pw_hash, 
     now[0] += ticket_cache.WATCH_DIRECT_S
     j = post(c, tok, "/api/rozela/watch", {"id": "t1", "at": at}).get_json()
     assert "apiTicketFull" in eng.calls and j["changed"] is True              # the open ticket never goes stale silently
+
+
+def test_switches_come_from_the_feed_not_a_boot_reload(make_app, pw_hash, transport):
+    now = [1000.0]
+    app, cache, c, tok, eng = setup(make_app, pw_hash, transport, now)
+    now[0] += 5
+    post(c, tok, "/api/rozela/changes", {"since": 7})                        # the feed shows it carries the switches
+    eng.calls.clear()
+    for _ in range(6):
+        now[0] += 16                                                         # every open asks for switches <= 15 s old
+        j = post(c, tok, "/api/rozela/list", {"maxAge": 15}).get_json()
+        assert j["ok"] and j["dryRun"] is True
+    cache.drain()
+    assert "apiBoot" not in eng.calls and eng.calls.count("apiChanges") == 6
 
 
 def test_watch_rejects_bad_input_and_non_agents(make_app, pw_hash, transport):
@@ -307,3 +374,17 @@ def test_open_ticket_reads_have_their_own_threads(make_app, pw_hash, transport):
     j = post(c, tok, "/api/rozela/ticket", {"id": "t2", "revalidate": True, "open": True}).get_json()
     block.set()
     assert j["ok"] and j["cache"]["hit"] is False                            # served anyway
+
+
+def test_lite_never_merges_a_backwards_version_or_a_malformed_message(make_app, pw_hash, transport):
+    now = [1000.0]
+    app, cache, c, tok, eng = setup(make_app, pw_hash, transport, now)
+    eng.change("t1", status="action")
+    post(c, tok, "/api/rozela/changes", {"since": 7})
+    post(c, tok, "/api/rozela/ticket", {"id": "t1", "revalidate": True})
+    real = transport.reply
+    for bad in ({"ok": True, "v": 1, "changed": False},
+                {"ok": True, "v": 99, "changed": True, "status": "x", "draft_text": "", "msgCount": 2, "newMessages": ["junk"]}):
+        transport.reply = lambda u, b, bad=bad: bad if b["fn"] == "apiTicketLite" else real(u, b)
+        cache._entry("rozela", "t1")["v"] = 8
+        assert cache._lite({"username": "noa", "roles": ["agent"], "brands": ["rozela"], "lang": "he"}, "rozela", "t1")["need_full"] is True

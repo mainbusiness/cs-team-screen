@@ -37,7 +37,7 @@ TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTick
          "apiNote": WORK, "apiKachingCancel": WORK, "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
          "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK,
-         "apiResult": WORK}
+         "apiResult": WORK, "apiTicketLite": WORK}
 MOCK_WRITES = ("apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiWaTakeOver",
                "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject")
 CONTRACT_RE_PREFIX = "gid://shopify/SubscriptionContract/"
@@ -729,8 +729,30 @@ class MockEngines:
         except ValueError:
             since = 0
         ids = [i for i, v in self.touched[brand].items() if v > since]
-        rows = [{k: t[k] for k in SUMMARY_COLS} for t in self._b(brand)["tickets"] if t["id"] in ids]
-        return {"ok": True, "version": self.version[brand], "tickets": rows, "removed": [], "serverMs": 40, "serverTime": self._now()}
+        rows = [dict({k: t[k] for k in SUMMARY_COLS}, v=self.touched[brand].get(t["id"], 0))
+                for t in self._b(brand)["tickets"] if t["id"] in ids]
+        sw = self.switches[brand]                    # engine @35/36: the switches ride along with every feed reply
+        return {"ok": True, "version": self.version[brand], "tickets": rows, "removed": [], "serverMs": 40, "serverTime": self._now(),
+                "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]),
+                "subscriptions": "none" if brand == "selera" else "kaching"}
+
+    def apiTicketLite(self, brand, a, c):
+        """Engine @35/36 shape: {id, since, seen?} -> {ok, v, changed:false} | {ok, v, changed:true, status, draft_text,
+        action, handled_by, msgCount, newMessages[]} (after `seen`, or the last 10 without it)."""
+        since, seen = a.get("since"), a.get("seen")
+        if not isinstance(since, int) or isinstance(since, bool) or since < 0:
+            return {"ok": False, "error": "bad_since"}
+        t = self._find(brand, a.get("id"))
+        if not t:
+            return {"ok": False, "error": "not_found"}
+        v = self.touched[brand].get(t["id"], 0)
+        if v <= since:
+            return {"ok": True, "v": v, "changed": False, "serverMs": 12}
+        conv = (self._b(brand)["snaps"].get(t["id"], {}) or {}).get("conversation") or []
+        new = conv[seen:] if isinstance(seen, int) and 0 <= seen <= len(conv) else conv[-10:]
+        return {"ok": True, "v": v, "changed": True, "status": t["status"], "draft_text": t.get("draft_text", ""),
+                "action": t.get("action", ""), "handled_by": t.get("handled_by", ""), "msgCount": len(conv),
+                "newMessages": copy.deepcopy(new), "serverMs": 15}
 
     # ---------- auto-reply review (coordinator shapes, 2026-10-05) ----------
     def apiAutoReplyList(self, brand, a, c):

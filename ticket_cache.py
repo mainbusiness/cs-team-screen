@@ -58,7 +58,8 @@ UNSUPPORTED_RETRY_S = 600
 CHANGES_SHARED_S = 4.0     # /changes and /watch reuse a feed read younger than this
 CONFIRM_S = 12.0           # a copy is confirmed fresh if the engine (ticket read or change feed) vouched for it this recently
 WATCH_WAIT_S = 10.0        # /watch waits at most this long for the shared feed read
-WATCH_DIRECT_S = 20.0      # feed unreadable: the open ticket itself is re-read once its copy is older than this
+WATCH_DIRECT_S = 20.0
+WATCH_FRESH_S = 5.0        # /watch makes no engine call for a copy vouched for this recently (by apiTicketLite or the feed)      # feed unreadable: the open ticket itself is re-read once its copy is older than this
 CHLOG_MAX = 3000           # (version, id) pairs kept for client deltas; older clients get the whole list (reset)
 WAIT_FOR_INFLIGHT_S = 90   # a request sharing another one's in-flight engine fetch waits at most this long  # an engine without apiTicketFull / apiChanges is asked again after 10 min
 
@@ -98,6 +99,8 @@ class TicketCache:
         self.inflight = {}               # key -> Future (dedupe: one engine fetch per key at a time)
         self.no_full = {}
         self.no_changes = {}
+        self.no_lite = {}                # brand -> until when the engine is known to lack apiTicketLite
+        self.feed_switches = set()       # brands whose apiChanges carries the switches (engine @35/36)
         self.bg = []                     # background futures (tests drain them)
         self.chlog = {}                  # brand -> {"floor": version, "items": [(version, id)]}: deltas for /changes
         self.changed_at = {}             # brand -> {id: when the feed last said it changed}
@@ -338,7 +341,12 @@ class TicketCache:
     def get_list(self, user, brand, max_age=None):
         e = self._boot_entry(brand)
         if e and max_age is not None and self.clock() - e.get("full_at", e["at"]) > max_age:
-            e = None                                  # caller needs switches no older than max_age: read the engine now
+            # caller needs switches no older than max_age. Engine @35/36 sends them with every apiChanges: the shared
+            # feed read (cheap, single-flight) refreshes them; only an engine without them costs a full apiBoot
+            r = self._once(("chg", brand), lambda: self._sync(user, brand), wait=WATCH_WAIT_S) if brand in self.feed_switches else {}
+            e = self._boot_entry(brand)
+            if not (r.get("ok") and e and self.clock() - e.get("full_at", e["at"]) <= max_age):
+                e = None
         if e:
             age = self.clock() - e["at"]
             timing("cache", None, "list-hit")
@@ -475,6 +483,7 @@ class TicketCache:
                     data["serverTime"] = out.get("serverTime", data.get("serverTime"))
                     full_at = cur.get("full_at", cur["at"])
                     if all(k in out for k in ("dryRun", "cancelEnabled")):    # an engine that sends its switches with the feed
+                        self.feed_switches.add(brand)
                         for k in SWITCH_KEYS:
                             if k in out:
                                 data[k] = out[k]
@@ -544,7 +553,15 @@ class TicketCache:
         return {"ticket": a.get("ticket") or {}, "extras": (b.get("extras") or {}) if b.get("ok") else {},
                 "snapshotAt": None, "extrasError": None if b.get("ok") else (b.get("msg") or b.get("error"))}, None
 
-    def _store_full(self, brand, tid, full, t0=None):
+    def _row_v(self, brand, tid):
+        """The ticket's version as the list (change feed) last saw it — a safe LOWER bound for a copy read after it."""
+        e = self._boot_entry(brand)
+        for r in ((e or {}).get("data", {}).get("tickets") or []):
+            if isinstance(r, dict) and r.get("id") == tid:
+                return self._int(r.get("v"))
+        return None
+
+    def _store_full(self, brand, tid, full, t0=None, v=None):
         t0 = self.clock() if t0 is None else t0
         with self.lock:
             t = self._bucket(brand)["t"]
@@ -553,7 +570,9 @@ class TicketCache:
                 return cur                       # a read that started later already landed: never go back in time
             # the feed saw a change after this read began: the copy may predate it -> keep it marked old
             stale = (self.changed_at.get(brand) or {}).get(tid, -1) > t0
-            e = {"full": full, "at": self.clock(), "t0": t0, "stale": stale}
+            if cur:                                  # a later read is at least as new as the copy it replaces
+                v = max(self._int(v) or 0, self._int(cur.get("v")) or 0) or None
+            e = {"full": full, "at": self.clock(), "t0": t0, "stale": stale, "v": v}
             t[tid] = e
             if len(t) > MAX_TICKETS_PER_BRAND:
                 for k, _ in sorted(t.items(), key=lambda kv: kv[1]["at"])[: len(t) - MAX_TICKETS_PER_BRAND]:
@@ -577,32 +596,87 @@ class TicketCache:
 
     def _refresh(self, user, brand, tid, fresh=False):
         t0 = self.clock()
+        v0 = self._row_v(brand, tid)                 # read BEFORE the fetch: the copy is at least this new
         full, err = self._fetch_full(user, brand, tid, fresh)
         if full:
-            full = self._store_full(brand, tid, full, t0)["full"]
+            full = self._store_full(brand, tid, full, t0, v0)["full"]
         elif err and err.get("error") == "not_found":
             with self.lock:
                 self._bucket(brand)["t"].pop(tid, None)
         return full, err
 
-    def confirmed(self, brand, e):
+    def _lite(self, user, brand, tid):
+        """apiTicketLite {id, since: our copy's v, seen: messages we hold} (engine @35/36): 11-77 ms inside the engine.
+        unchanged -> the copy is vouched for now; changed -> the new messages / status / draft merged into the copy.
+        -> {ok, changed} | {ok, changed, need_full} (the reply cannot be merged safely) | engine error"""
+        e = self._entry(brand, tid)
+        if not e:
+            return {"ok": True, "changed": True, "need_full": True}
+        full = e["full"]
+        ex = full.get("extras") or {}
+        conv = ex.get("conversation")
+        args = {"id": tid, "since": self._int(e.get("v")) or 0}
+        if isinstance(conv, list) and not ex.get("truncated"):
+            args["seen"] = len(conv)
+        t0 = self.clock()
+        out = self._call(user, brand, "apiTicketLite", args, False, True)
+        if not out.get("ok"):
+            if out.get("error") in ("unauthorized", "forbidden_fn"):
+                self.no_lite[brand] = self.clock() + UNSUPPORTED_RETRY_S
+            elif out.get("error") == "not_found":
+                with self.lock:
+                    self._bucket(brand)["t"].pop(tid, None)
+            return out
+        v = self._int(out.get("v"))
+        if v is None or v < args["since"]:           # the ticket's version went backwards: trust nothing here (Codex)
+            return {"ok": True, "changed": True, "need_full": True}
+        if out.get("changed") is False:
+            with self.lock:
+                cur = self._bucket(brand)["t"].get(tid)
+                if cur is e:
+                    cur["chk"] = self.clock()
+                    cur["v"] = max(v or 0, self._int(cur.get("v")) or 0)
+                    cur["stale"] = (self.changed_at.get(brand) or {}).get(tid, -1) > t0   # the feed saw something newer
+            return {"ok": True, "changed": False}
+        new = out.get("newMessages") or []
+        if not all(isinstance(m, dict) and isinstance(m.get("who"), str) for m in new):
+            return {"ok": True, "changed": True, "need_full": True}   # a message we cannot show safely: read it all
+        if ("seen" not in args or out.get("msgCount") != args["seen"] + len(new)
+                or not all(k in out for k in ("status", "draft_text"))):
+            return {"ok": True, "changed": True, "need_full": True}
+        ticket = dict(full.get("ticket") or {})
+        for k in ("status", "draft_text", "action", "handled_by"):
+            if k in out:
+                ticket[k] = out[k]
+        merged = dict(full, ticket=ticket, extras=dict(ex, conversation=list(conv) + list(new)))
+        e2 = self._store_full(brand, tid, merged, t0, v)
+        with self.lock:
+            e2["chk"] = self.clock()
+        if new:                                      # summary / recommendation follow the new message: fill them in behind
+            self._background(("t", brand, tid), lambda: self._refresh(user, brand, tid))
+        return {"ok": True, "changed": True}
+
+    def _lite_ok(self, brand):
+        return self.clock() > self.no_lite.get(brand, 0)
+
+    def confirmed(self, brand, e, window=CONFIRM_S):
         """Is this cached copy vouched for by the engine within CONFIRM_S — read itself, or covered by a feed read that
         would have marked it changed? Then the open ticket needs no second round-trip."""
         if not e or e.get("stale"):
             return False
         now = self.clock()
-        if now - e["at"] <= CONFIRM_S:
+        if now - max(e["at"], e.get("chk") or 0) <= window:
             return True
         with self.lock:
             f = self.feed.get(brand)
-        return bool(f and now - f["ok_at"] <= CONFIRM_S and float(e.get("t0", e.get("at", 0)) or 0) >= f["base_t"])
+        return bool(f and now - f["ok_at"] <= window and float(e.get("t0", e.get("at", 0)) or 0) >= f["base_t"])
 
     def meta(self, brand, e, hit):
         age = self.clock() - e["at"]
         return {"hit": hit, "age_s": round(age, 1), "stale": bool(e.get("stale")), "at": e["at"],
                 "confirmed": self.confirmed(brand, e)}
 
-    def get_ticket(self, user, brand, tid, revalidate=False, fresh=False, top=False):
+    def get_ticket(self, user, brand, tid, revalidate=False, fresh=False, top=False, lite=True):
         if not ID_RE.match(tid):
             return None, {"ok": False, "error": "bad_id"}, {}
         if not revalidate:
@@ -615,10 +689,17 @@ class TicketCache:
                 return e["full"], None, self.meta(brand, e, True)
         # QA round 5: an agent waits at most TICKET_WAIT_S; the fetch keeps going and lands in the cache for the retry
         key = ("t", brand, tid, "top") if top else ("t", brand, tid)    # the open ticket never queues behind a prefetch
+        lite_first = lite and top and not fresh and self._lite_ok(brand) and self._entry(brand, tid) is not None
         def work():
             _collect.items = []
             self._tl.top = top
             try:
+                if lite_first:                       # the copy on screen: ask "anything new since v?" (ms, not seconds)
+                    r = self._once(("lite", brand, tid), lambda: self._lite(user, brand, tid))
+                    e_ = self._entry(brand, tid) if isinstance(r, dict) and r.get("ok") and not r.get("need_full") else None
+                    if e_:
+                        timing("cache", None, "ticket-lite")
+                        return (e_["full"], None), _collect.items
                 return self._once(key, lambda: self._refresh(user, brand, tid, fresh)), _collect.items
             finally:
                 _collect.items = None
@@ -640,26 +721,44 @@ class TicketCache:
         return full, err, meta
 
     def watch(self, user, brand, tid, have_at):
-        """The open ticket, every ~5 s per agent. Cheap: it rides the brand's shared feed read (one apiChanges per brand per
-        CHANGES_SHARED_S, however many agents watch) and reads the ticket itself only when the feed says it changed.
+        """The open ticket, every ~5 s per agent: apiTicketLite (engine @35/36) — "anything new since v?" — at top
+        priority, deduped per ticket. No engine call at all when the copy was vouched for in the last WATCH_FRESH_S (by
+        another agent's check or the shared list feed). An engine without apiTicketLite: the shared feed decides.
         -> (copy newer than have_at | None, error | None, meta)"""
         if not ID_RE.match(tid):
             return None, {"ok": False, "error": "bad_id"}, {}
+        e = self._entry(brand, tid)
+        need_full = e is None
+        if e is not None and not self.confirmed(brand, e, WATCH_FRESH_S):
+            if self._lite_ok(brand):
+                r = self._once(("lite", brand, tid), lambda: self._lite(user, brand, tid), wait=WATCH_WAIT_S)
+                if r.get("ok"):
+                    need_full = bool(r.get("need_full"))
+                elif r.get("error") in ("unauthorized", "forbidden_fn"):
+                    need_full = self._watch_by_feed(user, brand, tid)
+                else:                                # the front door failed twice: re-read once the copy is old
+                    need_full = not self.confirmed(brand, e) and self.clock() - e["at"] > WATCH_DIRECT_S
+            else:
+                need_full = self._watch_by_feed(user, brand, tid)
+        if need_full:                                # lite already said "not mergeable": straight to the full read
+            full, err, _ = self.get_ticket(user, brand, tid, revalidate=True, top=True, lite=False)
+            if not full:
+                return None, err, {}
+        e = self._entry(brand, tid)
+        if not e:
+            return None, {"ok": False, "error": "engine_slow", "pending": True}, {}
+        meta = self.meta(brand, e, True)
+        return (e["full"] if e["at"] > have_at + 0.0005 else None), None, meta
+
+    def _watch_by_feed(self, user, brand, tid):
+        """Fallback for an engine without apiTicketLite: the shared feed says whether the ticket changed."""
         age = self.synced_age(brand)
         feed_ok = True
         if age is None or age > CHANGES_SHARED_S:
             feed_ok = bool(self._once(("chg", brand), lambda: self._sync(user, brand), wait=WATCH_WAIT_S).get("ok"))
         e = self._entry(brand, tid)
-        if (e is None or e.get("stale") or (not feed_ok and not self.confirmed(brand, e)
-                                             and self.clock() - e["at"] > WATCH_DIRECT_S)):
-            full, err, _ = self.get_ticket(user, brand, tid, revalidate=True, top=True)
-            if not full:
-                return None, err, {}
-            e = self._entry(brand, tid)
-        if not e:
-            return None, {"ok": False, "error": "engine_slow", "pending": True}, {}
-        meta = self.meta(brand, e, True)
-        return (e["full"] if e["at"] > have_at + 0.0005 else None), None, meta
+        return (e is None or e.get("stale") or (not feed_ok and not self.confirmed(brand, e)
+                                                 and self.clock() - e["at"] > WATCH_DIRECT_S))
 
     # ---------- related tickets: secondary information, never allowed to crowd out an agent's work ----------
     RELATED_TTL_S = 300

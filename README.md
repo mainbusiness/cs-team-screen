@@ -432,4 +432,18 @@ Baseline measured live, read-only: the open-ticket confirmation was capped at th
   the engine.
 - The list poll runs every 10 s (it was 15 s); it costs the same shared feed read.
 
-What the ENGINE should add (requested through the coordinator) is in the final report.
+Engine @35/36 (round 2, same day):
+- **`apiTicketLite {id, since: v, seen: n}`** is the open ticket's check, used for `/watch` and for the revalidate on
+  open.
+  - `changed:false` vouches for the copy.
+  - `changed:true` merges the new messages, status and draft into the cached copy. Summary and recommendation are
+    filled in behind it at background priority.
+  - When the reply can't be merged (counts don't add up, a field is missing, the version went backwards, a malformed
+    message), it falls back to `apiTicketFull`.
+  - Without `apiTicketLite`, the shared feed decides, as before.
+- **The switches come from `apiChanges`** (`dryRun`, `cancelEnabled`, …), so there is no 15 s `apiBoot`. A `/list
+  {maxAge}` call is answered by the shared feed read.
+- **Fast reads** (Lite, Changes, TicketFull, Ticket, TicketExtras, Result) get a 12 s timeout and ONE immediate retry
+  with the same rid. The 8–42 s is Google's front door, not the engine. Writes and background reads are never retried.
+- **Open-ticket reads are hedged:** a second identical request after 4 s with no answer, only if a SHARED slot is free
+  (never the reserved one, never over 6). The first valid answer wins; the other gives its slot back when it ends.

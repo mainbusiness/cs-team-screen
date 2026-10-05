@@ -291,7 +291,8 @@ def test_open_ticket_gets_the_reserved_slot_while_everything_else_is_full():
     assert got[0][1]["ok"] and m.peak["rozela"] <= engine_proxy.GATE_CAP
 
 
-def test_open_ticket_is_served_before_every_waiter_when_all_six_are_busy():
+def test_open_ticket_is_served_before_every_waiter_when_all_six_are_busy(monkeypatch):
+    monkeypatch.setattr(engine_proxy, "FAST_READS", frozenset())        # no hedge thread: the call order IS the gate order
     release = threading.Event()
     m = Meter(block=release)
     hold = [threading.Thread(target=top, args=(m, "rozela", "apiTicketFull", {"id": "o%d" % i})) for i in range(engine_proxy.GATE_CAP)]
@@ -327,3 +328,73 @@ def test_background_never_takes_the_reserved_slot_and_writes_never_get_top():
     assert not engine_proxy.is_read("apiSend", {})
     release.set()
     [t.join() for t in fg]
+
+
+# ---------- engine @35/36: 12 s read timeout, immediate same-rid retry, hedged open-ticket reads ----------
+
+class Slow:
+    """Transport that accepts a timeout. calls[i] = (fn, rid, timeout). First `slow_first` calls sleep `delay` s."""
+    accepts_timeout = True
+
+    def __init__(self, delay=0.6, slow_first=1, fail_first=0, code="engine_timeout"):
+        self.delay, self.slow_first, self.fail_first, self.code = delay, slow_first, fail_first, code
+        self.calls, self.lock = [], threading.Lock()
+
+    def __call__(self, url, body, timeout=None):
+        with self.lock:
+            n = len(self.calls)
+            self.calls.append((body["fn"], body["rid"], timeout))
+        if n < self.fail_first:
+            raise engine_proxy.ProxyError(self.code, 504)
+        if n < self.slow_first:
+            time.sleep(self.delay)
+        return dict(valid_reply(url, body), ticket={"id": body["args"].get("id", "x")}, extras={}, tickets=[], counts={})
+
+
+def test_fast_reads_get_a_12s_timeout_and_one_immediate_retry_with_the_same_rid(monkeypatch):
+    slept = []
+    monkeypatch.setattr(engine_proxy, "_sleep", slept.append)
+    t = Slow(slow_first=0, fail_first=1)
+    st, out = engine_proxy.call(
+        ENGINES, t, "t" * 40, {"username": "noa", "roles": ["agent"], "brands": ["rozela"], "lang": "he"}, "rozela",
+        "apiTicketFull", {"id": "t1"}, "he", internal=True)
+    assert out["ok"] and len(t.calls) == 2 and t.calls[0][1] == t.calls[1][1] and slept == []
+    assert t.calls[0][2] == engine_proxy.FAST_READ_TIMEOUT_S
+    t2 = Slow(slow_first=0, fail_first=1)
+    st, out = engine_proxy.call(ENGINES, t2, "t" * 40, {"username": "noa", "roles": ["agent"], "brands": ["rozela"], "lang": "he"},
+                                "rozela", "apiBoot", {}, "he", internal=True)
+    assert t2.calls[0][2] is None                                              # slow reads keep the long timeout
+
+
+def test_background_and_writes_are_never_retried_on_timeout(monkeypatch):
+    t = Slow(slow_first=0, fail_first=1)
+    direct(t, "rozela", "apiTicketFull", {"id": "t1"}, bg=True)
+    assert len(t.calls) == 1
+    assert not engine_proxy.is_read("apiSend", {}) and "apiSend" not in engine_proxy.FAST_READS
+
+
+def test_open_ticket_read_is_hedged_after_a_silent_wait(monkeypatch):
+    monkeypatch.setattr(engine_proxy, "HEDGE_AFTER_S", 0.1)
+    t = Slow(delay=1.5, slow_first=1)
+    t0 = time.time()
+    st, out = top(t, "rozela", "apiTicketFull", {"id": "t1"})
+    took = time.time() - t0
+    assert out["ok"] and len(t.calls) == 2 and t.calls[0][1] == t.calls[1][1]   # same rid
+    assert took < 1.0                                                            # the hedge answered first
+    time.sleep(1.6)
+    assert engine_proxy.gate("rozela").inflight == 0                             # the loser gave its slot back
+
+
+def test_no_hedge_when_only_the_reserved_slot_is_free(monkeypatch):
+    monkeypatch.setattr(engine_proxy, "HEDGE_AFTER_S", 0.1)
+    release = threading.Event()
+    m = Meter(block=release)
+    fg = [threading.Thread(target=direct, args=(m, "rozela", "apiBoot", {})) for _ in range(SHARED - 1)]
+    [x.start() for x in fg]
+    time.sleep(0.2)
+    t = Slow(delay=0.5, slow_first=1)
+    st, out = top(t, "rozela", "apiTicketFull", {"id": "t1"})                  # 4 shared + this = 5: no 6th for a hedge
+    assert out["ok"] and len(t.calls) == 1
+    release.set()
+    [x.join() for x in fg]
+    assert m.peak["rozela"] <= engine_proxy.GATE_CAP

@@ -99,7 +99,7 @@ def test_get_not_supported_is_never_shown_raw_and_reads_retry(app, pw_hash, tran
     c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
     j = call(c, tok, "rozela", "apiTicket", {"id": "t1"}).get_json()
     assert j["error"] == "engine_bad_response" and "get_not_supported" not in j["msg"] and "סירב" not in j["msg"]
-    assert n.count("apiTicket") == 3                                        # a read: retried by the existing rules
+    assert n.count("apiTicket") == 2                                        # a fast read: one immediate retry, same rid
 
 
 def test_missing_rid_is_rejected_once_the_engine_echoes(app, pw_hash, transport, quick):

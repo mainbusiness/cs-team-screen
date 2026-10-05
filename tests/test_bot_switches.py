@@ -80,8 +80,9 @@ def test_engine_side_flip_is_seen_within_15_seconds(make_app, pw_hash, transport
     now[0] += 10
     assert post(c, tok, "/api/rozela/list", {"maxAge": 15}).get_json()["dryRun"] is True    # 10 s old: still fine
     now[0] += 6
+    n0 = len(transport.calls)
     j = post(c, tok, "/api/rozela/list", {"maxAge": 15}).get_json()                         # 16 s old: re-read now
-    assert j["dryRun"] is False and j["cache"]["hit"] is False
+    assert j["dryRun"] is False and len(transport.calls) > n0                               # the engine was read in this call
     # the poll path refreshes the switches behind apiChanges once they are older than 15 s
     state["dry"] = True
     now[0] += 16
