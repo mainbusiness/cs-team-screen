@@ -362,3 +362,11 @@ html[dir=rtl] .ch-banner.wa { box-shadow: inset -4px 0 0 var(--wa); }
 .chan-btn.whatsapp.on { background: var(--wa-btn); }
 .chan-btn.email.on { background: var(--sent); }
 .reconnect { top: 62px; }
+
+/* ---------- Dondy bot + WhatsApp photos (engine @18) ---------- */
+.bot-banner { background: #ede9fe; color: #4c1d95; border: 1px solid #ddd6fe; border-radius: var(--radius); padding: 10px 14px; display: grid; gap: 8px; }
+.photos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chip.photo { background: #fff; border: 1px solid var(--line); color: var(--ink); font-weight: 600; text-decoration: none; }
+a.chip.photo { color: var(--accent); }
+.chip.photo.dondy { background: var(--wa-bg); color: var(--wa-ink); border-color: #bfe8cc; }
+.chip.photo.wait { color: var(--muted); }

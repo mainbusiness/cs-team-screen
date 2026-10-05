@@ -242,6 +242,18 @@ def main():
             shot(page, errs, "17_draft_save_refused_rollback", 390, full=False)
             ctx.close()
 
+            # ---------- Dondy bot + WhatsApp photos (engine @18) ----------
+            for width, height in ((390, 844), (1280, 860)):
+                ctx, page, errs = session("agent-one", width, height)
+                page.goto(base + "/cs#/b/rozela/bot")
+                page.wait_for_selector("a.row[data-id=w8ab77c2]")
+                shot(page, errs, "29_bot_tab", width, full=False)
+                page.goto(base + "/cs#/b/rozela/t/w8ab77c2")
+                page.wait_for_selector("[data-test=photo-dondy]")
+                page.locator("[data-test=photo-dondy]").scroll_into_view_if_needed()
+                shot(page, errs, "30_bot_ticket_photos", width, full=False)
+                ctx.close()
+
             # ---------- WhatsApp vs email (Owner, 2026-10-05) ----------
             for width, height in ((390, 844), (1280, 860)):
                 ctx, page, errs = session("agent-one", width, height)

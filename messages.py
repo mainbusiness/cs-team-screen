@@ -89,6 +89,7 @@ ENGINE = {
     "newer_message": ("הלקוח כתב הודעה חדשה מאז שהטיוטה נכתבה. רעננו וקראו אותה לפני שליחה.",
                       "The customer wrote again since the draft was made. Refresh and read it first."),
     "bad_job": ("משימה לא מוכרת.", "Unknown job."),
+    "not_bot": ("השיחה כבר לא אצל הבוט — רעננו את הפנייה.", "The bot is no longer handling this chat — refresh the ticket."),
     "rate_limited": ("המנוע מגביל קריאות כרגע. נסו שוב בעוד כמה דקות.", "The engine is rate-limiting. Try again in a few minutes."),
     "bad_since": ("גרסת רשימה לא תקינה.", "Invalid list version."),
 }

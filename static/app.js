@@ -74,6 +74,10 @@
       pick_ticket: 'בחרו פנייה מהרשימה',
       menu: 'תפריט', users: 'ניהול משתמשים', change_pw: 'החלפת סיסמה', logout: 'יציאה', to_en: 'English UI', to_he: 'ממשק בעברית', to_tickets: 'חזרה לפניות',
       err_network: 'אין חיבור לאינטרנט או לשרת. שום דבר לא נשלח — נסו שוב.', err_bad_response: 'תשובה לא תקינה מהשרת.', err_login: 'צריך להתחבר מחדש.',
+      tab_bot: '🤖 הבוט של דונדי מטפל', empty_bot: 'אין כרגע שיחות שהבוט של דונדי מטפל בהן', st_bot: '🤖 בוט',
+      bot_banner: 'הבוט של דונדי מטפל בשיחה הזאת. אין טיוטה — המנוע בודק אותה בכל ריצה.', takeover: 'לקחת את השיחה', takeover_arm: 'לחצו שוב כדי לקחת את השיחה',
+      takeover_ok: 'השיחה אצלך — טיוטה תיכתב בריצה הבאה של המנוע', photo_dondy: '📷 תמונה — לצפייה בדונדי', photo_open: '📷 תמונה — פתיחה',
+      photo_wait: '📷 תמונה — עוד לא הגיעה',
       reconnecting: 'מתעדכן…', send_wa: 'שליחה בוואטסאפ', send_email: 'שליחה במייל', chan_all: 'הכול', wa_banner: 'פנייה בוואטסאפ',
       email_banner: 'פנייה במייל', err_restarting: 'השרת בעדכון — נסו שוב בעוד דקה.',
       err_restart_write: 'השרת התעדכן בדיוק ברגע הזה. רעננו את הפנייה ובדקו אם הפעולה בוצעה לפני שמנסים שוב.',
@@ -173,6 +177,10 @@
       pick_ticket: 'Pick a ticket from the list',
       menu: 'Menu', users: 'Users', change_pw: 'Change password', logout: 'Sign out', to_en: 'English UI', to_he: 'Hebrew UI', to_tickets: 'Back to tickets',
       err_network: 'No connection. Nothing was sent — try again.', err_bad_response: 'Invalid server answer.', err_login: 'Please sign in again.',
+      tab_bot: '🤖 Dondy bot is handling', empty_bot: 'The Dondy bot is not handling any chat right now', st_bot: '🤖 Bot',
+      bot_banner: 'The Dondy bot is handling this chat. No draft — the engine re-checks it every run.', takeover: 'Take over', takeover_arm: 'Click again to take over',
+      takeover_ok: 'The chat is yours — a draft will be written on the next engine run', photo_dondy: '📷 Photo — view in Dondy', photo_open: '📷 Photo — open',
+      photo_wait: '📷 Photo — not arrived yet',
       reconnecting: 'Reconnecting…', send_wa: 'Send on WhatsApp', send_email: 'Send by email', chan_all: 'All', wa_banner: 'WhatsApp conversation',
       email_banner: 'Email conversation', en_confirm_wa: 'Confirm translation and send on WhatsApp', en_confirm_email: 'Confirm translation and send by email', err_restarting: 'The server is updating — try again in a minute.',
       err_restart_write: 'The server restarted at exactly this moment. Refresh the ticket and check whether the action happened before trying again.',
@@ -471,7 +479,7 @@
     boots: {}, bootErr: {}, ar: {}, rowTr: {}, tkMemo: {}, prefetchedAt: {}, assist: {}, auto: {}, autoEdits: {}, autoMsg: {}, settings: {}, listSig: '', tk: null, search: { q: '', res: null, err: null, seq: 0 }, menuOpen: false
   };
   const OPEN = ['ready', 'action', 'health', 'delay'];
-  const TABS = ['ready', 'action', 'autoreply', 'auto', 'health', 'delay', 'sent', 'today', 'search'];
+  const TABS = ['ready', 'action', 'autoreply', 'auto', 'health', 'delay', 'bot', 'sent', 'today', 'search'];
   const brandName = function (b) { const bt = S.boots[b]; return (bt && bt.brandName) || (b.charAt(0).toUpperCase() + b.slice(1)); };
   const boot = function () { return S.boots[S.brand] || null; };
   /** apiBoot.subscriptions === 'none' (e.g. selera): no subscriptions panel, no auto-cancel queue. */
@@ -683,7 +691,23 @@
     api('/api/' + encodeURIComponent(brand) + '/prefetch', { ids: rows.slice(0, 15).map(function (x) { return x.id; }) }, 'POST', { quiet: true });
   }
 
-  /** Every 20 s: only what changed since our version, merged into the list in place (no full reload). */
+  /** DRY_RUN & co. change outside this tab (System Mode, or the engine directly): adopt them without a reload. */
+  function mergeSwitches(brand, sw) {
+    const b = S.boots[brand];
+    if (!b || !sw || typeof sw !== 'object') return;
+    let changed = false;
+    ['dryRun', 'cancelEnabled', 'cancelFrozen', 'subscriptions'].forEach(function (k) {
+      if (k in sw && sw[k] !== b[k]) { b[k] = sw[k]; changed = true; }
+    });
+    if (!changed || brand !== S.brand) return;
+    renderBanners(); renderTabs(); Draft.refreshSend(); EnDraft.refresh(); paintSubs(brand);
+  }
+  async function refreshSwitches(brand) {
+    const r = await api('/api/' + encodeURIComponent(brand) + '/list', { maxAge: 15 }, 'POST', { quiet: true });
+    if (r.ok) mergeSwitches(brand, r);
+  }
+
+  /** Every 15 s: only what changed since our version, merged into the list in place (no full reload). */
   let polling = false;
   async function pollChanges(brand) {
     const b = S.boots[brand];
@@ -706,6 +730,7 @@
     });
     if ((r.removed || []).length) { touched = true; b.tickets = b.tickets.filter(function (x) { return r.removed.indexOf(x.id) < 0; }); }
     if (r.counts) b.counts = r.counts;
+    mergeSwitches(brand, r.switches);
     if (r.version !== undefined) b.version = r.version;
     if (r.serverTime) b.serverTime = r.serverTime;
     if (brand !== S.brand) return;
@@ -717,7 +742,7 @@
   setInterval(function () {
     if (document.hidden || !S.brand || S.view === 'users' || S.view === 'settings') return;
     pollChanges(S.brand);
-  }, 20000);
+  }, 15000);
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && S.brand && S.view !== 'users') {
       const b = boot();
@@ -740,7 +765,7 @@
   function rowsFor(tab) {
     const b = boot();
     if (!b) return null;
-    if (['ready', 'action', 'health', 'delay', 'sent', 'today'].indexOf(tab) >= 0) return byChannel(rowsForRaw(tab));
+    if (['ready', 'action', 'health', 'delay', 'bot', 'sent', 'today'].indexOf(tab) >= 0) return byChannel(rowsForRaw(tab));
     return rowsForRaw(tab);
   }
   function rowsForRaw(tab) {
@@ -758,7 +783,7 @@
     const open = OPEN.indexOf(x.status) >= 0;
     let age = '';
     let old = false;
-    if (open) {
+    if (open || x.status === 'bot') {
       const w = ms(x.waiting_since) || ms(x.created_at);
       if (w) { age = t('waiting', { d: dur(Date.now() - w) }); old = Date.now() - w > 24 * 3600000; }
     } else if (x.handled_at) {
@@ -956,6 +981,7 @@
     else { clear(tp); tp.append(h('div', { class: 'tk-body' }, h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' }))); }
     markSelected(id);                                    // move the highlight only — no list rebuild on every open
     const t0 = performance.now();
+    refreshSwitches(brand);                            // test mode / cancels no older than 15 s on every open
     const r = await api('/api/' + encodeURIComponent(brand) + '/ticket', opts.fresh ? { id: id, fresh: true } : { id: id });
     if (S.tk !== k) return;
     k.firstPaintMs = Math.round(performance.now() - t0);
@@ -1044,12 +1070,24 @@
     const cc = convCard(ex.conversation || []);
     if (isWA(x)) cc.classList.add('wa');
     body.append(cc);
-    const dcard = enMode(x) && isOpen ? EnDraft.card(x) : Draft.card(x);
-    if (x.recommendation && isOpen) {
+    if (x.status === 'bot') {
+      const tb = armed(t('takeover'), t('takeover_arm'), 'primary wa', async function (btn) {
+        btn.disabled = true;
+        const r = await engine('apiWaTakeOver', { id: x.id }, k.brand);
+        if (!r.ok) { btn.disabled = false; body.insertBefore(h('div', { class: 'err-box', role: 'alert', text: r.msg || r.error }), body.children[1]); return; }
+        toast(t('takeover_ok'));
+        await afterAction();
+      });
+      tb.setAttribute('data-test', 'takeover');
+      body.insertBefore(h('div', { class: 'bot-banner', role: 'note', 'data-test': 'bot-banner' }, h('div', null, t('bot_banner')), h('div', { class: 'actions' }, tb)),
+        body.children[1] || null);
+    }
+    const dcard = x.status === 'bot' ? null : (enMode(x) && isOpen ? EnDraft.card(x) : Draft.card(x));
+    if (dcard && x.recommendation && isOpen) {
       const h3 = dcard.querySelector('h3');
       h3.after(h('div', { class: 'todo-chip', 'data-test': 'what-to-do-chip' }, h('b', { text: t('what_to_do') + ': ' }), h('span', { class: 'tk-reco2', dir: 'auto', text: x.recommendation })));
     }
-    body.append(dcard);
+    if (dcard) body.append(dcard);
     body.append(ordersCard(ex));
     // Rendered only once apiBoot says the brand HAS subscriptions; a deep link can arrive first (paintSubs fills it later).
     body.append(h('div', { id: 'subs-card' }, S.boots[k.brand] && !noSubs(k.brand) ? subsCard(ex, x) : null));
@@ -1110,6 +1148,24 @@
     flushText(); flushQuote();
     return out;
   }
+  /** WhatsApp photo slots {ref, file:{url}|null, unavailable?}. Never an <img> (Drive files are private; the CSP allows
+   *  images only from this site): a stored file is a link, an unavailable one says where to look. */
+  function photoChips(photos) {
+    if (!Array.isArray(photos) || !photos.length) return null;
+    const row = h('div', { class: 'photos' });
+    photos.forEach(function (p) {
+      if (!p || typeof p !== 'object') return;
+      const url = p.file && safeUrl(p.file.url);
+      if (url && /^https:\/\/(drive|docs)\.google\.com\//.test(url)) {
+        row.append(h('a', { class: 'chip photo', href: url, target: '_blank', rel: 'noopener noreferrer', text: t('photo_open'), 'data-test': 'photo-file' }));
+      } else if (p.unavailable || p.file) {
+        row.append(h('span', { class: 'chip photo dondy', text: t('photo_dondy'), 'data-test': 'photo-dondy' }));
+      } else {
+        row.append(h('span', { class: 'chip photo wait', text: t('photo_wait'), 'data-test': 'photo-wait' }));
+      }
+    });
+    return row;
+  }
   const ORIG = new WeakMap();
   function convCard(conv) {
     const card = h('div', { class: 'card' }, h('h3', null, t('conversation'), h('span', { id: 'tr-state', class: 'chip outline', hidden: true })));
@@ -1120,7 +1176,7 @@
       const long = String(m.text || '').length > 600 && i < msgs.length - 1;
       const el = h('div', { class: 'msg ' + who + (long ? ' collapsed' : ''), 'data-i': String(m._i) },
         h('div', { class: 'meta' }, h('b', { text: t(who) }), h('span', { text: fmtDate(m.at, true) })),
-        h('div', { class: 'mbody' }, messageBody(m.text)));
+        h('div', { class: 'mbody' }, messageBody(m.text)), photoChips(m.photos));
       ORIG.set(el, String(m.text || ''));
       if (long) {
         const mb = h('button', { class: 'more-btn', type: 'button', text: t('show_more') });
@@ -2132,6 +2188,7 @@
               raw: [r.error, r.reason, Array.isArray(r.allowed) ? 'allowed: ' + r.allowed.join('|') : null].filter(Boolean).join(' · ')
             };
             if (r.ok) toast(r.noop ? t('set_noop') : t('set_ok') + ' (' + k + ': ' + r.from + ' → ' + r.to + ')');
+            if (r.ok) refreshSwitches(brand);
             if (r.ok && k === 'AUTO_CANCEL') loadAuto(brand);
             if (r.ok && k === 'AUTO_REPLY') AutoReply.load(brand);
             await load(brand);

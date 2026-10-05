@@ -36,7 +36,7 @@ TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTick
          "apiSearch": WORK, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
          "apiNote": WORK, "apiKachingCancel": WORK, "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
-         "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK}
+         "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK}
 CONTRACT_RE_PREFIX = "gid://shopify/SubscriptionContract/"
 
 
@@ -243,6 +243,16 @@ def build_brand(brand, now):
              "channel": "whatsapp", "subject": "WhatsApp", "summary": "הודעת וואטסאפ חדשה",
              "action": "whatsapp: no automatic draft in this phase", "waiting_since": h(0.6), "created_at": h(0.6), "language": "he"},
             _conv(now, ("customer", 0.6, "היי יש לכם משלוח לאילת?")))
+        bot_conv = _conv(now, ("customer", 0.9, "היי, הגיע לי בקבוק שבור, מצרפת תמונות"), ("us", 0.85, "היי! מצטערים לשמוע, אפשר לשלוח תמונה של הבקבוק?"),
+                         ("customer", 0.8, "הנה"))
+        bot_conv[0]["photos"] = [{"ref": "m1-0", "file": None, "unavailable": True}]
+        bot_conv[2]["photos"] = [{"ref": "m3-0", "file": {"id": "f1", "url": "https://drive.google.com/file/d/f1/view", "w": 800, "h": 600}},
+                                 {"ref": "m3-1", "file": None}]
+        bot_conv[1]["author"] = "ai"
+        add({"id": "w8ab77c2", "status": "bot", "category": "complaint", "name": "שני", "phone": "+972548889911", "channel": "whatsapp",
+             "subject": "WhatsApp", "summary": "בקבוק הגיע שבור — הבוט של דונדי מבקש תמונות.", "action": "whatsapp: Dondy bot is handling this chat",
+             "waiting_since": h(0.8), "created_at": h(0.9), "language": "he",
+             "recommendation": "הבוט מטפל. לקחת את השיחה רק אם הלקוחה מבקשת אדם או שהבוט נתקע."}, bot_conv)
         add({"id": "t17aa001", "status": "done", "category": "shipping", "name": "מיכל לוי", "email": "michal.levi@example.com",
              "channel": "email", "subject": "מתי זה מגיע?", "summary": "שאלה על זמני משלוח, נענתה.", "created_at": _iso(now - timedelta(days=60)),
              "handled_by": "manager", "handled_at": _iso(now - timedelta(days=60)), "language": "he"},
@@ -707,3 +717,15 @@ class MockEngines:
                 self.version[brand] += 1
                 self.touched[brand][t["id"]] = self.version[brand]
         return {"ok": True}
+
+    # ---------- WhatsApp: a person takes the chat back from the Dondy bot (engine @18) ----------
+    def apiWaTakeOver(self, brand, a, c):
+        t = self._find(brand, a.get("id"))
+        if not t or t.get("channel") != "whatsapp":
+            return {"ok": False, "error": "not_found"}
+        if t["status"] != "bot":
+            return {"ok": False, "error": "not_bot"}
+        t.update({"status": "action", "action": "whatsapp: taken over from the Dondy bot, waiting for a draft"})
+        self.version[brand] += 1
+        self.touched[brand][t["id"]] = self.version[brand]
+        return {"ok": True, "id": t["id"], "status": "action"}

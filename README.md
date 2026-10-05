@@ -27,7 +27,7 @@ Render disk and in each engine's `audit` sheet.
 | `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
-| `tests/` | pytest (197 tests, incl. real-browser tests with Playwright) |
+| `tests/` | pytest (209 tests, incl. real-browser tests with Playwright) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
 
 ## Environment (Render)
@@ -235,3 +235,22 @@ The rule, enforced in `api()` in `static/app.js`:
 - **Ticket page:** a channel banner, and a green tint on customer bubbles in WhatsApp tickets.
 - **Send button:** "שליחה בוואטסאפ" in WhatsApp green (#008069 with white, 4.9:1) or "שליחה במייל".
 - **English UI:** "WhatsApp" / "Email", and the English-mode confirm button names the channel.
+
+## Dondy bot, WhatsApp photos, live switches (engine @18, 2026-10-05)
+
+- **Status `bot`:** a WhatsApp chat that Dondy's AI bot is handling. It gets a tab "🤖 הבוט של דונדי מטפל" with the
+  `counts.bot` badge. The ticket shows a purple banner and no draft. "לקחת את השיחה" (two clicks) calls
+  `apiWaTakeOver {id}` (agent/admin). The cache moves the row to `action` at once, and the next engine run writes a
+  draft. `not_bot` is translated into Hebrew. Note: apiBoot lists all open tickets but only the 100 newest closed
+  ones, so the bot tab lists the bot chats that apiBoot returns, while the badge shows the engine's full count.
+- **Photos:** each slot is `{ref, file:{url}|null, unavailable?}`.
+  - A stored file is a "📷 תמונה — פתיחה" link (Drive URLs only).
+  - `unavailable` is a green "📷 תמונה — לצפייה בדונדי" chip.
+  - A slot still uploading is "📷 תמונה — עוד לא הגיעה".
+  - Never an `<img>`: Drive files are private, and the CSP allows images only from this site.
+- **Switches never go stale on a client** (live E2E: DRY_RUN was flipped in the engine, and Send stayed disabled
+  until a reload).
+  - A System Mode change patches the cached list at once, and `/changes` returns `switches` to every open tab
+    (polled every 15 s).
+  - Opening a ticket re-reads them with `/list {maxAge: 15}`.
+  - A change made directly in the engine is picked up in the background once the cached switches are older than 15 s.

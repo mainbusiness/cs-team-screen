@@ -30,6 +30,9 @@ def server():
     UserStore(users, os.path.join(tmp, "a.jsonl")).create("t", "agent1", security.hash_password(pwd),
                                                           {"display_name": "a", "roles": ["agent"], "brands": ["rozela"], "lang": "he"},
                                                           ["rozela", "celesta", "apexmen", "selera", "velora"], must_change=False)
+    UserStore(users, os.path.join(tmp, "a.jsonl")).create("t", "admin1", security.hash_password(pwd),
+                                                          {"display_name": "d", "roles": ["admin"], "brands": ["rozela"], "lang": "he"},
+                                                          ["rozela", "celesta", "apexmen", "selera", "velora"], must_change=False)
     UserStore(users, os.path.join(tmp, "a.jsonl")).create("t", "agent-en", security.hash_password(pwd),
                                                           {"display_name": "e", "roles": ["agent"], "brands": ["rozela"], "lang": "en"},
                                                           ["rozela", "celesta", "apexmen", "selera", "velora"], must_change=False)

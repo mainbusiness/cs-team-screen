@@ -48,6 +48,8 @@ FN_TABLE = {
     # Auto-reply review queue (Owner, 2026-10-05: easy emails answered by the engine, "only a human eye goes over it")
     "apiAutoReplyList": (WORK_ROLES, ()),
     "apiAutoReplyReview": (WORK_ROLES, ("id", "verdict", "note")),
+    # WhatsApp chats the Dondy AI bot is handling (status "bot"): a person takes the conversation back (engine @18)
+    "apiWaTakeOver": (WORK_ROLES, ("id",)),
     # System switches. Admin only — checked HERE as well as in the engine.
     "apiSettings": (ADMIN_ONLY, ("action", "key", "value")),
 }

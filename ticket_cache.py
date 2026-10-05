@@ -178,7 +178,7 @@ class TicketCache:
 
     def _store_boot(self, brand, data):
         clean = {k: v for k, v in data.items() if k not in PER_USER and not k.startswith("_") and k != "msg"}
-        e = {"data": clean, "at": self.clock()}
+        e = {"data": clean, "at": self.clock(), "full_at": self.clock()}
         with self.lock:
             self._bucket(brand)["boot"] = e
         self._write(os.path.join(self._dir(brand), "boot.json"), e)
@@ -217,8 +217,32 @@ class TicketCache:
         d["lang"] = user.get("lang", "he")
         return d
 
-    def get_list(self, user, brand):
+    def switches(self, brand):
         e = self._boot_entry(brand)
+        d = (e or {}).get("data", {})
+        return {k: d[k] for k in SWITCH_KEYS if k in d}
+
+    def after_settings(self, brand, args, out):
+        """A switch flipped through the screen: patch the cached list at once (every client polling /changes sees it
+        within one tick) and mark the switches old, so the next poll re-reads them from the engine."""
+        if not out.get("ok") or not isinstance(args, dict) or args.get("action") != "set" or not BRAND_RE.match(brand):
+            return
+        key, val = args.get("key"), args.get("value")
+        with self.lock:
+            e = self._bucket(brand)["boot"]
+            if not e:
+                return
+            if key == "DRY_RUN":
+                e["data"]["dryRun"] = val == "on"
+            elif key == "KACHING_WRITES":
+                e["data"]["cancelEnabled"] = val == "on"
+            e["full_at"] = 0
+        self._write(os.path.join(self._dir(brand), "boot.json"), e)
+
+    def get_list(self, user, brand, max_age=None):
+        e = self._boot_entry(brand)
+        if e and max_age is not None and self.clock() - e.get("full_at", e["at"]) > max_age:
+            e = None                                  # caller needs switches no older than max_age: read the engine now
         if e:
             age = self.clock() - e["at"]
             timing("cache", None, "list-hit")
@@ -297,11 +321,15 @@ class TicketCache:
                     data = self._apply_rows(json.loads(json.dumps(e["data"])), rows, removed)
                     data["version"] = out.get("version", data.get("version"))
                     data["serverTime"] = out.get("serverTime", data.get("serverTime"))
-                    self._bucket(brand)["boot"] = {"data": data, "at": now}
-                self._write(os.path.join(self._dir(brand), "boot.json"), {"data": data, "at": now})
+                    full_at = e.get("full_at", e["at"])
+                    self._bucket(brand)["boot"] = {"data": data, "at": now, "full_at": full_at}
+                self._write(os.path.join(self._dir(brand), "boot.json"), {"data": data, "at": now, "full_at": full_at})
+                if now - full_at > SWITCH_MAX_AGE_S:          # apiChanges has no switches: refresh them behind the poll
+                    self._background(("boot", brand), lambda: self._fetch_boot(user, brand))
                 self._stale([r.get("id") for r in rows if isinstance(r, dict)] + removed, brand)
                 return 200, {"ok": True, "version": data.get("version"), "changed": rows, "removed": removed,
-                             "counts": data.get("counts", {}), "serverTime": data.get("serverTime"), "via": "apiChanges"}
+                             "counts": data.get("counts", {}), "serverTime": data.get("serverTime"), "via": "apiChanges",
+                             "switches": {k: data[k] for k in SWITCH_KEYS if k in data}}
             lacks_changes = out.get("error") in ("unauthorized", "forbidden_fn")
             if lacks_changes:
                 pass                                                         # recorded below, only if apiBoot then works
@@ -324,7 +352,8 @@ class TicketCache:
         removed = [i for i in old if i not in new]
         self._stale([t.get("id") for t in changed], brand)
         return 200, {"ok": True, "version": out.get("version") or out.get("serverTime"), "changed": changed, "removed": removed,
-                     "counts": out.get("counts", {}), "serverTime": out.get("serverTime"), "via": "apiBoot"}
+                     "counts": out.get("counts", {}), "serverTime": out.get("serverTime"), "via": "apiBoot",
+                     "switches": {k: out[k] for k in SWITCH_KEYS if k in out}}
 
     # ---------- full tickets ----------
 
@@ -434,6 +463,8 @@ class TicketCache:
                 patch["status"] = "sent"
         elif ok and fn == "apiAutoReplyReview" and args.get("verdict") == "problem":
             patch = {"status": "action"}                 # "⚠ problem" reopens the ticket (the engine confirms on revalidate)
+        elif ok and fn == "apiWaTakeOver":
+            patch = {"status": "action"}                 # leaves the bot; the next engine run writes a draft
         elif ok and fn in ("apiMarkHandled", "apiClose"):
             patch = {"status": "done", "handled_by": user["username"], "handled_at": now_iso}
         with self.lock:
@@ -456,7 +487,9 @@ class TicketCache:
 
 
 WRITE_FNS = ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel",
-             "apiAutoCancelApprove", "apiAutoCancelReject", "apiAutoReplyReview")
+             "apiAutoCancelApprove", "apiAutoCancelReject", "apiAutoReplyReview", "apiWaTakeOver")
+SWITCH_KEYS = ("dryRun", "cancelEnabled", "cancelFrozen", "subscriptions")
+SWITCH_MAX_AGE_S = 15      # how stale DRY_RUN & co may be on a client (live E2E 2026-10-05: send stayed disabled)
 
 
 def register(app, d):
@@ -491,7 +524,9 @@ def register(app, d):
         u, err = gate(brand, work=False)
         if err:
             return err
-        st, out = cache.get_list(u, brand)
+        ma = (request.get_json(silent=True) or {}).get("maxAge")
+        ma = ma if isinstance(ma, (int, float)) and not isinstance(ma, bool) and 0 <= ma <= 3600 else None
+        st, out = cache.get_list(u, brand, max_age=ma)
         return jsonify(localized(out, u.get("lang", "he"), "apiBoot")), st
 
     @app.post("/api/<brand>/changes")

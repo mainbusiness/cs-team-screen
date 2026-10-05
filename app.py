@@ -414,6 +414,8 @@ def create_app(overrides=None):
         ticket_cache.timing("engine", (time.perf_counter() - t0) * 1000, fn)
         if status == 200 and fn in ticket_cache.WRITE_FNS and isinstance(body.get("args"), dict):
             app.extensions["cs"]["ticket_cache"].after_write(u, str(brand).lower(), fn, body["args"], out)
+        if status == 200 and fn == "apiSettings" and isinstance(body.get("args"), dict):
+            app.extensions["cs"]["ticket_cache"].after_settings(str(brand).lower(), body["args"], out)
         return jsonify(out), status
 
     # ---------- user manager ----------
