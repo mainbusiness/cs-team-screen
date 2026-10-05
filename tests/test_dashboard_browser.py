@@ -58,13 +58,33 @@ def test_admin_sees_live_numbers_from_real_actions(server):
         assert "אומת מול השיחות 15/15" in ad.inner_text("[data-test=dash-verify]")
         assert ad.inner_text("[data-test=dash-brand][data-brand=rozela] [data-test=ov-answered] .v") == "5"
         assert ad.inner_text("[data-test=src-answered-total] .v") == "5"
+        card = "[data-test=dash-brand][data-brand=rozela] "
+        assert ad.inner_text(card + "[data-test=ov-frt] b") == "37 דק׳" and "מענה ראשון של אדם" in ad.inner_text(card + "[data-test=ov-frt]")
+        assert "כולל בוט: 0 שנ׳" in ad.inner_text(card + "[data-test=ov-frt-bot]")
+        import json as _json
+
+        def blocked(route, req):
+            r = route.fetch(); j = r.json()
+            j["brands"]["rozela"]["email_status"] = "gmail_blocked"
+            route.fulfill(response=r, body=_json.dumps(j))
+        ad.route("**/api/dash*", blocked)
+        ad.reload()
+        ad.wait_for_selector(card + "[data-test=ov-mail-blocked]")
+        assert ad.inner_text(card + "[data-test=ov-mail-blocked]") == "מייל: גוגל חסם זמנית — יתעדכן"
+        assert ad.inner_text("[data-test=src-answered] [data-test=src-mail-off]") == "—"
+        ad.unroute("**/api/dash*")
+        ad.reload()
+        ad.wait_for_selector(card + "[data-test=ov-from-conv]")
         assert ad.inner_text("[data-test=src-answered-fromDondy] .v") == "1" and "אדם 1" in ad.inner_text("[data-test=src-answered-fromDondy]")
         assert ad.inner_text("[data-test=src-closed-fromDondy] .v") == "1" and "סגירה 1" in ad.inner_text("[data-test=src-closed-fromDondy]")
         assert ad.locator("[data-test=src-answered] svg.donut").count() == 1
         assert ad.inner_text("[data-test=dash-agent][data-user=agent1] [data-test=ag-conv]") == "2"
         assert "ישירות בדונדי 1" in ad.inner_text("[data-test=dash-direct]")
+        ad.route("**/api/dash?range=1*", lambda route, req: (__import__("time").sleep(1.5), route.continue_()))   # an old answer, late
+        ad.evaluate("() => document.querySelector('[data-test=range-1]').click()")
         ad.click("[data-test=range-7]")
-        assert ad.locator("[data-test=dash-brand]").count() == 0                          # cleared until the new range arrives
         ad.wait_for_selector("[data-test=heat-who]")
-        assert " – " in ad.inner_text("[data-test=dash-shown]")
+        ad.wait_for_timeout(2500)                                                          # the late range-1 answer has landed
+        assert " – " in ad.inner_text("[data-test=dash-shown]") and ad.locator("[data-test=heat-who]").count() == 1
+        ad.unroute("**/api/dash?range=1*")
         b.close()

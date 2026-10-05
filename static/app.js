@@ -359,7 +359,8 @@
     if (WA_FAIL_STATES.indexOf(st) >= 0) return st;
     if (st) return null;                                             // pending / claimed / sent: not a failure
     const a = String(x.action || '').trim();
-    if (a.charAt(0) !== '\u26A0') return null;                     // the engine's WA_FAIL_MARK, with or without U+FE0F
+    // the engine's WA_FAIL_MARK (with or without U+FE0F), or its own failure lines — older ones carry no mark
+    if (a.charAt(0) !== '\u26A0' && !/בדקו בדונדי לפני שליחה חוזרת|חלון 24 השעות נסגר/.test(a)) return null;
     return /24|תבנית|template/i.test(a) ? 'template_required' : 'failed';
   }
   function waFailChip(x) {
@@ -2761,7 +2762,9 @@
       title: 'לוח מנהלים', day: 'יום', d7: '7 ימים', d30: '30 ימים', updated: 'עודכן', loading: 'טוען…',
       method: 'זמן עבודה = פעולות ברצף (פתיחה, עריכה, שליחה, סגירה). הפסקה של יותר מ-{m} דק׳ מסיימת רצף. זמן מחובר למסך לא נספר כעבודה.',
       since: 'יומן הפעילות נאסף מ-{d}', received: 'נכנסו היום', answered: 'נענו', closed: 'נסגרו', of: 'מהנכנסות',
-      open_now: 'פתוחות עכשיו', awaiting: 'ממתינות למענה', frt: 'זמן למענה ראשון (חציון)', auto_pct: 'מענה אוטומטי',
+      open_now: 'פתוחות עכשיו', awaiting: 'ממתינות למענה', frt: 'זמן למענה ראשון (חציון)', frt_human: 'מענה ראשון של אדם (חציון)',
+      incl_bot: 'כולל בוט: {v}', human_pending: 'ממתין לנתון מהמנוע', gmail_blocked: 'מייל: גוגל חסם זמנית — יתעדכן',
+      gmail_error: 'מייל: שגיאה בקריאה מג׳ימייל — יתעדכן', wa_only: 'וואטסאפ בלבד', frt_human_all: 'מענה ראשון של אדם', auto_pct: 'מענה אוטומטי',
       wa_failed: 'כשלי שליחה בוואטסאפ', aging: 'גיל הממתינות', partial: 'חלקי: הרשימה מחזיקה רק 100 סגורות אחרונות',
       src_snapshot: 'תמונת חצות', src_rebuilt: 'שוחזר מהרשימה הנוכחית', kpis: 'מדדים מול השוק (2026)',
       frt_email: 'מענה ראשון — מייל', frt_wa: 'מענה ראשון — וואטסאפ', aht: 'זמן טיפול לתשובה (AHT)', fcr: 'פתרון במענה אחד (קירוב)',
@@ -2782,7 +2785,9 @@
       title: 'Managers', day: 'Day', d7: '7 days', d30: '30 days', updated: 'Updated', loading: 'Loading…',
       method: 'Work time = consecutive actions (open, edit, send, close). A gap over {m} min ends a session. Being logged in is not work.',
       since: 'Activity log collected since {d}', received: 'Received today', answered: 'Answered', closed: 'Closed', of: 'of received',
-      open_now: 'Open now', awaiting: 'Awaiting a reply', frt: 'First reply (median)', auto_pct: 'Auto-replies',
+      open_now: 'Open now', awaiting: 'Awaiting a reply', frt: 'First reply (median)', frt_human: 'First reply by a person (median)',
+      incl_bot: 'incl. bot: {v}', human_pending: 'waiting for the engine field', gmail_blocked: 'Email: temporarily blocked by Google — will update',
+      gmail_error: 'Email: Gmail read failed — will update', wa_only: 'WhatsApp only', frt_human_all: 'First reply by a person', auto_pct: 'Auto-replies',
       wa_failed: 'WhatsApp send failures', aging: 'Backlog age', partial: 'Partial: the list holds only the last 100 closed',
       src_snapshot: 'Midnight snapshot', src_rebuilt: 'Rebuilt from the current list', kpis: 'KPIs vs 2026 benchmarks',
       frt_email: 'First reply — email', frt_wa: 'First reply — WhatsApp', aht: 'Handle time per reply (AHT)', fcr: 'First-contact resolution (proxy)',
@@ -2867,15 +2872,21 @@
         h('h3', null, brandName(b),
           o.stats === 'dayStats' ? h('span', { class: 'chip ok', 'data-test': 'ov-from-conv', text: L.from_conv }) :
             (o.ds_busy ? h('span', { class: 'chip outline', text: L.computing }) : (o.source !== 'live' ? h('span', { class: 'chip outline', text: o.source === 'snapshot' ? L.src_snapshot : L.src_rebuilt }) : null))));
+      const mailOff = o.email_status && o.email_status !== 'ok';
+      if (mailOff) c.append(h('div', { class: 'chip warn-chip', 'data-test': 'ov-mail-blocked', text: o.email_status === 'gmail_blocked' ? L.gmail_blocked : L.gmail_error }));
       c.append(h('div', { class: 'big-row' },
-        big(L.received, pre + o.received, null, 'ov-received'),
+        big(L.received, pre + o.received, mailOff ? L.wa_only : null, 'ov-received'),
         big(L.answered, pre + o.answered, o.answered_pct !== null ? pctS(o.answered_pct) + ' ' + L.of : null, 'ov-answered'),
         big(L.closed, pre + o.closed, o.closed_pct !== null ? pctS(o.closed_pct) + ' ' + L.of : null, 'ov-closed')));
       if (o.truncated) c.append(h('div', { class: 'muted small', text: L.partial }));
       const grid = h('div', { class: 'stat-grid' });
-      [[L.open_now, o.open_now, 'ov-open'], [L.awaiting, o.awaiting, 'ov-awaiting'], [L.frt, fmtS(o.frt_median_s), 'ov-frt'],
+      const fromConv = o.stats === 'dayStats';
+      [[L.open_now, o.open_now, 'ov-open'], [L.awaiting, o.awaiting, 'ov-awaiting'],
+        fromConv ? [L.frt_human, o.frt_human_known ? fmtS(o.frt_human_s) : '—', 'ov-frt', d('incl_bot', { v: fmtS(o.frt_median_s) }) + (o.frt_human_known ? '' : ' · ' + L.human_pending)]
+          : [L.frt, fmtS(o.frt_median_s), 'ov-frt'],
         [L.auto_pct, pctS(o.auto_pct), 'ov-auto'], [L.wa_failed, o.wa_failed, 'ov-wafail']].forEach(function (x) {
-        grid.append(h('div', { class: 'stat' + (x[2] === 'ov-wafail' && o.wa_failed ? ' bad' : ''), 'data-test': x[2] }, h('b', { text: String(x[1]) }), h('span', { text: x[0] })));
+        grid.append(h('div', { class: 'stat' + (x[2] === 'ov-wafail' && o.wa_failed ? ' bad' : ''), 'data-test': x[2] }, h('b', { text: String(x[1]) }), h('span', { text: x[0] }),
+          x[3] ? h('small', { class: 'muted', 'data-test': x[2] + '-bot', text: x[3] }) : null));
       });
       c.append(grid);
       const ag = o.aging || {};
@@ -2891,8 +2902,11 @@
       const box = h('div', { class: 'kpi-grid' });
       const lt = function (v, lim) { return v === null || v === undefined ? null : v <= lim; };
       box.append(
-        kpi(L.frt_email, fmtS(k.frt_email_s), '< 24 ' + L.h, lt(k.frt_email_s, bench.frt_email_s), 'kpi-frt-email'),
-        kpi(L.frt_wa, fmtS(k.frt_wa_s), '< 90 ' + L.s, lt(k.frt_wa_s, bench.frt_wa_s), 'kpi-frt-wa'),
+        k.frt_human_known ? kpi(L.frt_human_all, fmtS(k.frt_human_s), null, null, 'kpi-frt-human') : null,
+        k.frt_human_known && k.frt_human_email_s !== null ? kpi(L.frt_email + ' · ' + L.sub_human, fmtS(k.frt_human_email_s), '< 24 ' + L.h, lt(k.frt_human_email_s, bench.frt_email_s), 'kpi-frt-email', d('incl_bot', { v: fmtS(k.frt_email_s) }))
+          : kpi(L.frt_email, fmtS(k.frt_email_s), '< 24 ' + L.h, lt(k.frt_email_s, bench.frt_email_s), 'kpi-frt-email'),
+        k.frt_human_known && k.frt_human_wa_s !== null ? kpi(L.frt_wa + ' · ' + L.sub_human, fmtS(k.frt_human_wa_s), '< 90 ' + L.s, lt(k.frt_human_wa_s, bench.frt_wa_s), 'kpi-frt-wa', d('incl_bot', { v: fmtS(k.frt_wa_s) }))
+          : kpi(L.frt_wa, fmtS(k.frt_wa_s), '< 90 ' + L.s, null, 'kpi-frt-wa', k.frt_source === 'dayStats' ? d('incl_bot', { v: '' }).replace(/:\s*$/, '') : null),
         kpi(L.aht, fmtS(k.aht_s), '4–6 ' + L.m, k.aht_s === null ? null : k.aht_s <= bench.aht_s[1], 'kpi-aht'),
         kpi(L.fcr, pctS(k.fcr_pct), null, null, 'kpi-fcr', k.fcr_window_open && k.fcr_pct !== null ? L.fcr_note : null),
         kpi(L.reopen, pctS(k.reopen_pct), null, null, 'kpi-reopen'),
@@ -2997,15 +3011,16 @@
       const pieBox = pie(L['src_' + metric], 'src', data, 'n');
       const tb = h('table', { class: 'dash-table' }, h('thead', null, h('tr', null, [L.brand_col, L.total].concat(SRC.map(function (s) { return L['src_' + s[0]]; })).map(function (c) { return h('th', { text: c }); }))));
       const body = h('tbody');
-      const line = function (name, m) {
+      const line = function (name, m, mailOff) {
         const n = SRC.reduce(function (a, s) { return a + (m[s[0]].total || 0); }, 0);
         body.append(h('tr', null, h('td', null, h('bdi', { text: name })), h('td', null, h('b', { text: String(n) })),
           SRC.map(function (s) {
+            if (s[0] === 'fromEmail' && mailOff) return h('td', { 'data-test': 'src-mail-off', title: L.gmail_blocked, text: '—' });
             const parts = s[1].filter(function (k) { return m[s[0]][k]; }).map(function (k) { return L['sub_' + k] + ' ' + m[s[0]][k]; });
             return h('td', null, h('b', { text: String(m[s[0]].total || 0) }), parts.length ? h('span', { class: 'muted small', text: ' (' + parts.join(' · ') + ')' }) : null);
           })));
       };
-      Object.keys(srcs.brands || {}).forEach(function (b) { line(brandName(b), srcs.brands[b][metric]); });
+      Object.keys(srcs.brands || {}).forEach(function (b) { const ob = (st.data.brands || {})[b] || {}; line(brandName(b), srcs.brands[b][metric], ob.email_status && ob.email_status !== 'ok'); });
       if (Object.keys(srcs.brands || {}).length > 1) line(L.all_brands, tot);
       tb.append(body);
       box.append(h('div', { class: 'src-split' }, pieBox, h('div', { class: 'table-wrap' }, tb)));
@@ -3057,12 +3072,14 @@
         pie(L.pie_cat, 'category', x.pies.category, 's'), pie(L.pie_who, 'who', x.pies.who, 'n'));
       p.append(h('h3', { text: L.pies }), pg);
     }
-    async function load() {
-      if (st.busy) return;
+    async function load(fromTimer) {
+      if (st.busy && fromTimer) return;
       st.busy = true;
       const q = '?range=' + encodeURIComponent(st.range) + (st.date ? '&date=' + encodeURIComponent(st.date) : '');
+      const seq = st.seq = (st.seq || 0) + 1;
       let r;
-      try { r = await api('/api/dash' + q, undefined, 'GET', { quiet: true }); } finally { st.busy = false; }
+      try { r = await api('/api/dash' + q, undefined, 'GET', { quiet: true }); } finally { if (seq === st.seq) st.busy = false; }
+      if (seq !== st.seq) return;                       // the manager chose another day / range meanwhile (gate run 2026-10-06)
       if (r && r.ok) { st.data = r; st.err = null; if (!st.date) st.shown = r.end_day; } else if (r) st.err = r.msg || r.error;
       if (S.view === 'dash') render();
     }
@@ -3070,7 +3087,7 @@
       $('dash-pane').hidden = false;
       render();
       load();
-      if (!timer) timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) load(); }, 30000);
+      if (!timer) timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) load(true); }, 30000);
     }
     return { show: show, load: load };
   })();

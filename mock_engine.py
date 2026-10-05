@@ -763,8 +763,9 @@ class MockEngines:
         return {"ok": True, "date": a["date"], "source": "conversation", "brand": brand,
                 "received": dict(rec, total=tot(rec)), "answered": dict(ans, total=5, byHuman=4),
                 "awaitingNow": {"email": 2, "whatsapp": 1, "total": 3}, "closedToday": {"email": 1, "whatsapp": 1, "total": 2, "by": {"ours": 1, "dondy": 1}},
-                "frt": {"all": {"n": 5, "medianMin": 42, "p90Min": 300}, "email": {"n": 3, "medianMin": 95, "p90Min": 300},
-                        "whatsapp": {"n": 2, "medianMin": 6, "p90Min": 9}},
+                "frt": {"all": {"n": 5, "medianMin": 0, "p90Min": 300}, "email": {"n": 3, "medianMin": 95, "p90Min": 300},
+                        "whatsapp": {"n": 2, "medianMin": 0, "p90Min": 9}, "human": {"n": 4, "medianMin": 37, "p90Min": 300},
+                        "humanByChannel": {"email": {"n": 3, "medianMin": 95}, "whatsapp": {"n": 1, "medianMin": 12}}},
                 "attribution": {"bySender": {"agent1": 2, "auto": 1, "dondy_direct": 1, "gmail_direct": 1}},
                 "sources": {"answered": row(2, 1, 1, 0, 0, 0, 1), "closed": row(1, 0, 0, 0, 0, 1, 0), "replies": row(3, 1, 2, 1, 0, 0, 1)},
                 "partial": False, "next": None, "serverMs": 900}

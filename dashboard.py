@@ -266,8 +266,19 @@ def is_wa(r):
     return str(r.get("channel") or "").lower() == "whatsapp"
 
 
+WA_FAIL_STATES = ("failed", "unknown", "template_required")
+# the engine's own failure lines (Api.gs apiWaSent). Older failures carry them WITHOUT the warning mark (live rozela 2026-10-06: 4)
+WA_FAIL_TEXT = re.compile("^\\u26a0|בדקו בדונדי לפני שליחה חוזרת|חלון 24 השעות נסגר")
+
+
 def wa_failed(r):
-    return is_wa(r) and r.get("status") in OPEN_ST and str(r.get("action") or "").lstrip().startswith("⚠")
+    """An open WhatsApp ticket whose last send failed: `wa_send` (state) when the row carries it, else the engine's action line."""
+    if not is_wa(r) or r.get("status") not in OPEN_ST:
+        return False
+    st = str(r.get("wa_send") or "").split(":")[0]
+    if st:
+        return st in WA_FAIL_STATES
+    return bool(WA_FAIL_TEXT.search(str(r.get("action") or "").strip()))
 
 
 def overview(rows, day, now):
@@ -312,13 +323,23 @@ def ds_overview(o, ds):
     rec, ans, clo = ds.get("received") or {}, ds.get("answered") or {}, ds.get("closedToday") or {}
     aw, frt = ds.get("awaitingNow") or {}, ds.get("frt") or {}
     mins = lambda x: None if not isinstance(x, dict) or x.get("medianMin") is None else round(x["medianMin"] * 60.0, 1)  # noqa: E731
+    hum = frt.get("human") if isinstance(frt.get("human"), dict) else (ds.get("frtHuman") if isinstance(ds.get("frtHuman"), dict) else None)
+    hbc = frt.get("humanByChannel") if isinstance(frt.get("humanByChannel"), dict) else {}
     src = ds.get("sources") or {}
     auto = (((src.get("answered") or {}).get("fromSystem") or {}).get("auto")) or 0
     n_ans = ans.get("total") or 0
     o = dict(o, received=rec.get("total", 0), answered=n_ans, closed=clo.get("total", 0),
              answered_pct=_pct(n_ans, rec.get("total", 0)), closed_pct=_pct(clo.get("total", 0), rec.get("total", 0)),
              awaiting=aw.get("total", o.get("awaiting")), frt_median_s=mins(frt.get("all")), frt_email_s=mins(frt.get("email")),
-             frt_wa_s=mins(frt.get("whatsapp")), frt_n={"email": (frt.get("email") or {}).get("n", 0), "whatsapp": (frt.get("whatsapp") or {}).get("n", 0)},
+             frt_wa_s=mins(frt.get("whatsapp")),
+             frt_human_s=mins(hum), frt_human_email_s=mins(hbc.get("email")), frt_human_wa_s=mins(hbc.get("whatsapp")),
+             frt_human_known=hum is not None,
+             # engine @47/48: Gmail can be blocked for a while -> email numbers are null (unknown), totals are WhatsApp only
+             email_status=(ds.get("sourceStatus") or {}).get("email") or "ok",
+             totals_exclude_email=bool(ds.get("totalsExcludeEmail")),
+             frt_human_n={"email": (hbc.get("email") or {}).get("n", 0), "whatsapp": (hbc.get("whatsapp") or {}).get("n", 0),
+                          "all": (hum or {}).get("n", 0)},
+             frt_n={"email": (frt.get("email") or {}).get("n", 0), "whatsapp": (frt.get("whatsapp") or {}).get("n", 0)},
              auto_pct=_pct(auto, n_ans), truncated=False, sources=src, by_channel={"received": rec, "answered": ans, "closed": clo},
              stats="dayStats")
     return o
@@ -483,8 +504,8 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
     ds_ok = bool(brands) and all(o.get("stats") == "dayStats" for o in brands_out.values())
     ds_any = any(o.get("stats") == "dayStats" for o in brands_out.values())
 
-    def wmean(key, ch):                       # only brands counted from the conversations (never mixed with list proxies)
-        pts = [(o.get(key), (o.get("frt_n") or {}).get(ch, 0)) for o in brands_out.values()
+    def wmean(key, ch, nkey="frt_n"):         # only brands counted from the conversations (never mixed with list proxies)
+        pts = [(o.get(key), (o.get(nkey) or {}).get(ch, 0)) for o in brands_out.values()
                if o.get("stats") == "dayStats" and o.get(key) is not None]
         n = sum(w for _, w in pts)
         return round(sum(v * w for v, w in pts) / n, 1) if n else None
@@ -492,6 +513,11 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
         "frt_email_s": wmean("frt_email_s", "email") if ds_any else _median(frt["email"]),
         "frt_wa_s": wmean("frt_wa_s", "whatsapp") if ds_any else _median(frt["whatsapp"]),
         "frt_source": "dayStats" if ds_any else "list",
+        # the owner via coordinator 2026-10-06: a bot's instant answer is not service — the person's first reply leads
+        "frt_human_known": any(o.get("frt_human_known") for o in brands_out.values()),
+        "frt_human_s": wmean("frt_human_s", "all", "frt_human_n"),
+        "frt_human_email_s": wmean("frt_human_email_s", "email", "frt_human_n"),
+        "frt_human_wa_s": wmean("frt_human_wa_s", "whatsapp", "frt_human_n"),
         "aht_s": _median(all_handles), "fcr_pct": _pct(single, len(sent_tickets)),
         "reopen_pct": _pct(reopened, len(sent_tickets)), "fcr_window_open": now - hi < 72 * 3600,
         "occupancy": round(min(1.0, tot_active / tot_present), 3) if tot_present else None,

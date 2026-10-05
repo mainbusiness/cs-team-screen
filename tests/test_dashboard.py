@@ -319,3 +319,34 @@ def test_a_brand_without_daystats_is_named_and_kept_out_of_the_kpis(app, pw_hash
     o = a.get("/api/dash").get_json()
     assert o["stats_source"] == "mixed" and o["missing_ds"] == {"celesta": "server_error"}
     assert o["kpis"]["frt_email_s"] == 1800 and o["kpis"]["frt_source"] == "dayStats"       # rozela's conversations only
+
+
+def test_wa_failures_read_wa_send_or_the_engines_own_failure_line(tmp_path):
+    """Live rozela 2026-10-06: failed sends showed as 0 — their action line predates the warning mark."""
+    now = T0 + 15 * 3600
+    base = {"channel": "whatsapp", "status": "action", "created_at": iso(now - 3600)}
+    rows = [dict(base, id="a", action="בדקו בדונדי לפני שליחה חוזרת (open_failed)"),
+            dict(base, id="b", action="חלון 24 השעות נסגר — צריך תבנית"),
+            dict(base, id="c", action="\u26a0\ufe0f בדקו"),
+            dict(base, id="d", action="whatsapp: waiting for a draft", wa_send="unknown:ext:1"),
+            dict(base, id="e", action="\u26a0\ufe0f old line", wa_send="sent:ext"),                 # wa_send wins: it went out
+            dict(base, id="f", action="בדקו בדונדי לפני שליחה חוזרת", status="sent"),             # not open
+            dict(base, id="g", action="whatsapp: waiting for a draft")]
+    assert D.overview(rows, DAY, now)["wa_failed"] == 4
+
+
+def test_first_reply_from_a_person_leads_when_the_engine_has_it(tmp_path):
+    o = D.ds_overview({}, {"received": {"total": 5}, "answered": {"total": 5}, "closedToday": {}, "awaitingNow": {},
+                           "frt": {"all": {"n": 5, "medianMin": 0}, "human": {"n": 3, "medianMin": 20},
+                                   "humanByChannel": {"email": {"n": 2, "medianMin": 30}, "whatsapp": {"n": 1, "medianMin": 4}}}})
+    assert o["frt_median_s"] == 0 and o["frt_human_s"] == 1200 and o["frt_human_known"] is True
+    assert o["frt_human_email_s"] == 1800 and o["frt_human_wa_s"] == 240
+    o2 = D.ds_overview({}, {"received": {}, "answered": {}, "closedToday": {}, "awaitingNow": {}, "frt": {"all": {"n": 1, "medianMin": 0}}})
+    assert o2["frt_human_known"] is False and o2["frt_human_s"] is None                         # never the bot's 0 in its place
+
+
+def test_engine_frthuman_and_a_gmail_block_are_read(tmp_path):
+    o = D.ds_overview({}, {"received": {"total": 9, "email": None, "whatsapp": 9}, "answered": {"total": 7}, "closedToday": {}, "awaitingNow": {},
+                           "frt": {"all": {"n": 7, "medianMin": 0}}, "frtHuman": {"n": 4, "medianMin": 11},
+                           "sourceStatus": {"whatsapp": "ok", "email": "gmail_blocked"}, "totalsExcludeEmail": True})
+    assert o["frt_human_s"] == 660 and o["email_status"] == "gmail_blocked" and o["totals_exclude_email"] is True
