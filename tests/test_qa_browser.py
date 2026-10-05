@@ -103,15 +103,21 @@ def test_tab_counts_come_from_the_rows(server):
     with pw.sync_playwright() as p:
         browser, pg = login(p, base, "agent1", pwd)
 
+        rewritten = []
+
         def wrong_counts(route, request):
             resp = route.fetch()
             j = resp.json()
             if isinstance(j.get("counts"), dict):
                 j["counts"] = {k: 0 for k in j["counts"]}                      # engine counts out of sync with rows
-            route.fulfill(response=resp, body=__import__("json").dumps(j))
+                rewritten.append(1)
+            route.fulfill(status=resp.status, content_type="application/json", body=__import__("json").dumps(j))
         pg.route("**/api/rozela/list", wrong_counts)
+        pg.route("**/api/rozela/changes", lambda route, req: route.abort())    # only the (wrong) list may supply counts
         pg.goto(base + "/cs#/b/rozela/action")
+        pg.reload()                                                            # a hash change alone does not refetch the list
         pg.wait_for_selector("a.row")
+        assert rewritten, "the counts were not rewritten — the test would prove nothing"
         rows = pg.locator("#list-pane > a.row").count() + pg.locator("[data-test=old-section] a.row").count()
         assert pg.locator(".tab.action .n").inner_text() == str(rows)
         browser.close()

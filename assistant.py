@@ -355,6 +355,8 @@ def register(app, d):
     def knowledge(u, brand):
         def load():
             r = ecall(u, brand, "apiKnowledge", {})
+            if not r.get("ok"):
+                engine_proxy.log.warning("engine %s apiKnowledge refused: %s", brand, str(r.get("error"))[:40])   # code only
             return r if r.get("ok") else None
         return kcache.get(brand, load)
 
