@@ -1586,7 +1586,7 @@
 
   // ---- draft (editor + send / handled / close)
   const Draft = (function () {
-    let st = null;   // { id, brand, key, ta, base, dirty, saving, timer, stateEl, problemEl }
+    let st = null;   // { id, brand, key, ta, base, dirty, saving, timer, stateEl }
     function key(brand, id) { return 'cs.draft.' + brand + '.' + id; }
     function readLocal(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
     function writeLocal() {
@@ -1606,12 +1606,6 @@
       st.stateEl.className = 'save-state' + (kind === 'fail' ? ' bad' : kind === 'saved_opt' ? ' opt' : '');
       st.stateEl.textContent = kind === 'local' ? t('save_local') : kind === 'saving' ? t('saving') : (kind === 'saved' || kind === 'saved_opt') ? t('saved') :
         kind === 'fail' ? t('save_failed', { m: msg || '' }) : (msg || '');
-    }
-    function showProblem(p) {
-      if (!st || !st.problemEl) return;
-      clear(st.problemEl);
-      st.problemEl.hidden = !p;
-      if (p) st.problemEl.append(t('safety', { p: p }));
     }
     async function save() {
       if (!st || !st.dirty) return;
@@ -1634,7 +1628,8 @@
       if (r.ok) {
         if (st === mine) {
           if (mine.ta.value === text && !mine.dirty) { dropLocal(); setState('saved'); } else writeLocal();
-          showProblem(r.problem ? (r.problem_msg || r.problem) : null);
+          // Owner, 2026-10-06: a person's send is never blocked by a content check — the engine's check is an audit only,
+          // so nothing about it is shown here (agents read any note as "must edit")
         }
       } else {
         mine.base = prevBase;
@@ -1659,12 +1654,11 @@
       ta.value = server;
       st = { id: x.id, brand: S.brand, key: k, ta: ta, base: server, dirty: false, saving: false, timer: null };
       const stateEl = h('div', { class: 'save-state', 'aria-live': 'polite' });
-      const problemEl = h('div', { class: 'problem', hidden: true });
       const note = h('div');
       const offerEl = h('div', { class: 'stale', hidden: true, 'data-test': 'draft-offer' });
-      st.stateEl = stateEl; st.problemEl = problemEl; st.offerEl = offerEl;
+      st.stateEl = stateEl; st.offerEl = offerEl;
       const errEl = h('div', { hidden: true });
-      const c = h('div', { class: 'card draft' }, h('h3', { text: t('draft') }), note, offerEl, ta, stateEl, problemEl, errEl);
+      const c = h('div', { class: 'card draft' }, h('h3', { text: t('draft') }), note, offerEl, ta, stateEl, errEl);
       if (!isOpen) {
         ta.readOnly = true;
         if (local) dropLocal();
@@ -1706,29 +1700,13 @@
       function sendDisabled() { return isDry() || !ta.value.trim() || waQueued(S.tk && S.tk.id === x.id ? S.tk.ticket : x) || waLocked(st.brand, x.id) || Outbox.blocks(st.brand, x.id); }
       const actions = h('div', { class: 'actions' });
       const all = [];
-      const prevOb = Outbox.forTicket(st.brand, x.id);
-      if (prevOb && prevOb.state === 'refused' && prevOb.fn === 'apiSend' && prevOb.err && prevOb.err.error === 'draft_problem') {
-        setTimeout(function () { showErr({ error: 'draft_problem', msg: prevOb.msg, problem: prevOb.err.problem }); }, 0);
-      }
-      function lock(on) { all.forEach(function (b) { b.disabled = on || (b === sendBtn && sendDisabled()); }); }
-      function showErr(r) {
-        clear(errEl);
-        errEl.hidden = false;
-        const box = h('div', { class: 'err-box', role: 'alert' }, h('div', { text: r.msg || r.error }));
-        if (r.error === 'draft_problem') {
-          const ob = armed(t('send_anyway'), t('send_arm'), 'danger-outline small', function () { doSend(true); });
-          box.append(h('div', { class: 'actions' }, ob));
-        }
-        errEl.append(box);
-      }
-      async function doSend(override) {
+      async function doSend() {
         const text = ta.value;
         clear(errEl); errEl.hidden = true;
         clearTimeout(st.timer);
         writeLocal();                                        // the text is safe on this device whatever happens
         const args = { id: x.id, text: text };
         if (isWA(x)) args.channel = 'whatsapp';
-        if (override) args.override = true;
         // Owner, 2026-10-05: the agent never waits for the engine — hand it to the outbox and go to the next ticket
         if (Outbox.start('apiSend', st.brand, x, args)) { st.dirty = false; goNext(st.brand, x.id); }
         return;
@@ -1749,7 +1727,7 @@
           h('button', { class: 'btn small', type: 'button', text: t('wa_check'), onclick: function () { openTicket(x.id, { fresh: true }); } }));
         waNote.hidden = !waNote.firstChild;
       }
-      const sendBtn = armed(sendLabel, t('send_arm'), 'primary' + (isWA(x) ? ' wa' : ''), function () { if (!sendDisabled()) doSend(false); });
+      const sendBtn = armed(sendLabel, t('send_arm'), 'primary' + (isWA(x) ? ' wa' : ''), function () { if (!sendDisabled()) doSend(); });
       sendBtn.setAttribute('data-test', 'send-btn');
       st.refreshSend = function () {
         paintWa();
@@ -1885,12 +1863,9 @@
       cur = me;
       if (local !== null && local.trim()) { ta.value = local; note.textContent = t('restored'); me.prefilled = true; } else note.textContent = t('en_draft_loading');
       function isDry() { const b = S.boots[brand]; return !b || !!b.dryRun; }
-      function showErr(r, withOverride) {
+      function showErr(r) {
         clear(errEl);
-        const box = h('div', { class: 'err-box', role: 'alert' }, h('div', { text: r.msg || r.error }),
-          r.problem_msg ? h('bdi', { class: 'raw', text: r.problem }) : null);
-        if (withOverride && r.error === 'draft_problem') box.append(h('div', { class: 'actions' }, armed(t('send_anyway'), t('send_arm'), 'danger-outline small', function () { send(true); })));
-        errEl.append(box);
+        errEl.append(h('div', { class: 'err-box', role: 'alert' }, h('div', { text: r.msg || r.error })));
       }
       const reviewBtn = h('button', { class: 'btn primary', type: 'button', text: t('en_review'), 'data-test': 'en-review-btn' });
       const confirmBtn = h('button', { class: 'btn primary' + (isWA(x) ? ' wa' : ''), type: 'button', text: t('en_confirm'), 'data-test': 'en-confirm' });
@@ -1931,15 +1906,14 @@
         paintReview();
       });
       editBtn.addEventListener('click', function () { me.translated = null; paintReview(); ta.focus(); });
-      async function send(override) {
+      async function send() {
         if (!me.translated || isDry()) return;
         me.busy = true; refresh(); clear(errEl);
         const args = { id: x.id, text: me.translated.out };
         if (isWA(x)) args.channel = 'whatsapp';
-        if (override) args.override = true;
         if (Outbox.start('apiSend', brand, x, args)) goNext(brand, x.id);
       }
-      confirmBtn.addEventListener('click', function () { send(false); });
+      confirmBtn.addEventListener('click', function () { send(); });
       async function doClose(fn, okMsg) {
         if (Outbox.start(fn, brand, x, { id: x.id })) goNext(brand, x.id);
       }
@@ -2798,7 +2772,8 @@
       heat: 'מתי עובדים בפועל', heat_all: 'כל הנציגים', heat_total: 'סה״כ לפי שעה', pies: 'חלוקה', pie_brand: 'זמן עבודה לפי מותג',
       pie_chan: 'לפי ערוץ', pie_cat: 'לפי נושא', pie_who: 'מי ענה', agents_w: 'נציגים', auto_w: 'מענה אוטומטי', email: 'מייל', whatsapp: 'וואטסאפ',
       h: 'ש׳', m: 'דק׳', s: 'שנ׳', resends: 'מתוכן שליחה חוזרת', per_day: 'לפי יום', present: 'מחובר',
-      log_word: 'ביומן', idle_agents: '{n} משתמשים בלי פעילות בטווח', log_new: 'יומן הפעילות עוד ריק — זמן העבודה נספר מהפעולה הבאה של כל נציג; תשובות וסגירות כבר נספרות מהמנוע.'
+      fixing: 'הנתונים בתיקון — לא סופיים', fixing_sub: 'נציגים עונים גם ישירות בדונדי ובג׳ימייל; המספרים יעברו לחישוב מהשיחות עצמן במנוע.',
+      onscreen: 'פעילות במסך', log_word: 'ביומן', idle_agents: '{n} משתמשים בלי פעילות בטווח', log_new: 'יומן הפעילות עוד ריק — זמן העבודה נספר מהפעולה הבאה של כל נציג; תשובות וסגירות כבר נספרות מהמנוע.'
     };
     const EN = {
       title: 'Managers', day: 'Day', d7: '7 days', d30: '30 days', updated: 'Updated', loading: 'Loading…',
@@ -2815,7 +2790,8 @@
       heat: 'When they actually work', heat_all: 'All agents', heat_total: 'Total per hour', pies: 'Split', pie_brand: 'Work time by brand',
       pie_chan: 'By channel', pie_cat: 'By topic', pie_who: 'Who answered', agents_w: 'Agents', auto_w: 'Auto-reply', email: 'Email', whatsapp: 'WhatsApp',
       h: 'h', m: 'min', s: 's', resends: 'of them re-sends', per_day: 'Per day', present: 'Logged in',
-      log_word: 'log', idle_agents: '{n} users with no activity in range', log_new: 'The activity log is still empty — work time counts from each agent\'s next action; replies and closes are already counted from the engine.'
+      fixing: 'The numbers are being fixed — not final', fixing_sub: 'Agents also answer directly in Dondy and Gmail; the numbers will move to the engine\'s count from the conversations.',
+      onscreen: 'On-screen activity', log_word: 'log', idle_agents: '{n} users with no activity in range', log_new: 'The activity log is still empty — work time counts from each agent\'s next action; replies and closes are already counted from the engine.'
     };
     const L = LANG === 'en' ? EN : HE;
     function d(k, v) { let s = L[k] || k; Object.keys(v || {}).forEach(function (x) { s = s.replace('{' + x + '}', v[x]); }); return s; }
@@ -3010,13 +2986,15 @@
       if (st.err) p.append(h('div', { class: 'err-box', text: st.err }));
       const x = st.data;
       if (!x) { p.append(h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); return; }
+      if (x.stats_source !== 'dayStats') p.append(h('div', { class: 'err-box dash-fixing', role: 'alert', 'data-test': 'dash-fixing' },
+        h('b', { text: '⚠️ ' + L.fixing }), h('div', { class: 'small', text: L.fixing_sub })));
       p.append(h('div', { class: 'muted small dash-method', text: d('method', { m: Math.round(x.idle_gap_s / 60) }) + (x.log_since ? ' · ' + d('since', { d: x.log_since }) : '') }));
       if (!x.log_since) p.append(h('div', { class: 'note-box', 'data-test': 'dash-log-new', text: L.log_new }));
       const bw = h('div', { class: 'brand-grid' });
       Object.keys(x.brands).forEach(function (b) { bw.append(brandCard(b, x.brands[b])); });
       p.append(bw);
       p.append(h('h3', { text: L.kpis }), kpis(x.kpis, x.bench));
-      p.append(h('h3', { text: L.agents }), agentsTable(x.agents));
+      p.append(h('h3', { text: L.agents + ' — ' + L.onscreen, 'data-test': 'dash-onscreen' }), agentsTable(x.agents));
       p.append(heatmap(x));
       const pg = h('div', { class: 'pie-grid' });
       pg.append(pie(L.pie_brand, 'brand', x.pies.brand, 's'), pie(L.pie_chan, 'channel', x.pies.channel, 's'),

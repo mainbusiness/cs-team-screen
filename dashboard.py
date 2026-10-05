@@ -437,6 +437,9 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now):
         "pies": {"brand": {k: round(v) for k, v in pie_brand.items()}, "channel": {k: round(v) for k, v in pie_chan.items()},
                  "category": {k: round(v) for k, v in pie_cat.items()}, "who": {"agents": agent_replies, "auto": auto_n}},
         "idle_gap_s": IDLE_GAP_S, "session_tail_s": SESSION_TAIL_S, "log_since": log.first_day(),
+        # Owner, 2026-10-06: agents also answer in Dondy / Gmail directly, so received/answered/closed/FRT must come from
+        # the engine's dayStats (computed from the conversations). Until it is wired in, the screen says "not final".
+        "stats_source": "list",
     }
 
 

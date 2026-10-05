@@ -73,8 +73,10 @@ def test_send_hands_off_and_the_agent_moves_on(pg):
 
 def test_refusal_is_flagged_on_top_and_the_text_is_kept(pg):
     page, base = pg
+    page.route("**/api/rozela/apiSend", lambda route, req: route.fulfill(status=200, content_type="application/json",
+               body=json.dumps({"ok": False, "error": "thread_missing", "rid": json.loads(req.post_data)["rid"]})))
     open_from(page, base, "ready", "t18f2a02")
-    text = "היי רונית, זה עובד 100% מובטח"
+    text = "היי רונית, ההזמנה בדרך"
     page.fill(".draft textarea", text)
     armed_click(page, "[data-test=send-btn]")
     page.wait_for_selector("[data-test=row-outbox][data-state=refused]", state="attached", timeout=20000)
@@ -85,7 +87,7 @@ def test_refusal_is_flagged_on_top_and_the_text_is_kept(pg):
     page.wait_for_selector("[data-test=outbox-banner][data-state=refused]")
     assert "לא נשלח — צריך תיקון" in page.inner_text("[data-test=outbox-banner]")
     assert page.input_value(".draft textarea") == text                                      # nothing lost
-    page.wait_for_selector("text=בדיקת הבטיחות")                                            # the reason, with the override
+    page.unroute("**/api/rozela/apiSend")
 
 
 def test_unknown_outcome_locks_the_ticket(pg):
@@ -172,3 +174,25 @@ def test_a_killed_tab_never_resends(pg):
     page.reload()
     page.wait_for_selector("[data-test=outbox-indicator]", state="detached", timeout=20000)      # resolved via /result
     assert page.sends.count("apiSend") == n                                  # NOT sent again
+
+
+
+def test_a_flagged_draft_goes_out_with_no_safety_note_and_no_override(pg):
+    """Owner, 2026-10-06: a person's send is never blocked by a content check. No "בדיקת בטיחות" note after saving, no
+    "send anyway" box: the normal Send sends it, without any override flag."""
+    page, base = pg
+    bodies = []
+    page.on("request", lambda r: bodies.append(json.loads(r.post_data or "{}")) if r.url.endswith("/api/rozela/apiSend") else None)
+    open_from(page, base, "action", "t18f2a03")
+    text = "היי יוסי, זה עובד 100% מובטח"                                                    # the mock's audit flags this
+    page.fill(".draft textarea", text)
+    page.evaluate("document.activeElement.blur()")                                         # save now
+    page.wait_for_selector("text=נשמר ✓", timeout=10000)
+    page.wait_for_timeout(500)
+    assert page.locator("text=בדיקת בטיחות").count() == 0 and page.locator("text=בדיקת הבטיחות").count() == 0
+    armed_click(page, "[data-test=send-btn]")
+    page.wait_for_selector("[data-test=outbox-indicator]", state="detached", timeout=20000)    # settled
+    page.goto(base + "/cs#/b/rozela/sent")                                                  # it went out
+    page.wait_for_selector("a.row[data-id=t18f2a03] [data-test=row-outbox][data-state=ok]", timeout=20000)
+    assert len(bodies) == 1 and "override" not in bodies[0]["args"] and bodies[0]["args"]["text"] == text
+    assert page.locator("text=לשלוח בכל זאת").count() == 0

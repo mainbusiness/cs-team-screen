@@ -45,6 +45,8 @@ def test_admin_sees_live_numbers_from_real_actions(server):
         assert row.count() == 1 and row.locator("[data-test=ag-replies] b").inner_text() == "1"            # one reply (engine + log agree)
         assert "חסר" in ad.inner_text("[data-test=kpi-csat]") and "75–85%" in ad.inner_text("[data-test=kpi-occ]")
         assert ad.locator("[data-test=heatmap] .hc").count() >= 24 and ad.locator("[data-test=pie-channel] svg").count() == 1
+        assert "הנתונים בתיקון — לא סופיים" in ad.inner_text("[data-test=dash-fixing]")        # until the engine's dayStats
+        assert "פעילות במסך" in ad.inner_text("[data-test=dash-onscreen]")
         ad.click("[data-test=range-7]")
         ad.wait_for_selector("[data-test=heat-who]")
         b.close()

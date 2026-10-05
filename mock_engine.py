@@ -524,9 +524,8 @@ class MockEngines:
             return {"ok": False, "error": "not_found"}
         if t["status"] in ("sent", "done"):
             return {"ok": False, "error": "already_sent" if t["channel"] == "whatsapp" else "already_handled"}
-        p = self._problem(text)
-        if p and a.get("override") is not True:
-            return {"ok": False, "error": "draft_problem", "problem": p}
+        if not text.strip():                               # engine 2026-10-06: only an EMPTY draft is refused; content
+            return {"ok": False, "error": "draft_problem", "problem": "empty draft"}   # checks are an audit, never a block
         if t["channel"] == "whatsapp":                     # live engine (2026-10-05 08:14): wa_queued + double-send guard
             if t["status"] == "wa_queued" or t.get("wa_send") == "pending":
                 return {"ok": True, "queued": True, "already": True}
@@ -630,10 +629,7 @@ class MockEngines:
         text = a.get("replyText", it["replyText"])
         if not isinstance(text, str) or not text.strip() or len(text) > 8000:
             return {"ok": False, "error": "bad_text"}
-        p = self._problem(text)
-        if p:
-            return {"ok": False, "error": "draft_problem", "problem": p}
-        sw = self.switches[brand]
+        sw = self.switches[brand]                          # (2026-10-06: a content check never blocks a person's send)
         if sw["dry"] or not sw["writes"]:
             return {"ok": False, "error": "live_switches_off", "reason": "DRY_RUN=on" if sw["dry"] else "KACHING_WRITES=off"}
         due = _iso(datetime.now(timezone.utc) + timedelta(minutes=5))
