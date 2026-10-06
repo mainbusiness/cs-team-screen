@@ -416,3 +416,19 @@ def test_owner_knowledge_comes_first_is_never_cut_and_prices_follow_it():
     assert "8. PRICES" in sys_text and "OVERRIDES the site knowledge" in sys_text
     # a brand without an owner document is unchanged
     assert knowledge_text("velora", {"brandName": "V", "knowledge": "k", "policy": []}).startswith("Brand: V")
+
+@pytest.mark.parametrize('missing', [False, True])
+def test_subject_only_cancellation_is_translated_or_explicitly_incomplete(app5, pw_hash, fake_llm, monkeypatch, missing):
+    monkeypatch.setitem(TICKET, 'subject', 'אל תשלחו לי כלום')
+    def respond(payload):
+        items = json.loads(payload['messages'][-1]['content'])['items']
+        assert any(it['text'] == 'אל תשלחו לי כלום' for it in items)
+        return text(json.dumps({'translations': [
+            {'i': it['i'], 'text': 'Do not send me anything' if it['text'] == 'אל תשלחו לי כלום' else EN_TEST_TEXT.get(it['text'], 'Customer message')}
+            for it in items if not (missing and it['text'] == 'אל תשלחו לי כלום')]}))
+    fake_llm.script = [respond]
+    c, tok = logged_in(app5, pw_hash, 'eve', ['agent'], ['rozela'], lang='en')
+    result = c.post('/api/rozela/translate', json={'ticketId': 't1'}, headers={'X-CSRF-Token': tok}).get_json()
+    assert result['ok']
+    assert result['subject'] == (None if missing else 'Do not send me anything')
+    assert result['incomplete'] == (1 if missing else 0)

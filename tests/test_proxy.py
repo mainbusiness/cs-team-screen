@@ -556,3 +556,12 @@ def test_background_work_is_never_retried(app, pw_hash, transport, fast_retry):
     for _, b in transport.calls:
         per_id[(b["fn"], b["args"].get("id"))] = per_id.get((b["fn"], b["args"].get("id")), 0) + 1
     assert per_id and all(n == 1 for n in per_id.values()) and fast_retry == []
+
+
+def test_wa_pending_conflict_is_localized_without_claiming_sent():
+    en = messages.engine_error_msg({'error': 'wa_send_in_flight'}, 'apiSend', 'en')
+    he = messages.engine_error_msg({'error': 'wa_send_in_flight'}, 'apiSend', 'he')
+    assert 'draft is preserved' in en and 'pending' in en
+    assert not re.search('[\u0590-\u05ff]', en)
+    assert re.search('[\u0590-\u05ff]', he)
+    assert 'wa_send_in_flight' not in en + he

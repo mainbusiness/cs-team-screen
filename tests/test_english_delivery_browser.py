@@ -167,3 +167,53 @@ def test_lost_receipt_needs_exact_text_and_channel_evidence(delivery_page, chann
         if resend.count():
             assert resend.is_disabled()
     assert not sends
+
+
+def test_pending_other_wa_reply_refuses_and_preserves_new_english_draft(delivery_page):
+    pg, base = delivery_page
+    tid = 'w8ab77c1'
+    sends = []
+    def reject(route):
+        sends.append(json.loads(route.request.post_data))
+        route.fulfill(json={'ok': False, 'error': 'wa_send_in_flight'})
+    pg.route('**/api/rozela/apiSend', reject)
+    preview(pg, base, tid)
+    source = pg.input_value('[data-test=en-draft] textarea')
+    pg.click('[data-test=en-confirm]')
+    wait_outbox(pg, tid, 'refused')
+    pg.goto(base + '/cs/en#/b/rozela/t/' + tid)
+    pg.wait_for_selector('[data-test=outbox-banner][data-state=refused]')
+    assert pg.input_value('[data-test=en-draft] textarea') == source
+    assert len(sends) == 1
+    stored = pg.evaluate("JSON.parse(localStorage.getItem('cs.outbox'))")
+    assert all(item['state'] != 'ok' for item in stored.values())
+
+@pytest.mark.parametrize('missing', [False, True])
+def test_subject_only_cancellation_visible_in_english_or_warned(delivery_page, missing):
+    pg, base = delivery_page
+    def ticket(route):
+        response = route.fetch()
+        body = response.json()
+        body['ticket']['subject'] = 'אל תשלחו לי כלום'
+        body['ticket']['name'] = 'Natan'
+        body['extras']['conversation'] = [{'who': 'customer', 'text': 'נתן', 'at': '2026-10-06T10:00:00Z'}]
+        route.fulfill(response=response, json=body)
+    pg.route('**/api/rozela/ticket', ticket)
+    pg.route('**/api/rozela/translate', lambda route: route.fulfill(json={
+        'ok': True, 'source': 'he', 'subject': None if missing else 'Do not send me anything',
+        'conversation': [{'i': 0, 'text': 'Natan'}], 'summary': 'Customer wrote their name',
+        'incomplete': 1 if missing else 0}))
+    pg.goto(base + '/cs/en#/b/rozela/t/t18f2a01')
+    pg.wait_for_selector('[data-test=email-subject]')
+    pg.wait_for_function("document.querySelector('#tk-summary').textContent.includes('Customer wrote their name')")
+    assert pg.inner_text('.tk-head h2') == 'Natan'
+    pg.screenshot(path='/tmp/cs-subject-' + ('missing' if missing else 'translated') + '.png', full_page=True)
+    if missing:
+        assert pg.inner_text('#tk-subject') == 'אל תשלחו לי כלום'
+        assert pg.is_visible('#tk-subject-warning')
+        assert 'original shown' in pg.inner_text('#tk-subject-warning')
+    else:
+        assert pg.inner_text('#tk-subject') == 'Do not send me anything'
+        assert not pg.is_visible('#tk-subject-warning')
+        pg.locator('[data-test=email-subject] button').click()
+        assert pg.inner_text('#tk-subject') == 'אל תשלחו לי כלום'
