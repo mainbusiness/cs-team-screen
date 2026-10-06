@@ -818,6 +818,8 @@
     if (r.ok && canWork() && String(r.subscriptions || '').toLowerCase() !== 'none') loadAuto(brand);
     if (r.ok && canWork()) AutoReply.load(brand);
     if (r.ok) { S.boots[brand] = r; delete S.bootErr[brand]; noteSync(brand, r.syncedAge); }
+    // QA 2026-10-06: after a quiet hour the cached list is old; the server refreshes it now — fetch that, don't wait 10 s
+    if (r.ok && typeof r.syncedAge === 'number' && r.syncedAge > 30) setTimeout(function () { if (S.boots[brand] === r) pollChanges(brand); }, 1500);
     else if (!S.boots[brand]) { S.bootErr[brand] = r.msg || r.error; }               // keep the last good list on a bad reply
     if (brand !== S.brand) return;
     renderTop(); renderBanners(); renderTabs(); renderList(false); checkStale(); Draft.refreshSend(); EnDraft.refresh(); Assist.sync(); paintSubs(brand);
@@ -2781,7 +2783,7 @@
       pie_chan: 'לפי ערוץ', pie_cat: 'לפי נושא', pie_who: 'מי ענה', agents_w: 'נציגים', auto_w: 'מענה אוטומטי', email: 'מייל', whatsapp: 'וואטסאפ',
       h: 'ש׳', m: 'דק׳', s: 'שנ׳', resends: 'מתוכן שליחה חוזרת', per_day: 'לפי יום', present: 'מחובר',
       fixing: 'הנתונים בתיקון — לא סופיים', fixing_sub: 'נציגים עונים גם ישירות בדונדי ובג׳ימייל; המספרים יעברו לחישוב מהשיחות עצמן במנוע.',
-      onscreen: 'פעילות במסך', log_word: 'ביומן', missing: 'עוד לא מהשיחות — לא סופי: {b}', from_conv: 'מהשיחות', computing: 'מחשב מהשיחות…',
+      onscreen: 'פעילות במסך', log_word: 'ביומן', ds_age: 'לפני {m} דק׳', ds_updating: 'מתעדכן…', missing: 'עוד לא מהשיחות — לא סופי: {b}', from_conv: 'מהשיחות', computing: 'מחשב מהשיחות…',
       src_answered: 'נענו — לפי מקור', src_closed: 'נסגרו — לפי מקור', src_fromSystem: 'מהמערכת', src_fromDondy: 'מדונדי', src_fromEmail: 'מהמייל',
       sub_agent: 'נציג', sub_auto: 'אוטומטי', sub_human: 'אדם', sub_bot: 'בוט', sub_template: 'תבנית', sub_close: 'סגירה', sub_direct: 'ישיר', total: 'סה״כ',
       conv_answered: 'ענו (מהשיחות)', direct_note: 'בלי שם נציג: ישירות בדונדי {d} · ישירות במייל {g} · אוטומטי {a} · בוט ותבניות {b}', others: 'אחרים', all_brands: 'כל המותגים', brand_col: 'מותג', idle_agents: '{n} משתמשים בלי פעילות בטווח', log_new: 'יומן הפעילות עוד ריק — זמן העבודה נספר מהפעולה הבאה של כל נציג; תשובות וסגירות כבר נספרות מהמנוע.'
@@ -2804,7 +2806,7 @@
       pie_chan: 'By channel', pie_cat: 'By topic', pie_who: 'Who answered', agents_w: 'Agents', auto_w: 'Auto-reply', email: 'Email', whatsapp: 'WhatsApp',
       h: 'h', m: 'min', s: 's', resends: 'of them re-sends', per_day: 'Per day', present: 'Logged in',
       fixing: 'The numbers are being fixed — not final', fixing_sub: 'Agents also answer directly in Dondy and Gmail; the numbers will move to the engine\'s count from the conversations.',
-      onscreen: 'On-screen activity', log_word: 'log', missing: 'Not from the conversations yet — not final: {b}', from_conv: 'from conversations', computing: 'Counting from conversations…',
+      onscreen: 'On-screen activity', log_word: 'log', ds_age: '{m} min ago', ds_updating: 'updating…', missing: 'Not from the conversations yet — not final: {b}', from_conv: 'from conversations', computing: 'Counting from conversations…',
       src_answered: 'Answered — by source', src_closed: 'Closed — by source', src_fromSystem: 'From the system', src_fromDondy: 'From Dondy', src_fromEmail: 'From email',
       sub_agent: 'agent', sub_auto: 'auto', sub_human: 'person', sub_bot: 'bot', sub_template: 'template', sub_close: 'close', sub_direct: 'direct', total: 'Total',
       conv_answered: 'Answered (conversations)', direct_note: 'No agent name: directly in Dondy {d} · directly in email {g} · auto {a} · bot and templates {b}', others: 'Others', all_brands: 'All brands', brand_col: 'Brand', idle_agents: '{n} users with no activity in range', log_new: 'The activity log is still empty — work time counts from each agent\'s next action; replies and closes are already counted from the engine.'
@@ -2875,7 +2877,9 @@
       const pre = o.truncated ? '≥' : '';
       const c = h('div', { class: 'dash-card brand', 'data-test': 'dash-brand', 'data-brand': b },
         h('h3', null, brandName(b),
-          o.stats === 'dayStats' ? h('span', { class: 'chip ok', 'data-test': 'ov-from-conv', text: L.from_conv }) :
+          o.stats === 'dayStats' ? h('span', { class: 'chip ok', 'data-test': 'ov-from-conv', text: L.from_conv +
+            (o.ds_at && st.data ? ' · ' + d('ds_age', { m: Math.max(0, Math.round((st.data.generated_at - o.ds_at) / 60)) }) : '') +
+            (o.ds_busy ? ' · ' + L.ds_updating : '') }) :
             (o.ds_busy ? h('span', { class: 'chip outline', text: L.computing }) : (o.source !== 'live' ? h('span', { class: 'chip outline', text: o.source === 'snapshot' ? L.src_snapshot : L.src_rebuilt }) : null))));
       const mailOff = o.email_status && o.email_status !== 'ok';
       if (mailOff) c.append(h('div', { class: 'chip warn-chip', 'data-test': 'ov-mail-blocked', text: o.email_status === 'gmail_blocked' ? L.gmail_blocked : L.gmail_error }));

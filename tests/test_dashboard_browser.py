@@ -58,6 +58,7 @@ def test_admin_sees_live_numbers_from_real_actions(server):
         assert "אומת מול השיחות 15/15" in ad.inner_text("[data-test=dash-verify]")
         assert ad.inner_text("[data-test=dash-brand][data-brand=rozela] [data-test=ov-answered] .v") == "5"
         assert ad.inner_text("[data-test=src-answered-total] .v") == "5"
+        assert "לפני" in ad.inner_text("[data-test=dash-brand][data-brand=rozela] [data-test=ov-from-conv]")   # the numbers' age
         card = "[data-test=dash-brand][data-brand=rozela] "
         assert ad.inner_text(card + "[data-test=ov-frt] b") == "37 דק׳" and "מענה ראשון של אדם" in ad.inner_text(card + "[data-test=ov-frt]")
         assert "כולל בוט: 0 שנ׳" in ad.inner_text(card + "[data-test=ov-frt-bot]")

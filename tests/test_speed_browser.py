@@ -184,3 +184,22 @@ def test_an_old_confirmed_copy_never_settles_the_send_guards(page):
         r.continue_()
     pg.wait_for_selector("[data-test=outbox-banner][data-state=unsent]", timeout=15000)   # the fresh check decided
     pg.unroute("**/api/rozela/ticket")
+
+
+def test_an_old_list_is_refreshed_at_once_not_after_the_10s_poll(page):
+    """QA 2026-10-06: after a quiet hour the first load showed a 20-min-old list until the first 10 s poll."""
+    pg, base = page
+    polls = []
+
+    def old(route, req):
+        r = route.fetch(); j = r.json()
+        j["syncedAge"] = 1400
+        route.fulfill(response=r, body=json.dumps(j))
+    pg.route("**/api/rozela/list", old)
+    pg.on("request", lambda r: polls.append(1) if r.url.endswith("/api/rozela/changes") else None)
+    pg.goto(base + "/cs/en")                                                       # a fresh page (no list in memory)
+    pg.goto(base + "/cs#/b/rozela/ready")
+    pg.wait_for_selector("#list-pane > a.row")
+    pg.wait_for_timeout(3500)
+    assert polls, "the stale list must be re-read within seconds"
+    pg.unroute("**/api/rozela/list")

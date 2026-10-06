@@ -529,3 +529,17 @@ template / close) and from Gmail directly.
 - **The screen's own log** stays as "פעילות במסך" (work time, AHT, hours).
 - **Banners:** a brand without dayStats is named in a "לא סופי" banner, and its list-based numbers stay out of the FRT
   KPIs. `VERIFY_NOTE` shows the coordinator's live reconciliation (rozela 2026-10-05: 15/15).
+
+## Morning readiness (live QA, 2026-10-06)
+- **The web service never sleeps** (Render `starter` is a paid instance), and the driver keeps the engines warm every
+  minute. What can be cold after a quiet night is the server's own copy of each ticket.
+- **Warm-up:** at 07:20–07:40 Israel time, once a day, the existing server thread (the one that writes the midnight
+  snapshot) runs it. It reads every brand's list in full, then reads EVERY open ticket without a copy from the last
+  12 h into the cache. This runs one thread per brand at background priority, and the gate drops it when agents are
+  busy. It also starts today's dayStats.
+  - An admin can start it now with `POST /api/dash/warm`.
+  - Measured: uncached opens took ~3 s; opens from the cache take ~0.3 s.
+- **During the day,** every open ticket the change feed reports as changed is re-read in the background, so a click
+  lands on a fresh copy.
+- **"Why a person is needed":** the panel no longer says "no automatic draft" when the ticket has one, and no longer
+  shows content-check ("safety") lines at all.
