@@ -623,7 +623,7 @@ def register(app, d):
                 continue
             idx.append(("c", i))
             items.append((tkey("full-v2", TRANSLATE_MODEL, "en", m.get("text")), str(m.get("text"))))
-        for name in ("summary", "draft_text", "recommendation"):
+        for name in ("subject", "summary", "draft_text", "recommendation"):
             if str(t.get(name) or "").strip():
                 idx.append(("f", name))
                 items.append((tkey("full-v2", TRANSLATE_MODEL, "en", t.get(name)), str(t.get(name))))
@@ -632,13 +632,13 @@ def register(app, d):
         except llm.LLMError as e:
             return fail(e.code, e.http, lang)
         # never silent (Codex 2026-10-05): items the model skipped stay in the original and are counted
-        out = {"ok": True, "target": "en", "source": norm_lang(t.get("language")), "conversation": [], "summary": None, "draft": None,
+        out = {"ok": True, "target": "en", "source": norm_lang(t.get("language")), "conversation": [], "subject": None, "summary": None, "draft": None,
                "incomplete": sum(1 for (_, txt), r in zip(items, res) if r is None and txt.strip())}
         for (kind, ref), text in zip(idx, res):
             if kind == "c":
                 out["conversation"].append({"i": ref, "text": text})
-            elif ref == "summary":
-                out["summary"] = text
+            elif ref in ("subject", "summary"):
+                out[ref] = text
             elif ref == "recommendation":
                 out["recommendation"] = text
             else:

@@ -1437,6 +1437,10 @@
         icon(isWA(x) ? 'wa' : 'mail'), t(isWA(x) ? 'wa_banner' : 'email_banner')),
       contact,
       siblingsChip(x),
+      !isWA(x) && x.subject ? h('div', { class: 'summary-line', 'data-test': 'email-subject' },
+        h('b', { text: enMode(x) ? 'Subject: ' : 'נושא: ' }),
+        h('span', { id: 'tk-subject', dir: 'auto', text: x.subject }),
+        h('span', { id: 'tk-subject-warning', class: 'chip bad', hidden: !enMode(x), role: 'status', text: 'Subject not translated yet — original shown' })) : null,
       x.summary ? h('p', { class: 'summary-line', id: 'tk-summary', dir: 'auto', text: x.summary }) : null);
     tp.append(head);
 
@@ -1859,6 +1863,15 @@
         const r1 = document.getElementById('tk-reco');
         if (r1 && !r1.dataset.tr) { r1.dataset.tr = '1'; const host = h('span', { class: 'sum-toggle' }); r1.after(host); bilingual(r1, k.ticket.recommendation || '', tr.recommendation, host); }
         document.querySelectorAll('.tk-reco2').forEach(function (el) { el.textContent = tr.recommendation; });
+      }
+      const subject = document.getElementById('tk-subject');
+      if (subject && tr.subject && !subject.dataset.tr) {
+        subject.dataset.tr = '1';
+        const host = h('span', { class: 'sum-toggle' });
+        subject.after(host);
+        bilingual(subject, k.ticket.subject || '', tr.subject, host);
+        const warning = document.getElementById('tk-subject-warning');
+        if (warning) warning.hidden = true;
       }
       const sum = document.getElementById('tk-summary');
       if (sum && tr.summary && !sum.dataset.tr) {
@@ -2905,6 +2918,20 @@
       conv_answered: 'Answered (conversations)', direct_note: 'No agent name: directly in Dondy {d} · directly in email {g} · auto {a} · bot and templates {b}', others: 'Others', all_brands: 'All brands', brand_col: 'Brand', idle_agents: '{n} users with no activity in range', log_new: 'The activity log is still empty — work time counts from each agent\'s next action; replies and closes are already counted from the engine.'
     };
     const L = LANG === 'en' ? EN : HE;
+    // Owner, 2026-10-07: did every ticket written to before the desk closed get an answer + labels that say what each number counts
+    Object.assign(L, LANG === 'en' ? {
+      sv_title: 'Written to before {h}:00 — answered?', sv_def: 'Tickets with a customer message on {d} before the desk closed ({h}:00), by what followed the customer\'s LAST message of the service hours. A reply after it covers the earlier messages too.',
+      sv_received: 'Received by {h}:00', sv_person: 'A person answered', sv_auto: 'Only a bot / auto-reply', sv_closed: 'Closed with no reply', sv_unanswered: 'No answer',
+      sv_all_ok: 'Every ticket got an answer', sv_list: '{b}: {n} with no answer', sv_more: 'and {n} more (the list holds the first {m})', sv_wait: 'Not counted yet (updating): {b}',
+      sv_mail_off: 'Email not counted (Gmail blocked): {b}', sv_since: 'waiting since {t}', awaiting_today: 'Awaiting (of today\'s)', aging_all: 'Age of all open tickets ({n})',
+      last_day_only: 'The brand cards and the sources below show {d} only; agents, KPIs and charts cover the whole range.'
+    } : {
+      sv_title: 'פניות שנכנסו עד {h}:00 — קיבלו מענה?', sv_def: 'פניות שלקוח כתב בהן ב-{d} לפני סגירת השירות ({h}:00), לפי מה שקרה אחרי ההודעה האחרונה שלו בשעות השירות. תשובה אחריה מכסה גם את ההודעות שלפניה.',
+      sv_received: 'נכנסו עד {h}:00', sv_person: 'ענה אדם', sv_auto: 'רק בוט / מענה אוטומטי', sv_closed: 'נסגרו בלי תשובה', sv_unanswered: 'בלי מענה',
+      sv_all_ok: 'כל הפניות קיבלו מענה', sv_list: '{b}: {n} בלי מענה', sv_more: 'ועוד {n} (ברשימה {m} הראשונות)', sv_wait: 'עוד לא נספר (מתעדכן): {b}',
+      sv_mail_off: 'מייל לא נספר (ג׳ימייל חסום): {b}', sv_since: 'ממתינה מ-{t}', awaiting_today: 'ממתינות למענה (מהיום)', aging_all: 'גיל כל הפתוחות ({n})',
+      last_day_only: 'כרטיסי המותגים והמקורות מציגים את {d} בלבד; נציגים, מדדים וגרפים מכסים את כל הטווח.'
+    });
     function d(k, v) { let s = L[k] || k; Object.keys(v || {}).forEach(function (x) { s = s.replace('{' + x + '}', v[x]); }); return s; }
     const st = { range: '1', date: '', data: null, err: null, busy: false, who: 'all' };
     let timer = null;
@@ -2983,7 +3010,7 @@
       if (o.truncated) c.append(h('div', { class: 'muted small', text: L.partial }));
       const grid = h('div', { class: 'stat-grid' });
       const fromConv = o.stats === 'dayStats';
-      [[L.open_now, o.open_now, 'ov-open'], [L.awaiting, o.awaiting, 'ov-awaiting'],
+      [[L.open_now, o.open_now, 'ov-open'], [fromConv ? L.awaiting_today : L.awaiting, o.awaiting, 'ov-awaiting'],
         fromConv ? [L.frt_human, o.frt_human_known ? fmtS(o.frt_human_s) : '—', 'ov-frt', d('incl_bot', { v: fmtS(o.frt_median_s) }) + (o.frt_human_known ? '' : ' · ' + L.human_pending)]
           : [L.frt, fmtS(o.frt_median_s), 'ov-frt'],
         [L.auto_pct, pctS(o.auto_pct), 'ov-auto'], [L.wa_failed, o.wa_failed, 'ov-wafail']].forEach(function (x) {
@@ -2992,8 +3019,57 @@
       });
       c.append(grid);
       const ag = o.aging || {};
-      c.append(h('h4', { text: L.aging }), bars([['0–4 ' + L.h, ag['0-4h'] || 0], ['4–24 ' + L.h, ag['4-24h'] || 0], ['1–3 ' + (LANG === 'en' ? 'd' : 'ימים'), ag['1-3d'] || 0], ['3+ ' + (LANG === 'en' ? 'd' : 'ימים'), ag['3d+'] || 0]], 'aging'));
+      const agN = (ag['0-4h'] || 0) + (ag['4-24h'] || 0) + (ag['1-3d'] || 0) + (ag['3d+'] || 0);
+      c.append(h('h4', { 'data-test': 'ov-aging-title', text: fromConv ? d('aging_all', { n: agN }) : L.aging }), bars([['0–4 ' + L.h, ag['0-4h'] || 0], ['4–24 ' + L.h, ag['4-24h'] || 0], ['1–3 ' + (LANG === 'en' ? 'd' : 'ימים'), ag['1-3d'] || 0], ['3+ ' + (LANG === 'en' ? 'd' : 'ימים'), ag['3d+'] || 0]], 'aging'));
       return c;
+    }
+    /** Service hours: every ticket written to before the desk closed, by what followed. The unanswered ones are links. */
+    function serviceBlock(x) {
+      const sv = x.service;
+      if (!sv || (!sv.brands.length && !sv.missing.length)) return null;
+      const hh = sv.close_hour || 17, T = sv.total || {};
+      const box = h('div', { class: 'dash-card service', 'data-test': 'service' }, h('h3', { text: d('sv_title', { h: hh }) }),
+        h('div', { class: 'muted small', 'data-test': 'service-def', text: d('sv_def', { h: hh, d: sv.day }) }));
+      if (sv.missing.length) box.append(h('div', { class: 'chip outline', 'data-test': 'service-wait', text: d('sv_wait', { b: sv.missing.map(brandName).join(', ') }) }));
+      if (sv.email_unknown.length) box.append(h('div', { class: 'chip warn-chip', 'data-test': 'service-mail-off', text: d('sv_mail_off', { b: sv.email_unknown.map(brandName).join(', ') }) }));
+      if (!sv.brands.length) return box;
+      const KEYS = ['received', 'person', 'auto', 'closed', 'unanswered'];
+      const TKEYS = ['received', 'unanswered', 'person', 'auto', 'closed'];      // the table: what needs action sits next to the brand (a phone shows 2-3 columns)
+      const row = h('div', { class: 'sv-cards' });
+      KEYS.forEach(function (k) {
+        const bad = k === 'unanswered' && T[k] > 0, ok = k === 'unanswered' && !T[k];
+        row.append(h('div', { class: 'sv-card' + (k === 'received' ? ' total' : '') + (bad ? ' bad' : '') + (ok ? ' good' : ''), 'data-test': 'service-' + k },
+          h('div', { class: 'v', text: String(T[k] || 0) }), h('div', { class: 'l', text: d('sv_' + k, { h: hh }) }),
+          k !== 'received' && T.received ? h('div', { class: 'muted small', text: Math.round(100 * (T[k] || 0) / T.received) + '%' }) : null));
+      });
+      box.append(row);
+      if (!T.unanswered && !sv.missing.length) box.append(h('div', { class: 'verified', 'data-test': 'service-all-ok', text: '✓ ' + L.sv_all_ok }));
+      const tb = h('table', { class: 'dash-table', 'data-test': 'service-table' }, h('thead', null, h('tr', null, [L.brand_col].concat(TKEYS.map(function (k) { return d('sv_' + k, { h: hh }); })).map(function (c) { return h('th', { text: c }); }))));
+      const body = h('tbody');
+      sv.brands.forEach(function (b) {
+        const o = x.brands[b].service;
+        body.append(h('tr', { 'data-brand': b }, h('td', null, h('bdi', { text: brandName(b) })), TKEYS.map(function (k) {
+          return h('td', { class: k === 'unanswered' && o[k].total ? 'sv-bad' : null }, h('b', { text: String(o[k].total) }),
+            o.email_known ? h('span', { class: 'muted small', text: ' (' + L.whatsapp + ' ' + o[k].whatsapp + ' · ' + L.email + ' ' + o[k].email + ')' }) : h('span', { class: 'muted small', text: ' (' + L.wa_only + ')' }));
+        })));
+      });
+      tb.append(body);
+      box.append(h('div', { class: 'table-wrap' }, tb));
+      const tm = function (iso) { const dt = new Date(iso); return isNaN(dt) ? '' : dt.toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' }); };
+      sv.brands.forEach(function (b) {
+        const o = x.brands[b].service;
+        if (!o.unanswered.total) return;
+        const det = h('details', { class: 'sv-list', 'data-test': 'service-list', 'data-brand': b }, h('summary', { text: d('sv_list', { b: brandName(b), n: o.unanswered.total }) }));
+        const ul = h('ul', { class: 'mini' });
+        o.tickets.forEach(function (tk) {
+          ul.append(h('li', null, h('a', { href: '#/b/' + encodeURIComponent(b) + '/t/' + encodeURIComponent(tk.id), 'data-test': 'service-ticket' },
+            (tk.ch === 'whatsapp' ? L.whatsapp : L.email) + ' · ' + d('sv_since', { t: tm(tk.at) }) + (tk.category ? ' · ' + catName(tk.category) : '') + ' · …' + String(tk.id).slice(-5))));
+        });
+        det.append(ul);
+        if (o.unanswered.total > o.tickets.length) det.append(h('div', { class: 'muted small', text: d('sv_more', { n: o.unanswered.total - o.tickets.length, m: o.tickets.length }) }));
+        box.append(det);
+      });
+      return box;
     }
     function kpi(label, value, bench, good, test, note) {
       const cls = good === null || good === undefined ? '' : good ? ' good' : ' bad';
@@ -3154,6 +3230,8 @@
       if (x.verify_note) p.append(h('div', { class: 'verified', role: 'status', 'data-test': 'dash-verify', text: x.verify_note }));
       p.append(h('div', { class: 'muted small dash-method', text: d('method', { m: Math.round(x.idle_gap_s / 60) }) + (x.log_since ? ' · ' + d('since', { d: x.log_since }) : '') }));
       if (!x.log_since) p.append(h('div', { class: 'note-box', 'data-test': 'dash-log-new', text: L.log_new }));
+      p.append(serviceBlock(x) || '');
+      if (x.days.length > 1) p.append(h('div', { class: 'note-box', 'data-test': 'dash-last-day', text: d('last_day_only', { d: x.end_day }) }));
       const bw = h('div', { class: 'brand-grid' });
       Object.keys(x.brands).forEach(function (b) { bw.append(brandCard(b, x.brands[b])); });
       p.append(bw);
