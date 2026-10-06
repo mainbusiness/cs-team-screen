@@ -89,3 +89,37 @@ def test_admin_sees_live_numbers_from_real_actions(server):
         assert " – " in ad.inner_text("[data-test=dash-shown]") and ad.locator("[data-test=heat-who]").count() == 1
         ad.unroute("**/api/dash?range=1*")
         b.close()
+
+
+def test_service_hours_block_shows_who_got_no_answer_and_opens_the_ticket(server):
+    """Owner, 2026-10-07: every ticket written to before the desk closed (17:00) — answered or not, and the unanswered ones are links."""
+    base, pwd = server
+    from pw_launch import launch
+    with pw.sync_playwright() as p:
+        b = launch(p)
+        ad = b.new_context(viewport={"width": 390, "height": 800}).new_page()
+        ad.goto(base + "/cs/login"); ad.fill("input[name=username]", "admin1"); ad.fill("input[name=password]", pwd)
+        ad.click("button[type=submit]"); ad.wait_for_load_state("networkidle")
+        ad.goto(base + "/cs#/dash")
+        for _ in range(30):                                          # dayStats lands in the background
+            ad.wait_for_selector("[data-test=dash-brand]")
+            if ad.locator("[data-test=service-table] tr[data-brand=rozela]").count():
+                break
+            ad.wait_for_timeout(300); ad.reload()
+        assert "17:00" in ad.inner_text("[data-test=service] h3") and "17:00" in ad.inner_text("[data-test=service-def]")
+        n = ad.locator("[data-test=service-table] tbody tr").count()
+        assert n >= 1
+        assert ad.inner_text("[data-test=service-received] .v") == str(5 * n) and ad.inner_text("[data-test=service-unanswered] .v") == str(n)
+        assert "bad" in ad.get_attribute("[data-test=service-unanswered]", "class")
+        row = ad.locator("[data-test=service-table] tr[data-brand=rozela] td")
+        assert row.nth(1).inner_text().startswith("5") and row.nth(2).inner_text().startswith("1")     # received, then unanswered
+        assert ad.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth") == 0
+        det = ad.locator("[data-test=service-list][data-brand=rozela]")
+        assert "1" in det.locator("summary").inner_text()
+        det.locator("summary").click()
+        link = det.locator("[data-test=service-ticket]")
+        assert link.count() == 1 and any(x in link.inner_text() for x in ("16:05", "15:05"))        # 13:05Z in Israel (summer / winter time)
+        link.click()
+        ad.wait_for_function("location.hash.indexOf('#/b/rozela/t/') === 0")
+        ad.wait_for_selector(".ticket-pane, #ticket-pane")
+        assert ad.is_hidden("#dash-pane")

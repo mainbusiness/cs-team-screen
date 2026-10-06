@@ -780,6 +780,12 @@ class MockEngines:
                         "humanByChannel": {"email": {"n": 3, "medianMin": 95}, "whatsapp": {"n": 1, "medianMin": 12}}},
                 "attribution": {"bySender": {"agent1": 2, "auto": 1, "dondy_direct": 1, "gmail_direct": 1}},
                 "sources": {"answered": row(2, 1, 1, 0, 0, 0, 1), "closed": row(1, 0, 0, 0, 0, 1, 0), "replies": row(3, 1, 2, 1, 0, 0, 1)},
+                # engine 2026-10-07: tickets written to before the desk closed (17:00), by what followed their last message
+                "serviceHours": {"closeHour": 17, "received": {"total": 5, "email": 3, "whatsapp": 2}, "person": {"total": 2, "email": 2, "whatsapp": 0},
+                                 "auto": {"total": 1, "email": 0, "whatsapp": 1}, "closed": {"total": 1, "email": 1, "whatsapp": 0},
+                                 "unanswered": {"total": 1, "email": 0, "whatsapp": 1},
+                                 "unansweredTickets": [{"id": x["id"], "ch": "whatsapp", "at": a["date"] + "T13:05:00.000Z"}
+                                                       for x in t if x.get("channel") == "whatsapp"][:1]},
                 "partial": False, "next": None, "serverMs": 900}
 
     def apiTicketLite(self, brand, a, c):

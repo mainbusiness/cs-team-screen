@@ -54,6 +54,28 @@ VERIFY_NOTE = "✓ אומת מול השיחות 15/15 (וואטסאפ 10/10 · �
 DS_FINAL_TTL_S = 6 * 3600   # a finished day is still re-read now and then: the engine can backfill (2026-10-06: 95 email replies)
 SOURCES = {"fromSystem": ("agent", "auto"), "fromDondy": ("human", "bot", "template", "close"), "fromEmail": ("direct",)}
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# Owner, 2026-10-07: QA and automation accounts are not the team. Their clicks stay in the log, but they are not rows in the
+# agents table and do not move work time, AHT, occupancy, the heat map or the pies.
+TEST_USER_RE = re.compile(r"^(qa-.*|claude-admin|guy-admin-cli|warmup)$", re.I)
+SERVICE_KEYS = ("received", "person", "auto", "closed", "unanswered")
+
+
+def is_test_user(name):
+    return isinstance(name, str) and bool(TEST_USER_RE.match(name))
+
+
+def service_hours(ds):
+    """The engine's serviceHours (tickets written to before the desk closed, by what followed) or None on an older engine / cache."""
+    sh = ds.get("serviceHours")
+    if not isinstance(sh, dict) or not all(isinstance(sh.get(k), dict) for k in SERVICE_KEYS):
+        return None
+    num = lambda v: int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0     # noqa: E731
+    out = {"close_hour": sh.get("closeHour"), "email_known": sh["received"].get("email") is not None}
+    for k in SERVICE_KEYS:
+        out[k] = {c: num(sh[k].get(c)) for c in ("total", "email", "whatsapp")}
+    out["tickets"] = [{"id": t["id"], "ch": "whatsapp" if t.get("ch") == "whatsapp" else "email", "at": t.get("at")}
+                      for t in (sh.get("unansweredTickets") or []) if isinstance(t, dict) and isinstance(t.get("id"), str) and ID_RE.match(t["id"])]
+    return out
 
 
 # ---------- time ----------
@@ -331,7 +353,8 @@ def ds_overview(o, ds):
     src = ds.get("sources") or {}
     auto = (((src.get("answered") or {}).get("fromSystem") or {}).get("auto")) or 0
     n_ans = ans.get("total") or 0
-    o = dict(o, received=rec.get("total", 0), answered=n_ans, closed=clo.get("total", 0),
+    o = dict(o, awaiting_all=o.get("awaiting_all", o.get("awaiting")), service=service_hours(ds),
+             received=rec.get("total", 0), answered=n_ans, closed=clo.get("total", 0),
              answered_pct=_pct(n_ans, rec.get("total", 0)), closed_pct=_pct(clo.get("total", 0), rec.get("total", 0)),
              awaiting=aw.get("total", o.get("awaiting")), frt_median_s=mins(frt.get("all")), frt_email_s=mins(frt.get("email")),
              frt_wa_s=mins(frt.get("whatsapp")),
@@ -366,20 +389,21 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
     lo, hi = day_start(days[0]), min(day_start(next_day(days[-1])), max(now, day_start(days[0])))
     evts = []
     for d in [prev_day(days[0])] + days + [next_day(days[-1])]:   # both neighbours: sessions that cross midnight
-        evts.extend(e for e in log.events(d) if e.get("b") in brands)
+        evts.extend(e for e in log.events(d) if e.get("b") in brands and not is_test_user(e.get("u")))
     evts.sort(key=lambda e: e["ts"])
     row_of = {(b, r.get("id")): r for b, rs in rows_by_brand.items() for r in rs}
     present = {}
     for d in days:
         for u, mins in log.presence(d).items():
-            present.setdefault(u, set()).update(m for m in mins if lo <= m * 60 < hi)
+            if not is_test_user(u):
+                present.setdefault(u, set()).update(m for m in mins if lo <= m * 60 < hi)
 
     by_user = {}
     for e in evts:
         by_user.setdefault(e.get("u"), []).append(e)
     names = {u["username"]: (u.get("display_name") or u["username"]) for u in users}
     roster = {u["username"] for u in users if not u.get("disabled") and set(u.get("roles", [])) & {"agent", "admin"}
-              and set(u.get("brands", [])) & set(brands)}
+              and set(u.get("brands", [])) & set(brands) and not is_test_user(u["username"])}
     pie_brand, pie_chan, pie_cat = {}, {}, {}
     heat = {}                     # user -> {day: [24 seconds]}
     hour_total = [0.0] * 24
@@ -452,7 +476,7 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
             by_sender[k] = by_sender.get(k, 0) + int(v or 0)
     known = {u["username"] for u in users}
     for k in list(by_sender):
-        if k in known and k not in {a["user"] for a in agents}:      # a screen user outside the roster (e.g. an admin)
+        if k in known and not is_test_user(k) and k not in {a["user"] for a in agents}:      # a screen user outside the roster (e.g. an admin)
             agents.append({"user": k, "name": names.get(k, k), "active_s": 0, "sends": 0, "resends": 0, "closes": 0, "per_hour": None,
                            "aht_s": None, "handled": 0, "present_s": 0, "occupancy": None, "engine_sends": 0, "engine_closes": 0,
                            "by_brand": {}, "by_channel": {}, "days": []})
@@ -475,6 +499,10 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
         ds = ds_by_brand.get(b) or {}
         if ds.get("data"):
             brands_out[b] = dict(ds_overview(brands_out[b], ds["data"]), ds_at=ds.get("at"), ds_final=ds.get("final"))
+        brands_out[b].setdefault("awaiting_all", brands_out[b].get("awaiting"))     # every open ticket waiting for a person (the list)
+        for t in (brands_out[b].get("service") or {}).get("tickets") or []:          # where the ticket stands now (no customer content)
+            r = row_of.get((b, t["id"])) or {}
+            t["status"], t["category"] = r.get("status") or "", r.get("category") or ""
         brands_out[b]["ds_busy"] = bool(ds.get("busy"))
         brands_out[b]["ds_error"] = ds.get("error")
 
@@ -524,12 +552,17 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
         "aht_s": _median(all_handles), "fcr_pct": _pct(single, len(sent_tickets)),
         "reopen_pct": _pct(reopened, len(sent_tickets)), "fcr_window_open": now - hi < 72 * 3600,
         "occupancy": round(min(1.0, tot_active / tot_present), 3) if tot_present else None,
-        "backlog": sum(o["awaiting"] for o in brands_out.values()),
+        "backlog": sum(o.get("awaiting_all") or 0 for o in brands_out.values()),
         "sla_wa_pct": _pct(*sla["whatsapp"]), "sla_email_pct": _pct(*sla["email"]),
         "sla_wa_n": sla["whatsapp"][1], "sla_email_n": sla["email"][1], "csat": None,
     }
+    with_sv = {b: o["service"] for b, o in brands_out.items() if o.get("service")}
+    service = {"close_hour": next((v.get("close_hour") for v in with_sv.values() if v.get("close_hour")), 17), "day": end_day,
+               "brands": sorted(with_sv), "missing": sorted(b for b in brands_out if b not in with_sv),
+               "email_unknown": sorted(b for b, v in with_sv.items() if not v.get("email_known")),
+               "total": {k: sum(v[k]["total"] for v in with_sv.values()) for k in SERVICE_KEYS}}
     return {
-        "ok": True, "generated_at": now, "end_day": end_day, "days": days, "brands": brands_out, "agents": agents,
+        "ok": True, "generated_at": now, "end_day": end_day, "days": days, "brands": brands_out, "agents": agents, "service": service,
         "heat": heat, "hour_total": [round(x) for x in hour_total], "kpis": kpis, "bench": BENCH,
         "pies": {"brand": {k: round(v) for k, v in pie_brand.items()}, "channel": {k: round(v) for k, v in pie_chan.items()},
                  "category": {k: round(v) for k, v in pie_cat.items()}, "who": {"agents": agent_replies, "auto": auto_n}},

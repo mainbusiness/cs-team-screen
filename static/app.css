@@ -445,7 +445,22 @@ body.view-dash .list-pane, body.view-dash .ticket-pane, body.view-dash .tabs { d
 .dash-card h3 { margin: 0 0 8px; display: flex; gap: 8px; align-items: center; }
 .brand-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
 @media (min-width: 760px) { .brand-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1200px) { .brand-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 1200px) { .brand-grid { grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); } }
+/* service hours (2026-10-07): did every ticket written to before the desk closed get an answer */
+.dash-card.service { margin: 10px 0 14px; }
+.sv-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 10px 0; }
+@media (min-width: 760px) { .sv-cards { grid-template-columns: repeat(5, 1fr); } }
+.sv-card { background: var(--bg); border-radius: 10px; padding: 10px; }
+.sv-card .v { font-size: 26px; font-weight: 800; line-height: 1.1; }
+.sv-card .l { font-size: 13px; font-weight: 600; }
+.sv-card.total { background: var(--brand); color: #fff; }
+.sv-card.bad { background: var(--danger-bg); color: var(--danger); }
+.sv-card.bad .muted { color: var(--danger); }
+.sv-card.good { background: var(--ready-bg); color: var(--ready); }
+.sv-bad b { color: var(--danger); }
+.sv-list { margin-top: 8px; }
+.sv-list summary { cursor: pointer; font-weight: 600; color: var(--danger); padding: 6px 0; }
+.sv-list a { display: inline-block; padding: 6px 0; }
 .big-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; }
 .big .v { font-size: 28px; font-weight: 800; color: var(--brand); line-height: 1.1; }
 .big .l { font-size: 13px; font-weight: 600; }

@@ -418,3 +418,48 @@ def test_deep_warm_reads_every_open_ticket_and_skips_recent_copies(app, pw_hash,
     assert a.post("/api/dash/warm", json={}, headers={"X-CSRF-Token": tok}).get_json()["ok"]
     g, gt = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
     assert g.post("/api/dash/warm", json={}, headers={"X-CSRF-Token": gt}).status_code == 403
+
+
+# ---------- service hours + test accounts (Owner, 2026-10-07) ----------
+
+SH = {"closeHour": 17, "received": {"total": 9, "email": 4, "whatsapp": 5}, "person": {"total": 5, "email": 3, "whatsapp": 2},
+      "auto": {"total": 1, "email": 0, "whatsapp": 1}, "closed": {"total": 1, "email": 1, "whatsapp": 0},
+      "unanswered": {"total": 2, "email": 0, "whatsapp": 2},
+      "unansweredTickets": [{"id": "t1", "ch": "whatsapp", "at": "2026-10-05T13:00:00.000Z"}, {"id": "bad id!", "ch": "whatsapp", "at": "x"}]}
+
+
+def test_service_hours_reach_the_board_per_brand_and_in_total(tmp_path):
+    now = [T0 + 20 * 3600]
+    log = mklog(tmp_path, now)
+    ds = {"received": {"total": 9}, "answered": {"total": 6}, "closedToday": {}, "awaitingNow": {"total": 2}, "serviceHours": SH}
+    rows = {"rozela": [{"id": "t1", "status": "ready", "category": "shipping", "channel": "whatsapp", "created_at": iso(T0 + 3600)},
+                       {"id": "t2", "status": "action", "created_at": iso(T0 - 5 * 86400)}], "celesta": []}
+    out = D.build(log, rows, [], ["rozela", "celesta"], DAY, 1, now[0], {"rozela": {"data": ds, "at": now[0]}})
+    sv = out["brands"]["rozela"]["service"]
+    assert (sv["close_hour"], sv["received"]["total"], sv["person"]["total"], sv["auto"]["total"], sv["closed"]["total"], sv["unanswered"]["total"]) == (17, 9, 5, 1, 1, 2)
+    assert sv["tickets"] == [{"id": "t1", "ch": "whatsapp", "at": "2026-10-05T13:00:00.000Z", "status": "ready", "category": "shipping"}]   # a malformed id never reaches a link
+    assert out["service"]["total"] == {"received": 9, "person": 5, "auto": 1, "closed": 1, "unanswered": 2}
+    assert out["service"]["brands"] == ["rozela"] and out["service"]["missing"] == ["celesta"] and out["service"]["email_unknown"] == []
+    # "awaiting" is the day's (conversations); the backlog KPI and the age bars are EVERY open ticket (the list)
+    assert out["brands"]["rozela"]["awaiting"] == 2 and out["brands"]["rozela"]["awaiting_all"] == 2 and out["kpis"]["backlog"] == 2
+    assert sum(out["brands"]["rozela"]["aging"].values()) == out["brands"]["rozela"]["awaiting_all"]
+
+
+def test_service_hours_from_an_older_engine_or_a_gmail_block(tmp_path):
+    assert D.service_hours({"received": {"total": 1}}) is None                       # an engine / cached day without the field
+    blocked = dict(SH, received={"total": 5, "email": None, "whatsapp": 5})
+    assert D.service_hours({"serviceHours": blocked})["email_known"] is False
+
+
+def test_qa_and_automation_accounts_are_not_agents(tmp_path):
+    now = [T0 + 12 * 3600]
+    log = mklog(tmp_path, now)
+    for u in ("noa", "qa-delivery-20261006", "claude-admin"):
+        ev(log, T0 + 9 * 3600, "open", u=u)
+        ev(log, T0 + 9 * 3600 + 120, "send", u=u)
+        log.touch(u, T0 + 9 * 3600)
+    users = [{"username": u, "roles": ["agent"], "brands": ["rozela"]} for u in ("noa", "qa-rozela", "claude-admin")]
+    out = D.build(log, {"rozela": []}, users, ["rozela"], DAY, 1, now[0])
+    assert [a["user"] for a in out["agents"]] == ["noa"]
+    assert set(out["heat"]) == {"noa"} and out["pies"]["who"]["agents"] == 1 and out["pies"]["brand"] == {"rozela": 180}
+    assert out["kpis"]["aht_s"] == 120 and out["kpis"]["occupancy"] == 1.0            # the QA sends moved nothing
