@@ -84,13 +84,17 @@ def test_inbound_all_messages_and_full_long_text(setup):
             reply = dict(reply, extras={"conversation": [{"who": "automatic", "text": long_text}]})
         return reply
     transport.reply = custom_engine
-    def echo(p):
+    seen = []
+    def complete_english(p):
         items = json.loads(p["messages"][0]["content"])["items"]
-        return text(json.dumps({"translations": [{"i": x["i"], "text": x["text"]} for x in items]}))
-    model.script = [echo] * 8
+        seen.extend(x["text"] for x in items)
+        return text(json.dumps({"translations": [{"i": x["i"], "text": "Complete English segment. "} for x in items]}))
+    model.script = [complete_english] * 8
     r = c.post("/api/rozela/translate", json={"ticketId": "t1"}, headers={"X-CSRF-Token": tok}).get_json()
     assert r["ok"] and r["incomplete"] == 0
-    assert r["conversation"] == [{"i": 0, "text": long_text}]
+    assert r["conversation"][0]["text"].startswith("Complete English segment.")
+    assert "".join(seen[:2]) == long_text  # full source including final sentence was submitted
+    assert len(r["conversation"][0]["text"].split("Complete English segment.")) == 3
 
 
 def test_customer_message_injection_cannot_leak_english(setup):
@@ -111,3 +115,39 @@ def test_valid_hebrew_preserves_brand_link_email_tracking():
     from assistant import hebrew_delivery_ok
     assert hebrew_delivery_ok("שלום, ההזמנה JY4516000777 בדרך. Rozela: https://t.17track.net/en#nums=JY1 support@example.com", "rozela")
     assert not hebrew_delivery_ok("שלום. Your order is on its way.", "rozela")
+
+
+@pytest.mark.parametrize("bad", ["שלום, ההזמנה בדרך", "(EN) שלום, ההזמנה בדרך", "Your order: ההזמנה בדרך"])
+def test_inbound_hebrew_output_marked_incomplete_and_retryable(setup, bad):
+    app, c, tok, transport, model = setup
+    def bad_in(p):
+        items = json.loads(p["messages"][0]["content"])["items"]
+        return text(json.dumps({"translations": [{"i": x["i"], "text": bad} for x in items]}))
+    model.script = [bad_in, lambda p: text(json.dumps({"translations": [
+        {"i": x["i"], "text": "Your order is on the way."}
+        for x in json.loads(p["messages"][0]["content"])["items"]]}))]
+    route = "/api/rozela/translate"
+    r = c.post(route, json={"ticketId": "t1"}, headers={"X-CSRF-Token": tok}).get_json()
+    assert r["ok"] and r["incomplete"] == 5
+    assert all(m["text"] is None for m in r["conversation"])
+    second = c.post(route, json={"ticketId": "t1"}, headers={"X-CSRF-Token": tok}).get_json()
+    assert second["incomplete"] == 0 and len(model.payloads) == 2
+
+
+@pytest.mark.parametrize("fn,field", [("apiSend", "text"), ("apiSaveDraft", "text"), ("apiAutoCancelApprove", "replyText")])
+def test_bad_translation_never_cached_and_retry_recovers(setup, fn, field):
+    app, c, tok, transport, model = setup
+    model.script = [lambda p: text(json.dumps({"translations": [{"i": 0, "text": "Hello customer"}]})), he_translation]
+    args = {"id": "t1", field: "Please check my delivery"}
+    first = call(c, tok, "rozela", fn, args)
+    assert first.status_code == 502
+    assert not [b for _, b in transport.calls if b["fn"] == fn]
+    second = call(c, tok, "rozela", fn, args)
+    assert second.get_json()["ok"] and len(model.payloads) == 2
+    assert [b for _, b in transport.calls if b["fn"] == fn][-1]["args"][field] == "שלום, בדקתי וההזמנה שלך בדרך."
+
+
+@pytest.mark.parametrize("prose", ["שלום Hello1 customer2", "שלום HELLO1 CUSTOMER2", "שלום Hello123456"])
+def test_english_words_with_digits_are_not_tracking_ids(prose):
+    from assistant import hebrew_delivery_ok
+    assert not hebrew_delivery_ok(prose, "rozela")

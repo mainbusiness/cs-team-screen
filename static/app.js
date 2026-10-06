@@ -1153,6 +1153,7 @@
     const sy = window.scrollY;
     const ps = pane.scrollTop;
     const first = !k.ticket;
+    k.tr = null; k.trRequest = (k.trRequest || 0) + 1;
     k.ticket = r.ticket; k.extras = r.extras || {}; k.extrasErr = r.extrasErr || null; k.sig = sig;
     k.cachedAt = r.cache && r.cache.hit ? new Date(Date.now() - (r.cache.age_s || 0) * 1000).toISOString() : new Date().toISOString();
     S.tkMemo[k.brand + '|' + k.id] = { ticket: k.ticket, extras: k.extras, extrasErr: k.extrasErr, sig: sig, cachedAt: k.cachedAt };
@@ -1262,8 +1263,8 @@
     if (k.ticket && tkSig(r.ticket, r.extras) === k.sig) { k.pending = null; paintSync(); return; }
     const a = document.activeElement;
     const typing = a && $('ticket-pane').contains(a) && /^(TEXTAREA|INPUT|SELECT)$/.test(a.tagName);
-    const touched = typing || Draft.isDirty() || Draft.edited();      // edited once = the agent's text, even after autosave
-    const hard = EnDraft.busy() || $('cancel-dlg').open || $('confirm-dlg').open || (enMode(k.ticket || r.ticket) && touched);
+    const touched = typing || Draft.isDirty() || Draft.edited() || EnDraft.busy();
+    const hard = $('cancel-dlg').open || $('confirm-dlg').open;
     if (fresh.length) k.live = (k.live || []).concat(fresh);
     if (!k.ticket || hard) { applyTicket(k, r, !k.ticket); paintLive(k); return; }
     if (!touched) { applyTicket(k, r, true); paintLive(k); return; }
@@ -1274,6 +1275,7 @@
     const y0 = anchor ? anchor.getBoundingClientRect().top : 0;
     const prevDraft = String((k.ticket && k.ticket.draft_text) || '');
     k.ticket = r.ticket; k.extras = r.extras || {}; k.extrasErr = r.extrasErr || null; k.sig = tkSig(r.ticket, r.extras); k.pending = null;
+    k.tr = null; k.trRequest = (k.trRequest || 0) + 1;
     k.cachedAt = new Date().toISOString();
     S.tkMemo[k.brand + '|' + k.id] = { ticket: k.ticket, extras: k.extras, extrasErr: k.extrasErr, sig: k.sig, cachedAt: k.cachedAt };
     if (old) {
@@ -1283,8 +1285,9 @@
       old.replaceWith(cc);
     }
     const nd = String(r.ticket.draft_text || '');
-    if (nd !== prevDraft) Draft.offer(nd);
+    if (nd !== prevDraft && !enMode(k.ticket)) Draft.offer(nd);
     Draft.refreshSend();
+    if (enMode(k.ticket)) Translate.load(k);
     if (anchor && anchor.isConnected) {
       const d = anchor.getBoundingClientRect().top - y0;
       if (d) { if (pane.scrollHeight > pane.clientHeight) pane.scrollTop += d; else window.scrollBy(0, d); }
@@ -1302,7 +1305,14 @@
     const last = ms_[ms_.length - 1];
     el.append(h('div', { class: 'live-head' }, h('b', { text: ms_.length > 1 ? t('live_new_msgs', { n: ms_.length }) : t('live_new_msg') }),
       h('button', { class: 'btn small ghost', type: 'button', text: t('live_ok'), onclick: function () { k.live = []; paintLive(k); } })));
-    el.append(h('div', { class: 'live-text', dir: 'auto', text: String(last.text || '').slice(0, 400) }));
+    let preview = String(last.text || '').slice(0, 400);
+    if (enMode(k.ticket)) {
+      const index = ((k.extras && k.extras.conversation) || []).findIndex(function (m) { return msgKey(m) === msgKey(last); });
+      const translated = ((k.tr && k.tr.conversation) || []).find(function (m) { return Number(m.i) === index; });
+      preview = translated ? String(translated.text || '').slice(0, 400) : t('tr_loading');
+      if (k.tr && k.tr.err) preview = t('tr_failed', { m: k.tr.err });
+    }
+    el.append(h('div', { class: 'live-text', dir: 'auto', text: preview }));
   }
 
   /** The open ticket, every 5 s: cheap on the server (it rides the brand's shared change feed). */
@@ -1810,12 +1820,14 @@
   const Translate = {
     async load(k) {
       const x = k.ticket;
+      const requestId = k.trRequest = (k.trRequest || 0) + 1;
       k.tr = { loading: true };
       this.paint(k);
       const r = await api('/api/' + encodeURIComponent(k.brand) + '/translate', { ticketId: k.id });
-      if (S.tk !== k) return;
+      if (S.tk !== k || k.trRequest !== requestId) return;
       k.tr = r.ok ? r : { err: r.msg || r.error };
       this.paint(k);
+      paintLive(k);
       if (r.ok) EnDraft.prefill(x.id, r.draft);
       else EnDraft.prefill(x.id, null);
     },

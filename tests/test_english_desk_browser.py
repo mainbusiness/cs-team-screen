@@ -53,3 +53,39 @@ def test_english_desk_hebrew_preview_and_guard(english_server, width):
         assert pg.evaluate("localStorage.getItem('cs.draft.en.rozela.t18f2a03')") == 'I edited the reply.'
         assert not errors
         browser.close()
+
+
+def test_new_message_translates_while_english_draft_is_kept(english_server):
+    from test_speed_browser import push_new_message, NEW_MSG
+    base, pwd = english_server
+    with pw.sync_playwright() as p:
+        browser = launch(p)
+        pg = browser.new_page(viewport={'width': 1280, 'height': 900})
+        pg.goto(base + '/cs/en/login')
+        pg.fill('input[name=username]', 'english-agent')
+        pg.fill('input[name=password]', pwd)
+        pg.click('button[type=submit]')
+        calls = []
+
+        def translate(route):
+            calls.append(1)
+            conversation = [{'i': i, 'text': 'English message %s, revision %s' % (i, len(calls))} for i in range(30)]
+            route.fulfill(json={'ok': True, 'source': 'he', 'conversation': conversation,
+                                'summary': 'English summary', 'draft': 'An English reply'})
+
+        pg.route('**/api/rozela/translate', translate)
+        pg.goto(base + '/cs/en#/b/rozela/t/t18f2a03')
+        pg.wait_for_selector('#tk-conv .msg[data-tr="1"]')
+        ta = pg.locator('[data-test=en-draft] textarea')
+        ta.fill('My draft must stay exactly as I wrote it.')
+        ta.focus()
+        original_count = len(calls)
+        push_new_message(pg, base, 't18f2a03')
+        pg.wait_for_selector('[data-test=tk-live]:not([hidden])', timeout=12000)
+        pg.wait_for_function("document.querySelector('[data-test=tk-live] .live-text').textContent.startsWith('English message')")
+        assert len(calls) > original_count
+        assert ta.input_value() == 'My draft must stay exactly as I wrote it.'
+        assert pg.evaluate('document.activeElement.tagName') == 'TEXTAREA'
+        assert NEW_MSG not in pg.inner_text('#tk-conv')
+        assert 'English message' in pg.inner_text('#tk-conv .msg:last-child .mbody')
+        browser.close()
