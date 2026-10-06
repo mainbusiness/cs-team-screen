@@ -7,6 +7,7 @@ their 5-minute trigger as a fallback and leave at once while this driver is aliv
   TOKEN_SECRET   the engines' Script Property (env, or the Keychain item cs-engine / all/TOKEN_SECRET on the Mac)
   ENGINES_JSON   {"rozela": "https://script.google.com/macros/s/<id>/exec", ...} (env, or --engines FILE, or deploy/deployments.json)
   DRIVER_BRANDS  comma list, default rozela,celesta,apexmen,selera,velora (a brand not yet live must not be driven)
+  DRIVER_WEEKLY_BRANDS  comma list for the weekly owner report (default: DRIVER_BRANDS); includes brands the core server drives itself
 
 Brands run in parallel. Logs one status line per brand, never customer data. Exit 0 = every brand answered and is healthy,
 1 = a brand failed, 2 = a brand answers but has not completed a run for 15 minutes. Two drivers at once are harmless: the engine's run guard.
@@ -384,7 +385,9 @@ def main(argv=None, environ=None, transport=None, out=print, now_utc=None):
                     backoff_set(state, b, time.time() + GMAIL_BACKOFF_S)
                     out(time.strftime("%H:%M:%S ") + "%s backoff 30 min (Gmail daily quota)" % b)
     if todo or paused_any:
-        line = maybe_weekly(engines, secret, transport, want, now_utc, out)
+        # The weekly report covers every brand, also the ones this driver no longer runs (the core server drives its own brands).
+        weekly = [b.strip().lower() for b in (environ.get("DRIVER_WEEKLY_BRANDS") or "").split(",") if b.strip()] or want
+        line = maybe_weekly(engines, secret, transport, weekly, now_utc, out)
         if line:
             out(time.strftime("%H:%M:%S ") + line)
     return max(codes) if codes else 1
