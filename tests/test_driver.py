@@ -1,4 +1,5 @@
 import json, os, sys, time
+import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import driver, security
@@ -6,6 +7,14 @@ import driver, security
 SECRET = "S" * 40
 URL = lambda c: "https://script.google.com/macros/s/%s/exec" % (c * 30)
 ENV = {"TOKEN_SECRET": SECRET, "ENGINES_JSON": json.dumps({"rozela": URL("a"), "celesta": URL("b"), "apexmen": URL("c"), "velora": URL("d"), "selera": URL("e")})}
+
+
+@pytest.fixture(autouse=True)
+def isolated_driver_state(tmp_path, monkeypatch):
+    # Every fake-transport test must own its persisted state. The production driver
+    # also runs on this host: its active cooldown must neither skip our fake calls
+    # nor be overwritten by the test suite.
+    monkeypatch.setitem(ENV, "DRIVER_STATE_FILE", str(tmp_path / "driver-backoff.json"))
 
 
 def reply(body, **kw):

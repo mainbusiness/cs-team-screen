@@ -373,7 +373,8 @@ SCHEMAS = {
     "apiAutoReplyList": lambda r, a: isinstance(r.get("items"), list),
     "apiAutoCancelList": lambda r, a: isinstance(r.get("items"), list),
     "apiSettings": lambda r, a: isinstance(r.get("settings"), dict) if a.get("action") == "get" else ("key" in r or "to" in r),
-    "apiSend": lambda r, a: r.get("sent") is True or r.get("queued") is True or r.get("id") == a.get("id"),
+    # A ticket id alone is not delivery evidence; sent and queued are distinct outcomes.
+    "apiSend": lambda r, a: (r.get("sent") is True) != (r.get("queued") is True),
     "apiSaveDraft": lambda r, a: "problem" in r,
     "apiKachingCancel": lambda r, a: "status" in r or "message" in r,
     "apiAutoCancelApprove": lambda r, a: r.get("id") == a.get("id") or "state" in r,
@@ -454,10 +455,20 @@ def _effect_visible(engines, transport, secret, user, brand, fn, clean, lang):
     if not isinstance(t, dict) or t.get("handled_by") != user.get("username"):
         return None
     if fn == "apiSend":
-        if t.get("status") in ("sent", "done"):
+        # Closing a ticket is not sending. Likewise this user's previous reply is
+        # not proof that the CURRENT text was delivered after a lost response.
+        channel = t.get("channel") or clean.get("_channel") or "email"
+        field = "wa_out" if channel == "whatsapp" else "draft_text"
+        if not isinstance(clean.get("text"), str) or not clean["text"].strip() or t.get(field) != clean["text"]:
+            return None
+        if channel == "whatsapp":
+            state = str(t.get("wa_send") or "").split(":", 1)[0]
+            if state == "sent":
+                return {"ok": True, "sent": True, "recovered": "ticket"}
+            if state in ("pending", "claimed"):
+                return {"ok": True, "queued": True, "recovered": "ticket"}
+        elif t.get("status") == "sent":
             return {"ok": True, "sent": True, "recovered": "ticket"}
-        if t.get("status") == "wa_queued" or t.get("wa_send") == "pending":
-            return {"ok": True, "queued": True, "recovered": "ticket"}
     elif t.get("status") == "done":
         return {"ok": True, "recovered": "ticket"}
     return None

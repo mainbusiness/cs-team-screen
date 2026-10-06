@@ -210,7 +210,7 @@ def test_lost_whatsapp_send_resolved_from_the_ticket_as_queued(app, pw_hash, tra
         if fn == "apiResult":
             return echo(body, {"ok": True, "found": False})
         if fn == "apiTicket":
-            return echo(body, {"ok": True, "ticket": {"id": "w1", "status": "action", "wa_send": "pending", "handled_by": "noa"}})
+            return echo(body, {"ok": True, "ticket": {"id": "w1", "status": "action", "wa_send": "pending", "wa_out": "היי", "handled_by": "noa"}})
         return echo(body, valid_reply(url, body))
     transport.reply = reply
     c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
@@ -224,7 +224,7 @@ def test_already_handled_by_us_is_reported_as_sent(app, pw_hash, transport, quic
         if body["fn"] == "apiSend":
             return echo(body, {"ok": False, "error": "already_handled"})
         if body["fn"] == "apiTicket":
-            return echo(body, {"ok": True, "ticket": {"id": "t1", "status": "sent", "handled_by": "noa"}})
+            return echo(body, {"ok": True, "ticket": {"id": "t1", "status": "sent", "draft_text": "שלום", "handled_by": "noa"}})
         return echo(body, valid_reply(url, body))
     transport.reply = reply
     j = send(app, pw_hash).get_json()

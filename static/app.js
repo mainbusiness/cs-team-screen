@@ -2428,7 +2428,11 @@
       const it = forTicket(brand, id);
       if (!it || ['unknown', 'checking', 'refused', 'unsent'].indexOf(it.state) < 0 || !tk) return;
       const mine = tk.handled_by === S.me.user.username;
-      const done = it.fn === 'apiSend' ? (tk.status === 'sent' || tk.status === 'wa_queued' || tk.wa_send === 'pending') : tk.status === 'done';
+      const wa = (tk.channel || it.channel) === 'whatsapp';
+      const waState = String(tk.wa_send || '').split(':')[0];
+      const queued = wa && (waState === 'pending' || waState === 'claimed');
+      const delivered = wa ? waState === 'sent' : tk.status === 'sent';
+      const done = it.fn === 'apiSend' ? (queued || delivered) : tk.status === 'done';
       // A previous successful send must never erase a newer failed attempt. Engine time must follow the attempt.
       const handledAt = Date.parse(tk.handled_at || '');
       if (done && mine && Number.isFinite(handledAt) && handledAt >= it.at) {
@@ -2440,7 +2444,14 @@
                 (old.state === 'refused' || old.state === 'unsent')) old.superseded_by = 'engine:' + tk.handled_at;
           });
           changed(it);
-        } else settle(it, { ok: true, queued: tk.status === 'wa_queued' || tk.wa_send === 'pending' });
+        } else {
+          // A newer reply by this same agent can belong to another attempt. A lost receipt is
+          // recovered only from this attempt's exact text and its actual channel state.
+          const isSend = it.fn === 'apiSend';
+          const submitted = it.args && it.args.text;
+          const sameText = typeof submitted === 'string' && !!submitted.trim() && submitted === tk[wa ? 'wa_out' : 'draft_text'];
+          if (!isSend || (sameText && (queued || delivered))) settle(it, { ok: true, queued: queued });
+        }
         return;
       }
       if (it.state === 'refused' || it.state === 'unsent') return;
