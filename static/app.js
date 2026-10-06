@@ -2324,7 +2324,7 @@
     }
     function forTicket(brand, id) {
       let best = null;
-      Object.keys(items).forEach(function (r) { const it = items[r]; if (it.brand === brand && it.id === id && (!best || it.at > best.at)) best = it; });
+      Object.keys(items).forEach(function (r) { const it = items[r]; if (!it.superseded_by && it.brand === brand && it.id === id && (!best || it.at > best.at)) best = it; });
       return best;
     }
     function blocks(brand, id) {
@@ -2393,7 +2393,7 @@
     async function check(it) {
       const r = await api('/api/' + encodeURIComponent(it.brand) + '/result', { rid: it.rid }, 'POST', { quiet: true });
       if (!items[it.rid] || (it.state !== 'checking' && it.state !== 'unknown')) return;
-      if (r.ok && r.found && r.reply && r.reply.ok) { settle(it, r.reply); return; }
+      if (r.ok && r.found && r.reply && typeof r.reply.ok === 'boolean') { settle(it, r.reply); return; }
       const age = Date.now() - it.at;
       if (it.state === 'checking' && age < 150000) { later(it, 6000); return; }         // the server may still be working on it
       if (it.state === 'checking') { it.state = 'unknown'; changed(it); }
@@ -2403,10 +2403,24 @@
     /** A fresh ENGINE read of the ticket: decides an unknown item (never while its own request may still be running). */
     function reconcile(brand, id, tk) {
       const it = forTicket(brand, id);
-      if (!it || (it.state !== 'unknown' && it.state !== 'checking') || !tk) return;
+      if (!it || ['unknown', 'checking', 'refused', 'unsent'].indexOf(it.state) < 0 || !tk) return;
       const mine = tk.handled_by === S.me.user.username;
-      const done = it.fn === 'apiSend' ? (tk.status === 'sent' || tk.status === 'done' || tk.status === 'wa_queued' || tk.wa_send === 'pending') : tk.status === 'done';
-      if (done && mine) { settle(it, { ok: true, queued: tk.status === 'wa_queued' || tk.wa_send === 'pending' }); return; }
+      const done = it.fn === 'apiSend' ? (tk.status === 'sent' || tk.status === 'wa_queued' || tk.wa_send === 'pending') : tk.status === 'done';
+      // A previous successful send must never erase a newer failed attempt. Engine time must follow the attempt.
+      const handledAt = Date.parse(tk.handled_at || '');
+      if (done && mine && Number.isFinite(handledAt) && handledAt >= it.at) {
+        if (it.state === 'refused' || it.state === 'unsent') {
+          // This refusal did not succeed; later work resolved the ticket. Preserve the attempt and drafts.
+          Object.keys(items).forEach(function (rid) {
+            const old = items[rid];
+            if (old.brand === brand && old.id === id && old.fn === it.fn && old.at <= handledAt &&
+                (old.state === 'refused' || old.state === 'unsent')) old.superseded_by = 'engine:' + tk.handled_at;
+          });
+          changed(it);
+        } else settle(it, { ok: true, queued: tk.status === 'wa_queued' || tk.wa_send === 'pending' });
+        return;
+      }
+      if (it.state === 'refused' || it.state === 'unsent') return;
       if (Date.now() - it.at > 90000 && OPEN.indexOf(tk.status) >= 0) { it.state = 'unsent'; it.msg = null; changed(it); }
     }
     function start(fn, brand, x, args, via) {
@@ -2421,7 +2435,17 @@
     }
     function list() {
       return Object.keys(items).map(function (r) { return items[r]; })
-        .filter(function (it) { return it.state !== 'ok' || Date.now() - it.at < 60000; })
+        .filter(function (it) {
+          if (it.superseded_by) return false;
+          if (it.state === 'refused' || it.state === 'unsent') {
+            const resolved = Object.keys(items).some(function (rid) {
+              const newer = items[rid];
+              return newer.brand === it.brand && newer.id === it.id && newer.fn === it.fn && newer.state === 'ok' && newer.at > it.at;
+            });
+            if (resolved) return false;
+          }
+          return it.state !== 'ok' || Date.now() - it.at < 60000;
+        })
         .sort(function (a, b) { return b.at - a.at; });
     }
     function pending() { return list().filter(function (it) { return it.state !== 'ok'; }); }
@@ -2437,6 +2461,17 @@
       if (it.state === 'refused' || it.state === 'unsent') box.append(h('button', { class: 'btn small ghost', type: 'button', text: '✕', 'aria-label': 'dismiss', onclick: function () { dismiss(it); } }));
       slot.append(box);
     }
+    async function recoverFailures() {
+      // One read at a time, once per ticket on boot. Old tickets can be absent from the latest list page.
+      const candidates = pending().filter(function (it) {
+        return forTicket(it.brand, it.id) === it && ['refused', 'unsent', 'unknown', 'checking'].indexOf(it.state) >= 0;
+      });
+      for (const it of candidates) {
+        if (forTicket(it.brand, it.id) !== it) continue;
+        const r = await api('/api/' + encodeURIComponent(it.brand) + '/ticket', { id: it.id, revalidate: true }, 'POST', { quiet: true });
+        if (r.ok && r.ticket && (!(r.cache && r.cache.hit) || guardFresh(r))) reconcile(it.brand, it.id, r.ticket);
+      }
+    }
     function boot() {
       load();
       Object.keys(items).forEach(function (r) {
@@ -2445,6 +2480,7 @@
         else if (it.state === 'checking' || it.state === 'unknown') later(it, 1500);
       });
       save();
+      setTimeout(recoverFailures, 2000);
     }
     return { start: start, forTicket: forTicket, blocks: blocks, hidesRow: hidesRow, flagged: flagged, label: label, cls: cls,
       list: list, pending: pending, reconcile: reconcile, paintBanner: paintBanner, boot: boot, ver: function () { return ver; } };

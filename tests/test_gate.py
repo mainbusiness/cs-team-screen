@@ -337,14 +337,14 @@ def test_open_ticket_is_served_before_every_waiter_when_all_six_are_busy(monkeyp
     assert m.peak["rozela"] <= engine_proxy.GATE_CAP
 
 
-def test_background_never_takes_the_reserved_slot_and_writes_never_get_top():
+def test_background_never_takes_the_reserved_slot_and_send_stays_a_write():
     release = threading.Event()
     m = Meter(block=release)
     fg = [threading.Thread(target=direct, args=(m, "rozela", "apiBoot", {})) for _ in range(SHARED - 1)]
     [t.start() for t in fg]
     time.sleep(0.2)
     assert direct(m, "rozela", "apiTicketFull", {"id": "bg"}, bg=True)[1].get("error") is None   # 1 shared slot free: ok
-    # a write marked top is treated as an ordinary call (it waits for a shared slot; the reserved one is for reads)
+    # A human send has priority but is still a write: never read-retried or hedged.
     assert not engine_proxy.is_read("apiSend", {})
     release.set()
     [t.join() for t in fg]

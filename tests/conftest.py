@@ -72,6 +72,7 @@ def fresh_gates():
 @pytest.fixture
 def make_app(tmp_path, transport):
     import json
+    apps = []
 
     def _make(**over):
         cfg = {
@@ -82,8 +83,16 @@ def make_app(tmp_path, transport):
         cfg.update(over)
         app = create_app(cfg)
         app.testing = True
+        apps.append(app)
         return app
-    return _make
+    yield _make
+    # A finished test must not leave mock-engine reads that mutate the next test's
+    # process-wide gate/echo capability state (observed in the complete suite).
+    for app in apps:
+        cache = app.extensions["cs"]["ticket_cache"]
+        cache.drain()
+        for pool in (cache.top_pool, cache.fg_pool, cache.pool):
+            pool.shutdown(wait=True)
 
 
 @pytest.fixture

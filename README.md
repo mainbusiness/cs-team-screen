@@ -419,7 +419,7 @@ Baseline measured live, read-only: the open-ticket confirmation was capped at th
     `/ticket {open:true}` and the `/watch` re-read). The cap of 6 still holds.
   - **Priority:** a `top` waiter is served before every other waiter.
   - **Threads:** `top` reads get their own threads (`top_pool`), so they never queue behind other reads.
-  - **Writes are never top.**
+  - **Approved sends share the priority slot** (incident fix, 2026-10-06). Other writes remain ordinary priority.
 - **`/watch` every 5 s** for the ticket on screen. It costs only the shared feed read; the ticket itself is read only
   when the feed says it changed. If the feed can't be read, the ticket is read directly once its copy is 20 s old.
 - **In-place update, never under the agent's fingers:**
@@ -543,3 +543,18 @@ template / close) and from Gmail directly.
   lands on a fresh copy.
 - **"Why a person is needed":** the panel no longer says "no automatic draft" when the ticket has one, and no longer
   shows content-check ("safety") lines at all.
+
+## Sending incident, 2026-10-06
+
+Read-only comparison of the screenshot with the Rozela audit and ticket records found successful sends after the
+displayed failures. The outbox retained previous attempts and only reconciled uncertain outcomes, leaving old
+refusals visible after the customer had been answered. Render also rejected two approved sends at five occupied
+slots while the sixth slot was reserved for reads.
+
+The outbox now reconciles known results and later engine-confirmed outcomes, including tickets outside the current
+list, without resending them. A later failed attempt remains visible; old drafts and attempt records are retained.
+Human sends can use the protected interactive slot, remain capped at six calls per brand, and are never read-retried
+or hedged. Recovery reads are serialized and do not refresh Shopify/Kaching snapshots.
+
+Verification: `tests/test_send_priority.py` and the outbox browser regressions reproduce the actual failure modes.
+Deployments use `deploy/render_deploy.py push`, whose full-suite test gate must pass before GitHub is updated.

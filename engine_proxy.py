@@ -126,8 +126,9 @@ _clock = time.monotonic
 # background calls for BREAKER_S. Wall time alone never trips it (2026-10-05: that is Google's gateway, not engine load).
 GATE_CAP = 6
 GATE_BG_CAP = 2
-# P0 speed (Owner, 2026-10-05: "the most important thing is speed"): of the 6 slots, GATE_RESERVED are kept for the ticket an
-# agent has OPEN. Ordinary interactive calls (list, writes, assistant) use at most GATE_CAP - GATE_RESERVED; background
+# P0 speed: of the 6 slots, GATE_RESERVED are kept for the ticket an agent has OPEN and an approved human send.
+# A send must not fail busy while the sixth slot sits idle (live incident, 2026-10-06).
+# Ordinary interactive calls (list, saves, assistant) use at most GATE_CAP - GATE_RESERVED; background
 # calls only that much too. A "top" call may take any free slot and is served before every other waiter.
 GATE_RESERVED = 1
 GATE_WAIT_S = 15.0
@@ -618,7 +619,7 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
     while True:
         attempt += 1
         w0 = _clock()
-        if not g.acquire(bg, top and not bg and is_read(fn, clean)):     # top priority: reads of the open ticket only
+        if not g.acquire(bg, not bg and (fn == "apiSend" or (top and is_read(fn, clean)))):
             if bg:
                 return 200, {"ok": False, "error": "dropped", "background": True}       # quietly: the next tick retries
             log.warning("engine %s %s busy: no slot within %.0f s (in flight %d)", brand, fn, GATE_WAIT_S, g.inflight)

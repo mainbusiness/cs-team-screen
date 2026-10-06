@@ -196,3 +196,67 @@ def test_a_flagged_draft_goes_out_with_no_safety_note_and_no_override(pg):
     page.wait_for_selector("a.row[data-id=t18f2a03] [data-test=row-outbox][data-state=ok]", timeout=20000)
     assert len(bodies) == 1 and "override" not in bodies[0]["args"] and bodies[0]["args"]["text"] == text
     assert page.locator("text=לשלוח בכל זאת").count() == 0
+
+
+def seed_outbox(page, base, entries):
+    now = int(time.time() * 1000)
+    items = {}
+    for n, entry in enumerate(entries):
+        rid = ('%032d' % n)
+        items[rid] = dict(rid=rid, brand='rozela', id='t18f2a02', fn='apiSend', args={},
+                          channel='email', name='רונית', at=now - 30000 + n * 1000, **entry)
+    page.evaluate("v => localStorage.setItem('cs.outbox', v)", json.dumps(items))
+    page.goto(base + '/cs#/b/rozela/ready')
+    page.reload()
+    page.wait_for_load_state('networkidle')
+    page.wait_for_selector('#list-pane')
+    return items
+
+
+def test_old_refusals_do_not_survive_a_later_success(pg):
+    page, base = pg
+    seed_outbox(page, base, [dict(state='refused'), dict(state='refused'), dict(state='ok')])
+    assert page.locator('[data-test=outbox-indicator]').count() == 0
+    assert len(json.loads(page.evaluate("localStorage.getItem('cs.outbox')"))) == 3
+    assert not page.sends
+
+
+def test_later_refusal_is_not_hidden_by_older_success(pg):
+    page, base = pg
+    seed_outbox(page, base, [dict(state='ok'), dict(state='refused')])
+    assert '(1)' in page.inner_text('[data-test=outbox-indicator]')
+    assert not page.sends
+
+
+def test_result_known_refusal_leaves_checking_without_resending(pg):
+    page, base = pg
+    page.route('**/api/rozela/result', lambda route: route.fulfill(content_type='application/json',
+        body=json.dumps(dict(ok=True, found=True, reply=dict(ok=False, error='busy', msg='המערכת עסוקה')))))
+    seed_outbox(page, base, [dict(state='checking')])
+    for _ in range(50):
+        state = list(json.loads(page.evaluate("localStorage.getItem('cs.outbox')")).values())[0]['state']
+        if state == 'refused':
+            break
+        page.wait_for_timeout(100)
+    assert state == 'refused'
+    assert not page.sends
+
+
+@pytest.mark.parametrize('offset, status, expected', [(3000, 'sent', 0), (-60000, 'sent', 1), (3000, 'done', 1)])
+def test_boot_reconciles_refusal_only_after_later_engine_success(pg, offset, status, expected):
+    from datetime import datetime, timezone
+    page, base = pg
+    calls = []
+    handled_at = datetime.fromtimestamp((int(time.time() * 1000) + offset) / 1000, timezone.utc).isoformat()
+    def ticket(route, req):
+        calls.append(json.loads(req.post_data))
+        route.fulfill(content_type='application/json', body=json.dumps(dict(ok=True,
+            ticket=dict(id='t18f2a02', status=status, handled_by='agent1', handled_at=handled_at))))
+    page.route('**/api/rozela/ticket', ticket)
+    seed_outbox(page, base, [dict(state='refused')])
+    page.wait_for_timeout(2500)
+    assert page.locator('[data-test=outbox-indicator]').count() == expected
+    stored = json.loads(page.evaluate("localStorage.getItem('cs.outbox')"))
+    assert len(stored) == 1 and list(stored.values())[0]['state'] == 'refused'
+    assert calls and all(x.get('revalidate') and not x.get('fresh') for x in calls)
+    assert not page.sends
