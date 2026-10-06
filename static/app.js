@@ -1937,7 +1937,12 @@
         me.busy = true; refresh(); clear(errEl);
         const args = { id: x.id, text: me.translated.out };
         if (isWA(x)) args.channel = 'whatsapp';
-        if (Outbox.start('apiSend', brand, x, args)) goNext(brand, x.id);
+        try {
+          if (Outbox.start('apiSend', brand, x, args)) goNext(brand, x.id);
+        } finally {
+          // Outbox owns the in-flight lock after handoff; a rejected handoff must not freeze this editor.
+          me.busy = false; refresh();
+        }
       }
       confirmBtn.addEventListener('click', function () { send(); });
       async function doClose(fn, okMsg) {

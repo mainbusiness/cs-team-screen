@@ -82,10 +82,110 @@ def test_new_message_translates_while_english_draft_is_kept(english_server):
         original_count = len(calls)
         push_new_message(pg, base, 't18f2a03')
         pg.wait_for_selector('[data-test=tk-live]:not([hidden])', timeout=12000)
-        pg.wait_for_function("document.querySelector('[data-test=tk-live] .live-text').textContent.startsWith('English message')")
+        pg.wait_for_selector('[data-test=tk-live] .live-text:has-text("English message")')
         assert len(calls) > original_count
         assert ta.input_value() == 'My draft must stay exactly as I wrote it.'
         assert pg.evaluate('document.activeElement.tagName') == 'TEXTAREA'
         assert NEW_MSG not in pg.inner_text('#tk-conv')
         assert 'English message' in pg.inner_text('#tk-conv .msg:last-child .mbody')
         browser.close()
+
+
+@pytest.fixture
+def english_page(english_server):
+    base, pwd = english_server
+    with pw.sync_playwright() as p:
+        browser = launch(p)
+        page = browser.new_page(viewport={'width': 1280, 'height': 900})
+        page.goto(base + '/cs/en/login')
+        page.fill('input[name=username]', 'english-agent')
+        page.fill('input[name=password]', pwd)
+        page.click('button[type=submit]')
+        page.goto(base + '/cs/en#/b/rozela/t/t18f2a03')
+        page.wait_for_selector('[data-test=en-draft] textarea')
+        page.wait_for_load_state('networkidle')
+        yield page, base
+        browser.close()
+
+
+def test_english_translation_failure_retry_preview_and_single_hebrew_send(english_page):
+    page, base = english_page
+    calls, sends = [], []
+    hebrew = 'שלום, אבדוק עבורך את סטטוס ההזמנה.'
+    def translation(route, req):
+        calls.append(json.loads(req.post_data))
+        if len(calls) == 1:
+            route.fulfill(status=503, json={'ok': False, 'error': 'busy', 'msg': 'Translation is busy; try again.'})
+        else:
+            route.fulfill(json={'ok': True, 'target': 'he', 'text': hebrew, 'same': False})
+    def send(route, req):
+        sends.append(json.loads(req.post_data))
+        route.fulfill(json={'ok': True})
+    page.route('**/api/rozela/translate-out', translation)
+    page.route('**/api/rozela/apiSend', send)
+    text = 'Hello, I will check your order status.'
+    page.fill('[data-test=en-draft] textarea', text)
+    page.click('[data-test=en-review-btn]')
+    page.wait_for_selector('[data-test=en-draft] [role=alert]')
+    assert page.input_value('[data-test=en-draft] textarea') == text
+    assert page.is_enabled('[data-test=en-review-btn]')
+    assert not sends
+    page.click('[data-test=en-review-btn]')
+    page.wait_for_selector('[data-test=en-confirm]:not([disabled])')
+    assert hebrew in page.inner_text('[data-test=en-review]')
+    page.click('[data-test=en-confirm]')
+    page.wait_for_timeout(500)
+    assert len(sends) == 1 and sends[0]['args']['text'] == hebrew
+    assert len(calls) == 2 and all(c['text'] == text for c in calls)
+
+
+def test_english_edit_during_translation_rejects_stale_preview(english_page):
+    page, base = english_page
+    pending = []
+    sends = []
+    page.route('**/api/rozela/translate-out', lambda route: pending.append(route))
+    page.route('**/api/rozela/apiSend', lambda route: (sends.append(1), route.fulfill(json={'ok': True})))
+    page.fill('[data-test=en-draft] textarea', 'Original reply')
+    page.click('[data-test=en-review-btn]')
+    for _ in range(50):
+        if pending: break
+        page.wait_for_timeout(50)
+    assert pending
+    page.fill('[data-test=en-draft] textarea', 'Changed while translating')
+    pending.pop().fulfill(json={'ok': True, 'target': 'he', 'text': 'הטקסט הישן', 'same': False})
+    page.wait_for_selector('[data-test=en-draft] [role=alert]')
+    assert not page.locator('[data-test=en-confirm]').count()
+    assert page.is_enabled('[data-test=en-review-btn]')
+    assert page.evaluate("localStorage.getItem('cs.draft.en.rozela.t18f2a03')") == 'Changed while translating'
+    assert not sends
+
+
+def test_english_rejected_outbox_handoff_does_not_latch_busy(english_page):
+    import time
+    page, base = english_page
+    rid = 'e' * 32
+    item = dict(rid=rid, brand='rozela', id='t18f2a03', fn='apiSend', args={}, channel='email',
+                name='Test', state='checking', at=int(time.time() * 1000))
+    page.evaluate("v => localStorage.setItem('cs.outbox', v)", json.dumps({rid: item}))
+    results, sends = [], []
+    page.route('**/api/rozela/result', lambda route: results.append(route))
+    page.route('**/api/rozela/translate-out', lambda route: route.fulfill(json={'ok': True, 'target': 'he', 'text': 'שלום, אבדוק עבורך', 'same': False}))
+    page.route('**/api/rozela/apiSend', lambda route: (sends.append(1), route.fulfill(json={'ok': True})))
+    page.reload()
+    page.wait_for_selector('[data-test=en-draft] textarea')
+    page.fill('[data-test=en-draft] textarea', 'Check this for me')
+    page.click('[data-test=en-review-btn]')
+    page.wait_for_selector('[data-test=en-confirm]')
+    assert page.is_disabled('[data-test=en-confirm]')
+    # A queued click racing with another in-flight action must not permanently latch the editor busy.
+    page.dispatch_event('[data-test=en-confirm]', 'click')
+    for _ in range(60):
+        if results: break
+        page.wait_for_timeout(50)
+    assert results
+    results.pop().fulfill(json={'ok': True, 'found': True, 'reply': {'ok': False, 'error': 'busy'}})
+    page.wait_for_timeout(300)
+    assert page.is_enabled('[data-test=en-review-btn]')
+    assert page.is_enabled('[data-test=en-confirm]')
+    assert page.input_value('[data-test=en-draft] textarea') == 'Check this for me'
+    assert not sends

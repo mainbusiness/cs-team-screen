@@ -137,13 +137,14 @@ def test_inbound_hebrew_output_marked_incomplete_and_retryable(setup, bad):
 @pytest.mark.parametrize("fn,field", [("apiSend", "text"), ("apiSaveDraft", "text"), ("apiAutoCancelApprove", "replyText")])
 def test_bad_translation_never_cached_and_retry_recovers(setup, fn, field):
     app, c, tok, transport, model = setup
-    model.script = [lambda p: text(json.dumps({"translations": [{"i": 0, "text": "Hello customer"}]})), he_translation]
+    invalid = lambda p: text(json.dumps({"translations": [{"i": 0, "text": "Hello customer"}]}))
+    model.script = [invalid, invalid, he_translation]  # first translation + bounded repair both fail
     args = {"id": "t1", field: "Please check my delivery"}
     first = call(c, tok, "rozela", fn, args)
     assert first.status_code == 502
     assert not [b for _, b in transport.calls if b["fn"] == fn]
     second = call(c, tok, "rozela", fn, args)
-    assert second.get_json()["ok"] and len(model.payloads) == 2
+    assert second.get_json()["ok"] and len(model.payloads) == 3
     assert [b for _, b in transport.calls if b["fn"] == fn][-1]["args"][field] == "שלום, בדקתי וההזמנה שלך בדרך."
 
 
