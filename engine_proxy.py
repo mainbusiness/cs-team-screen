@@ -15,6 +15,7 @@ Safety model:
 
 import json
 import logging
+import os
 import re
 import secrets
 import threading
@@ -80,7 +81,25 @@ INTERNAL_FNS = {
 SETTINGS_VALUES = {"DRY_RUN": ("on", "off"), "KACHING_WRITES": ("on", "off"), "AUTO_CANCEL": ("off", "shadow", "on"),
                    "AUTO_REPLY": ("off", "shadow", "on")}
 
-ENGINE_URL_RE = re.compile(r"^https://script\.google\.com/(?:a/macros/[A-Za-z0-9.-]+|macros)/s/[A-Za-z0-9_-]{20,200}/exec$")
+def _core_url_re():
+    """The core server (Node + Postgres) may replace a brand's Apps Script URL. Only the ONE host named in CORE_ENGINE_HOST is accepted."""
+    host = os.environ.get("CORE_ENGINE_HOST", "").strip().lower()
+    if not re.match(r"^[a-z0-9-]+(\.[a-z0-9-]+)+$", host):
+        return None
+    return re.compile(r"^https://" + re.escape(host) + r"/exec/[a-z][a-z0-9]{1,30}$")
+
+
+class _EngineUrl:
+    """Apps Script web-app URLs, plus the core server's per-brand URL when CORE_ENGINE_HOST is set."""
+    def __init__(self, gas):
+        self.gas = gas
+
+    def match(self, url):
+        core = _core_url_re()
+        return self.gas.match(url) or (core.match(url) if core else None)
+
+
+ENGINE_URL_RE = _EngineUrl(re.compile(r"^https://script\.google\.com/(?:a/macros/[A-Za-z0-9.-]+|macros)/s/[A-Za-z0-9_-]{20,200}/exec$"))
 KNOWN_BRANDS = ("velora", "rozela", "celesta", "apexmen")    # + EXTRA_BRANDS (selera, elevanu, ...) from the environment
 
 CONNECT_TIMEOUT_S = 5
