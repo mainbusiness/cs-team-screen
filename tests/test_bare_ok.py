@@ -149,13 +149,18 @@ def test_suspicious_empty_list_is_refused_and_the_last_good_kept(app, pw_hash, t
 
 
 def test_waiting_on_an_inflight_fetch_answers_json_not_500(app, pw_hash, transport, monkeypatch):
-    monkeypatch.setattr(ticket_cache, "WAIT_FOR_INFLIGHT_S", 0.1)
     cache = app.extensions["cs"]["ticket_cache"]
+    once = cache._once
+    # The production default is bound at function definition; changing the constant
+    # does not shorten it. Exercise the real timeout branch with an explicit bound.
+    monkeypatch.setattr(cache, "_once", lambda key, fn, wait=0.1: once(key, fn, wait=wait))
     cache.inflight[("boot", "rozela")] = Future()                          # someone else's fetch that never finishes
-    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
-    r = c.post("/api/rozela/list", json={}, headers={"X-CSRF-Token": tok})
-    assert r.status_code == 200 and r.get_json()["error"] == "engine_timeout"
-    cache.inflight.clear()
+    try:
+        c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+        r = c.post("/api/rozela/list", json={}, headers={"X-CSRF-Token": tok})
+        assert r.status_code == 200 and r.get_json()["error"] == "engine_timeout"
+    finally:
+        cache.inflight.clear()
 
 
 def test_unexpected_crash_on_api_is_json(app, pw_hash, transport, monkeypatch):

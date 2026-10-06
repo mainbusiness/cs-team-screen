@@ -626,6 +626,9 @@ class TicketCache:
         if not e:
             return {"ok": True, "changed": True, "need_full": True}
         full = e["full"]
+        if self._wa_delivery_pending(e):
+            # Lite omits wa_send/wa_out/handled_at; never vouch for a partial delivery receipt.
+            return {"ok": True, "changed": True, "need_full": True}
         ex = full.get("extras") or {}
         conv = ex.get("conversation")
         args = {"id": tid, "since": self._int(e.get("v")) or 0}
@@ -749,6 +752,12 @@ class TicketCache:
         meta = dict(self.meta(brand, e, False), age_s=0) if e else {"hit": False, "age_s": 0, "stale": False}
         return full, err, meta
 
+    @staticmethod
+    def _wa_delivery_pending(entry):
+        ticket = ((entry or {}).get("full") or {}).get("ticket") or {}
+        return ticket.get("channel") == "whatsapp" and (ticket.get("status") == "wa_queued" or
+            str(ticket.get("wa_send") or "").split(":")[0] in ("pending", "claimed"))
+
     def watch(self, user, brand, tid, have_at):
         """The open ticket, every ~5 s per agent: apiTicketLite (engine @35/36) — "anything new since v?" — at top
         priority, deduped per ticket. No engine call at all when the copy was vouched for in the last WATCH_FRESH_S (by
@@ -757,8 +766,8 @@ class TicketCache:
         if not ID_RE.match(tid):
             return None, {"ok": False, "error": "bad_id"}, {}
         e = self._entry(brand, tid)
-        need_full = e is None
-        if e is not None and not self.confirmed(brand, e, WATCH_FRESH_S):
+        need_full = e is None or (self._wa_delivery_pending(e) and self.clock() - e["at"] >= WATCH_FRESH_S)
+        if e is not None and not need_full and not self.confirmed(brand, e, WATCH_FRESH_S):
             if self._lite_ok(brand):
                 r = self._once(("lite", brand, tid), lambda: self._lite(user, brand, tid), wait=WATCH_WAIT_S)
                 if r.get("ok"):

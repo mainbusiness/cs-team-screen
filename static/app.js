@@ -2352,7 +2352,7 @@
     }
     function blocks(brand, id) {
       const it = forTicket(brand, id);
-      return !!it && (it.state === 'flight' || it.state === 'checking' || it.state === 'unknown');
+      return !!it && (it.state === 'flight' || it.state === 'checking' || it.state === 'unknown' || it.state === 'delivery_issue');
     }
     function hidesRow(brand, id) {                      // a close / handled in flight or done takes the row off the list
       const it = forTicket(brand, id);
@@ -2360,13 +2360,14 @@
     }
     function flagged(brand, id) {
       const it = forTicket(brand, id);
-      return !!it && (it.state === 'refused' || it.state === 'unknown' || it.state === 'unsent');
+      return !!it && (it.state === 'refused' || it.state === 'unknown' || it.state === 'unsent' || it.state === 'delivery_issue');
     }
     function label(it) {
       if (!it) return '';
       const close = it.fn !== 'apiSend';
       if (it.state === 'flight') return close ? t('ob_flight_close') : t('ob_flight_send');
       if (it.state === 'checking') return t('ob_checking');
+      if (it.state === 'delivery_issue') return t(it.delivery_state === 'unknown' ? 'wa_fail_unknown_note' : it.delivery_state === 'template_required' ? 'wa_fail_tpl' : 'wa_fail');
       if (it.state === 'ok') return close ? t('ob_ok_close') : it.reply && it.reply.queued ? t('ob_ok_queued') : it.channel === 'whatsapp' ? t('ob_ok_wa') : t('ob_ok_email');
       if (it.state === 'refused') return close ? t('ob_refused_close') : t('ob_refused');
       if (it.state === 'unsent') return t('ob_unsent');
@@ -2387,7 +2388,7 @@
     }
     function settle(it, r) {
       if (r && r.ok) {
-        it.state = 'ok'; it.reply = { queued: !!r.queued, already: !!r.already }; it.msg = null;
+        it.state = 'ok'; it.reply = { queued: !!r.queued, already: !!r.already }; it.msg = null; delete it.delivery_state;
         patchRow(it);
         if (it.fn === 'apiSend') { try { localStorage.removeItem('cs.draft.' + it.brand + '.' + it.id); localStorage.removeItem('cs.draft.en.' + it.brand + '.' + it.id); } catch (e) { /* ignore */ } }
         toast(tx(it.fn !== 'apiSend' ? 'ob_toast_closed' : r.queued ? 'ob_toast_queued' : 'ob_toast_ok', { name: it.name }).textContent);
@@ -2426,12 +2427,27 @@
     /** A fresh ENGINE read of the ticket: decides an unknown item (never while its own request may still be running). */
     function reconcile(brand, id, tk) {
       const it = forTicket(brand, id);
-      if (!it || ['unknown', 'checking', 'refused', 'unsent'].indexOf(it.state) < 0 || !tk) return;
+      const acceptedQueue = it && (it.state === 'ok' || it.state === 'delivery_issue') && it.reply && it.reply.queued === true;
+      if (!it || (!acceptedQueue && ['unknown', 'checking', 'refused', 'unsent'].indexOf(it.state) < 0) || !tk) return;
       const mine = tk.handled_by === S.me.user.username;
       const wa = (tk.channel || it.channel) === 'whatsapp';
       const waState = String(tk.wa_send || '').split(':')[0];
       const queued = wa && (waState === 'pending' || waState === 'claimed');
       const delivered = wa ? waState === 'sent' : tk.status === 'sent';
+      if (acceptedQueue && !delivered) {
+        const submitted = it.args && it.args.text;
+        const handledAt = Date.parse(tk.handled_at || '');
+        const sameAttempt = wa && mine && Number.isFinite(handledAt) && handledAt >= it.at &&
+          typeof submitted === 'string' && !!submitted.trim() && submitted === tk.wa_out;
+        if (sameAttempt && (queued || WA_FAIL_STATES.indexOf(waState) >= 0)) {
+          const state = queued ? 'ok' : 'delivery_issue';
+          const issue = queued ? null : waState;
+          if (it.state !== state || (it.delivery_state || null) !== issue) {
+            it.state = state; it.delivery_state = issue; changed(it);
+          }
+        }
+        return; // Time alone cannot authorize another send after queue acceptance.
+      }
       const done = it.fn === 'apiSend' ? (queued || delivered) : tk.status === 'done';
       // A previous successful send must never erase a newer failed attempt. Engine time must follow the attempt.
       const handledAt = Date.parse(tk.handled_at || '');
@@ -2454,12 +2470,12 @@
         }
         return;
       }
-      if (it.state === 'refused' || it.state === 'unsent') return;
+      if (acceptedQueue || it.state === 'refused' || it.state === 'unsent') return;
       if (Date.now() - it.at > 90000 && OPEN.indexOf(tk.status) >= 0) { it.state = 'unsent'; it.msg = null; changed(it); }
     }
     function start(fn, brand, x, args, via) {
       const prev = forTicket(brand, x.id);
-      if (prev && (prev.state === 'flight' || prev.state === 'checking' || prev.state === 'unknown')) { toast(t('ob_inflight_lock')); return null; }
+      if (prev && (prev.state === 'flight' || prev.state === 'checking' || prev.state === 'unknown' || prev.state === 'delivery_issue')) { toast(t('ob_inflight_lock')); return null; }
       const it = { rid: newRid(), brand: brand, id: x.id, fn: fn, args: args, channel: isWA(x) ? 'whatsapp' : 'email',
         name: x.name || x.email || x.phone || x.id, state: 'flight', at: Date.now(), via: via || null };
       items[it.rid] = it;
@@ -2498,7 +2514,7 @@
     async function recoverFailures() {
       // One read at a time, once per ticket on boot. Old tickets can be absent from the latest list page.
       const candidates = pending().filter(function (it) {
-        return forTicket(it.brand, it.id) === it && ['refused', 'unsent', 'unknown', 'checking'].indexOf(it.state) >= 0;
+        return forTicket(it.brand, it.id) === it && ['refused', 'unsent', 'unknown', 'checking', 'delivery_issue'].indexOf(it.state) >= 0;
       });
       for (const it of candidates) {
         if (forTicket(it.brand, it.id) !== it) continue;

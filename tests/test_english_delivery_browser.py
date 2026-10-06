@@ -115,18 +115,26 @@ def test_reload_during_english_send_recovers_without_second_send(delivery_page, 
     assert len(sends) == 1
 
 
-@pytest.mark.parametrize('channel,status,wa_send,match,expected', [
-    ('email', 'sent', '', False, 'checking'),
-    ('email', 'sent', '', True, 'ok'),
-    ('whatsapp', 'sent', 'failed:dondy-ext', True, 'checking'),
-    ('whatsapp', 'wa_queued', 'pending', False, 'checking'),
-    ('whatsapp', 'wa_queued', 'pending', True, 'ok'),
-    ('whatsapp', 'action', 'claimed', True, 'ok'),
-    ('whatsapp', 'done', 'sent', True, 'ok'),
-    ('whatsapp', 'done', 'sent:dondy-ext', True, 'ok'),
-    ('whatsapp', 'done', 'failed', True, 'checking'),
+@pytest.mark.parametrize('channel,status,wa_send,match,expected,initial', [
+    ('email', 'sent', '', False, 'checking', 'checking'),
+    ('email', 'sent', '', True, 'ok', 'checking'),
+    ('whatsapp', 'sent', 'failed:dondy-ext', True, 'checking', 'checking'),
+    ('whatsapp', 'wa_queued', 'pending', False, 'checking', 'checking'),
+    ('whatsapp', 'wa_queued', 'pending', True, 'ok', 'checking'),
+    ('whatsapp', 'action', 'claimed', True, 'ok', 'checking'),
+    ('whatsapp', 'done', 'sent', True, 'ok', 'checking'),
+    ('whatsapp', 'done', 'sent:dondy-ext', True, 'ok', 'checking'),
+    ('whatsapp', 'done', 'failed', True, 'checking', 'checking'),
+    ('whatsapp', 'sent', 'sent:bridge', True, 'ok', 'ok'),
+    ('whatsapp', 'sent', 'sent:bridge', False, 'ok', 'ok'),
+    ('whatsapp', 'action', 'failed:bridge', True, 'delivery_issue', 'ok'),
+    ('whatsapp', 'action', 'unknown:bridge', True, 'delivery_issue', 'ok'),
+    ('whatsapp', 'action', 'template_required:bridge', True, 'delivery_issue', 'ok'),
+    ('whatsapp', 'action', 'failed:bridge', False, 'ok', 'ok'),
+    ('whatsapp', 'sent', 'sent:bridge', True, 'ok', 'delivery_issue'),
+    ('whatsapp', 'wa_queued', 'pending', True, 'ok', 'delivery_issue'),
 ])
-def test_lost_receipt_needs_exact_text_and_channel_evidence(delivery_page, channel, status, wa_send, match, expected):
+def test_lost_receipt_needs_exact_text_and_channel_evidence(delivery_page, channel, status, wa_send, match, expected, initial):
     import time
     from datetime import datetime, timezone
     pg, base = delivery_page
@@ -134,7 +142,7 @@ def test_lost_receipt_needs_exact_text_and_channel_evidence(delivery_page, chann
     now = int(time.time() * 1000)
     submitted = 'שלום, נבדוק ונעדכן בהקדם.'
     item = dict(rid='f'*32, brand='rozela', id=tid, fn='apiSend', args={'id':tid,'text':submitted},
-                channel=channel, name='Test', state='checking', at=now)
+                channel=channel, name='Test', state=initial, at=now, reply={'ok': True, 'queued': True})
     tk = dict(id=tid, channel=channel, status=status, wa_send=wa_send, handled_by='lyra-test',
               handled_at=datetime.fromtimestamp((now + 2000) / 1000, timezone.utc).isoformat(),
               draft_text=submitted if match else 'תשובה אחרת', wa_out=submitted if match else 'תשובה אחרת')
@@ -143,10 +151,19 @@ def test_lost_receipt_needs_exact_text_and_channel_evidence(delivery_page, chann
     sends=[]
     pg.on('request', lambda r: sends.append(r.url) if r.url.endswith('/apiSend') else None)
     pg.evaluate("v => localStorage.setItem('cs.outbox', v)", json.dumps({item['rid']:item}))
+    pg.goto(base + "/cs/en#/b/rozela/t/" + tid)
     pg.reload()
     pg.wait_for_timeout(2800)
     stored=pg.evaluate("JSON.parse(localStorage.getItem('cs.outbox'))")
     assert stored[item['rid']]['state'] == expected
     if expected == 'ok':
-        assert stored[item['rid']]['reply']['queued'] is (channel == 'whatsapp' and wa_send.split(':')[0] in ('pending', 'claimed'))
+        assert stored[item['rid']]['reply']['queued'] is (initial == 'ok' and (not match or not wa_send.startswith('sent')) or channel == 'whatsapp' and wa_send.split(':')[0] in ('pending', 'claimed'))
+    if expected == 'delivery_issue':
+        assert stored[item['rid']]['delivery_state'] == wa_send.split(':')[0]
+        banner = pg.locator('[data-test=outbox-banner]')
+        assert 'Queued for WhatsApp' not in banner.inner_text()
+        assert banner.get_attribute('data-state') == 'delivery_issue'
+        resend = pg.locator('[data-test=wa-resend]')
+        if resend.count():
+            assert resend.is_disabled()
     assert not sends

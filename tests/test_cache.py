@@ -361,3 +361,29 @@ def test_ticket_wait_is_capped_and_the_fetch_lands_in_the_cache(make_app, pw_has
     time.sleep(0.8)
     j = post(c, tok, "/api/rozela/ticket", {"id": "t1"}).get_json()
     assert j["ok"] and j["cache"]["hit"] is True                         # the slow fetch finished and was cached
+
+
+@pytest.mark.parametrize('state', ['pending', 'claimed:bridge'])
+@pytest.mark.parametrize('mode', ['open', 'watch'])
+def test_pending_wa_refreshes_full_delivery_even_when_feed_vouches(app, pw_hash, transport, state, mode):
+    c, tok = logged_in(app, pw_hash, 'noa', ['agent'], ['rozela'])
+    cache = cache_of(app)
+    clock = [1000.0]
+    cache.clock = lambda: clock[0]
+    ticket = dict(ROZ, channel='whatsapp', status='wa_queued', wa_send=state, wa_out='שלום')
+    entry = cache._store_full('rozela', 't1', {'ok': True, 'ticket': ticket, 'extras': {'conversation': []}}, 1000, 2)
+    clock[0] += 6
+    # Shared list feed may confirm the version but cannot confirm omitted delivery fields.
+    cache.confirmed = lambda *args: True
+    sent = dict(ticket, status='sent', wa_send='sent:bridge', handled_at='2026-10-07T17:28:05Z')
+    transport.reply = lambda url, body: {'ok': True, 'ticket': sent, 'extras': {'conversation': []}, 'v': 3} if body['fn'] == 'apiTicketFull' else {'ok': True, 'changed': False, 'v': 2}
+    if mode == 'open':
+        result = post(c, tok, '/api/rozela/ticket', {'id': 't1', 'open': True, 'revalidate': True}).get_json()
+    else:
+        full, error, _ = cache.watch({'username': 'noa', 'roles': ['agent'], 'brands': ['rozela']}, 'rozela', 't1', 1000)
+        assert error is None
+        result = full
+    assert result['ticket']['wa_send'] == 'sent:bridge'
+    assert result['ticket']['handled_at'] == sent['handled_at']
+    assert 'apiTicketLite' not in fns(transport)
+    assert fns(transport).count('apiTicketFull') == 1
