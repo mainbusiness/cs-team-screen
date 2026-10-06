@@ -128,7 +128,7 @@ def login(c, username, password=PASSWORD, path="/cs/login"):
 
 
 def spa_csrf(c):
-    r = c.get("/cs")
+    r = c.get("/cs", follow_redirects=True)
     assert r.status_code == 200, r.status_code
     return csrf_from(r.get_data(as_text=True))
 

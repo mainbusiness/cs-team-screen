@@ -268,9 +268,9 @@
       orders_err: 'Order lookup failed: {m}', subs_err: 'Subscription lookup failed: {m}',
       tr_loading: 'Translating…', tr_failed: 'Translation failed: {m}', show_orig: 'Show original', show_en: 'Show English', tr_from: 'translated from {l}',
       en_draft: 'Your reply (write in English)', en_draft_loading: 'Translating the AI draft into English…', en_draft_ai: 'Prefilled with the AI draft, translated to English. Edit freely.',
-      en_review: 'Translate for the customer', en_reviewing: 'Translating…', en_side_en: 'Your English', en_side_out: 'What the customer gets ({l})',
-      en_confirm: 'Confirm translation and send', en_edit: 'Back to edit', en_same: 'The customer writes English — sent as written.',
-      en_stale: 'You changed the English text — translate again before sending.', tr_incomplete: '{n} not translated (original shown)',
+      en_safety: 'Write in English. Customers receive only the approved Hebrew translation. If translation fails, nothing is sent.', en_invalid: 'A valid Hebrew translation is required. Nothing was sent. Please translate again.', en_review: 'Translate to Hebrew', en_reviewing: 'Translating…', en_side_en: 'Your English', en_side_out: 'What the customer gets ({l})',
+      en_confirm: 'Confirm translation and send', en_edit: 'Back to edit', en_same: 'Customers receive the Hebrew translation only.',
+      en_stale: 'You changed the English text — translate again before sending.', tr_retry: 'Retry translation', tr_incomplete: '{n} not translated (original shown)',
       lang_name_he: 'Hebrew', lang_name_ru: 'Russian', lang_name_en: 'English', lang_name_ar: 'Arabic', lang_name_fr: 'French',
       u_title: 'Users', u_new: 'New user', u_username: 'Username', u_display: 'Display name', u_roles: 'Role', u_brands: 'Brands',
       u_lang: 'Language', u_disabled: 'Disabled', u_active: 'Active', u_create: 'Create', u_save: 'Save', u_edit: 'Edit', u_cancel: 'Cancel',
@@ -541,7 +541,7 @@
   }
   async function engine(fn, args, brand) {
     const b = brand || S.brand;
-    const r = await api('/api/' + encodeURIComponent(b) + '/' + fn, { args: args || {} });
+    const r = await api('/api/' + encodeURIComponent(b) + '/' + fn, { args: args || {}, lang: LANG });
     if (r && r.refresh) afterUnknownWrite(b, args && args.id, r.msg);       // QA round 4: the write may have run
     return r;
   }
@@ -675,6 +675,7 @@
     } else if (brands.length === 1 && S.view !== 'users' && S.view !== 'dash') {
       top.append(h('span', { class: 'who', text: brandName(brands[0].id) }));
     }
+    top.append(h('a', { class: 'dash-link', href: '/cs/en' + location.hash, 'data-test': 'english-workspace', text: 'English desk', 'aria-current': LANG === 'en' ? 'page' : null }));
     top.append(h('span', { class: 'spacer' }));
     const pend = Outbox.pending();
     if (pend.length) {
@@ -1605,7 +1606,7 @@
       try {
         for (let i = localStorage.length - 1; i >= 0; i--) {
           const k = localStorage.key(i);
-          if (k && k.indexOf('cs.draft.') === 0) { const v = readLocal(k); if (!v || Date.now() - v.at > 7 * 86400000) localStorage.removeItem(k); }
+          if (k && k.indexOf('cs.draft.') === 0 && k.indexOf('cs.draft.en.') !== 0) { const v = readLocal(k); if (!v || Date.now() - v.at > 7 * 86400000) localStorage.removeItem(k); }
         }
       } catch (e) { /* ignore */ }
     }
@@ -1789,7 +1790,7 @@
   // ---------------------------------------------------------------- English mode (phase 5, /cs/en only)
   function normLang(c) { c = String(c || '').toLowerCase().split('-')[0]; return c === 'iw' || !c ? 'he' : c; }
   function langName(c) { const k = 'lang_name_' + normLang(c); const v = t(k); return v === k ? normLang(c).toUpperCase() : v; }
-  function enMode(x) { return LANG === 'en' && !!x && normLang(x.language) !== 'en'; }
+  function enMode(x) { return LANG === 'en' && !!x; }
 
   /** One "show original" toggle per translated block. The original text is never discarded. */
   function bilingual(container, original, english, toggleHost) {
@@ -1831,6 +1832,7 @@
           if (tr.incomplete) { chip.className = 'chip bad'; chip.append(' · ', tx('tr_incomplete', { n: tr.incomplete })); }
         }
       }
+      if (!tr.loading && (tr.err || tr.incomplete)) chip.append(' ', h('button', { type: 'button', class: 'more-btn', text: t('tr_retry'), onclick: function () { Translate.load(k); } }));
       if (!tr.ok) return;
       const pane = $('ticket-pane');
       (tr.conversation || []).forEach(function (c) {
@@ -1907,15 +1909,19 @@
       reviewBtn.addEventListener('click', async function () {
         if (!ta.value.trim()) return;
         me.busy = true; reviewBtn.textContent = t('en_reviewing'); clear(errEl); refresh();
-        const r = await api('/api/' + encodeURIComponent(brand) + '/translate-out', { ticketId: x.id, text: ta.value });
+        const sourceText = ta.value;
+        const r = await api('/api/' + encodeURIComponent(brand) + '/translate-out', { ticketId: x.id, text: sourceText, lang: LANG });
         me.busy = false; reviewBtn.textContent = t('en_review');
         if (!r.ok) { refresh(); showErr(r); return; }
-        me.translated = { en: ta.value, out: r.text, target: r.target, same: !!r.same };
+        if (ta.value !== sourceText) { refresh(); showErr({ msg: t('en_stale') }); return; }
+        if (normLang(r.target) !== 'he' || !/[\u0590-\u05ff]/.test(r.text || '') || r.same) { refresh(); showErr({ msg: t('en_invalid') }); return; }
+        me.translated = { en: sourceText, out: r.text, target: r.target, same: false };
         paintReview();
       });
       editBtn.addEventListener('click', function () { me.translated = null; paintReview(); ta.focus(); });
       async function send() {
-        if (!me.translated || isDry()) return;
+        if (!me.translated || isDry() || me.busy) return;
+        if (ta.value !== me.translated.en || normLang(me.translated.target) !== 'he') { me.translated = null; paintReview(); showErr({ msg: t('en_stale') }); return; }
         me.busy = true; refresh(); clear(errEl);
         const args = { id: x.id, text: me.translated.out };
         if (isWA(x)) args.channel = 'whatsapp';
@@ -1928,7 +1934,7 @@
       const handledBtn = armed(t('handled'), t('handled_arm'), '', function () { doClose('apiMarkHandled', t('handled_ok')); });
       const closeBtn = armed(t('close'), t('close_arm'), 'ghost', function () { doClose('apiClose', t('closed_ok')); });
       refresh();
-      return h('div', { class: 'card draft en-draft', 'data-test': 'en-draft' }, h('h3', { text: t('en_draft') }), note, ta,
+      return h('div', { class: 'card draft en-draft', 'data-test': 'en-draft' }, h('h3', { text: t('en_draft') }), h('div', { class: 'muted small', text: t('en_safety'), 'data-test': 'hebrew-only-notice' }), note, ta,
         h('div', { class: 'actions' }, reviewBtn, handledBtn, closeBtn), review, errEl);
     }
     function prefill(id, text) {
@@ -2383,7 +2389,7 @@
       changed(it);
     }
     async function run(it) {
-      const body = { args: it.args, rid: it.rid };
+      const body = { args: it.args, rid: it.rid, lang: LANG };
       if (it.via) body.via = it.via;                       // the dashboard counts a re-send apart
       const r = await api('/api/' + encodeURIComponent(it.brand) + '/' + it.fn, body);
       if (!items[it.rid]) return;
@@ -2574,6 +2580,13 @@
       const k = key(it.id);
       const kd = kind(it.state);
       const card = h('div', { class: 'card ac-item ac-' + kd, 'data-id': it.id, 'data-state': it.state });
+      if (LANG === 'en') {
+        const tid = ticketIdOf(it);
+        card.append(h('div', { class: 'hd' }, h('span', { class: 'chip outline', text: stateText(it) }), h('bdi', { text: it.email || tid || '—' })),
+          h('p', { text: 'Open the translated conversation to review this cancellation and reply in English. Customer replies are sent in Hebrew.' }));
+        if (tid) card.append(h('a', { class: 'btn primary', href: '#/b/' + encodeURIComponent(S.brand) + '/t/' + encodeURIComponent(tid), text: 'Open English conversation' }));
+        return card;
+      }
       const chipCls = kd === 'approvable' ? 'st-action' : kd === 'flight' ? 'st-sent' : 'bad';
       card.append(h('div', { class: 'hd' },
         kd === 'flight' ? h('span', { class: 'spinner', 'aria-hidden': 'true' }) : null,

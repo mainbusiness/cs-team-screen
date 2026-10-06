@@ -136,13 +136,8 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && .venv/
   the disk log with tool, brand, ok, ticket id or query length (never the query text). Limits: 20 messages per user
   per 10 min, 4 tool rounds, ~110 s per turn. If `apiKnowledge` is unavailable, the assistant refuses instead of
   answering from nothing.
-- **English mode** (`/cs/en`, users with `lang: en`): the conversation, summary and AI draft are translated to English
-  in one Sonnet call with the whole conversation as context, cached on disk per message hash. Each block has a
-  "Show original" toggle. The agent writes in English. "Translate for the customer" shows the English and the
-  customer-language text side by side, and only "Confirm translation and send" calls `apiSend`, with the
-  **translated** text (the engine's `draftProblem` still checks it). Editing the English after translating
-  invalidates the review. If the model skips items, the response says `incomplete: n` and the screen shows it.
-  The Hebrew UI at `/cs` is unchanged.
+- **English mode** (`/cs/en`, users with `lang: en`): English-profile accounts are redirected to the English desk. All conversation entries (including automatic messages), summary, recommendation and AI draft are translated to English, with lossless chunks for long messages and content-hash caching. Each block has a Show original toggle; incomplete translations are visibly reported.
+  The agent writes in English, reviews the Hebrew preview, then confirms the send. Editing the source invalidates the preview. The server also guards `apiSend`, `apiSaveDraft` and `apiAutoCancelApprove` for English-profile accounts or English-desk requests: customer text must pass Hebrew validation or be translated and validated before any engine write. Translation errors, missing chunks, empty output and remaining English prose block the write. Ticket language cannot select English delivery for the English desk. Brand names, links, email addresses and tracking identifiers are preserved. English local drafts survive opening closed tickets.
 - **Brands without subscriptions** (`apiBoot.subscriptions == 'none'`, e.g. selera): no subscriptions panel, no
   auto-cancel tab, no Kaching chip. Both stay hidden until `apiBoot` answers, so they are never shown first.
 - **Brands with no engine** (in `EXTRA_BRANDS` but not in `ENGINES_JSON`): a neutral "המותג עוד לא מחובר" state, no

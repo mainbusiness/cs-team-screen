@@ -68,7 +68,7 @@ class MockClaude:
             items = json.loads(payload["messages"][-1]["content"])["items"]
             table = HE if "Task: translate-out" in sys_text else EN
             pref = "(HE) " if table is HE else "(EN) "
-            out = [{"i": it["i"], "text": table.get(it["text"], pref + it["text"])} for it in items]
+            out = [{"i": it["i"], "text": table.get(it["text"], "שלום, תודה על הפנייה. אנחנו בודקים ונעדכן בהקדם." if table is HE else pref + it["text"])} for it in items]
             return _resp(json.dumps({"translations": out}, ensure_ascii=False))
         he = "Answer in Hebrew" in sys_text
         brand = (re.search(r"Brand: .*?\(([a-z0-9-]+)\)", sys_text) or [None, ""])[1]

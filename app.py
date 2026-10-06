@@ -379,6 +379,8 @@ def create_app(overrides=None):
             return redirect("/cs/en/login" if path_lang == "en" else "/cs/login")
         if g.user.get("must_change"):
             return redirect("/cs/password")
+        if g.user.get("lang") == "en" and path_lang != "en":
+            return redirect("/cs/en")
         return render_template("index.html", lang=path_lang, mock=mock)
 
     # ---------- JSON API ----------
@@ -421,6 +423,14 @@ def create_app(overrides=None):
             body = {}
         if not isinstance(body, dict):
             return json_error("bad_request", 400)
+        # A browser toggle or direct API call cannot bypass the English employee's delivery policy.
+        if (fn in ("apiSend", "apiSaveDraft", "apiAutoCancelApprove")
+                and (u.get("lang") == "en" or body.get("lang") == "en")):
+            clean, failure = app.extensions["cs_assistant"]["prepare_customer_write"](
+                u, str(brand).lower(), fn, body.get("args"))
+            if failure is not None:
+                return failure
+            body = dict(body, args=clean)
         t0 = time.perf_counter()
         status, out = engine_proxy.call(engines, transport, app.config["TOKEN_SECRET"], u, str(brand).lower(), fn,
                                         body.get("args", {}), ui_lang(u), rid=body.get("rid"))
