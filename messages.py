@@ -98,6 +98,8 @@ ENGINE = {
                         "The draft says the subscription was cancelled, but it is still active. Cancel it with the button first, then send."),
     "cancel_claim": ("הטיוטה אומרת שהמנוי בוטל, אבל הוא עדיין פעיל. קודם לבטל בכפתור בפאנל המנויים, ואז לשלוח.",
                      "The draft says the subscription was cancelled, but it is still active. Cancel it with the button first, then send."),
+    "wa_send_in_flight": ("תשובה אחרת כבר ממתינה לשליחה בוואטסאפ. הטיוטה שלך נשמרה; רעננו ובדקו לפני שליחה נוספת.",
+                          "Another WhatsApp reply is already pending. Your draft is preserved; refresh and check before sending again."),
     "already_sent": ("התשובה כבר נשלחה בפנייה הזאת — אין צורך לשלוח שוב.", "This reply was already sent — no need to send again."),
     "already": ("הפעולה כבר בוצעה — אין צורך לחזור ענציגה ב.", "This was already done — no need to repeat it."),
     "engine_slow": ("המנוע איטי כרגע, מנסה שוב…", "The engine is slow right now, trying again…"),
