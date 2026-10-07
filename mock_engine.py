@@ -26,20 +26,21 @@ CS_ROLES = ("agent", "admin", "user-manager")
 OPEN = ("ready", "action", "health", "delay")
 SUMMARY_COLS = ['id', 'status', 'category', 'name', 'email', 'subject', 'summary', 'action', 'waiting_since',
                 'created_at', 'handled_by', 'handled_at', 'language', 'order_no', 'channel', 'emails_count',
-                'cancelled', 'watch', 'ship_state', 'recommendation', 'siblings']
+                'cancelled', 'watch', 'ship_state', 'recommendation', 'siblings', 'wa_last_in']
 TICKET_COLS = ['id', 'status', 'category', 'name', 'email', 'phone', 'channel', 'subject', 'summary', 'action',
                'draft_text', 'draft_id', 'thread_id', 'message_id', 'waiting_since', 'created_at', 'handled_by',
                'handled_at', 'language', 'order_no', 'order_date', 'tracking', 'carrier', 'ship_state', 'wa_sig',
-               'wa_out', 'wa_send', 'notes', 'watch', 'emails_count', 'cancelled', 'recommendation', 'siblings']
+               'wa_out', 'wa_send', 'notes', 'watch', 'emails_count', 'cancelled', 'recommendation', 'siblings', 'wa_last_in']
 WORK = ("agent", "admin")
 TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTicketExtras": WORK, "apiTickets": WORK,
          "apiSearch": WORK, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
          "apiNote": WORK, "apiKachingCancel": WORK, "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
          "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK,
-         "apiResult": WORK, "apiTicketLite": WORK, "apiDayStats": ("admin", "user-manager")}
+         "apiResult": WORK, "apiTicketLite": WORK, "apiDayStats": ("admin", "user-manager"),
+         "apiTemplates": WORK, "apiSendTemplate": WORK}
 MOCK_WRITES = ("apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiWaTakeOver",
-               "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject")
+               "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate")
 CONTRACT_RE_PREFIX = "gid://shopify/SubscriptionContract/"
 
 
@@ -140,6 +141,8 @@ def build_brand(brand, now):
         row = {c: "" for c in TICKET_COLS}
         row.update(t)
         row.setdefault("thread_id", t["id"][1:])
+        if row.get("channel") == "whatsapp" and not row.get("wa_last_in"):
+            row["wa_last_in"] = row.get("waiting_since") or row.get("created_at") or ""   # the engine keeps the customer's last message time
         row["emails_count"] = row.get("emails_count") or sum(1 for m in conv if m["who"] == "customer")
         orders = list(orders)
         sh = _ship(orders[0] if orders else None, now)
@@ -517,6 +520,28 @@ class MockEngines:
             return {"ok": False, "error": "busy"}
         t["draft_text"] = text
         return {"ok": True, "problem": self._problem(text)}
+
+    TEMPLATES = [{"name": "Check 2", "text": "היי 🙂 רצינו לבדוק אם זה זמן נוח להמשיך את השיחה ולעזור לך?"},
+                 {"name": "Start", "text": "היי מה נשמע?"}]
+
+    def apiTemplates(self, brand, a, c):
+        return {"ok": True, "templates": list(self.TEMPLATES), "at": self._now()}
+
+    def apiSendTemplate(self, brand, a, c):
+        """Engine WaTemplates.gs: a template is queued like a reply; `then` is kept for when the customer answers."""
+        t = self._find(brand, a.get("id"))
+        if not t:
+            return {"ok": False, "error": "not_found"}
+        tpl = next((x for x in self.TEMPLATES if x["name"] == a.get("template")), None)
+        if not tpl:
+            return {"ok": False, "error": "bad_template"}
+        if t["channel"] != "whatsapp":
+            return {"ok": False, "error": "bad_channel"}
+        if t.get("wa_send") == "pending":
+            return {"ok": False, "error": "wa_send_in_flight"}
+        t.update({"wa_out": tpl["text"], "wa_send": "pending", "status": "wa_queued", "handled_by": c["user"], "handled_at": self._now()})
+        self.template_sends = getattr(self, "template_sends", []) + [{"id": t["id"], "template": tpl["name"], "then": a.get("then") or ""}]
+        return {"ok": True, "queued": True, "template": tpl["name"], "waiting": bool(a.get("then"))}
 
     def apiSend(self, brand, a, c):
         text = a.get("text")

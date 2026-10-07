@@ -424,6 +424,14 @@ button.chip.sib { cursor: pointer; }
 .tk-check .spinner { width: 10px; height: 10px; border-width: 2px; }
 /* engine @37/38: a failed WhatsApp send */
 .chip.wa-fail { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); font-weight: 600; }
+.chip.wa-win { font-weight: 600; border: 1px solid var(--line, #d0d5dd); }
+.chip.wa-win.closed { background: #fff4e5; color: #8a4b00; border-color: #f0b86a; }
+.chip.wa-win.soon { background: #fffbe6; color: #6b5200; border-color: #e6cf5a; }
+.tpl-box { border: 1px solid #f0b86a; border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+.tpl-select { width: 100%; min-height: 40px; font: inherit; padding: 6px 8px; border-radius: var(--radius); border: 1px solid var(--line, #d0d5dd); background: var(--surface, #fff); color: inherit; }
+.tpl-preview { white-space: pre-wrap; background: var(--surface-2, #f6f7f9); border-radius: var(--radius); padding: 10px 12px; min-height: 2.4em; }
+.tpl-then { display: block; cursor: pointer; }
+.wa-win-note { background: #fff4e5; color: #8a4b00; border: 1px solid #f0b86a; border-radius: var(--radius); padding: 10px 14px; margin-bottom: 10px; }
 .wa-fail-box { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
 .tab.failed .n { background: var(--danger); color: #fff; }
 

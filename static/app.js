@@ -81,6 +81,11 @@
       siblings: 'ללקוח יש עוד {n} פניות פתוחות', siblings_one: 'ללקוח יש עוד פנייה פתוחה אחת', siblings_short: '+{n} פתוחות',
       tab_bot: '🤖 הבוט של דונדי מטפל', empty_bot: 'אין כרגע שיחות שהבוט של דונדי מטפל בהן', st_bot: '🤖 בוט',
       tab_failed: '⚠️ נכשלו', empty_failed: 'אין שליחות וואטסאפ שנכשלו', wa_fail: '⚠️ השליחה נכשלה',
+      tab_wa24: '🕓 מעל 24 שעות', empty_wa24: 'אין צ׳אטים שעברו 24 שעות', wa_win_closed: '🕓 מעל 24 שעות — רק תבנית', wa_win_soon: '⏳ נסגר בעוד {d}',
+      wa_win_note: 'הלקוח לא כתב יותר מ-24 שעות. וואטסאפ מאפשר עכשיו רק תבנית מאושרת, לכן אי אפשר לשלוח טקסט חופשי.',
+      tpl_title: 'שליחת תבנית מאושרת (מעירה את השיחה)', tpl_send: 'שלח תבנית', tpl_send_arm: 'ללחוץ שוב לאישור', tpl_loading: 'טוען תבניות…',
+      tpl_none: 'לא נמצאו תבניות מאושרות ב-Dondy למותג הזה.', tpl_sent_ok: 'התבנית נכנסה לתור לשליחה', tpl_then: 'לשלוח את התשובה שכתבתי כשהלקוח עונה',
+      tpl_then_hint: 'אם הלקוח עונה תשובה קצרה, התשובה שכתבת נשלחת לבד בשמך. אם הוא שואל משהו חדש, היא מחכה לאישור שלך.',
       wa_fail_tpl: '⚠️ עברו 24 שעות — צריך תבנית בדונדי', wa_fail_unknown_note: 'לא ידוע אם ההודעה יצאה — בדקו בדונדי לפני שליחה חוזרת.',
       wa_fail_tpl_note: 'הלקוח לא כתב 24 שעות: וואטסאפ מאפשר רק תבנית מאושרת. שלחו תבנית מדונדי.',
       wa_fail_note: 'ההודעה לא יצאה. אפשר לשלוח שוב את אותו הטקסט.', wa_resend: 'שלח שוב', wa_resend_arm: 'לחצו שוב לשליחה חוזרת',
@@ -207,6 +212,11 @@
       siblings: 'This customer has {n} more open tickets', siblings_one: 'This customer has 1 more open ticket', siblings_short: '+{n} open',
       tab_bot: '🤖 Dondy bot is handling', empty_bot: 'The Dondy bot is not handling any chat right now', st_bot: '🤖 Bot',
       tab_failed: '⚠️ Failed', empty_failed: 'No failed WhatsApp sends', wa_fail: '⚠️ The send failed',
+      tab_wa24: '🕓 Over 24 hours', empty_wa24: 'No chats past 24 hours', wa_win_closed: '🕓 Over 24 hours — template only', wa_win_soon: '⏳ Closes in {d}',
+      wa_win_note: 'The customer has not written for more than 24 hours. WhatsApp now allows only an approved template, so free text cannot be sent.',
+      tpl_title: 'Send an approved template (wakes the chat)', tpl_send: 'Send template', tpl_send_arm: 'Click again to confirm', tpl_loading: 'Loading templates…',
+      tpl_none: 'No approved templates were found in Dondy for this brand.', tpl_sent_ok: 'The template is queued for sending', tpl_then: 'Send the reply I wrote when the customer answers',
+      tpl_then_hint: 'If the customer answers briefly, your reply goes out by itself in your name. If they ask something new, it waits for your approval.',
       wa_fail_tpl: '⚠️ 24 hours passed — needs a template in Dondy', wa_fail_unknown_note: 'Unknown whether it went out — check in Dondy before sending again.',
       wa_fail_tpl_note: 'The customer has not written for 24 hours: WhatsApp allows only an approved template. Send one from Dondy.',
       wa_fail_note: 'The message did not go out. You can send the same text again.', wa_resend: 'Send again', wa_resend_arm: 'Click again to resend',
@@ -363,10 +373,109 @@
     if (a.charAt(0) !== '\u26A0' && !/בדקו בדונדי לפני שליחה חוזרת|חלון 24 השעות נסגר/.test(a)) return null;
     return /24|תבנית|template/i.test(a) ? 'template_required' : 'failed';
   }
+  /** WhatsApp's 24-hour window, counted from the customer's last message (engine column wa_last_in). Meta refuses free text after it.
+   *  -> { state: 'closed' | 'soon' | 'open', left } or null when the time is unknown / not an open WhatsApp ticket. */
+  const WA_WINDOW_MS = 24 * 3600000, WA_WINDOW_MARGIN_MS = 2 * 60000, WA_SOON_MS = 4 * 3600000;
+  function waWin(x) {
+    if (!x || !isWA(x) || OPEN.indexOf(x.status) < 0) return null;
+    const at = ms(x.wa_last_in);
+    if (!at) return null;
+    const left = at + WA_WINDOW_MS - WA_WINDOW_MARGIN_MS - Date.now();
+    return { state: left <= 0 ? 'closed' : left < WA_SOON_MS ? 'soon' : 'open', left: left };
+  }
+  function waWinClosed(x) { const w = waWin(x); return !!w && w.state === 'closed'; }
+  function waWinChip(x) {
+    const w = waWin(x);
+    if (!w || w.state === 'open') return null;
+    return h('span', { class: 'chip wa-win ' + w.state, 'data-test': 'wa-win-chip', 'data-state': w.state, text: w.state === 'closed' ? t('wa_win_closed') : t('wa_win_soon', { d: dur(w.left) }) });
+  }
+  /** WhatsApp past 24 hours: the brand's approved templates exactly as Dondy lists them; sending one wakes the chat. The written answer can be
+   *  kept to go out by itself once the customer replies (the engine decides: only after a short answer that is not a question). */
+  const TPL = {};
+  async function loadTemplates(brand) {
+    const c = TPL[brand];
+    if (c && Date.now() - c.at < 300000) return c.list;
+    const r = await api('/api/' + encodeURIComponent(brand) + '/apiTemplates', { args: {} }, 'POST', { quiet: true });
+    if (!r || !r.ok || !Array.isArray(r.templates)) return null;
+    TPL[brand] = { list: r.templates, at: Date.now() };
+    return r.templates;
+  }
+  // The draft card is redrawn whenever a draft save lands, so what the agent chose here (template, the waiting-reply tick, the armed
+  // first click) lives outside the card, per ticket.
+  const TPL_UI = {};
+  function templateBox(brand, x, getDraft) {
+    const mem = TPL_UI[brand + '|' + x.id] || (TPL_UI[brand + '|' + x.id] = { name: '', then: null, armedAt: 0 });
+    const ARM_MS = 6000;
+    const sel = h('select', { class: 'tpl-select', 'data-test': 'tpl-select', 'aria-label': t('tpl_title') });
+    const prev = h('div', { class: 'tpl-preview', dir: 'auto', 'data-test': 'tpl-preview' });
+    const thenCb = h('input', { type: 'checkbox', 'data-test': 'tpl-then' });
+    const thenRow = h('label', { class: 'tpl-then', hidden: true }, thenCb, ' ', h('span', { text: t('tpl_then') }), h('div', { class: 'muted small', text: t('tpl_then_hint') }));
+    const err = h('div', { class: 'error', hidden: true, role: 'alert', 'data-test': 'tpl-error' });
+    const status = h('div', { class: 'muted small', text: t('tpl_loading'), 'data-test': 'tpl-status' });
+    const btn = h('button', { class: 'btn primary wa', type: 'button', text: t('tpl_send'), 'data-test': 'tpl-send' });
+    let list = [];
+    let busy = false;
+    const paintBtn = function () {
+      const armedNow = Date.now() - mem.armedAt < ARM_MS;
+      btn.classList.toggle('arm', armedNow);
+      btn.textContent = armedNow ? t('tpl_send_arm') : t('tpl_send');
+      btn.disabled = busy || !list.length;
+    };
+    // The chosen template is remembered by NAME (mem.name), never read back from the <select>: a redraw can leave the element unselected.
+    const chosen = function () { return list.filter(function (tp) { return tp.name === mem.name; })[0] || list[0] || null; };
+    const paint = function () {
+      const tpl = chosen();
+      if (tpl && sel.value !== tpl.name) sel.value = tpl.name;
+      prev.textContent = tpl ? tpl.text : '';
+      const has = !!String(getDraft() || '').trim();
+      thenRow.hidden = !has;
+      thenCb.checked = has && (mem.then === null ? true : mem.then);
+      paintBtn();
+    };
+    async function fire() {
+      const tpl = chosen();
+      if (!tpl || busy) return;
+      busy = true; paintBtn();
+      err.hidden = true;
+      const args = { id: x.id, template: tpl.name };
+      const draft = String(getDraft() || '').trim();
+      if (thenCb.checked && draft) args.then = draft;
+      const r = await api('/api/' + encodeURIComponent(brand) + '/apiSendTemplate', { args: args, lang: LANG });
+      busy = false;
+      if (r && r.ok) { delete TPL_UI[brand + '|' + x.id]; toast(t('tpl_sent_ok')); pollChanges(brand); goNext(brand, x.id); return; }
+      err.textContent = (r && (r.msg || r.message)) || t('err_bad_engine');
+      err.hidden = false;
+      paintBtn();
+    }
+    btn.addEventListener('click', function () {
+      if (btn.disabled) return;
+      if (Date.now() - mem.armedAt < ARM_MS) { mem.armedAt = 0; fire(); return; }      // the second click sends
+      mem.armedAt = Date.now();
+      paintBtn();
+      setTimeout(paintBtn, ARM_MS + 100);
+    });
+    sel.addEventListener('change', function () { if (sel.value) { mem.name = sel.value; mem.armedAt = 0; } paint(); });
+    thenCb.addEventListener('change', function () { mem.then = thenCb.checked; });
+    const box = h('div', { class: 'tpl-box', 'data-test': 'tpl-box' }, h('b', { text: t('tpl_title') }), status, sel, prev, thenRow, h('div', { class: 'actions' }, btn), err);
+    box.refresh = paint;
+    paintBtn();
+    loadTemplates(brand).then(function (l) {
+      list = l || [];
+      if (!list.length) { status.textContent = t('tpl_none'); sel.hidden = true; paintBtn(); return; }
+      status.hidden = true;
+      list.forEach(function (tp) { const o = document.createElement('option'); o.textContent = tp.name; o.value = tp.name; sel.append(o); });
+      mem.name = chosen().name;
+      paint();
+    });
+    return box;
+  }
+  /** The "failed" tab is for sends a person can still do something about here; a chat past 24 hours lives in its own tab. */
+  function waFailActionable(x) { const k = waFail(x); return !!k && k !== 'template_required' && !waWinClosed(x); }
   function waFailChip(x) {
     const k = waFail(x);
     if (!k) return null;
-    return h('span', { class: 'chip wa-fail', 'data-test': 'wa-fail-chip', 'data-kind': k, text: t(k === 'template_required' ? 'wa_fail_tpl' : 'wa_fail') });
+    if (k === 'template_required' || waWinClosed(x)) return null;   // said by the 24-hour chip
+    return h('span', { class: 'chip wa-fail', 'data-test': 'wa-fail-chip', 'data-kind': k, text: t('wa_fail') });
   }
   function waQueued(x) { return !!x && (x.status === 'wa_queued' || (isWA(x) && x.wa_send === 'pending')); }
   const WA_LOCK = {};
@@ -486,7 +595,7 @@
    *  - Our OWN JSON answers (also 502/504, e.g. engine_timeout) are real answers and pass straight through.
    */
   const READ_FNS = ['list', 'changes', 'watch', 'ticket', 'prefetch', 'result', 'related', 'queue', 'translate', 'translate-rows', 'translate-autoreply', 'translate-out',
-    'assistant', 'apiBoot', 'apiStatus', 'apiTicket', 'apiTicketExtras', 'apiTickets', 'apiSearch', 'apiAutoReplyList', 'apiAutoCancelList'];
+    'assistant', 'apiBoot', 'apiStatus', 'apiTicket', 'apiTicketExtras', 'apiTickets', 'apiSearch', 'apiAutoReplyList', 'apiAutoCancelList', 'apiTemplates'];
   const RETRY_MS = [1000, 2000, 4000, 8000, 15000, 15000];
   function isRead(path, method, body) {
     if ((method || 'POST') === 'GET') return true;
@@ -567,7 +676,7 @@
     boots: {}, bootErr: {}, ar: {}, rowTr: {}, tkMemo: {}, prefetchedAt: {}, assist: {}, auto: {}, autoEdits: {}, autoMsg: {}, settings: {}, listSig: '', tk: null, search: { q: '', res: null, err: null, seq: 0 }, menuOpen: false
   };
   const OPEN = ['ready', 'action', 'health', 'delay'];
-  const TABS = ['ready', 'action', 'failed', 'autoreply', 'auto', 'health', 'delay', 'bot', 'sent', 'today', 'search'];
+  const TABS = ['ready', 'action', 'failed', 'wa24', 'autoreply', 'auto', 'health', 'delay', 'bot', 'sent', 'today', 'search'];
   const brandName = function (b) { const bt = S.boots[b]; return (bt && bt.brandName) || (b.charAt(0).toUpperCase() + b.slice(1)); };
   const boot = function () { return S.boots[S.brand] || null; };
   /** apiBoot.subscriptions === 'none' (e.g. selera): no subscriptions panel, no auto-cancel queue. */
@@ -775,7 +884,8 @@
     if (id === 'autoreply') { const a = S.ar[S.brand]; return a && a.items ? a.items.filter(function (x) { return x.review === 'pending'; }).length : ''; }
     if (id === 'auto') { const a = S.auto[S.brand]; return a && a.items ? a.items.filter(function (x) { return !AutoCancel.inFlight(x.state); }).length : ''; }
     if (id === 'search') return '';
-    if (id === 'failed') return (b.tickets || []).filter(function (x) { return waFail(x); }).length;
+    if (id === 'failed') return (b.tickets || []).filter(waFailActionable).length;
+    if (id === 'wa24') return (b.tickets || []).filter(waWinClosed).length;
     const rows = (b.tickets || []).filter(function (x) { return x.status === id; }).length;
     if (OPEN.indexOf(id) >= 0) return rows;               // apiBoot carries EVERY open ticket: the rows are the truth
     if (id === 'sent') {
@@ -794,6 +904,7 @@
       if (id === 'autoreply' && (!S.ar[S.brand] || S.ar[S.brand].unavailable)) return;
       const n = tabCount(id, b);
       if (id === 'failed' && !n && S.tab !== 'failed') return;      // shown only while something failed
+      if (id === 'wa24' && !n && S.tab !== 'wa24') return;          // shown only while a chat is past its 24 hours
       const a = h('a', { class: 'tab ' + id, href: listHash(id), role: 'tab', 'aria-selected': (S.view !== 'ticket' || window.innerWidth >= 1000) && S.tab === id ? 'true' : 'false' },
         t('tab_' + id), n !== '' ? h('span', { class: 'n', text: String(n) }) : null);
       el.append(a);
@@ -919,7 +1030,10 @@
       if (OPEN.indexOf(tab) >= 0 || tab === 'bot') return -waitedSince(x);
       return -(ms(x.handled_at) || ms(x.created_at) || 0);
     };
-    return rows.slice().sort(function (a, b) { return key(a) - key(b); });
+    // Owner, 2026-10-07: a WhatsApp chat whose 24 hours are about to end goes to the top (the one closing soonest first):
+    // answered now it is a normal reply, an hour later it needs a template.
+    const soon = function (x) { const w = OPEN.indexOf(tab) >= 0 ? waWin(x) : null; return w && w.state === 'soon' ? w.left : Infinity; };
+    return rows.slice().sort(function (a, b) { const sa = soon(a), sb = soon(b); if (sa !== sb) return sa < sb ? -1 : 1; return key(a) - key(b); });
   }
   function byChannel(rows) {
     if (!rows || !S.chan || S.chan === 'all') return rows;
@@ -928,14 +1042,15 @@
   function rowsFor(tab) {
     const b = boot();
     if (!b) return null;
-    if (['ready', 'action', 'failed', 'health', 'delay', 'bot', 'sent', 'today'].indexOf(tab) >= 0) return byChannel(rowsForRaw(tab));
+    if (['ready', 'action', 'failed', 'wa24', 'health', 'delay', 'bot', 'sent', 'today'].indexOf(tab) >= 0) return byChannel(rowsForRaw(tab));
     return rowsForRaw(tab);
   }
   function rowsForRaw(tab) {
     const b = boot();
     if (!b) return null;
     if (tab === 'today') return sortRows(todayList(b), 'today');
-    if (tab === 'failed') return sortRows((b.tickets || []).filter(function (x) { return waFail(x); }), 'action');
+    if (tab === 'failed') return sortRows((b.tickets || []).filter(waFailActionable), 'action');
+    if (tab === 'wa24') return sortRows((b.tickets || []).filter(waWinClosed), 'action');
     if (tab === 'search') return S.search.res;
     if (tab === 'sent') return sortRows((b.tickets || []).filter(function (x) { return x.status === 'sent' || x.status === 'wa_queued'; }), 'sent');
     if (tab === 'autoreply') { const a = S.ar[S.brand]; return a ? (a.items || []) : null; }
@@ -958,6 +1073,8 @@
     if (opts.showStatus || !open || S.tab === 'search' || S.tab === 'today') chips.push(h('span', { class: 'chip st-' + x.status, text: label('st_', x.status, 'st_unknown') }));
     if (x.category) chips.push(h('span', { class: 'chip', text: label('cat_', x.category, 'cat_unknown') }));
     chips.unshift(chanPill(x));
+    const winChip = waWinChip(x);
+    if (winChip) chips.push(winChip);
     if (Number(x.emails_count) > 1) chips.push(h('span', { class: 'chip outline', text: t('msgs', { n: x.emails_count }) }));
     if (x.language && x.language !== 'he' && x.language !== 'iw') chips.push(h('span', { class: 'chip outline', text: String(x.language).toUpperCase() }));
     if (x.order_no) chips.push(h('span', { class: 'chip outline ltr', text: x.order_no }));
@@ -1228,7 +1345,7 @@
    *  next 3 copied into this page's memory a moment later (cache only — never an engine call from here). */
   function prefetchNext(brand, id) {
     if (!canWork() || brand !== S.brand) return;
-    const tab = ['ready', 'action', 'failed', 'health', 'delay', 'bot'].indexOf(S.tab) >= 0 ? S.tab : null;
+    const tab = ['ready', 'action', 'failed', 'wa24', 'health', 'delay', 'bot'].indexOf(S.tab) >= 0 ? S.tab : null;
     if (!tab) return;
     const rows = (rowsFor(tab) || []).filter(function (x) { return !isOld(x) && !Outbox.hidesRow(brand, x.id); });
     const pos = rows.map(function (x) { return x.id; }).indexOf(id);
@@ -1430,7 +1547,7 @@
     contact.append(h('span', { class: 'item' }, chanPill(x)));
     const head = h('div', { class: 'tk-head' },
       h('div', { class: 'l1' }, backBtn(), h('h2', { dir: 'auto', text: x.name || x.email || x.phone || t('no_name') }),
-        isAutoReplied(x) ? h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }) : null, statusChip(x.status), waFailChip(x)),
+        isAutoReplied(x) ? h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }) : null, statusChip(x.status), waFailChip(x), waWinChip(x)),
       h('div', { class: 'sync-row' }, h('span', { id: 'tk-sync', class: 'chip sync outline', hidden: true, 'aria-live': 'polite', 'data-test': 'tk-sync' }),
         h('span', { id: 'tk-check', class: 'tk-check', hidden: true, 'data-test': 'tk-check' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' ', t('checking'))),
       h('div', { class: 'ch-banner ' + (isWA(x) ? 'wa' : 'email'), 'data-test': isWA(x) ? 'wa-banner' : 'email-banner' },
@@ -1720,7 +1837,8 @@
       // Live, never captured at render time: a deep link can render this card before apiBoot answers.
       // Unknown mode = disabled (fail closed); loadBoot() calls refreshSend() when the answer lands.
       function isDry() { const b = S.boots[st.brand]; return !b || !!b.dryRun; }
-      function sendDisabled() { return isDry() || !ta.value.trim() || waQueued(S.tk && S.tk.id === x.id ? S.tk.ticket : x) || waLocked(st.brand, x.id) || Outbox.blocks(st.brand, x.id); }
+      function winClosed() { return waWinClosed(S.tk && S.tk.id === x.id ? S.tk.ticket : x); }
+      function sendDisabled() { return isDry() || winClosed() || !ta.value.trim() || waQueued(S.tk && S.tk.id === x.id ? S.tk.ticket : x) || waLocked(st.brand, x.id) || Outbox.blocks(st.brand, x.id); }
       const actions = h('div', { class: 'actions' });
       const all = [];
       async function doSend() {
@@ -1764,6 +1882,12 @@
       const closeBtn = armed(t('close'), t('close_arm'), 'ghost', function () { doClose('apiClose', t('closed_ok')); });
       all.push(sendBtn, handledBtn, closeBtn);
       actions.append(sendBtn, handledBtn, closeBtn);
+      if (winClosed()) {
+        c.append(h('div', { class: 'wa-win-note', role: 'status', 'data-test': 'wa-win-note', text: t('wa_win_note') }));
+        const tb = templateBox(st.brand, x, function () { return ta.value; });
+        ta.addEventListener('input', function () { tb.refresh(); });
+        c.append(tb);
+      }
       c.append(actions);
       return c;
     }
@@ -1964,8 +2088,15 @@
       const handledBtn = armed(t('handled'), t('handled_arm'), '', function () { doClose('apiMarkHandled', t('handled_ok')); });
       const closeBtn = armed(t('close'), t('close_arm'), 'ghost', function () { doClose('apiClose', t('closed_ok')); });
       refresh();
-      return h('div', { class: 'card draft en-draft', 'data-test': 'en-draft' }, h('h3', { text: t('en_draft') }), h('div', { class: 'muted small', text: t('en_safety'), 'data-test': 'hebrew-only-notice' }), note, ta,
-        h('div', { class: 'actions' }, reviewBtn, handledBtn, closeBtn), review, errEl);
+      const enCard = h('div', { class: 'card draft en-draft', 'data-test': 'en-draft' }, h('h3', { text: t('en_draft') }), h('div', { class: 'muted small', text: t('en_safety'), 'data-test': 'hebrew-only-notice' }), note, ta);
+      if (waWinClosed(x)) {     // past 24 hours: no free text; a template instead (the reply that waits is translated to Hebrew by the server)
+        reviewBtn.hidden = true;
+        const tbe = templateBox(st.brand, x, function () { return ta.value; });
+        ta.addEventListener('input', function () { tbe.refresh(); });
+        enCard.append(h('div', { class: 'wa-win-note', role: 'status', 'data-test': 'wa-win-note', text: t('wa_win_note') }), tbe);
+      }
+      enCard.append(h('div', { class: 'actions' }, reviewBtn, handledBtn, closeBtn), review, errEl);
+      return enCard;
     }
     function prefill(id, text) {
       if (!cur || cur.id !== id || cur.prefilled) return;
@@ -2552,7 +2683,7 @@
   /** After a hand-off: the next ticket of the current tab (or the list), within a frame. */
   function goNext(brand, fromId) {
     if (brand !== S.brand) return;
-    const tab = ['ready', 'action', 'failed', 'health', 'delay', 'bot'].indexOf(S.tab) >= 0 ? S.tab : null;
+    const tab = ['ready', 'action', 'failed', 'wa24', 'health', 'delay', 'bot'].indexOf(S.tab) >= 0 ? S.tab : null;
     const rows = tab ? (rowsFor(tab) || []).filter(function (x) { return !isOld(x) && !Outbox.blocks(brand, x.id) && !Outbox.hidesRow(brand, x.id); }) : [];
     const all = tab ? (rowsFor(tab) || []).filter(function (x) { return !isOld(x); }) : [];
     const pos = all.map(function (x) { return x.id; }).indexOf(fromId);

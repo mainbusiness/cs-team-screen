@@ -889,7 +889,7 @@ def register(app, d):
         _, err = gate(brand)
         if err:
             return None, err
-        field = "replyText" if fn == "apiAutoCancelApprove" else "text"
+        field = "replyText" if fn == "apiAutoCancelApprove" else "then" if fn == "apiSendTemplate" else "text"
         if not isinstance(args, dict):
             return None, fail("bad_request", 400, "en")
         tid, source = args.get("id"), args.get(field)

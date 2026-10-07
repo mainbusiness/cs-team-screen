@@ -424,7 +424,9 @@ def create_app(overrides=None):
         if not isinstance(body, dict):
             return json_error("bad_request", 400)
         # A browser toggle or direct API call cannot bypass the English employee's delivery policy.
-        if (fn in ("apiSend", "apiSaveDraft", "apiAutoCancelApprove")
+        tpl_then = (fn == "apiSendTemplate" and isinstance(body.get("args"), dict) and isinstance(body["args"].get("then"), str)
+                    and body["args"]["then"].strip())     # the reply that waits is customer text too: Hebrew or refused
+        if ((fn in ("apiSend", "apiSaveDraft", "apiAutoCancelApprove") or tpl_then)
                 and (u.get("lang") == "en" or body.get("lang") == "en")):
             clean, failure = app.extensions["cs_assistant"]["prepare_customer_write"](
                 u, str(brand).lower(), fn, body.get("args"))

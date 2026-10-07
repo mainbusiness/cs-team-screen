@@ -13,12 +13,12 @@ def test_failed_tab_counts_and_row_chips(page):
     pg, base = page
     pg.goto(base + "/cs#/b/rozela/failed")
     pg.wait_for_selector("#list-pane > a.row")
-    assert pg.inner_text("a.tab.failed .n") == "3" and "נכשלו" in pg.inner_text("a.tab.failed")
+    # Owner, 2026-10-07: a chat past 24 hours is not a "failed send" a person can retry: it lives in its own tab (test_wa_window_browser.py)
+    assert pg.inner_text("a.tab.failed .n") == "2" and "נכשלו" in pg.inner_text("a.tab.failed")
     ids = pg.eval_on_selector_all("#list-pane > a.row", "els => els.map(e => e.getAttribute('data-id'))")
-    assert sorted(ids) == ["w8ab77f1", "w8ab77f2", "w8ab77f3"]          # f3: wa_send=unknown, a plain action line
+    assert sorted(ids) == ["w8ab77f1", "w8ab77f3"]                      # f3: wa_send=unknown, a plain action line
     assert pg.inner_text("a.row[data-id=w8ab77f3] [data-test=wa-fail-chip]") == "⚠️ השליחה נכשלה"
     assert pg.inner_text("a.row[data-id=w8ab77f1] [data-test=wa-fail-chip]") == "⚠️ השליחה נכשלה"
-    assert pg.inner_text("a.row[data-id=w8ab77f2] [data-test=wa-fail-chip]") == "⚠️ עברו 24 שעות — צריך תבנית בדונדי"
     pg.goto(base + "/cs#/b/rozela/action")                                          # the same chip in the normal tab
     pg.wait_for_selector("a.row[data-id=w8ab77f1] [data-test=wa-fail-chip]")
     assert pg.locator("a.row[data-id=t18f2a03] [data-test=wa-fail-chip]").count() == 0
@@ -28,7 +28,8 @@ def test_template_required_and_unknown_never_offer_a_resend(page):
     pg, base = page
     pg.goto(base + "/cs#/b/rozela/t/w8ab77f2")
     pg.wait_for_selector("[data-test=wa-fail]")
-    assert pg.inner_text(".tk-head [data-test=wa-fail-chip]") == "⚠️ עברו 24 שעות — צריך תבנית בדונדי"
+    assert pg.inner_text(".tk-head [data-test=wa-win-chip]") == "🕓 מעל 24 שעות — רק תבנית"     # the 24-hour label says it (2026-10-07)
+    assert pg.locator(".tk-head [data-test=wa-fail-chip]").count() == 0
     assert pg.locator("[data-test=wa-resend]").count() == 0
 
     def unknown(route, req):

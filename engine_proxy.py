@@ -55,6 +55,10 @@ FN_TABLE = {
     "apiAutoReplyReview": (WORK_ROLES, ("id", "verdict", "note")),
     # WhatsApp chats the Dondy AI bot is handling (status "bot"): a person takes the conversation back (engine @18)
     "apiWaTakeOver": (WORK_ROLES, ("id",)),
+    # WhatsApp past its 24 hours (Owner, 2026-10-07): the brand's approved Dondy templates, and sending one from the screen.
+    # `then` = the agent's real answer, sent by the engine once the customer replies to the template.
+    "apiTemplates": (WORK_ROLES, ()),
+    "apiSendTemplate": (WORK_ROLES, ("id", "template", "then")),
     # System switches. Admin only — checked HERE as well as in the engine.
     "apiSettings": (ADMIN_ONLY, ("action", "key", "value")),
 }
@@ -114,7 +118,7 @@ log = logging.getLogger("cs_screen.engine")
 # retried either: a slow engine would turn into minutes of waiting.
 READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "apiTicketExtras", "apiTickets", "apiSearch",
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
-                      "apiResult", "apiTicketLite", "apiDayStats"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
+                      "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
 # the time a server thread was held (70-110 s), the 16 threads ran out, Render's health check timed out and the
@@ -399,6 +403,8 @@ SCHEMAS = {
     "apiAutoCancelApprove": lambda r, a: r.get("id") == a.get("id") or "state" in r,
     "apiAutoCancelReject": lambda r, a: r.get("id") == a.get("id"),
     "apiWaTakeOver": lambda r, a: r.get("id") == a.get("id") or "status" in r,
+    "apiTemplates": lambda r, a: isinstance(r.get("templates"), list),
+    "apiSendTemplate": lambda r, a: r.get("queued") is True and r.get("template") == a.get("template"),
 }
 
 

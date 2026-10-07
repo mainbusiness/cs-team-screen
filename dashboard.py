@@ -32,7 +32,8 @@ KINDS = ("open", "edit", "send", "resend", "close", "cancel", "autocancel", "not
 REPLY_KINDS = ("send", "resend")
 FN_KIND = {"apiSend": "send", "apiMarkHandled": "close", "apiClose": "close", "apiKachingCancel": "cancel",
            "apiAutoCancelApprove": "autocancel", "apiAutoCancelReject": "autocancel", "apiNote": "note",
-           "apiWaTakeOver": "takeover", "apiSaveDraft": "edit", "apiAutoReplyReview": "review"}
+           "apiWaTakeOver": "takeover", "apiSaveDraft": "edit", "apiAutoReplyReview": "review",
+           "apiSendTemplate": "template"}      # an approved WhatsApp template (costs money at Meta): logged per agent
 OPEN_ST = ("ready", "action", "health", "delay")          # waiting for a person
 LIVE_ST = OPEN_ST + ("bot", "wa_queued")                   # not finished
 ANSWERED_ST = ("sent", "wa_queued")

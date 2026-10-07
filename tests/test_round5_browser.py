@@ -34,6 +34,17 @@ def test_unconfirmed_whatsapp_send_locks_until_the_engine_answers(page):
     Unknown outcome: locked. Once the original can no longer be running (90 s) and a FRESH engine read shows the
     ticket still open and not queued, the send is offered again."""
     pg, base = page
+    fresh_in = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(time.time() - 3600))
+
+    def inside_window(route, req):       # this old test chat is made "the customer wrote an hour ago": this test is about the lock, not about the 24-hour window
+        r = route.fetch()
+        j = r.json()
+        for t in (j.get("tickets") or []) + ([j["ticket"]] if isinstance(j.get("ticket"), dict) else []):
+            if t.get("id") == "w8ab7700":
+                t["wa_last_in"] = fresh_in
+        route.fulfill(response=r, body=json.dumps(j))
+    pg.route("**/api/rozela/list", inside_window)
+    pg.route("**/api/rozela/ticket", inside_window)
     stale = {"r" * 32: {"rid": "r" * 32, "brand": "rozela", "id": "w8ab7700", "fn": "apiSend", "args": {"id": "w8ab7700", "text": "x", "channel": "whatsapp"},
                         "channel": "whatsapp", "name": "לקוחה 00", "state": "unknown", "at": int(time.time() * 1000) - 5000}}
     pg.goto(base + "/cs#/b/rozela/ready")
