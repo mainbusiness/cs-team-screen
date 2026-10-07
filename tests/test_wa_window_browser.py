@@ -109,3 +109,33 @@ def test_inside_the_window_no_template_box_is_offered(page):
     pg.goto(base + "/cs#/b/rozela/t/w8ab77c1")
     pg.wait_for_selector("[data-test=send-btn]")
     assert pg.locator("[data-test=tpl-box]").count() == 0
+
+
+def test_english_desk_past_24h_shows_the_template_picker_and_no_review_button():
+    """The English desk draws its own draft card: it must offer the template too (a missing variable once left it blank, live, 2026-10-07)."""
+    from browser_server import start
+    from pw_launch import launch
+    base, pwd, proc = start(users=(("lyra-test", ["agent"], ["rozela"], "en"),))
+    try:
+        with pw.sync_playwright() as p:
+            browser = launch(p)
+            pg = browser.new_page(viewport={"width": 1280, "height": 900})
+            errors = []
+            pg.on("pageerror", lambda e: errors.append(str(e)))
+            pg.goto(base + "/cs/en/login")
+            pg.fill("input[name=username]", "lyra-test")
+            pg.fill("input[name=password]", pwd)
+            pg.click("button[type=submit]")
+            pg.goto(base + "/cs/en#/b/rozela/t/w8ab77f2")
+            pg.wait_for_selector("[data-test=en-draft] [data-test=tpl-select] option", state="attached")
+            assert "24 hours" in pg.inner_text("[data-test=en-draft] [data-test=wa-win-note]")
+            assert pg.eval_on_selector_all("[data-test=tpl-select] option", "els => els.map(e => e.textContent)") == ["Check 2", "Start"]
+            assert not pg.is_visible("[data-test=en-review-btn]")
+            assert errors == [], errors
+            pg.goto(base + "/cs/en#/b/rozela/t/w8ab77c1")                     # inside the window: the normal English flow, no template box
+            pg.wait_for_selector("[data-test=en-review-btn]")
+            assert pg.locator("[data-test=tpl-box]").count() == 0
+            assert errors == [], errors
+            browser.close()
+    finally:
+        proc.terminate()

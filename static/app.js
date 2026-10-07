@@ -2091,7 +2091,7 @@
       const enCard = h('div', { class: 'card draft en-draft', 'data-test': 'en-draft' }, h('h3', { text: t('en_draft') }), h('div', { class: 'muted small', text: t('en_safety'), 'data-test': 'hebrew-only-notice' }), note, ta);
       if (waWinClosed(x)) {     // past 24 hours: no free text; a template instead (the reply that waits is translated to Hebrew by the server)
         reviewBtn.hidden = true;
-        const tbe = templateBox(st.brand, x, function () { return ta.value; });
+        const tbe = templateBox(brand, x, function () { return ta.value; });
         ta.addEventListener('input', function () { tbe.refresh(); });
         enCard.append(h('div', { class: 'wa-win-note', role: 'status', 'data-test': 'wa-win-note', text: t('wa_win_note') }), tbe);
       }
