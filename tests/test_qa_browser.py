@@ -119,7 +119,7 @@ def test_tab_counts_come_from_the_rows(server):
         pg.wait_for_selector("a.row")
         assert rewritten, "the counts were not rewritten — the test would prove nothing"
         rows = pg.locator("#list-pane > a.row").count() + pg.locator("[data-test=old-section] a.row").count()
-        assert pg.locator(".tab.action .n").inner_text() == str(rows)
+        assert pg.locator(".tab.ready .n").inner_text() == str(rows)   # one open list (Owner, 2026-10-07)
         browser.close()
 
 

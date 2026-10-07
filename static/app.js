@@ -21,7 +21,7 @@
   // ---------------------------------------------------------------- strings
   const STR = {
     he: {
-      app: 'שירות לקוחות', tab_ready: 'חדש', tab_action: 'צריך החלטה', tab_health: 'בריאות', tab_delay: 'עיכוב',
+      app: 'שירות לקוחות', tab_ready: 'פתוחות', tab_action: 'צריך החלטה', tab_health: 'בריאות', tab_delay: 'עיכוב',
       tab_sent: 'ממתין ללקוח', tab_today: 'טופל היום', tab_search: 'חיפוש',
       st_ready: 'חדש', st_action: 'צריך החלטה', st_health: 'בריאות', st_delay: 'עיכוב', st_sent: 'ממתין ללקוח', st_done: 'טופל', st_noreply: 'ללא מענה',
       cat_shipping: 'משלוח', cat_product: 'מוצר', cat_order_change: 'שינוי הזמנה', cat_return_refund: 'החזרה / החזר', cat_cancel_subscription: 'ביטול מנוי',
@@ -32,7 +32,7 @@
       mock: 'תצוגה מקומית — נתונים מדומים, שום דבר לא נשלח.',
       bootstrap_env: 'ADMIN_BOOTSTRAP עדיין מוגדר בשרת. הסירו אותו מ-Render.',
       no_brands: 'לא הוגדרו לך מותגים. פנו למנהל.', not_connected: 'המותג {b} עוד לא מחובר',
-      loading: 'טוען…', empty_ready: 'אין פניות חדשות', empty_action: 'אין פניות שמחכות להחלטה', empty_health: 'אין פניות בריאות',
+      loading: 'טוען…', empty_ready: 'אין פניות פתוחות', empty_action: 'אין פניות שמחכות להחלטה', empty_health: 'אין פניות בריאות',
       empty_delay: 'אין עיכובים', empty_sent: 'אין פניות שממתינות ללקוח', empty_today: 'עוד לא טופלו פניות היום',
       empty_hint: 'הרשימה מתרעננת לבד כל דקה.', search_ph: 'שם, מייל, טלפון או מספר הזמנה', search_min: 'לפחות 2 תווים',
       search_none: 'לא נמצא כלום', archived: 'בארכיון', waiting: 'ממתין {d}', handled_by: '{who} · {when}', updated: 'עודכן {when}',
@@ -154,7 +154,7 @@
       lang_he: 'עברית', lang_en: 'אנגלית', u_admin_only: 'רק אדמין', u_me: 'אני'
     },
     en: {
-      app: 'Customer service', tab_ready: 'New', tab_action: 'Needs decision', tab_health: 'Health', tab_delay: 'Delay',
+      app: 'Customer service', tab_ready: 'Open', tab_action: 'Needs decision', tab_health: 'Health', tab_delay: 'Delay',
       tab_sent: 'Waiting for customer', tab_today: 'Handled today', tab_search: 'Search',
       st_ready: 'New', st_action: 'Needs decision', st_health: 'Health', st_delay: 'Delay', st_sent: 'Waiting for customer', st_done: 'Handled', st_noreply: 'No reply',
       cat_shipping: 'Shipping', cat_product: 'Product', cat_order_change: 'Order change', cat_return_refund: 'Return / refund', cat_cancel_subscription: 'Cancel subscription',
@@ -164,7 +164,7 @@
       frozen: 'Subscription cancellations are frozen for this brand — only an admin can lift it.',
       mock: 'Local preview — fake data, nothing is sent.', bootstrap_env: 'ADMIN_BOOTSTRAP is still set on the server. Remove it in Render.',
       no_brands: 'You have no brands. Ask Manager.', not_connected: 'Brand {b} is not connected yet.',
-      loading: 'Loading…', empty_ready: 'No new tickets', empty_action: 'Nothing waits for a decision', empty_health: 'No health tickets',
+      loading: 'Loading…', empty_ready: 'No open tickets', empty_action: 'Nothing waits for a decision', empty_health: 'No health tickets',
       empty_delay: 'No delays', empty_sent: 'Nothing waits for the customer', empty_today: 'Nothing handled yet today',
       empty_hint: 'The list refreshes every minute.', search_ph: 'Name, email, phone or order number', search_min: 'At least 2 characters',
       search_none: 'Nothing found', archived: 'Archived', waiting: 'waiting {d}', handled_by: '{who} · {when}', updated: 'updated {when}',
@@ -677,6 +677,9 @@
   };
   const OPEN = ['ready', 'action', 'health', 'delay'];
   const TABS = ['ready', 'action', 'failed', 'wa24', 'autoreply', 'auto', 'health', 'delay', 'bot', 'sent', 'today', 'search'];
+  // Owner, 2026-10-07: new / needs decision / health / delay are ONE list ("ready" = every open ticket); what a ticket is shows as a label on its
+  // row, never as a filter that hides tickets. Their old links still open the one list.
+  const MERGED = ['action', 'health', 'delay'];
   const brandName = function (b) { const bt = S.boots[b]; return (bt && bt.brandName) || (b.charAt(0).toUpperCase() + b.slice(1)); };
   const boot = function () { return S.boots[S.brand] || null; };
   /** apiBoot.subscriptions === 'none' (e.g. selera): no subscriptions panel, no auto-cancel queue. */
@@ -691,7 +694,7 @@
     if (p[0] === 'settings') return { view: 'settings', brand: p[1] };
     if (p[0] === 'b' && p[1]) {
       if (p[2] === 't' && p[3]) return { view: 'ticket', brand: p[1], id: p[3] };
-      return { view: 'list', brand: p[1], tab: TABS.indexOf(p[2]) >= 0 ? p[2] : 'ready' };
+      return { view: 'list', brand: p[1], tab: TABS.indexOf(p[2]) >= 0 && MERGED.indexOf(p[2]) < 0 ? p[2] : 'ready' };
     }
     return { view: 'list' };
   }
@@ -886,6 +889,7 @@
     if (id === 'search') return '';
     if (id === 'failed') return (b.tickets || []).filter(waFailActionable).length;
     if (id === 'wa24') return (b.tickets || []).filter(waWinClosed).length;
+    if (id === 'ready') return (b.tickets || []).filter(function (x) { return OPEN.indexOf(x.status) >= 0; }).length;
     const rows = (b.tickets || []).filter(function (x) { return x.status === id; }).length;
     if (OPEN.indexOf(id) >= 0) return rows;               // apiBoot carries EVERY open ticket: the rows are the truth
     if (id === 'sent') {
@@ -900,6 +904,7 @@
     const b = boot();
     if (!connected()) return;                       // nothing to list yet: no tabs, no counts
     TABS.forEach(function (id) {
+      if (MERGED.indexOf(id) >= 0) return;               // part of the one open list
       if (id === 'auto' && (!b || noSubs())) return;     // unknown until apiBoot answers: hidden, not guessed
       if (id === 'autoreply' && (!S.ar[S.brand] || S.ar[S.brand].unavailable)) return;
       const n = tabCount(id, b);
@@ -1055,6 +1060,7 @@
     if (tab === 'sent') return sortRows((b.tickets || []).filter(function (x) { return x.status === 'sent' || x.status === 'wa_queued'; }), 'sent');
     if (tab === 'autoreply') { const a = S.ar[S.brand]; return a ? (a.items || []) : null; }
     if (tab === 'auto') { const a = S.auto[S.brand]; return a ? (a.items || []) : null; }
+    if (tab === 'ready') return sortRows((b.tickets || []).filter(function (x) { return OPEN.indexOf(x.status) >= 0; }), 'ready');
     return sortRows((b.tickets || []).filter(function (x) { return x.status === tab; }), tab);
   }
 
@@ -1070,7 +1076,7 @@
       age = tx('handled_by', { who: x.handled_by || '—', when: ago(x.handled_at) });
     }
     const chips = [];
-    if (opts.showStatus || !open || S.tab === 'search' || S.tab === 'today') chips.push(h('span', { class: 'chip st-' + x.status, text: label('st_', x.status, 'st_unknown') }));
+    chips.push(h('span', { class: 'chip st-' + x.status, 'data-test': 'row-status', 'data-status': x.status, text: label('st_', x.status, 'st_unknown') }));   // always: the one open list tells them apart by this label
     if (x.category) chips.push(h('span', { class: 'chip', text: label('cat_', x.category, 'cat_unknown') }));
     chips.unshift(chanPill(x));
     const winChip = waWinChip(x);
