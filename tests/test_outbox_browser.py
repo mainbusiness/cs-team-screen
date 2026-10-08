@@ -149,7 +149,7 @@ def test_close_is_optimistic_and_reverts_with_a_flag(pg):
     page.wait_for_selector("[data-test=outbox-indicator]", state="detached", timeout=20000)
     # a refused close comes back, flagged
     page.route("**/api/rozela/apiClose", lambda route, req: route.fulfill(status=200, content_type="application/json",
-               body=json.dumps({"ok": False, "error": "busy", "msg": "המערכת באמצע פעולה אחרת."})))
+               body=json.dumps({"ok": False, "error": "not_found", "msg": "הפנייה לא נמצאה."})))   # a refusal about the ticket; a passing one ("busy") is retried: test_outbox_retry_browser
     open_from(page, base, "action", "t18f2a04")
     armed_click(page, ".draft .btn.ghost:has-text('סגירה')")
     page.goto(base + "/cs#/b/rozela/action")
@@ -231,7 +231,7 @@ def test_later_refusal_is_not_hidden_by_older_success(pg):
 def test_result_known_refusal_leaves_checking_without_resending(pg):
     page, base = pg
     page.route('**/api/rozela/result', lambda route: route.fulfill(content_type='application/json',
-        body=json.dumps(dict(ok=True, found=True, reply=dict(ok=False, error='busy', msg='המערכת עסוקה')))))
+        body=json.dumps(dict(ok=True, found=True, reply=dict(ok=False, error='thread_missing', msg='השרשור לא נמצא')))))
     seed_outbox(page, base, [dict(state='checking')])
     for _ in range(50):
         state = list(json.loads(page.evaluate("localStorage.getItem('cs.outbox')")).values())[0]['state']

@@ -103,7 +103,7 @@
       err_bad_engine: 'המנוע החזיר תשובה לא תקינה. נסו שוב בעוד רגע.',
       ob_flight_send: '⏳ נשלח ברקע…', ob_flight_close: '⏳ נסגר ברקע…', ob_ok_email: '✅ נשלח', ob_ok_wa: '✅ נשלח לוואטסאפ', ob_ok_queued: '📤 נכנס לתור',
       ob_ok_close: '✅ טופל', ob_refused: '⚠️ לא נשלח — צריך תיקון', ob_refused_close: '⚠️ לא נסגר — צריך תיקון', ob_unknown: '❓ לא אושר — לבדוק',
-      ob_checking: '⏳ בודק מה קרה לשליחה…', ob_unsent: '⚠️ השליחה לא בוצעה — אפשר לשלוח שוב', ob_header: 'בתהליך שליחה ({n})', ob_none: 'אין שליחות בתהליך',
+      ob_checking: '⏳ בודק מה קרה לשליחה…', ob_retry: '⏳ מנסה לשלוח שוב…', ob_retry_close: '⏳ מנסה לסגור שוב…', ob_retry_n: 'ניסיון {n} מתוך {max}. המערכת מנסה שוב לבד, אין צורך לשלוח שוב.', ob_unsent: '⚠️ השליחה לא בוצעה — אפשר לשלוח שוב', ob_header: 'בתהליך שליחה ({n})', ob_none: 'אין שליחות בתהליך',
       ob_toast_ok: '{name}: נשלח', ob_toast_queued: '{name}: נכנס לתור לוואטסאפ', ob_toast_refused: '{name}: לא נשלח — צריך תיקון', ob_toast_unknown: '{name}: לא אושר — לבדוק',
       ob_toast_closed: '{name}: טופל', ob_why: 'הסיבה:', ob_inflight_lock: 'השליחה הקודמת עדיין בדרך — אין לשלוח שוב.',
       st_wa_queued: '📤 בתור לוואטסאפ', st_unknown: 'סטטוס אחר', cat_unknown: 'אחר',
@@ -242,7 +242,7 @@
       err_bad_engine: 'The engine returned an invalid answer. Try again in a moment.',
       ob_flight_send: '⏳ Sending in the background…', ob_flight_close: '⏳ Closing in the background…', ob_ok_email: '✅ Sent', ob_ok_wa: '✅ Sent to WhatsApp', ob_ok_queued: '📤 Queued',
       ob_ok_close: '✅ Handled', ob_refused: '⚠️ Not sent — needs a fix', ob_refused_close: '⚠️ Not closed — needs a fix', ob_unknown: '❓ Not confirmed — check',
-      ob_checking: '⏳ Checking what happened to the send…', ob_unsent: '⚠️ The send did not happen — you can send again', ob_header: 'Sending ({n})', ob_none: 'Nothing in progress',
+      ob_checking: '⏳ Checking what happened to the send…', ob_retry: '⏳ Trying to send again…', ob_retry_close: '⏳ Trying to close again…', ob_retry_n: 'Try {n} of {max}. The system retries by itself; do not send again.', ob_unsent: '⚠️ The send did not happen — you can send again', ob_header: 'Sending ({n})', ob_none: 'Nothing in progress',
       ob_toast_ok: '{name}: sent', ob_toast_queued: '{name}: queued for WhatsApp', ob_toast_refused: '{name}: not sent — needs a fix', ob_toast_unknown: '{name}: not confirmed — check',
       ob_toast_closed: '{name}: handled', ob_why: 'Reason:', ob_inflight_lock: 'The previous send is still on its way — do not send again.',
       st_wa_queued: '📤 Queued for WhatsApp', st_unknown: 'Other status', cat_unknown: 'Other',
@@ -807,7 +807,7 @@
     top.append(h('span', { class: 'spacer' }));
     const pend = Outbox.pending();
     if (pend.length) {
-      const ob = h('button', { class: 'ob-btn' + (pend.some(function (i) { return i.state !== 'flight' && i.state !== 'checking'; }) ? ' warn' : ''), type: 'button', 'data-test': 'outbox-indicator' },
+      const ob = h('button', { class: 'ob-btn' + (pend.some(function (i) { return i.state !== 'flight' && i.state !== 'checking' && i.state !== 'retry'; }) ? ' warn' : ''), type: 'button', 'data-test': 'outbox-indicator' },
         tx('ob_header', { n: pend.length }));
       ob.addEventListener('click', function (e) { e.stopPropagation(); S.obOpen = !S.obOpen; renderTop(); });
       top.append(ob);
@@ -2501,7 +2501,11 @@
   /*
    * An agent never waits for the engine: send / handled / close are handed to this outbox and the agent moves on.
    * Each item: {rid, brand, id, fn, args, channel, name, state, at, msg, reply}
-   *   state: flight -> ok | refused | unknown;  checking (after a reload) -> ok | unknown;  unknown -> ok | unsent
+   *   state: flight -> ok | refused | unknown | retry;  checking (after a reload) -> ok | unknown;  unknown -> ok | retry | unsent
+   *   retry (Owner, 2026-10-09: "a reply an agent sent is ALWAYS sent; if it fails, try again 5 s later"): the answer said nothing went
+   *   out and the cause passes (the engine's lock, a full gate, a server error, a login that ran out) -> the SAME call with the SAME rid
+   *   after 5 s, then slower, ~17 min in all. Safe: the engine keeps the reply of a rid that succeeded and never runs it twice.
+   *   A refusal about the ticket itself (closed WhatsApp window, already sent, someone else's send in flight) is never retried.
    * The rid is made HERE, so after a reload the page can still ask the server (/result -> apiResult) what happened;
    * the server finishes the request even if the browser left. One open item per ticket; a ticket with an item in
    * flight / checking / unknown never offers another send.
@@ -2510,6 +2514,39 @@
     const KEY = 'cs.outbox';
     let items = {};
     let ver = 0;
+    const RETRY_CODES = ['busy', 'server_error', 'rate_limited', 'not_logged_in', 'dropped', 'assistant_timeout', 'assistant_unreachable', 'assistant_busy', 'assistant_error'];
+    const RETRY_AFTER_MS = [5000, 10000, 20000, 30000, 60000, 60000, 120000, 120000, 300000, 300000];
+    // The engine remembers a rid that succeeded for 30 min (RES_TTL_S in engine/Api.gs). After that a same-rid call would RUN again, so a
+    // lost "sent" could become a second message. No automatic send later than 20 min after the agent's click: then a person decides.
+    const RETRY_WINDOW_MS = 20 * 60000;
+    const timers = {};
+    function arm(it, ms) {
+      clearTimeout(timers[it.rid]);
+      timers[it.rid] = setTimeout(function () {
+        const waiting = function () { return items[it.rid] === it && it.state === 'retry'; };   // not dismissed, not decided meanwhile
+        if (waiting() && Date.now() - it.at > RETRY_WINDOW_MS) {           // the page was closed for too long: never a surprise send
+          it.state = 'refused'; toast(tx('ob_toast_refused', { name: it.name }).textContent); changed(it); return;
+        }
+        const go = function () { it.state = 'flight'; it.tried_at = Date.now(); changed(it); return run(it); };
+        if (!waiting()) return;
+        if (!(navigator.locks && navigator.locks.request)) { go(); return; }
+        // two tabs hold the same outbox: one sends, the other asks again in a moment (and then gets the engine's stored reply)
+        navigator.locks.request('cs.outbox.' + it.rid, { ifAvailable: true }, function (lock) {
+          if (!lock) { if (waiting()) arm(it, 4000); return null; }
+          return waiting() ? go() : null;
+        });
+      }, ms);
+    }
+    /** Nothing went out and the cause passes: the same rid again, later. false = out of tries (the agent decides). */
+    function again(it, r) {
+      const n = it.tries || 0;
+      if (n >= RETRY_AFTER_MS.length || Date.now() - it.at > RETRY_WINDOW_MS) return false;
+      let ms = RETRY_AFTER_MS[n];
+      if (r && Number.isFinite(r.retryAfterSeconds) && r.retryAfterSeconds > 0) ms = Math.max(ms, Math.min(r.retryAfterSeconds, 600) * 1000);
+      it.tries = n + 1; it.state = 'retry'; it.msg = (r && r.msg) || null; it.code = (r && r.error) || null; it.next = Date.now() + ms;
+      arm(it, ms);
+      return true;
+    }
     function newRid() {
       if (window.crypto && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '');
       const a = new Uint8Array(16); crypto.getRandomValues(a);
@@ -2539,11 +2576,11 @@
     }
     function blocks(brand, id) {
       const it = forTicket(brand, id);
-      return !!it && (it.state === 'flight' || it.state === 'checking' || it.state === 'unknown' || it.state === 'delivery_issue');
+      return !!it && (it.state === 'flight' || it.state === 'checking' || it.state === 'retry' || it.state === 'unknown' || it.state === 'delivery_issue');
     }
     function hidesRow(brand, id) {                      // a close / handled in flight or done takes the row off the list
       const it = forTicket(brand, id);
-      return !!it && it.fn !== 'apiSend' && (it.state === 'flight' || it.state === 'checking' || it.state === 'ok');
+      return !!it && it.fn !== 'apiSend' && (it.state === 'flight' || it.state === 'checking' || it.state === 'retry' || it.state === 'ok');
     }
     function flagged(brand, id) {
       const it = forTicket(brand, id);
@@ -2554,6 +2591,7 @@
       const close = it.fn !== 'apiSend';
       if (it.state === 'flight') return close ? t('ob_flight_close') : t('ob_flight_send');
       if (it.state === 'checking') return t('ob_checking');
+      if (it.state === 'retry') return close ? t('ob_retry_close') : t('ob_retry');
       if (it.state === 'delivery_issue') return t(it.delivery_state === 'unknown' ? 'wa_fail_unknown_note' : it.delivery_state === 'template_required' ? 'wa_fail_tpl' : 'wa_fail');
       if (it.state === 'ok') return close ? t('ob_ok_close') : it.reply && it.reply.queued ? t('ob_ok_queued') : it.channel === 'whatsapp' ? t('ob_ok_wa') : t('ob_ok_email');
       if (it.state === 'refused') return close ? t('ob_refused_close') : t('ob_refused');
@@ -2561,7 +2599,7 @@
       return t('ob_unknown');
     }
     function cls(it) {
-      return it.state === 'ok' ? 'ok' : (it.state === 'flight' || it.state === 'checking') ? 'st-sent' : 'bad';
+      return it.state === 'ok' ? 'ok' : (it.state === 'flight' || it.state === 'checking' || it.state === 'retry') ? 'st-sent' : 'bad';
     }
     function patchRow(it) {                              // what the engine now says, before the next poll brings it
       const b = S.boots[it.brand];
@@ -2592,6 +2630,8 @@
         it.state = 'unknown'; it.msg = r.msg || null;
         toast(tx('ob_toast_unknown', { name: it.name }).textContent);
         later(it, 20000);                                // ask the server again in a moment
+      } else if (r && RETRY_CODES.indexOf(r.error) >= 0 && again(it, r)) {
+        // scheduled, quietly: the agent has nothing to do
       } else {
         it.state = 'refused'; it.msg = (r && (r.msg || r.error)) || null; it.err = r ? { error: r.error, problem: r.problem, problem_msg: r.problem_msg } : null;
         toast(tx('ob_toast_refused', { name: it.name }).textContent);
@@ -2601,6 +2641,7 @@
     async function run(it) {
       const body = { args: it.args, rid: it.rid, lang: LANG };
       if (it.via) body.via = it.via;                       // the dashboard counts a re-send apart
+      if (it.tries) body.attempt = it.tries + 1;           // the server log tells an automatic retry from a first send
       const r = await api('/api/' + encodeURIComponent(it.brand) + '/' + it.fn, body);
       if (!items[it.rid]) return;
       settle(it, r);
@@ -2610,7 +2651,7 @@
       const r = await api('/api/' + encodeURIComponent(it.brand) + '/result', { rid: it.rid }, 'POST', { quiet: true });
       if (!items[it.rid] || (it.state !== 'checking' && it.state !== 'unknown')) return;
       if (r.ok && r.found && r.reply && typeof r.reply.ok === 'boolean') { settle(it, r.reply); return; }
-      const age = Date.now() - it.at;
+      const age = Date.now() - (it.tried_at || it.at);
       if (it.state === 'checking' && age < 150000) { later(it, 6000); return; }         // the server may still be working on it
       if (it.state === 'checking') { it.state = 'unknown'; changed(it); }
       if (age < 600000) later(it, 30000);
@@ -2663,11 +2704,15 @@
         return;
       }
       if (acceptedQueue || it.state === 'refused' || it.state === 'unsent') return;
-      if (Date.now() - it.at > 90000 && OPEN.indexOf(tk.status) >= 0) { it.state = 'unsent'; it.msg = null; changed(it); }
+      if (Date.now() - (it.tried_at || it.at) > 90000 && OPEN.indexOf(tk.status) >= 0) {
+        // the engine says nothing went out: send it again by ourselves, and only after the last try hand it to the agent
+        if (!again(it, { error: 'unsent' })) { it.state = 'unsent'; it.msg = null; }
+        changed(it);
+      }
     }
     function start(fn, brand, x, args, via) {
       const prev = forTicket(brand, x.id);
-      if (prev && (prev.state === 'flight' || prev.state === 'checking' || prev.state === 'unknown' || prev.state === 'delivery_issue')) { toast(t('ob_inflight_lock')); return null; }
+      if (prev && (prev.state === 'flight' || prev.state === 'checking' || prev.state === 'retry' || prev.state === 'unknown' || prev.state === 'delivery_issue')) { toast(t('ob_inflight_lock')); return null; }
       const it = { rid: newRid(), brand: brand, id: x.id, fn: fn, args: args, channel: isWA(x) ? 'whatsapp' : 'email',
         name: x.name || x.email || x.phone || x.id, state: 'flight', at: Date.now(), via: via || null };
       items[it.rid] = it;
@@ -2691,7 +2736,7 @@
         .sort(function (a, b) { return b.at - a.at; });
     }
     function pending() { return list().filter(function (it) { return it.state !== 'ok'; }); }
-    function dismiss(it) { delete items[it.rid]; changed(it); }
+    function dismiss(it) { clearTimeout(timers[it.rid]); delete timers[it.rid]; delete items[it.rid]; changed(it); }
     function paintBanner() {
       const slot = document.getElementById('tk-outbox');
       if (!slot || !S.tk) return;
@@ -2700,7 +2745,8 @@
       if (!it || (it.state === 'ok' && Date.now() - it.at > 15 * 60000)) return;
       const box = h('div', { class: 'outbox-banner ' + cls(it), role: 'status', 'data-test': 'outbox-banner', 'data-state': it.state }, h('b', { text: label(it) }));
       if (it.msg && it.state !== 'ok') box.append(h('div', { class: 'small' }, t('ob_why') + ' ', h('span', { dir: 'auto', text: it.msg })));
-      if (it.state === 'refused' || it.state === 'unsent') box.append(h('button', { class: 'btn small ghost', type: 'button', text: '✕', 'aria-label': 'dismiss', onclick: function () { dismiss(it); } }));
+      if (it.state === 'retry') box.append(h('div', { class: 'small', 'data-test': 'outbox-retry-n', text: t('ob_retry_n', { n: it.tries, max: RETRY_AFTER_MS.length }) }));
+      if (it.state === 'refused' || it.state === 'unsent' || it.state === 'retry') box.append(h('button', { class: 'btn small ghost', type: 'button', text: '✕', 'aria-label': 'dismiss', onclick: function () { dismiss(it); } }));
       slot.append(box);
     }
     async function recoverFailures() {
@@ -2720,6 +2766,7 @@
         const it = items[r];
         if (it.state === 'flight') { it.state = 'checking'; later(it, 1500); }     // the page died mid-send: ask, never resend
         else if (it.state === 'checking' || it.state === 'unknown') later(it, 1500);
+        else if (it.state === 'retry') arm(it, Math.max(1500, (it.next || 0) - Date.now()));   // the page closed between tries: go on
       });
       save();
       setTimeout(recoverFailures, 2000);

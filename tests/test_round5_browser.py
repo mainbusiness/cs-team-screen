@@ -32,7 +32,7 @@ def test_whatsapp_queued_blocks_a_second_send(page):
 def test_unconfirmed_whatsapp_send_locks_until_the_engine_answers(page):
     """(Its own WhatsApp ticket: the module shares one mock server, and another test queues w8ab77c1.)
     Unknown outcome: locked. Once the original can no longer be running (90 s) and a FRESH engine read shows the
-    ticket still open and not queued, the send is offered again."""
+    ticket still open and not queued, the page sends it again by itself with the same rid (2026-10-09) and stays locked meanwhile."""
     pg, base = page
     fresh_in = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(time.time() - 3600))
 
@@ -57,9 +57,9 @@ def test_unconfirmed_whatsapp_send_locks_until_the_engine_answers(page):
     stale["r" * 32]["at"] = int(time.time() * 1000) - 120000                           # two minutes old
     pg.evaluate("v => localStorage.setItem('cs.outbox', v)", json.dumps(stale))
     pg.reload()
-    pg.wait_for_selector("[data-test=outbox-banner][data-state=unsent]", timeout=15000)  # a fresh engine read decided
+    pg.wait_for_selector("[data-test=outbox-banner][data-state=retry]", timeout=15000)   # a fresh engine read decided: not sent -> again, by itself
     pg.fill(".draft textarea", "היי!")
-    assert not pg.is_disabled("[data-test=send-btn]")
+    assert pg.is_disabled("[data-test=send-btn]")                                     # one send at a time: the retry owns the ticket
 
 
 

@@ -182,7 +182,7 @@ def test_an_old_confirmed_copy_never_settles_the_send_guards(page):
     pg.unroute("**/api/rozela/watch")
     for r in held:
         r.continue_()
-    pg.wait_for_selector("[data-test=outbox-banner][data-state=unsent]", timeout=15000)   # the fresh check decided
+    pg.wait_for_selector("[data-test=outbox-banner][data-state=retry], [data-test=outbox-banner][data-state=flight], [data-test=outbox-banner][data-state=ok]", timeout=15000)   # the fresh check decided: not sent -> sent again by the page (2026-10-09)
     pg.unroute("**/api/rozela/ticket")
 
 

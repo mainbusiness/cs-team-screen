@@ -183,7 +183,7 @@ def test_english_rejected_outbox_handoff_does_not_latch_busy(english_page):
         if results: break
         page.wait_for_timeout(50)
     assert results
-    results.pop().fulfill(json={'ok': True, 'found': True, 'reply': {'ok': False, 'error': 'busy'}})
+    results.pop().fulfill(json={'ok': True, 'found': True, 'reply': {'ok': False, 'error': 'thread_missing'}})
     page.wait_for_timeout(300)
     assert page.is_enabled('[data-test=en-review-btn]')
     assert page.is_enabled('[data-test=en-confirm]')

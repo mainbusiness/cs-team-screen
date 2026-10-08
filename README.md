@@ -554,3 +554,32 @@ or hedged. Recovery reads are serialized and do not refresh Shopify/Kaching snap
 
 Verification: `tests/test_send_priority.py` and the outbox browser regressions reproduce the actual failure modes.
 Deployments use `deploy/render_deploy.py push`, whose full-suite test gate must pass before GitHub is updated.
+
+## A send that was refused for a passing reason is sent again by itself (2026-10-09)
+
+Guy: "every time an agent sends a reply, the reply is sent. If it fails the first time, try again five seconds later."
+
+Measured, read-only, in the core database: on 2026-10-08 09:38-09:44 UTC one agent's `apiSend` was answered `busy`
+five times in six minutes (the brand's script lock was held), and each time the screen showed "לא נשלח — צריך תיקון" and
+waited for her to click again. The tickets of the owner's screenshot (Rozela email, 2026-10-05/06) were all sent in the
+end, by a second or third manual click. Nothing recorded why a send was refused: the engine audits only a Gmail
+refusal, the proxy logged nothing, so the reasons of the older refusals cannot be recovered.
+
+- **Outbox state `retry`.** An answer that says nothing went out and the cause passes — `busy` (the engine's lock,
+  a rid in flight, no gate slot in 15 s), `server_error`, `rate_limited`, `not_logged_in`, `assistant_*` (the English
+  desk's translation service) — is sent again with the SAME rid after 5, 10, 20, 30, 60, 60, 120, 120, 300 and 300 s
+  (about 17 minutes). The engine stores the reply of a rid that succeeded and replays it, so a retry can never send
+  twice; the email fence and the WhatsApp same-text guard stand behind it. The same happens when a fresh engine read
+  shows that an unconfirmed send did not go out (`unsent`).
+- **No automatic send later than 20 minutes after the agent's click.** The engine remembers a successful rid for 30 minutes
+  (`RES_TTL_S`); after that a same-rid call would run again, and a lost "sent" could become a second message. Past the
+  window the item is handed to the agent.
+- The agent sees "⏳ מנסה לשלוח שוב…" with the try number; the ticket stays locked against a second send; ✕ stops it.
+  The state lives in localStorage: a reload or a new login goes on from the next try. Two tabs take turns (Web Locks).
+- Only after the last try: "לא נשלח — צריך תיקון", on top, with the draft kept — as before.
+- **Never retried:** a refusal about the ticket itself — `wa_window_closed`, `already_sent`, `already_handled`,
+  `wa_send_in_flight`, `newer_message`, `replied_elsewhere`, `thread_missing`, `dry_run`, `translate_failed`.
+- **Every send that is not accepted now leaves a log line** (`send not accepted: <brand> <fn> user= error= http=
+  attempt= detail=`), and a send accepted by a retry says so (`send accepted on attempt N`). Codes only, never text.
+
+Tests: `tests/test_outbox_retry_browser.py`.

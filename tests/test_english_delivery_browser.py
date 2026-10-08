@@ -81,7 +81,7 @@ def test_refused_send_keeps_english_draft_and_can_be_retried(delivery_page, tid)
     attempts = []
     def refuse_once(route):
         attempts.append(json.loads(route.request.post_data))
-        route.fulfill(json={'ok': False, 'error': 'busy', 'msg': 'Not sent. Please try again.'})
+        route.fulfill(json={'ok': False, 'error': 'thread_missing', 'msg': 'Not sent. Please try again.'})   # about the ticket; a passing refusal ("busy") is retried by the page: test_outbox_retry_browser
     pg.route('**/api/rozela/apiSend', refuse_once)
     preview(pg, base, tid)
     source = pg.input_value('[data-test=en-draft] textarea')

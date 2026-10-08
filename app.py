@@ -22,6 +22,7 @@ import hmac
 import logging
 import os
 import secrets
+import re
 import time
 from urllib.parse import urlparse
 
@@ -439,6 +440,16 @@ def create_app(overrides=None):
         if isinstance(body.get("rid"), str):
             out = dict(out, rid=body["rid"])                       # the outbox matches the answer to its item
         ticket_cache.timing("engine", (time.perf_counter() - t0) * 1000, fn)
+        if fn in ("apiSend", "apiSendTemplate") and isinstance(out, dict):
+            # 2026-10-09: a reply that did not go out left no trace of the reason anywhere. Codes only, never the text.
+            attempt = body.get("attempt") if type(body.get("attempt")) is int else 1
+            code = lambda v, n: re.sub(r"[^A-Za-z0-9_ :-]", "", str(v))[:n]                    # noqa: E731
+            if out.get("ok") is not True:
+                log.warning("send not accepted: %s %s user=%s error=%s http=%d attempt=%d detail=%s", code(brand, 24), fn, code(u.get("username"), 40),
+                            code(out.get("error"), 40), status, attempt,
+                            code(out.get("detail") or out.get("problem") or out.get("providerStatus") or "", 60))
+            elif attempt > 1:
+                log.warning("send accepted on attempt %d: %s %s user=%s", attempt, code(brand, 24), fn, code(u.get("username"), 40))
         if status == 200 and fn in ticket_cache.WRITE_FNS and isinstance(body.get("args"), dict):
             app.extensions["cs"]["ticket_cache"].after_write(u, str(brand).lower(), fn, body["args"], out)
         if status == 200 and fn in dashboard.FN_KIND and isinstance(out, dict):
