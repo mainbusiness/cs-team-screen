@@ -62,6 +62,14 @@
       every_day: 'כל יום', every_week: 'כל שבוע', every_month: 'כל חודש', every_year: 'כל שנה', every_n: 'כל {n} {u}',
       unit_day: 'ימים', unit_week: 'שבועות', unit_month: 'חודשים', unit_year: 'שנים',
       cancel_sub: 'ביטול מנוי', cancelled_here: 'בוטל דרך המערכת',
+      afs_title: 'ההודעה ל{name} נשלחה. נשאר לטפל:', afs_open: 'פתח את הפנייה', afs_done: 'טיפלתי', afs_chip: 'נשאר לטפל', afs_cancelled: 'המנוי של {name} בוטל אוטומטית',
+      afs_sub_no_email: 'המנוי לא בוטל: אין בפנייה כתובת מייל של הלקוח, אז אי אפשר למצוא את המנוי. לבטל ידנית.',
+      afs_sub_unreachable: 'המנוי לא בוטל: לא הצלחנו להתחבר למערכת המנויים. לבטל ידנית.',
+      afs_sub_several: 'המנוי לא בוטל: ללקוח יש כמה מנויים פעילים. לבחור איזה לבטל בפאנל המנויים.',
+      afs_sub_refused: 'המנוי לא בוטל: מערכת המנויים דחתה את הביטול. לבטל ידנית.',
+      afs_order_cancel: 'לפי שופיפיי ההזמנה עדיין לא בוטלה. לבטל אותה בשופיפיי.',
+      afs_order_refund: 'לפי שופיפיי עדיין לא בוצע החזר. לבצע את ההחזר בשופיפיי.',
+      afs_order_unknown: 'ההודעה מדברת על ביטול הזמנה או החזר, ולא הצלחנו לבדוק את זה בשופיפיי. לבדוק ידנית.',
       dlg_title: 'ביטול מנוי', dlg_type: 'כדי לאשר, הקלידו את 4 הספרות האחרונות של מספר המנוי',
       dlg_reason: 'סיבה', dlg_reason_opt: '(אופציונלי — הלקוח ביקש ביטול)', dlg_reason_req: '(חובה — הלקוח לא ביקש ביטול בפנייה: 10 תווים, שתי מילים)',
       dlg_off: 'לפי המנוע, ביטולים כבויים כרגע — סביר שהבקשה תסורב.', dlg_frozen: 'ביטולים מוקפאים כרגע — סביר שהבקשה תסורב.',
@@ -193,6 +201,14 @@
       every_day: 'Every day', every_week: 'Every week', every_month: 'Every month', every_year: 'Every year', every_n: 'Every {n} {u}',
       unit_day: 'days', unit_week: 'weeks', unit_month: 'months', unit_year: 'years',
       cancel_sub: 'Cancel subscription', cancelled_here: 'Cancelled from this screen',
+      afs_title: 'Your message to {name} was sent. Still to do:', afs_open: 'Open the ticket', afs_done: 'Done', afs_chip: 'Still to do', afs_cancelled: "{name}'s subscription was cancelled automatically",
+      afs_sub_no_email: 'The subscription was NOT cancelled: the ticket has no customer email, so the subscription cannot be found. Cancel it manually.',
+      afs_sub_unreachable: 'The subscription was NOT cancelled: the subscriptions system could not be reached. Cancel it manually.',
+      afs_sub_several: 'The subscription was NOT cancelled: the customer has several active subscriptions. Choose which one to cancel in the subscriptions panel.',
+      afs_sub_refused: 'The subscription was NOT cancelled: the subscriptions system refused. Cancel it manually.',
+      afs_order_cancel: 'Shopify still shows the order as not cancelled. Cancel it in Shopify.',
+      afs_order_refund: 'Shopify shows no refund yet. Make the refund in Shopify.',
+      afs_order_unknown: 'The message mentions an order cancellation or a refund and it could not be checked in Shopify. Check manually.',
       dlg_title: 'Cancel subscription', dlg_type: 'To confirm, type the last 4 digits of the contract number',
       dlg_reason: 'Reason', dlg_reason_opt: '(optional — the customer asked to cancel)', dlg_reason_req: '(required — the customer did not ask: 10+ characters, two words)',
       dlg_off: 'The engine says cancellations are off — this will likely be refused.', dlg_frozen: 'Cancellations are frozen — this will likely be refused.',
@@ -839,7 +855,27 @@
         h('button', { class: 'btn small', type: 'button', text: t('list_refresh'), onclick: function (e) { e.target.disabled = true; forceList(S.brand); } })));
     }
     if (b && b.cancelFrozen) el.append(h('p', { class: 'banner danger', text: t('frozen') }));
+    AfterSend.list().forEach(function (n) {
+      el.append(h('div', { class: 'banner warn after-send', role: 'alert', 'data-test': 'after-send', 'data-id': n.id },
+        h('b', { text: t('afs_title', { name: n.name || '' }) + ' ' }),
+        h('span', { text: (n.codes || []).map(function (c) { return t('afs_' + c); }).join(' ') }), ' ',
+        h('a', { class: 'btn small', href: '#/b/' + encodeURIComponent(n.brand) + '/t/' + encodeURIComponent(n.id), text: t('afs_open') }), ' ',
+        h('button', { class: 'btn small', type: 'button', 'data-test': 'after-send-done', text: t('afs_done'), onclick: function () { AfterSend.drop(n.brand, n.id); renderBanners(); } })));
+    });
   }
+
+  /** Owner, 2026-10-09: an agent's message is always sent; what it promised and the system could not do stays on screen as a reminder until
+   *  the agent says it is handled. Kept on this device (it survives a reload); the ticket row carries the same reminder for everyone. */
+  const AfterSend = (function () {
+    const KEY = 'cs.after';
+    function read() { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+    function write(v) { try { localStorage.setItem(KEY, JSON.stringify(v.slice(-30))); } catch (e) { /* private mode: the row chip still shows it */ } }
+    return {
+      list: function () { return read(); },
+      add: function (n) { const v = read().filter(function (x) { return !(x.brand === n.brand && x.id === n.id); }); v.push(n); write(v); },
+      drop: function (brand, id) { write(read().filter(function (x) { return !(x.brand === brand && x.id === id); })); }
+    };
+  })();
 
   /** One colored strip everyone sees: test vs live, Kaching cancels, auto-cancel. Values read tolerantly. */
   function onOff(v) { return v === true || /^(on|true|1|yes)$/i.test(String(v)); }
@@ -1085,6 +1121,7 @@
     if (x.language && x.language !== 'he' && x.language !== 'iw') chips.push(h('span', { class: 'chip outline', text: String(x.language).toUpperCase() }));
     if (x.order_no) chips.push(h('span', { class: 'chip outline ltr', text: x.order_no }));
     if (x.cancelled) chips.push(h('span', { class: 'chip ok', text: t('cancelled_here') }));
+    if (!open && /^\u26A0\uFE0F? ?ההודעה נשלחה/.test(String(x.action || ''))) chips.unshift(h('span', { class: 'chip bad', 'data-test': 'after-send-chip', text: t('afs_chip') }));
     if (Number(x.siblings) > 0) chips.push(h('span', { class: 'chip sib', text: t('siblings_short', { n: Number(x.siblings) }) }));
     if (isAutoReplied(x)) chips.unshift(h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }));
     if (waFail(x)) chips.unshift(waFailChip(x));
@@ -2542,6 +2579,11 @@
         patchRow(it);
         if (it.fn === 'apiSend') { try { localStorage.removeItem('cs.draft.' + it.brand + '.' + it.id); localStorage.removeItem('cs.draft.en.' + it.brand + '.' + it.id); } catch (e) { /* ignore */ } }
         toast(tx(it.fn !== 'apiSend' ? 'ob_toast_closed' : r.queued ? 'ob_toast_queued' : 'ob_toast_ok', { name: it.name }).textContent);
+        if (it.fn === 'apiSend' && r.after && typeof r.after === 'object') {
+          const codes = Array.isArray(r.after.reminders) ? r.after.reminders.filter(function (c) { return typeof c === 'string' && /^[a-z_]{3,30}$/.test(c); }) : [];
+          if (codes.length) { AfterSend.add({ brand: it.brand, id: it.id, name: it.name || '', codes: codes, at: Date.now() }); renderBanners(); }
+          else if (r.after.cancelled) toast(t('afs_cancelled', { name: it.name || '' }));
+        }
       } else if (r && (r.error === 'network' || r.error === 'server_restarted' || r.error === 'bad_response')) {
         // the connection dropped (a reload, a restart): the server is most likely still finishing it — ask it soon
         it.state = 'checking'; it.msg = null;
