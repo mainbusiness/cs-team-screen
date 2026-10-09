@@ -144,7 +144,7 @@
       ar_label: '🤖 נענה אוטומטית', ar_label_shadow: '🤖 היה נשלח אוטומטית', ar_label_queued: '🤖 יישלח אוטומטית {when}', ar_failed: 'השליחה האוטומטית נכשלה',
       ar_sent_at: 'נשלח {when}', ar_question: 'שאלת הלקוח', ar_reply: 'התשובה שנשלחה', ar_reply_shadow: 'התשובה שהייתה נשלחת',
       ar_ok: '✓ נבדק — תקין', ar_problem: '⚠ בעיה', ar_note_ph: 'מה לא תקין? (חובה — הפנייה תיפתח מחדש)', ar_problem_go: 'סמן בעיה ופתח מחדש',
-      ar_reviewed_ok: '✓ נבדק ע״י {u}', ar_reviewed_problem: '⚠ סומן כבעיה ע״י {u}', ar_pending: 'ממתין לבדיקה', ar_open: 'פתיחת הפנייה',
+      ar_reviewed_ok: '✓ נבדק ע״י {u}', ar_reviewed_problem: '⚠ סומן כבעיה ע״י {u}', ar_pending: 'ממתין לבדיקה', ar_banner: '🤖 הבוט ענה לבד ל-{n} לקוחות. צריך לעבור על כל תשובה ולוודא שהבוט לא כתב שטויות.', ar_banner_one: '🤖 הבוט ענה לבד ללקוח אחד. צריך לעבור על התשובה ולוודא שהבוט לא כתב שטויות.', ar_banner_go: 'לבדיקת התשובות', ar_open: 'פתיחת הפנייה',
       ar_done_ok: 'סומן כתקין', ar_done_problem: 'סומן כבעיה — הפנייה נפתחה מחדש', ar_na: 'התשובות האוטומטיות עוד לא זמינות במנוע של המותג הזה.',
       ar_mode: 'מענה אוטומטי: {m}', mode_auto_reply: 'מענה אוטומטי: {v}', what_to_do: 'מה לעשות',
       set_AUTO_REPLY: 'מענה אוטומטי', set_AUTO_REPLY_help: 'כבוי / צל: מסמן מה היה נשלח / פעיל: עונה לבד על מיילים פשוטים ומסמן לבדיקה',
@@ -283,7 +283,7 @@
       ar_label: '🤖 Answered automatically', ar_label_shadow: '🤖 Would have been sent automatically', ar_label_queued: '🤖 Will be sent automatically {when}', ar_failed: 'The automatic send failed',
       ar_sent_at: 'sent {when}', ar_question: "Customer's question", ar_reply: 'The reply that was sent', ar_reply_shadow: 'The reply that would have been sent',
       ar_ok: '✓ Reviewed — OK', ar_problem: '⚠ Problem', ar_note_ph: 'What is wrong? (required — the ticket reopens)', ar_problem_go: 'Flag and reopen',
-      ar_reviewed_ok: '✓ Reviewed by {u}', ar_reviewed_problem: '⚠ Flagged by {u}', ar_pending: 'Waiting for review', ar_open: 'Open the ticket',
+      ar_reviewed_ok: '✓ Reviewed by {u}', ar_reviewed_problem: '⚠ Flagged by {u}', ar_pending: 'Waiting for review', ar_banner: '🤖 The bot answered {n} customers by itself. Read every reply and make sure the bot did not write nonsense.', ar_banner_one: '🤖 The bot answered one customer by itself. Read the reply and make sure the bot did not write nonsense.', ar_banner_go: 'Review the replies', ar_open: 'Open the ticket',
       ar_done_ok: 'Marked OK', ar_done_problem: 'Flagged — the ticket was reopened', ar_na: 'Automatic replies are not available in this brand engine yet.',
       ar_mode: 'Auto-reply: {m}', mode_auto_reply: 'Auto-reply: {v}', what_to_do: 'What to do',
       set_AUTO_REPLY: 'Auto-reply', set_AUTO_REPLY_help: 'Off / shadow: marks what would be sent / on: answers simple emails by itself and flags them for review',
@@ -855,6 +855,14 @@
         h('button', { class: 'btn small', type: 'button', text: t('list_refresh'), onclick: function (e) { e.target.disabled = true; forceList(S.brand); } })));
     }
     if (b && b.cancelFrozen) el.append(h('p', { class: 'banner danger', text: t('frozen') }));
+    // Owner, 2026-10-09: a mail the bot answered is "read" in Gmail now, so the inbox no longer reminds anyone to check it. The reminder lives
+    // here, on every screen of the brand, until each automatic reply was reviewed (the tab's own count is easy to miss).
+    const ar = S.ar[S.brand], arN = canWork() && ar && ar.items ? ar.items.filter(function (x) { return x.review === 'pending' && String(x.state) === 'sent'; }).length : 0;   // really sent, not a shadow "would send"
+    if (arN && !(S.tab === 'autoreply' && S.view !== 'ticket')) {
+      el.append(h('div', { class: 'banner warn ar-review', role: 'status', 'data-test': 'ar-review-banner', 'data-n': String(arN) },
+        h('span', { text: arN === 1 ? t('ar_banner_one') : t('ar_banner', { n: arN }) }), ' ',
+        h('a', { class: 'btn small', href: listHash('autoreply'), 'data-test': 'ar-review-go', text: t('ar_banner_go') })));
+    }
     AfterSend.list().forEach(function (n) {
       el.append(h('div', { class: 'banner warn after-send', role: 'alert', 'data-test': 'after-send', 'data-id': n.id },
         h('b', { text: t('afs_title', { name: n.name || '' }) + ' ' }),
