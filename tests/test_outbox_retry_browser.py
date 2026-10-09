@@ -150,3 +150,22 @@ def test_no_automatic_send_after_the_engine_forgot_the_rid(pg, state):
     page.wait_for_timeout(7000)
     assert seen == []                                                               # nothing went to the customer
     page.unroute("**/api/rozela/apiSend")
+
+
+def test_a_ticket_already_answered_from_gmail_is_closed_not_flagged(pg):
+    """Owner, 2026-10-09 (option A): no second reply, no "needs fixing": the agent is told, and the ticket leaves the queue."""
+    page, base = pg
+    page.route("**/api/rozela/apiSend", lambda route, req: route.fulfill(status=200, content_type="application/json", body=json.dumps(
+        {"ok": False, "error": "replied_elsewhere", "closed": True, "msg": "הלקוח כבר קיבל תשובה ישירות מ-Gmail", "rid": json.loads(req.post_data)["rid"]})))
+    open_from(page, base, "ready", "t18f2a01")
+    page.fill(".draft textarea", "היי, ההזמנה בדרך אליך.")
+    page.click("[data-test=send-btn]")
+    page.click("[data-test=send-btn]")
+    assert wait_state(page, "id", "t18f2a01", lambda st: st in ("ok", "refused")) == "ok"
+    assert page.locator("[data-test=outbox-indicator].warn").count() == 0                 # nothing to fix
+    item = page.evaluate("Object.values(JSON.parse(localStorage.getItem('cs.outbox')))[0]")
+    assert item["reply"] == {"elsewhere": True}
+    page.goto(base + "/cs#/b/rozela/t/t18f2a01")
+    page.wait_for_selector("[data-test=outbox-banner][data-state=ok]")
+    assert "כבר נענה מ-Gmail" in page.inner_text("[data-test=outbox-banner]")
+    page.unroute("**/api/rozela/apiSend")

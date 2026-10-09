@@ -103,7 +103,7 @@
       err_bad_engine: 'המנוע החזיר תשובה לא תקינה. נסו שוב בעוד רגע.',
       ob_flight_send: '⏳ נשלח ברקע…', ob_flight_close: '⏳ נסגר ברקע…', ob_ok_email: '✅ נשלח', ob_ok_wa: '✅ נשלח לוואטסאפ', ob_ok_queued: '📤 נכנס לתור',
       ob_ok_close: '✅ טופל', ob_refused: '⚠️ לא נשלח — צריך תיקון', ob_refused_close: '⚠️ לא נסגר — צריך תיקון', ob_unknown: '❓ לא אושר — לבדוק',
-      ob_checking: '⏳ בודק מה קרה לשליחה…', ob_retry: '⏳ מנסה לשלוח שוב…', ob_retry_close: '⏳ מנסה לסגור שוב…', ob_retry_n: 'ניסיון {n} מתוך {max}. המערכת מנסה שוב לבד, אין צורך לשלוח שוב.', ob_unsent: '⚠️ השליחה לא בוצעה — אפשר לשלוח שוב', ob_header: 'בתהליך שליחה ({n})', ob_none: 'אין שליחות בתהליך',
+      ob_checking: '⏳ בודק מה קרה לשליחה…', ob_elsewhere: 'ℹ️ כבר נענה מ-Gmail — לא נשלח שוב', ob_toast_elsewhere: '{name}: הלקוח כבר נענה מ-Gmail. לא נשלחה תשובה נוספת, והפנייה נסגרה.', ob_retry: '⏳ מנסה לשלוח שוב…', ob_retry_close: '⏳ מנסה לסגור שוב…', ob_retry_n: 'ניסיון {n} מתוך {max}. המערכת מנסה שוב לבד, אין צורך לשלוח שוב.', ob_unsent: '⚠️ השליחה לא בוצעה — אפשר לשלוח שוב', ob_header: 'בתהליך שליחה ({n})', ob_none: 'אין שליחות בתהליך',
       ob_toast_ok: '{name}: נשלח', ob_toast_queued: '{name}: נכנס לתור לוואטסאפ', ob_toast_refused: '{name}: לא נשלח — צריך תיקון', ob_toast_unknown: '{name}: לא אושר — לבדוק',
       ob_toast_closed: '{name}: טופל', ob_why: 'הסיבה:', ob_inflight_lock: 'השליחה הקודמת עדיין בדרך — אין לשלוח שוב.',
       st_wa_queued: '📤 בתור לוואטסאפ', st_unknown: 'סטטוס אחר', cat_unknown: 'אחר',
@@ -242,7 +242,7 @@
       err_bad_engine: 'The engine returned an invalid answer. Try again in a moment.',
       ob_flight_send: '⏳ Sending in the background…', ob_flight_close: '⏳ Closing in the background…', ob_ok_email: '✅ Sent', ob_ok_wa: '✅ Sent to WhatsApp', ob_ok_queued: '📤 Queued',
       ob_ok_close: '✅ Handled', ob_refused: '⚠️ Not sent — needs a fix', ob_refused_close: '⚠️ Not closed — needs a fix', ob_unknown: '❓ Not confirmed — check',
-      ob_checking: '⏳ Checking what happened to the send…', ob_retry: '⏳ Trying to send again…', ob_retry_close: '⏳ Trying to close again…', ob_retry_n: 'Try {n} of {max}. The system retries by itself; do not send again.', ob_unsent: '⚠️ The send did not happen — you can send again', ob_header: 'Sending ({n})', ob_none: 'Nothing in progress',
+      ob_checking: '⏳ Checking what happened to the send…', ob_elsewhere: 'ℹ️ Already answered from Gmail — not sent again', ob_toast_elsewhere: '{name}: already answered from Gmail. No second reply was sent, and the ticket was closed.', ob_retry: '⏳ Trying to send again…', ob_retry_close: '⏳ Trying to close again…', ob_retry_n: 'Try {n} of {max}. The system retries by itself; do not send again.', ob_unsent: '⚠️ The send did not happen — you can send again', ob_header: 'Sending ({n})', ob_none: 'Nothing in progress',
       ob_toast_ok: '{name}: sent', ob_toast_queued: '{name}: queued for WhatsApp', ob_toast_refused: '{name}: not sent — needs a fix', ob_toast_unknown: '{name}: not confirmed — check',
       ob_toast_closed: '{name}: handled', ob_why: 'Reason:', ob_inflight_lock: 'The previous send is still on its way — do not send again.',
       st_wa_queued: '📤 Queued for WhatsApp', st_unknown: 'Other status', cat_unknown: 'Other',
@@ -2601,6 +2601,7 @@
       if (it.state === 'checking') return t('ob_checking');
       if (it.state === 'retry') return close ? t('ob_retry_close') : t('ob_retry');
       if (it.state === 'delivery_issue') return t(it.delivery_state === 'unknown' ? 'wa_fail_unknown_note' : it.delivery_state === 'template_required' ? 'wa_fail_tpl' : 'wa_fail');
+      if (it.state === 'ok' && it.reply && it.reply.elsewhere) return t('ob_elsewhere');
       if (it.state === 'ok') return close ? t('ob_ok_close') : it.reply && it.reply.queued ? t('ob_ok_queued') : it.channel === 'whatsapp' ? t('ob_ok_wa') : t('ob_ok_email');
       if (it.state === 'refused') return close ? t('ob_refused_close') : t('ob_refused');
       if (it.state === 'unsent') return t('ob_unsent');
@@ -2630,6 +2631,12 @@
           if (codes.length) { AfterSend.add({ brand: it.brand, id: it.id, name: it.name || '', codes: codes, at: Date.now() }); renderBanners(); }
           else if (r.after.cancelled) toast(t('afs_cancelled', { name: it.name || '' }));
         }
+      } else if (r && r.error === 'replied_elsewhere' && r.closed === true && it.fn === 'apiSend') {
+        // Owner, 2026-10-09 (option A): the customer already got an answer straight from Gmail. Nothing was sent, the engine closed the ticket as
+        // answered: not a failure, nothing to fix. The agent's text stays in the draft store (it was not sent).
+        it.state = 'ok'; it.reply = { elsewhere: true }; it.msg = r.msg || null; delete it.delivery_state;
+        patchRow(it);
+        toast(tx('ob_toast_elsewhere', { name: it.name }).textContent);
       } else if (r && (r.error === 'network' || r.error === 'server_restarted' || r.error === 'bad_response')) {
         // the connection dropped (a reload, a restart): the server is most likely still finishing it — ask it soon
         it.state = 'checking'; it.msg = null;
