@@ -97,7 +97,11 @@ class JobManager:
                     os.remove(p)
             except OSError:
                 pass
-        for n in os.listdir(self.dir):                         # stray temp files from a crash mid-write
+        try:
+            names = os.listdir(self.dir)
+        except OSError:
+            return                                              # a sweep is housekeeping: never fail a start over it
+        for n in names:                                         # stray temp files from a crash mid-write
             if n.endswith(".tmp"):
                 try:
                     if os.path.getmtime(os.path.join(self.dir, n)) < self.now() - 3600:
@@ -136,26 +140,32 @@ class JobManager:
         return {k: v for k, v in rec.items() if not k.startswith("_")}
 
     def _run(self, rec, nums, actor):
+        """The live record stays 'running' until the final file is on disk and the slot is released, so a client
+        that sees 'done' can always start the next run, and a crash between the two leaves 'running' for the orphan sweep."""
         def progress(done, total):
             rec["progress"] = {"done": int(done), "total": int(total)}
+        final = self._public_file(rec)
         try:
             res = self.runner(rec["brand"], nums, progress)
-            rec["result"] = {k: v for k, v in res.items() if not k.startswith("_")}
-            rec["state"] = "done"
+            final["result"] = {k: v for k, v in res.items() if not k.startswith("_")}
+            final["state"] = "done"
         except BaseException as e:                              # noqa: BLE001 — a job thread must always close its record
             code = _classify_error(e)
             log.warning("zipfix job %s failed: %s (%s)", rec["job"][:6], type(e).__name__, code)
-            rec.update(state="error", error=code, msg=ERR_HE[code])
-        rec["finished"] = self.now()
+            final.update(state="error", error=code, msg=ERR_HE[code])
+        final["progress"] = dict(rec["progress"])
+        final["finished"] = self.now()
         try:
-            self._write(self._public_file(rec))
+            self._write(final)
         except OSError:
             log.error("zipfix: could not write the result of job %s", rec["job"][:6])
+            final.update(state="error", error="internal", msg=ERR_HE["internal"])
+            final.pop("result", None)
         finally:
             with self._lock:
                 self._live.pop(rec["job"], None)
         try:
-            self.on_event("end", dict(rec, actor=actor))
+            self.on_event("end", dict(final, actor=actor))
         except Exception:                                       # noqa: BLE001
             log.exception("zipfix: audit callback failed")
 

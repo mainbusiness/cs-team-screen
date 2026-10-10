@@ -755,8 +755,9 @@ def register(app, d):
             wait = tr_limit.hit(u["username"])
             if wait:
                 return fail("rate_limited", 429, lang, wait=max(1, (wait + 59) // 60))
+        uniq = list(dict.fromkeys(items))                           # a repeated message goes to the model once (Codex 2026-10-10)
         try:
-            res = translate_items(items, "he", "in-he",
+            got = translate_items(uniq, "he", "in-he",
                                   "The items are a customer's messages to an Israeli support team, oldest first; use them as context. "
                                   "Translate into clear, natural everyday Hebrew so a Hebrew-speaking agent understands exactly what the "
                                   "customer wrote and how they feel. Keep the customer's meaning and tone; do not answer them, do not "
@@ -764,12 +765,15 @@ def register(app, d):
                                   validator=hebrew_translation_ok)
         except llm.LLMError as e:
             return fail(e.code, e.http, lang)
+        by_key = {k: r for (k, _), r in zip(uniq, got)}
+        res = [by_key.get(k) for k, _ in items]
         out["incomplete"] = sum(1 for r in res if r is None)        # never silent: an untranslated item stays in the original
         for (kind, ref), text, src in zip(idx, res, sources):
             if text is None:
                 continue
             if kind == "c":
-                out["conversation"].append({"i": ref, "text": text, "source": src})
+                # "o": the start of the original, so the screen pastes a translation only onto the very message it belongs to
+                out["conversation"].append({"i": ref, "text": text, "source": src, "o": str(x["conversation"][ref].get("text") or "")[:120]})
             else:
                 out["subject"] = text
         return jsonify(out)

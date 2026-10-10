@@ -13,7 +13,7 @@ STORES = {'velora': 'x0mb1s-jv', 'rozela': 'achq3j-nj', 'celesta': 'k8eaxk-mb',
 API = '2026-10'
 UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/128 Safari/537.36'
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA = os.path.join(HERE, 'data')
+DATA = os.path.join(HERE, 'lookups')   # NOT named data/: deploy/render_deploy.py push ignores every dir called data
 LOCALITIES = os.path.join(DATA, 'localities.json')     # data.gov.il resource 5c78e9fa… (שם_ישוב / לועזי)
 LOCS48 = os.path.join(DATA, 'locs48.json')              # 48shops: כל היישובים + מיקוד יישוב + אוכלוסייה
 SMALL_TOWN_POP = 15000                                   # מתחת = יישוב קטן → כתובת מרכזית; מעל = לפנות ללקוח
@@ -100,7 +100,9 @@ class BoundedCache:
             if not self._dirty and not force: return
             if not force and time.time() - self._last_save < 60: return        # a full write — once a minute, not per order
             items = list(self._d.items()); self._dirty = False; self._last_save = time.time()
-        if not self._save_lock.acquire(blocking=False): return                 # another thread is already writing
+        if not self._save_lock.acquire(blocking=False):                        # another thread is already writing
+            with self._lock: self._dirty = True
+            return
         try:
             d = os.path.dirname(self.path) or '.'
             os.makedirs(d, exist_ok=True)
@@ -130,7 +132,9 @@ def cache():
     if _c is None:
         with _c_lock:
             if _c is None:
-                mb = float(os.environ.get('ZIPFIX_CACHE_MAX_MB', '64'))
+                try: mb = float(os.environ.get('ZIPFIX_CACHE_MAX_MB', '64'))
+                except ValueError: mb = 64.0
+                if not (8 <= mb <= 512): mb = 64.0
                 _c = BoundedCache(os.path.join(cache_dir(), 'cache.zfc'), int(mb * 1024 * 1024))
     return _c
 
@@ -142,16 +146,31 @@ def reset_cache():
 def save_cache(force=False):
     cache().save(force)
 
+# Outbound allowlist (defence in depth: every URL is built from a fixed host + quoted path, but a public server fails closed).
+ALLOWED_HOSTS = ('liors.co.il', 'zips.co.il', 'data.gov.il', 'postalcode.48shops.com', 'html.duckduckgo.com')
+def host_allowed(url):
+    p = urllib.parse.urlparse(url)
+    h = (p.hostname or '').lower()
+    return p.scheme == 'https' and (h in ALLOWED_HOSTS or any(h == d or h.endswith('.' + d) for d in ALLOWED_HOSTS)
+                                    or re.fullmatch(r'[a-z0-9-]+\.myshopify\.com', h) is not None) and p.port in (None, 443)
+
+class _SafeRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not host_allowed(newurl): return None                # a redirect off the allowlist is an error, not a hop
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+_opener = urllib.request.build_opener(_SafeRedirect)
 _last = {}
 _last_lock = threading.Lock()
 def http(url, data=None, headers=None, timeout=30):
+    if not host_allowed(url): return 0, ''
     host = urllib.parse.urlparse(url).netloc
     with _last_lock: wait = 0.6 - (time.time() - _last.get(host, 0))
     if wait > 0: time.sleep(wait)
     req = urllib.request.Request(url, data=data, headers={'User-Agent': UA, **(headers or {})})
     for attempt in (1, 2):
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            with _opener.open(req, timeout=timeout) as r:
                 return r.status, r.read().decode('utf-8', 'ignore')
         except urllib.error.HTTPError as e:
             return e.code, ''

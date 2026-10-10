@@ -53,7 +53,9 @@ def main():
     env = dict(os.environ, MOCK_ENGINE="1", COOKIE_SECURE="0", USERS_PATH=users, TRUSTED_PROXY_HOPS="0",
                ENGINES_JSON="", PYTHONDONTWRITEBYTECODE="1")
     code = ("import logging;logging.basicConfig(level=logging.WARNING);from app import create_app;"
-            "create_app().run(host='127.0.0.1', port=%d, threaded=True)" % port)
+            "import mock_engine;"            # מילוי מיקודים: the real zipfix routes + jobs, only the Shopify/zip runner is faked
+            "create_app({'ZIPFIX_RUNNER': mock_engine.zipfix_runner, 'ZIPFIX_CONFIGURED': lambda b: True})"
+            ".run(host='127.0.0.1', port=%d, threaded=True)" % port)
     srv = subprocess.Popen([sys.executable, "-c", code], cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     base = "http://127.0.0.1:%d" % port
     for _ in range(100):
@@ -118,6 +120,28 @@ def main():
             shots.append(os.path.join(OUT, "01_login_390.png"))
             ctx.close()
 
+            # מילוי מיקודים (2026-10-10), first so its shots exist even if a later step fails: running + result, Hebrew and English, phone and desktop
+            zip_orders = "#1646, 1647\n1649 1653 1657 #1660 1661 1663 404"
+            for user, path, tag in (("agent-one", "/cs", "he"), ("eve", "/cs/en", "en")):
+                for width, height in ((390, 844), (1280, 860)):
+                    ctx, page, errs = session(user, width, height)
+                    page.goto(base + path + "#/zip/rozela")
+                    page.wait_for_selector("[data-test=zip-go]")
+                    page.fill("[data-test=zip-orders]", zip_orders)
+                    page.click("[data-test=zip-go]")
+                    page.wait_for_selector("[data-test=zip-running]")
+                    page.wait_for_timeout(1300)
+                    if tag == "he":
+                        shot(page, errs, "30_zip_running", width)
+                    page.wait_for_selector("[data-test=zip-text]", timeout=30000)
+                    txt = page.input_value("[data-test=zip-text]")
+                    if not txt.startswith("1646 - ") or page.evaluate("getComputedStyle(document.querySelector('[data-test=zip-text]')).direction") != "ltr":
+                        problems.append("zip: supplier text wrong or not LTR: %r" % txt[:40])
+                    if page.locator("[data-test=zip-review-item]").count() < 1 or page.locator("[data-test=zip-ask-item]").count() < 1:
+                        problems.append("zip: review / ask lists empty")
+                    shot(page, errs, "31_zip_result" if tag == "he" else "32_zip_result_en", width)
+                    ctx.close()
+
             for width, height in ((390, 844), (1280, 860)):
                 ctx, page, errs = session("agent-one", width, height)
                 page.goto(base + "/cs#/b/rozela/ready")
@@ -133,7 +157,7 @@ def main():
             # cancel dialog: wrong digits -> the gate's refusal, translated
             ctx, page, errs = session("agent-one", 390, 844)
             page.goto(base + "/cs#/b/rozela/t/t18f2a03")
-            page.wait_for_selector("text=ביטול מנוי")
+            page.wait_for_selector("button.danger-outline:has-text('ביטול מנוי')")   # the button, not the category chip of the same name
             page.click(".btn.danger-outline")
             page.fill("#cancel-dlg input.code", "9999")
             page.click("#cancel-dlg .btn.danger")
@@ -441,6 +465,7 @@ def main():
                 problems.append("velora shows an error instead of 'not connected'")
             shot(page, errs, "15_brand_not_connected", 390)
             ctx.close()
+
             browser.close()
     finally:
         srv.terminate()

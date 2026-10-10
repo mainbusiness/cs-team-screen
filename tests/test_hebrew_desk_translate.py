@@ -49,6 +49,7 @@ def test_hebrew_desk_translates_only_foreign_customer_messages(app5, pw_hash, fa
         assert r["ok"] and r["target"] == "he" and r["incomplete"] == 0
         assert [(x["i"], x["source"]) for x in r["conversation"]] == [(0, "ru"), (3, "ar")]     # Hebrew and our own messages are skipped
         assert r["conversation"][0]["text"] == "שלום, איפה ההזמנה שלי? הזמנתי לפני שבועיים."
+        assert r["conversation"][0]["o"] == RU[:120]
         assert r["subject"] == "איפה ההזמנה שלי #1001?"
         p = fake_llm.payloads[0]
         sys_text = p["system"][0]["text"]
@@ -94,3 +95,15 @@ def test_translate_out_hebrew_desk_russian_customer_gets_hebrew(app5, pw_hash, f
     c, tok = logged_in(app5, pw_hash, "noa", ["agent"], ["rozela"])
     r = c.post("/api/rozela/translate-out", json={"ticketId": "t1", "text": "היי, ההזמנה בדרך אלייך."}, headers={"X-CSRF-Token": tok}).get_json()
     assert r["ok"] and r["target"] == "he" and r["text"] == "היי, ההזמנה בדרך אלייך." and fake_llm.payloads == []
+
+
+def test_a_repeated_message_is_sent_to_the_model_once(app5, pw_hash, fake_llm):
+    old = with_conv([{"who": "customer", "at": "2026-10-04T10:00:00Z", "text": RU}, {"who": "customer", "at": "2026-10-04T10:05:00Z", "text": RU}])
+    try:
+        fake_llm.script = [he_translations]
+        c, tok = logged_in(app5, pw_hash, "noa", ["agent"], ["rozela"])
+        r = c.post("/api/rozela/translate-he", json={"ticketId": "t1"}, headers={"X-CSRF-Token": tok}).get_json()
+        assert [x["i"] for x in r["conversation"]] == [0, 1] and r["incomplete"] == 0
+        assert len(json.loads(fake_llm.payloads[0]["messages"][0]["content"])["items"]) == 1
+    finally:
+        restore(old)

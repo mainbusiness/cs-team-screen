@@ -31,5 +31,13 @@ services:
         value: /var/data/users.json
       - key: TICKET_CACHE_DIR          # Render-side ticket cache on the private disk (0700)
         value: /var/data/ticket-cache
+      - key: ZIPBOT_SECRET             # zip fill: shared secret of the WhatsApp bot route /bot/zipfix (40 random chars)
+        sync: false
+      - key: SHOPIFY_CLIENT_ID_VELORA  # zip fill: read-only app credentials, one pair per brand (..._ROZELA, _CELESTA, _APEXMEN, _SELERA)
+        sync: false
+      - key: SHOPIFY_CLIENT_SECRET_VELORA
+        sync: false
+      - key: ZIPFIX_CACHE_DIR          # zip fill: bounded page cache (64 MB) and job results (24 h) live on the disk
+        value: /var/data/zipfix-cache
       - key: PYTHON_VERSION
         value: 3.12.7

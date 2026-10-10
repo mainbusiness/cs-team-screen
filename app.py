@@ -601,7 +601,7 @@ def create_app(overrides=None):
         "knowledge_cache": o.get("KNOWLEDGE_CACHE"),
     })
 
-    zipfix_routes.register(app, {"store": store, "api_user": api_user, "ui_lang": ui_lang, "users_path": users_path, "overrides": o})
+    zipfix_routes.register(app, {"store": store, "api_user": api_user, "ui_lang": ui_lang, "users_path": users_path, "overrides": o, "mock": mock})
 
     @app.errorhandler(404)
     def nf(_e):

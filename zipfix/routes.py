@@ -104,7 +104,12 @@ def register(app, ctx):
     users_path = ctx["users_path"]
     jobs_dir = o.get("ZIPFIX_JOBS_DIR", os.environ.get("ZIPFIX_JOBS_DIR", os.path.join(os.path.dirname(users_path), "zipfix-jobs")))
     secret = o.get("ZIPBOT_SECRET", os.environ.get("ZIPBOT_SECRET", ""))
-    runner = o.get("ZIPFIX_RUNNER") or core.run_brand
+    mock = bool(ctx.get("mock"))
+    if mock and not o.get("ZIPFIX_RUNNER"):                    # local preview: no Shopify, no zip sources
+        import mock_engine
+        runner = mock_engine.zipfix_runner
+    else:
+        runner = o.get("ZIPFIX_RUNNER") or core.run_brand
     if o.get("ZIPFIX_CACHE_DIR"):
         os.environ["ZIPFIX_CACHE_DIR"] = o["ZIPFIX_CACHE_DIR"]
         core.reset_cache()
@@ -141,7 +146,7 @@ def register(app, ctx):
         except core.ZipfixConfigError:
             return False
 
-    configured = o.get("ZIPFIX_CONFIGURED") or configured_real
+    configured = o.get("ZIPFIX_CONFIGURED") or ((lambda b: True) if mock and not o.get("ZIPFIX_RUNNER") else configured_real)
 
     def start(brand, body, actor, source):
         nums, e = parse_orders(body)
@@ -247,6 +252,7 @@ def register(app, ctx):
         if e:
             return e
         rec = mgr.get(job)
-        if not rec:
+        want = request.args.get("brand")                       # optional: a caller that knows its brand can pin it
+        if not rec or (want and want.lower() != rec.get("brand")):
             return err("job_not_found", 404)
         return view(rec)

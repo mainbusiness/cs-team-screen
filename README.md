@@ -27,6 +27,7 @@ Render disk and in each engine's `audit` sheet.
 | `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
+| `zipfix/` | zip fill (מילוי מיקודים): `/api/<brand>/zipfix` + bot route `/bot/zipfix`, background jobs, ported resolver — see `zipfix/README.md` |
 | `tests/` | pytest (310+ tests, incl. real-browser tests with Playwright and a gunicorn test) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
 
@@ -583,3 +584,20 @@ refusal, the proxy logged nothing, so the reasons of the older refusals cannot b
   attempt= detail=`), and a send accepted by a retry says so (`send accepted on attempt N`). Codes only, never text.
 
 Tests: `tests/test_outbox_retry_browser.py`.
+
+## מילוי מיקודים — the screen (Owner, 2026-10-10)
+
+Backend: `zipfix/` (routes, jobs, core). The screen is `Zip` in `static/app.js`, `#zip-pane`, route `#/zip/<brand>`.
+- **Entry:** "📮 מילוי מיקודים" in the top bar and in the ☰ menu, for agent/admin only. A pure user-manager never sees it; the
+  route sends them away and the server answers 403. The brand picker lists only the user's own brands.
+- **One button:** "הבא מיקודים". The box takes anything pasted (commas, spaces, new lines, `#`). The screen shows what it
+  understood ("זוהו N הזמנות"). Empty = every open order. **Text with no number is refused on the screen, so it never turns into "all orders".**
+- **Progress:** polls `GET /api/<brand>/zipfix/<job>` every 2 s and shows done/total, a bar and a seconds counter. A dropped poll
+  (deploy) counts quietly and says "reconnecting" after two misses; it never stops the run. The job id (and the result) are in
+  `sessionStorage['cs.zipfix.<brand>']`, so a refresh resumes the same job. A job the server no longer has says so.
+- **Result:** counts; the supplier text in a read-only LTR box with one "העתק לספקית" button (exact text, Clipboard API then
+  execCommand, "הועתק ✓" only when it copied); "לבדיקה לפני שליחה" with order, zip, reason, address and a link to
+  `https://doar.israelpost.co.il/locatezip` (new tab); "לפנות ללקוח"; `not_found` orders as one line.
+- **Preview/tests:** `mock_engine.zipfix_runner` replaces only the Shopify/zip runner
+  (`create_app({"ZIPFIX_RUNNER": ..., "ZIPFIX_CONFIGURED": lambda b: True})`). Order 666 fails the run, 404 is "not in the store",
+  `MOCK_ZIPFIX_STEP_MS` sets the speed. Tests: `tests/test_zipfix_browser.py`. Shots: `screens/30_zip_*`, `31_zip_*`, `32_zip_*`.

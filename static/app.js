@@ -807,7 +807,11 @@
     top.append(h('span', { class: 'title', text: t('app') }));
     const brands = S.me.brands;
     if (S.me.can_manage_users && S.view !== 'dash') top.append(h('a', { class: 'dash-link', href: '#/dash', 'data-test': 'dash-link', text: '📊 ' + (LANG === 'en' ? 'Managers' : 'לוח מנהלים') }));
-    if (canWork() && brands.length && S.view !== 'zip') top.append(h('a', { class: 'dash-link', href: '#/zip/' + encodeURIComponent(S.brand || brands[0].id), 'data-test': 'zip-link', text: '📮 ' + (LANG === 'en' ? 'Zip-code fill' : 'מילוי מיקודים') }));
+    if (canWork() && brands.length && S.view !== 'zip') {          // phone (<=640px): hidden by CSS, the ☰ menu carries it — the bar has no room
+      const zl = LANG === 'en' ? 'Zip-code fill' : 'מילוי מיקודים';
+      top.append(h('a', { class: 'dash-link zip-link', href: '#/zip/' + encodeURIComponent(S.brand || brands[0].id), 'data-test': 'zip-link', title: zl, 'aria-label': zl },
+        '📮', h('span', { class: 'zip-link-txt', text: ' ' + zl })));
+    }
     if (brands.length > 1 && S.view !== 'users' && S.view !== 'dash' && S.view !== 'zip') {
       const sel = h('select', { class: 'brand', 'aria-label': 'brand' });
       brands.forEach(function (b) {
@@ -2076,6 +2080,7 @@
         if (!c || typeof c.text !== 'string') return;
         const el = pane.querySelector('.msg[data-i="' + Number(c.i) + '"]');
         if (!el || el.dataset.tr) return;
+        if (typeof c.o === 'string' && (ORIG.get(el) || '').slice(0, 120) !== c.o) return;   // the conversation changed meanwhile: never on the wrong message
         el.dataset.tr = '1';
         el.querySelector('.mbody').setAttribute('lang', 'he');
         bilingual(el.querySelector('.mbody'), ORIG.get(el) || '', c.text, el.querySelector('.meta'));
@@ -3638,7 +3643,7 @@
       no_zips: 'לא נמצאו מיקודים לשליחה בריצה הזאת.', review: 'לבדיקה לפני שליחה', review_none: 'אין מה לבדוק — כל המיקודים נמצאו בוודאות.',
       review_note: 'המיקודים האלה כבר בטקסט לספקית. כדאי לוודא אותם באתר דואר ישראל לפני ששולחים.',
       ask: 'לפנות ללקוח', ask_none: 'אין הזמנות שצריך לפנות בהן ללקוח.', ask_note: 'לא נמצא מיקוד — ההזמנות האלה לא בטקסט לספקית. צריך לבקש מהלקוח כתובת מלאה.',
-      order: 'הזמנה', zip: 'מיקוד', verify: 'בדיקה בדואר ישראל ↗', copy_addr: 'העתק כתובת', new_run: 'ריצה חדשה'
+      not_found: 'לא נמצאו בחנות: {list}', order: 'הזמנה', zip: 'מיקוד', verify: 'בדיקה בדואר ישראל ↗', copy_addr: 'העתק כתובת', new_run: 'ריצה חדשה'
     };
     const EN = {
       title: 'Zip-code fill', intro: 'One click: the system finds the zip code of every order and prepares the text for the supplier.',
@@ -3652,7 +3657,7 @@
       no_zips: 'No zip codes to send in this run.', review: 'Check before sending', review_none: 'Nothing to check — every zip code was found with certainty.',
       review_note: 'These zip codes are already in the supplier text. Verify them on the Israel Post site before sending.',
       ask: 'Ask the customer', ask_none: 'No orders need the customer.', ask_note: 'No zip code found — these orders are NOT in the supplier text. Ask the customer for a full address.',
-      order: 'Order', zip: 'Zip', verify: 'Check on Israel Post ↗', copy_addr: 'Copy address', new_run: 'New run'
+      not_found: 'Not found in the store: {list}', order: 'Order', zip: 'Zip', verify: 'Check on Israel Post ↗', copy_addr: 'Copy address', new_run: 'New run'
     };
     const L = LANG === 'en' ? EN : HE;
     function z(k, v) {
@@ -3771,7 +3776,14 @@
       frag.append(h('div', { class: 'zip-counts', 'data-test': 'zip-counts' },
         count('orders', c.orders), count('zips', c.zips), count('review', c.review !== undefined ? c.review : review.length, 'warn'),
         count('ask', c.ask !== undefined ? c.ask : ask.length, 'bad')));
-      if (x.ran_at || x.brand) frag.append(h('div', { class: 'zip-meta', 'data-test': 'zip-meta', text: z('ran_at', { b: brandName(x.brand || st.brand), when: x.ran_at ? fmtDate(x.ran_at, true) : '—' }) }));
+      if (x.ran_at || x.brand) {                          // each value isolated: a date inside a Hebrew line must not flip ("14:11 ,10.10.26")
+        const meta = h('div', { class: 'zip-meta', 'data-test': 'zip-meta' }), re = /\{(b|when)\}/g, tmpl = z('ran_at');
+        const vals = { b: brandName(x.brand || st.brand), when: x.ran_at ? fmtDate(x.ran_at, true) : '—' };
+        let last = 0, m;
+        while ((m = re.exec(tmpl)) !== null) { meta.append(tmpl.slice(last, m.index), h('bdi', { dir: 'ltr', text: vals[m[1]] })); last = re.lastIndex; }
+        meta.append(tmpl.slice(last));
+        frag.append(meta);
+      }
 
       const sup = h('div', { class: 'card', 'data-test': 'zip-supplier' }, h('h3', { text: z('supplier') }));
       if (text.trim()) {
@@ -3789,6 +3801,11 @@
         });
         sup.append(box, cb);
       } else sup.append(h('p', { class: 'zip-none', 'data-test': 'zip-no-zips', text: z('no_zips') }));
+      const nf = Array.isArray(x.not_found) ? x.not_found.map(String) : [];
+      if (nf.length) {
+        const parts = z('not_found').split('{list}');
+        sup.append(h('p', { class: 'zip-meta', 'data-test': 'zip-not-found' }, parts[0], h('bdi', { text: nf.join(', ') }), parts[1] || ''));
+      }
       frag.append(sup);
 
       const rv = h('div', { class: 'card', 'data-test': 'zip-review' }, h('h3', null, '⚠️ ' + z('review'), h('span', { class: 'chip', text: String(review.length) })));
@@ -3817,7 +3834,7 @@
     function item(it, kind) {
       const s = function (v) { return v === null || v === undefined ? '' : String(v); };
       const addr = [s(it.address), s(it.city)].filter(Boolean).join(', ');
-      const top = h('div', { class: 'top' }, h('span', null, z('order') + ' ', h('bdi', { class: 'ltr', 'data-test': 'zip-order', text: s(it.order) })));
+      const top = h('div', { class: 'zi-head' }, h('span', null, z('order') + ' ', h('bdi', { class: 'ltr', 'data-test': 'zip-order', text: s(it.order) })));
       if (kind === 'review') top.append(h('span', null, z('zip') + ' ', h('bdi', { class: 'ltr', 'data-test': 'zip-zip', text: s(it.zip) })));
       const row = h('div', { class: 'zip-item ' + kind, 'data-test': 'zip-' + kind + '-item', 'data-order': s(it.order) }, top);
       if (kind === 'review' && s(it.reason)) row.append(h('div', { class: 'reason', 'data-test': 'zip-reason', text: s(it.reason) }));
@@ -3874,7 +3891,7 @@
       } else if (!r || !r.ok) {
         writeRun(brand, null);
         st.run = null;
-        st.err = { retry: true, title: z('failed') + ':', msg: (r && r.error === 'not_found') ? z('lost') : ((r && r.msg) || t('err_bad_engine')), code: r && r.error };
+        st.err = { retry: true, title: z('failed') + ':', msg: (r && (r.error === 'job_not_found' || r.error === 'not_found')) ? z('lost') : ((r && r.msg) || t('err_bad_engine')), code: r && r.error };
       } else if (r.state === 'done' && r.result && typeof r.result === 'object') {
         st.fails = 0;
         run.progress = r.progress || run.progress;

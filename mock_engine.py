@@ -907,7 +907,7 @@ def zipfix_runner(brand, nums=None, progress=None):
         city, addr = _ZIP_CITIES[n % len(_ZIP_CITIES)]
         zipc = "%07d" % (1000000 + (n * 7919) % 8999999)
         if n % 10 == 9:
-            ask.append({"order": o, "city": city, "address": addr.split(" ")[0]})       # street only: no house number
+            ask.append({"order": o, "city": city, "address": addr.rsplit(" ", 1)[0]})   # street only: no house number
         else:
             lines.append("%s - %s" % (o, zipc))
             if n % 10 in (3, 7):
