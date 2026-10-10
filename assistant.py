@@ -5,7 +5,9 @@ Routes (same session, CSRF, brand and role checks as the engine proxy — they g
 engine_proxy.call, so a user can never reach a brand they do not hold):
   POST /api/<brand>/assistant      {messages:[{role,content}], ticketId?} -> {ok, reply, tools:[{name, ok}]}
   POST /api/<brand>/translate      {ticketId}                -> the ticket's conversation, summary and draft in English
-  POST /api/<brand>/translate-out  {ticketId, text}          -> the agent's English reply in the customer's language
+  POST /api/<brand>/translate-out  {ticketId, text}          -> the agent's English reply in Hebrew (we reply only in Hebrew)
+  POST /api/<brand>/translate-he   {ticketId}                -> Hebrew desk: the customer's non-Hebrew messages (Russian, Arabic,
+                                                                English...) translated into Hebrew for the agent (Owner, 2026-10-10)
 
 Safety model:
  - The model only sees ONE brand: its knowledge (apiKnowledge, cached 10 min per brand) and two read-only
@@ -169,6 +171,29 @@ def english_translation_ok(text):
         return False
     plain = re.sub(r"https?://[^\s<>]+|www\.[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "", text)
     return not HEBREW_RE.search(plain)
+
+
+def script_lang(text):
+    """The script a text is written in: he | ru | ar | en | '' (nothing to read). Links, emails and tokens with a digit
+    (order / tracking numbers) do not count. Mirror of engine/Safety.gs notHebrewReply_ / detectLang_."""
+    t = re.sub(r"https?://\S+|www\.\S+|\S+@\S+|\S*\d\S*", " ", str(text or ""))
+    counts = {"he": len(re.findall(r"[\u0590-\u05FF]", t)), "ru": len(re.findall(r"[\u0400-\u04FF]", t)),
+              "ar": len(re.findall(r"[\u0600-\u06FF]", t)), "en": len(re.findall(r"[A-Za-z]", t))}
+    if not any(counts.values()):
+        return ""
+    if counts["he"] and counts["he"] >= counts["ru"] and counts["he"] >= counts["ar"] and counts["en"] <= 2 * counts["he"]:
+        return "he"
+    return max(("ru", "ar", "en"), key=lambda k: counts[k])
+
+
+def needs_hebrew(text):
+    """True when an agent on the Hebrew desk cannot read this as is: it is written in another language."""
+    return script_lang(text) not in ("he", "")
+
+
+def hebrew_translation_ok(text):
+    """A translation into Hebrew must read as Hebrew (names, ids and links may stay Latin)."""
+    return isinstance(text, str) and bool(text.strip()) and script_lang(text) == "he"
 
 
 def norm_lang(code):
@@ -693,6 +718,62 @@ def register(app, d):
                 out["draft"] = text
         return jsonify(out)
 
+    @app.post("/api/<brand>/translate-he")
+    def translate_he(brand):
+        """Hebrew desk (Owner, 2026-10-10): every customer message that is not in Hebrew (Russian, Arabic, English...) is
+        translated into Hebrew so the agent can answer at once. The original is never discarded (the screen toggles).
+        Only messages the SERVER holds are translated (the browser sends a ticket id), so it cannot translate arbitrary text."""
+        brand = str(brand).lower()
+        u, err = gate(brand)
+        if err:
+            return err
+        lang = d["ui_lang"](u)
+        tid = (request.get_json(silent=True) or {}).get("ticketId")
+        if not isinstance(tid, str) or not ID_RE.match(tid):
+            return fail("bad_request", 400, lang)
+        t, x = ticket_bundle(u, brand, tid)
+        if t is None:
+            return fail("not_found", 404, lang)
+        idx, items, sources = [], [], []
+        for i, m in enumerate(x.get("conversation") or []):
+            if not isinstance(m, dict) or m.get("who") in ("us", "automatic"):
+                continue
+            text = str(m.get("text") or "")
+            if text.strip() and needs_hebrew(text):
+                idx.append(("c", i))
+                items.append((tkey("he-in-v1", TRANSLATE_MODEL, "he", text), text))
+                sources.append(script_lang(text))
+        subject = str(t.get("subject") or "")
+        if subject.strip() and needs_hebrew(subject):
+            idx.append(("f", "subject"))
+            items.append((tkey("he-in-v1", TRANSLATE_MODEL, "he", subject), subject))
+            sources.append(script_lang(subject))
+        out = {"ok": True, "target": "he", "source": norm_lang(t.get("language")), "conversation": [], "subject": None, "incomplete": 0}
+        if not items:
+            return jsonify(out)
+        if any(tcache.get(k) is None for k, _ in items):          # cached translations cost nothing: only a model call counts
+            wait = tr_limit.hit(u["username"])
+            if wait:
+                return fail("rate_limited", 429, lang, wait=max(1, (wait + 59) // 60))
+        try:
+            res = translate_items(items, "he", "in-he",
+                                  "The items are a customer's messages to an Israeli support team, oldest first; use them as context. "
+                                  "Translate into clear, natural everyday Hebrew so a Hebrew-speaking agent understands exactly what the "
+                                  "customer wrote and how they feel. Keep the customer's meaning and tone; do not answer them, do not "
+                                  "summarise. Keep names as written.",
+                                  validator=hebrew_translation_ok)
+        except llm.LLMError as e:
+            return fail(e.code, e.http, lang)
+        out["incomplete"] = sum(1 for r in res if r is None)        # never silent: an untranslated item stays in the original
+        for (kind, ref), text, src in zip(idx, res, sources):
+            if text is None:
+                continue
+            if kind == "c":
+                out["conversation"].append({"i": ref, "text": text, "source": src})
+            else:
+                out["subject"] = text
+        return jsonify(out)
+
     def en_fields(texts):
         """{key: hebrew text} -> {key: english}; one model call for the cache misses."""
         keys = [k for k, v in texts.items() if isinstance(v, str) and v.strip()]
@@ -801,10 +882,8 @@ def register(app, d):
         t, x = ticket_bundle(u, brand, tid)
         if t is None:
             return fail("not_found", 404, lang)
-        # English desk always delivers Hebrew, even if the ticket language was misdetected.
-        target = "he" if u.get("lang") == "en" or body.get("lang") == "en" else norm_lang(t.get("language"))
-        if target == "en":
-            return jsonify({"ok": True, "text": text, "target": "en", "same": True})
+        # We reply only in Hebrew (Owner, 2026-10-10), whatever the customer's language and whichever desk.
+        target = "he"
         try:
             result = outgoing_text(u, brand, tid, text, t, x, target)
         except llm.LLMError as e:

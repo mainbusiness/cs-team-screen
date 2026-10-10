@@ -36,6 +36,7 @@ import llm
 import messages
 import dashboard
 import security
+from zipfix import routes as zipfix_routes
 from users_store import ROLES, UserStore, UserStoreError, public_user
 
 SESSION_MAX_S = 12 * 3600
@@ -223,6 +224,8 @@ def create_app(overrides=None):
     @app.before_request
     def csrf_protect():
         if request.method in ("GET", "HEAD", "OPTIONS"):
+            return
+        if request.path.startswith("/bot/zipfix"):       # machine route: no session, authenticated by X-Zipbot-Token instead
             return
         origin = request.headers.get("Origin")
         if origin:
@@ -597,6 +600,8 @@ def create_app(overrides=None):
         "assist_limiter": o.get("ASSIST_LIMITER"), "translate_limiter": o.get("TRANSLATE_LIMITER"),
         "knowledge_cache": o.get("KNOWLEDGE_CACHE"),
     })
+
+    zipfix_routes.register(app, {"store": store, "api_user": api_user, "ui_lang": ui_lang, "users_path": users_path, "overrides": o})
 
     @app.errorhandler(404)
     def nf(_e):

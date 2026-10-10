@@ -159,7 +159,11 @@
       u_reset: 'איפוס סיסמה', u_reset_arm: 'לחצו שוב לאיפוס', u_temp: 'סיסמה זמנית:', u_temp_note: 'מוצגת פעם אחת בלבד. שלחו אותה למשתמש בערוץ פרטי — בכניסה הראשונה יבחר סיסמה משלו.',
       u_saved: 'נשמר', u_created: 'המשתמש נוצר', u_last: 'כניסה אחרונה', u_never: 'עוד לא נכנס', u_audit: 'יומן שינויים (100 אחרונים)',
       u_must_change: 'סיסמה זמנית', role_agent: 'נציג/ה', role_admin: 'אדמין', 'role_user-manager': 'מנהל/ת משתמשים',
-      lang_he: 'עברית', lang_en: 'אנגלית', u_admin_only: 'רק אדמין', u_me: 'אני'
+      lang_he: 'עברית', lang_en: 'אנגלית', u_admin_only: 'רק אדמין', u_me: 'אני',
+      tr_loading: 'מתרגם לעברית…', tr_failed: 'התרגום נכשל: {m}', show_orig: 'הצג מקור', show_he: 'הצג תרגום', tr_from: 'תורגם אוטומטית מ{l}',
+      tr_retry: 'לנסות שוב', tr_incomplete: '{n} לא תורגמו (מוצג המקור)', tr_reply_he: 'עונים ללקוח בעברית בלבד',
+      lang_name_he: 'עברית', lang_name_ru: 'רוסית', lang_name_en: 'אנגלית', lang_name_ar: 'ערבית', lang_name_fr: 'צרפתית',
+      lang_name_es: 'ספרדית', lang_name_de: 'גרמנית', lang_name_uk: 'אוקראינית', lang_name_am: 'אמהרית', lang_name_it: 'איטלקית', lang_name_pt: 'פורטוגזית'
     },
     en: {
       app: 'Customer service', tab_ready: 'Open', tab_action: 'Needs decision', tab_health: 'Health', tab_delay: 'Delay',
@@ -610,7 +614,7 @@
    *    and check, never "invalid answer".
    *  - Our OWN JSON answers (also 502/504, e.g. engine_timeout) are real answers and pass straight through.
    */
-  const READ_FNS = ['list', 'changes', 'watch', 'ticket', 'prefetch', 'result', 'related', 'queue', 'translate', 'translate-rows', 'translate-autoreply', 'translate-out',
+  const READ_FNS = ['list', 'changes', 'watch', 'ticket', 'prefetch', 'result', 'related', 'queue', 'translate', 'translate-he', 'translate-rows', 'translate-autoreply', 'translate-out',
     'assistant', 'apiBoot', 'apiStatus', 'apiTicket', 'apiTicketExtras', 'apiTickets', 'apiSearch', 'apiAutoReplyList', 'apiAutoCancelList', 'apiTemplates'];
   const RETRY_MS = [1000, 2000, 4000, 8000, 15000, 15000];
   function isRead(path, method, body) {
@@ -707,6 +711,7 @@
     const p = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
     if (p[0] === 'users') return { view: 'users' };
     if (p[0] === 'dash') return { view: 'dash' };
+    if (p[0] === 'zip') return { view: 'zip', brand: p[1] };
     if (p[0] === 'settings') return { view: 'settings', brand: p[1] };
     if (p[0] === 'b' && p[1]) {
       if (p[2] === 't' && p[3]) return { view: 'ticket', brand: p[1], id: p[3] };
@@ -727,6 +732,19 @@
     const r = parseHash();
     const myBrands = S.me.brands.map(function (b) { return b.id; });
     $('dash-pane').hidden = true;
+    if (r.view !== 'zip') Zip.leave();
+    if (r.view === 'zip') {                            // מילוי מיקודים: anyone who works tickets, on their own brands only
+      if (!canWork()) return go('#/', true);
+      const zb = r.brand && myBrands.indexOf(r.brand) >= 0 ? r.brand : (S.brand && myBrands.indexOf(S.brand) >= 0 ? S.brand : myBrands[0]);
+      if (!zb) return go('#/', true);
+      if (zb !== r.brand) return go('#/zip/' + encodeURIComponent(zb), true);
+      S.view = 'zip'; S.brand = zb;
+      $('users-pane').hidden = true;
+      $('settings-pane').hidden = true;
+      document.body.className = 'view-zip';
+      renderTop(); renderBanners(); Zip.show(zb); Assist.sync();
+      return;
+    }
     if (r.view === 'dash') {
       if (!S.me.can_manage_users) return go('#/', true);           // admin + user-manager only (the server says 403 too)
       S.view = 'dash';
@@ -789,7 +807,8 @@
     top.append(h('span', { class: 'title', text: t('app') }));
     const brands = S.me.brands;
     if (S.me.can_manage_users && S.view !== 'dash') top.append(h('a', { class: 'dash-link', href: '#/dash', 'data-test': 'dash-link', text: '📊 ' + (LANG === 'en' ? 'Managers' : 'לוח מנהלים') }));
-    if (brands.length > 1 && S.view !== 'users' && S.view !== 'dash') {
+    if (canWork() && brands.length && S.view !== 'zip') top.append(h('a', { class: 'dash-link', href: '#/zip/' + encodeURIComponent(S.brand || brands[0].id), 'data-test': 'zip-link', text: '📮 ' + (LANG === 'en' ? 'Zip-code fill' : 'מילוי מיקודים') }));
+    if (brands.length > 1 && S.view !== 'users' && S.view !== 'dash' && S.view !== 'zip') {
       const sel = h('select', { class: 'brand', 'aria-label': 'brand' });
       brands.forEach(function (b) {
         sel.append(h('option', { value: b.id, text: brandName(b.id) + (b.connected ? '' : ' ·'), selected: b.id === S.brand ? 'selected' : null }));
@@ -800,7 +819,7 @@
         go(S.view === 'settings' ? '#/settings/' + encodeURIComponent(sel.value) : '#/b/' + encodeURIComponent(sel.value) + '/ready');
       });
       top.append(sel);
-    } else if (brands.length === 1 && S.view !== 'users' && S.view !== 'dash') {
+    } else if (brands.length === 1 && S.view !== 'users' && S.view !== 'dash' && S.view !== 'zip') {
       top.append(h('span', { class: 'who', text: brandName(brands[0].id) }));
     }
     top.append(h('a', { class: 'dash-link', href: '/cs/en' + location.hash, 'data-test': 'english-workspace', text: 'English desk', 'aria-current': LANG === 'en' ? 'page' : null }));
@@ -826,7 +845,8 @@
     top.append(mb);
     if (S.menuOpen) {
       const m = h('div', { class: 'menu', role: 'menu' });
-      if ((S.view === 'users' || S.view === 'dash') && canWork()) m.append(h('a', { href: '#/', text: t('to_tickets') }));
+      if ((S.view === 'users' || S.view === 'dash' || S.view === 'zip') && canWork()) m.append(h('a', { href: '#/', text: t('to_tickets') }));
+      if (canWork() && brands.length && S.view !== 'zip') m.append(h('a', { href: '#/zip/' + encodeURIComponent(S.brand || brands[0].id), 'data-test': 'zip-menu', text: LANG === 'en' ? 'Zip-code fill' : 'מילוי מיקודים' }));
       if (S.me.can_manage_users && S.view !== 'users') m.append(h('a', { href: '#/users', text: t('users') }));
       if (S.me.is_admin && S.view !== 'settings' && S.brand) m.append(h('a', { href: '#/settings/' + encodeURIComponent(S.brand), text: t('settings') }));
       if (S.view === 'settings' && canWork()) m.append(h('a', { href: '#/', text: t('to_tickets') }));
@@ -845,7 +865,7 @@
     clear(el);
     if (S.me.mock) el.append(h('p', { class: 'banner info', text: t('mock') }));
     (S.me.warnings || []).forEach(function (w) { el.append(h('p', { class: 'banner danger', text: t(w) })); });
-    if (S.view === 'users') return;
+    if (S.view === 'users' || S.view === 'zip') return;
     const b = boot();
     if (b) el.append(modeBanner(b));
     const age = listAge(S.brand);
@@ -1456,6 +1476,7 @@
     if (nd !== prevDraft && !enMode(k.ticket)) Draft.offer(nd);
     Draft.refreshSend();
     if (enMode(k.ticket)) Translate.load(k);
+    else if (HeTranslate.needed(k)) HeTranslate.load(k);
     if (anchor && anchor.isConnected) {
       const d = anchor.getBoundingClientRect().top - y0;
       if (d) { if (pane.scrollHeight > pane.clientHeight) pane.scrollTop += d; else window.scrollBy(0, d); }
@@ -1479,6 +1500,11 @@
       const translated = ((k.tr && k.tr.conversation) || []).find(function (m) { return Number(m.i) === index; });
       preview = translated ? String(translated.text || '').slice(0, 400) : t('tr_loading');
       if (k.tr && k.tr.err) preview = t('tr_failed', { m: k.tr.err });
+    } else if (foreignText(last.text)) {     // Hebrew desk: a new message in another language shows its Hebrew translation
+      const index = ((k.extras && k.extras.conversation) || []).findIndex(function (m) { return msgKey(m) === msgKey(last); });
+      const translated = ((k.trHe && k.trHe.conversation) || []).find(function (m) { return Number(m.i) === index; });
+      preview = translated ? String(translated.text || '').slice(0, 400) : t('tr_loading');
+      if (k.trHe && k.trHe.err) preview = String(last.text || '').slice(0, 400);
     }
     el.append(h('div', { class: 'live-text', dir: 'auto', text: preview }));
   }
@@ -1663,6 +1689,8 @@
     paintLive(k);
     if (enMode(x)) {
       if (k.tr && k.tr.ok) { Translate.paint(k); EnDraft.prefill(x.id, k.tr.draft); } else Translate.load(k);
+    } else if (HeTranslate.needed(k)) {
+      if (k.trHe && k.trHe.ok && k.trHe.sig === k.sig) HeTranslate.paint(k); else HeTranslate.load(k);
     }
     paintSync();
   }
@@ -1989,12 +2017,78 @@
       clear(container);
       const plain = container.classList.contains('summary-line') || container.id === 'tk-reco';
       add(container, plain ? (showing === 'en' ? english : original) : messageBody(showing === 'en' ? english : original));
-      btn.textContent = showing === 'en' ? t('show_orig') : t('show_en');
+      btn.textContent = showing === 'en' ? t('show_orig') : t(LANG === 'en' ? 'show_en' : 'show_he');
     }
     btn.addEventListener('click', function () { showing = showing === 'en' ? 'orig' : 'en'; paint(); });
     toggleHost.append(btn);
     paint();
   }
+
+  /** True when a Hebrew-desk agent cannot read the text as is (Russian, Arabic, English...). Links, emails and tokens with a
+   *  digit (order / tracking numbers) do not count. Mirror of assistant.py script_lang. */
+  function foreignText(text) {
+    const s = String(text || '').replace(/https?:\/\/\S+|www\.\S+|\S+@\S+|\S*\d\S*/g, ' ');
+    const he = (s.match(/[\u0590-\u05FF]/g) || []).length, ru = (s.match(/[\u0400-\u04FF]/g) || []).length;
+    const ar = (s.match(/[\u0600-\u06FF]/g) || []).length, la = (s.match(/[A-Za-z]/g) || []).length;
+    if (!he && !ru && !ar && !la) return false;
+    return !(he && he >= ru && he >= ar && la <= 2 * he);
+  }
+
+  /** Hebrew desk (Owner, 2026-10-10): the customer's messages in another language are translated into Hebrew automatically,
+   *  with "הצג מקור" to see the original. We reply only in Hebrew; the draft is Hebrew already. */
+  const HeTranslate = {
+    needed(k) {
+      if (LANG === 'en' || !k || !k.ticket) return false;
+      const conv = (k.extras && k.extras.conversation) || [];
+      return foreignText(k.ticket.subject) || conv.some(function (m) { return m && m.who !== 'us' && m.who !== 'automatic' && foreignText(m.text); });
+    },
+    async load(k) {
+      const requestId = k.trHeRequest = (k.trHeRequest || 0) + 1;
+      const sig = k.sig;
+      k.trHe = { loading: true };
+      this.paint(k);
+      const r = await api('/api/' + encodeURIComponent(k.brand) + '/translate-he', { ticketId: k.id }, 'POST', { quiet: true });
+      if (S.tk !== k || k.trHeRequest !== requestId) return;
+      k.trHe = r.ok ? Object.assign({}, r, { sig: sig }) : { err: r.msg || r.error };
+      this.paint(k);
+      paintLive(k);
+    },
+    paint(k) {
+      const chip = document.getElementById('tr-state');
+      const tr = k.trHe || {};
+      if (chip) {
+        chip.hidden = false;
+        chip.className = 'chip outline';
+        chip.setAttribute('data-test', 'he-translate');
+        clear(chip);
+        if (tr.loading) chip.append(t('tr_loading'));
+        else if (tr.err) { chip.className = 'chip bad'; chip.append(tx('tr_failed', { m: tr.err })); }
+        else {
+          const src = ((tr.conversation || [])[0] || {}).source || k.ticket.language;
+          chip.append(t('tr_from', { l: langName(src) }) + ' · ' + t('tr_reply_he'));   // one plain string: "מ" + "רוסית" never split
+          if (tr.incomplete) { chip.className = 'chip bad'; chip.append(' · ', tx('tr_incomplete', { n: tr.incomplete })); }
+        }
+        if (!tr.loading && (tr.err || tr.incomplete)) chip.append(' ', h('button', { type: 'button', class: 'more-btn', text: t('tr_retry'), onclick: function () { HeTranslate.load(k); } }));
+      }
+      if (!tr.ok) return;
+      const pane = $('ticket-pane');
+      (tr.conversation || []).forEach(function (c) {
+        if (!c || typeof c.text !== 'string') return;
+        const el = pane.querySelector('.msg[data-i="' + Number(c.i) + '"]');
+        if (!el || el.dataset.tr) return;
+        el.dataset.tr = '1';
+        el.querySelector('.mbody').setAttribute('lang', 'he');
+        bilingual(el.querySelector('.mbody'), ORIG.get(el) || '', c.text, el.querySelector('.meta'));
+      });
+      const subject = document.getElementById('tk-subject');
+      if (subject && tr.subject && !subject.dataset.tr) {
+        subject.dataset.tr = '1';
+        const host = h('span', { class: 'sum-toggle' });
+        subject.after(host);
+        bilingual(subject, k.ticket.subject || '', tr.subject, host);
+      }
+    }
+  };
 
   const Translate = {
     async load(k) {
@@ -3521,6 +3615,295 @@
     EDIT_PING[k] = Date.now();
     api('/api/' + encodeURIComponent(brand) + '/activity', { id: id, kind: 'edit' }, 'POST', { quiet: true, retry: false });
   }
+
+  /**
+   * מילוי מיקודים (Owner, 2026-10-10): one button finds the zip code of every order and hands back the text for the supplier.
+   * Backend contract (system-builder): POST /api/<brand>/zipfix {orders: "1646, 1647" | null} → {job};
+   * GET /api/<brand>/zipfix/<job> → {state: running|done|error, progress: {done, total}, result}.
+   *  - The job id (and, when done, the result) is kept in sessionStorage per brand: a refresh resumes the run, never restarts it.
+   *  - Polling (every 2 s) repaints only the status slot; the agent's textarea is never rebuilt under their fingers.
+   *  - A dropped poll is not an error: it counts, says "reconnecting" after two, and keeps going. A real refusal stops the run.
+   *  - A non-empty box with no order number in it never silently becomes "all open orders".
+   */
+  const Zip = (function () {
+    const HE = {
+      title: 'מילוי מיקודים', intro: 'לוחצים פעם אחת — המערכת מוצאת מיקוד לכל הזמנה ומכינה את הטקסט לשליחה לספקית.',
+      brand: 'מותג', orders: 'מספרי הזמנות מהספקית (לא חובה)', orders_ph: 'אפשר להדביק כמו שזה הגיע: 1646, 1647 #1650 …',
+      p_all: 'ריק — יחפש מיקודים לכל ההזמנות הפתוחות של המותג.', p_some: 'זוהו {n} הזמנות: {list}', p_bad: 'לא זוהה אף מספר הזמנה. מחקו את הטקסט כדי להריץ על כל ההזמנות הפתוחות.',
+      go: 'הבא מיקודים', starting: 'מתחיל…', running: 'מחפש מיקודים…', progress: '{d} מתוך {t} הזמנות', progress_0: 'אוסף את ההזמנות…',
+      elapsed: 'רץ {s} שנ׳ · אפשר לרענן את הדף, הריצה ממשיכה', conn: 'החיבור לשרת נפל לרגע — ממשיך לנסות…',
+      failed: 'הריצה נכשלה', lost: 'הריצה כבר לא נמצאת בשרת (אולי השרת התעדכן). הריצו שוב.', again: 'להריץ שוב', start_failed: 'לא הצלחנו להתחיל',
+      c_orders: 'הזמנות', c_zips: 'מיקודים', c_review: 'לבדיקה', c_ask: 'לפנות ללקוח', ran_at: '{b} · הורץ {when}',
+      supplier: 'הטקסט לספקית', copy: 'העתק לספקית', copied: 'הועתק ✓', copy_fail: 'ההעתקה נכשלה — סמנו את הטקסט והעתיקו ידנית',
+      no_zips: 'לא נמצאו מיקודים לשליחה בריצה הזאת.', review: 'לבדיקה לפני שליחה', review_none: 'אין מה לבדוק — כל המיקודים נמצאו בוודאות.',
+      review_note: 'המיקודים האלה כבר בטקסט לספקית. כדאי לוודא אותם באתר דואר ישראל לפני ששולחים.',
+      ask: 'לפנות ללקוח', ask_none: 'אין הזמנות שצריך לפנות בהן ללקוח.', ask_note: 'לא נמצא מיקוד — ההזמנות האלה לא בטקסט לספקית. צריך לבקש מהלקוח כתובת מלאה.',
+      order: 'הזמנה', zip: 'מיקוד', verify: 'בדיקה בדואר ישראל ↗', copy_addr: 'העתק כתובת', new_run: 'ריצה חדשה'
+    };
+    const EN = {
+      title: 'Zip-code fill', intro: 'One click: the system finds the zip code of every order and prepares the text for the supplier.',
+      brand: 'Brand', orders: 'Order numbers from the supplier (optional)', orders_ph: 'Paste them as they came: 1646, 1647 #1650 …',
+      p_all: 'Empty — looks up every open order of the brand.', p_some: '{n} orders found: {list}', p_bad: 'No order number found. Clear the box to run on all open orders.',
+      go: 'Get zip codes', starting: 'Starting…', running: 'Finding zip codes…', progress: '{d} of {t} orders', progress_0: 'Collecting the orders…',
+      elapsed: 'Running {s} s · you can refresh the page, the run continues', conn: 'Lost the server for a moment — still trying…',
+      failed: 'The run failed', lost: 'This run is no longer on the server (it may have restarted). Run it again.', again: 'Run again', start_failed: 'Could not start',
+      c_orders: 'Orders', c_zips: 'Zip codes', c_review: 'To check', c_ask: 'Ask customer', ran_at: '{b} · ran {when}',
+      supplier: 'Text for the supplier', copy: 'Copy for supplier', copied: 'Copied ✓', copy_fail: 'Copy failed — select the text and copy it by hand',
+      no_zips: 'No zip codes to send in this run.', review: 'Check before sending', review_none: 'Nothing to check — every zip code was found with certainty.',
+      review_note: 'These zip codes are already in the supplier text. Verify them on the Israel Post site before sending.',
+      ask: 'Ask the customer', ask_none: 'No orders need the customer.', ask_note: 'No zip code found — these orders are NOT in the supplier text. Ask the customer for a full address.',
+      order: 'Order', zip: 'Zip', verify: 'Check on Israel Post ↗', copy_addr: 'Copy address', new_run: 'New run'
+    };
+    const L = LANG === 'en' ? EN : HE;
+    function z(k, v) {
+      let s = L[k] !== undefined ? L[k] : k;
+      if (v) Object.keys(v).forEach(function (a) { s = s.split('{' + a + '}').join(String(v[a])); });
+      return s;
+    }
+    const POST_URL = 'https://doar.israelpost.co.il/locatezip';
+    const POLL_MS = 2000;
+    const st = { brand: null, run: null, busy: false, err: null, fails: 0, timer: null, tick: null, seq: 0, typed: {} };
+
+    function key(b) { return 'cs.zipfix.' + b; }
+    function readRun(b) {
+      try { const v = JSON.parse(sessionStorage.getItem(key(b)) || 'null'); return v && typeof v.job === 'string' ? v : null; } catch (e) { return null; }
+    }
+    function writeRun(b, v) {
+      try { if (v) sessionStorage.setItem(key(b), JSON.stringify(v)); else sessionStorage.removeItem(key(b)); } catch (e) { /* private mode: the run still works, a refresh just loses it */ }
+    }
+    /** Every digit run, in order, without repeats. "#1646\n1647, 1646" → ['1646', '1647']. */
+    function parseOrders(s) {
+      const m = String(s || '').match(/\d+/g) || [];
+      const seen = {};
+      return m.filter(function (x) { if (seen[x]) return false; seen[x] = 1; return true; });
+    }
+    function stopTimers() { clearTimeout(st.timer); st.timer = null; clearInterval(st.tick); st.tick = null; }
+    function el(id) { return document.getElementById(id); }
+
+    function render() {
+      const p = $('zip-pane');
+      clear(p);
+      const mine = S.me.brands;
+      p.append(h('h2', { text: '📮 ' + z('title') }), h('p', { class: 'zip-intro', text: z('intro') }));
+      const form = h('div', { class: 'card zip-form', 'data-test': 'zip-form' });
+      const bwrap = h('div');
+      bwrap.append(h('label', { for: 'zip-brand', text: z('brand') }));
+      if (mine.length > 1) {
+        const sel = h('select', { id: 'zip-brand', 'data-test': 'zip-brand' });
+        mine.forEach(function (b) { sel.append(h('option', { value: b.id, text: brandName(b.id) + (b.connected ? '' : ' ·'), selected: b.id === st.brand ? 'selected' : null })); });
+        sel.value = st.brand;
+        sel.addEventListener('change', function () { go('#/zip/' + encodeURIComponent(sel.value)); });
+        bwrap.append(sel);
+      } else {
+        bwrap.append(h('b', { id: 'zip-brand', 'data-test': 'zip-brand-one', text: brandName(st.brand) }));
+      }
+      const twrap = h('div');
+      const ta = h('textarea', { id: 'zip-orders', class: 'zip-orders', 'data-test': 'zip-orders', rows: '3', spellcheck: 'false', autocomplete: 'off',
+        placeholder: z('orders_ph'), 'aria-describedby': 'zip-parse' });
+      ta.value = st.typed[st.brand] || '';
+      const parse = h('div', { id: 'zip-parse', class: 'zip-parse', 'data-test': 'zip-parse', 'aria-live': 'polite' });
+      ta.addEventListener('input', function () { st.typed[st.brand] = ta.value; paintParse(); });
+      twrap.append(h('label', { for: 'zip-orders', text: z('orders') }), ta, parse);
+      const goBtn = h('button', { id: 'zip-go', class: 'btn primary zip-go', type: 'button', 'data-test': 'zip-go', text: z('go') });
+      goBtn.addEventListener('click', start);
+      form.append(bwrap, twrap, goBtn);
+      p.append(form, h('div', { id: 'zip-status', class: 'zip-status', 'data-test': 'zip-status' }), h('div', { id: 'zip-result', class: 'zip-result', 'data-test': 'zip-result' }));
+      paintParse();
+      paint();
+    }
+
+    function paintParse() {
+      const box = el('zip-parse'), ta = el('zip-orders');
+      if (!box || !ta) return;
+      clear(box);
+      const raw = ta.value.trim(), list = parseOrders(raw);
+      box.className = 'zip-parse';
+      if (!raw) box.append(z('p_all'));
+      else if (!list.length) { box.className = 'zip-parse bad'; box.append(z('p_bad')); }
+      else {
+        const shown = list.slice(0, 12).join(', ') + (list.length > 12 ? ' …' : '');
+        const tmpl = z('p_some', { n: list.length }).split('{list}');
+        box.append(tmpl[0], h('bdi', { text: shown }), tmpl[1] || '');
+      }
+    }
+
+    function running() { return !!(st.run && !st.run.result && !st.run.error); }
+
+    /** Status slot + result slot + button state, from st.run. Safe to call on every poll: it never touches the textarea. */
+    function paint() {
+      const btn = el('zip-go');
+      if (btn) { btn.disabled = st.busy || running(); btn.textContent = st.busy ? z('starting') : (running() ? z('running') : z('go')); }
+      const s = el('zip-status'), r = el('zip-result');
+      if (!s || !r) return;
+      clear(s);
+      if (st.err) {
+        s.append(h('div', { class: 'err-box', role: 'alert', 'data-test': 'zip-error' }, h('b', { text: st.err.title + ' ' }), h('span', { text: st.err.msg }),
+          st.err.code ? h('span', { class: 'raw', text: st.err.code }) : null,
+          st.err.retry ? h('button', { class: 'btn small', type: 'button', 'data-test': 'zip-again', text: z('again'), onclick: function () { st.err = null; start(); } }) : null));
+      }
+      if (running()) {
+        const pr = st.run.progress || {}, d = Number(pr.done) || 0, tt = Number(pr.total) || 0;
+        const bar = h('progress', { 'data-test': 'zip-progress', max: String(tt || 1), 'aria-label': z('running') });
+        if (tt) bar.value = Math.min(d, tt);                 // no total yet → indeterminate bar, never a frozen 0%
+        const box = h('div', { class: 'card zip-run', role: 'status', 'data-test': 'zip-running' },
+          h('div', { class: 'line' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', { text: z('running') }),
+            h('span', { 'data-test': 'zip-count', text: tt ? z('progress', { d: d, t: tt }) : z('progress_0') })),
+          bar, h('div', { class: 'sub', id: 'zip-elapsed', 'data-test': 'zip-elapsed' }));
+        if (st.fails >= 2) box.append(h('div', { class: 'conn', 'data-test': 'zip-reconnecting', text: z('conn') }));
+        s.append(box);
+        paintElapsed();
+      }
+      clear(r);
+      if (st.run && st.run.result) r.append(result(st.run.result));
+    }
+    function paintElapsed() {
+      const e = el('zip-elapsed');
+      if (e && st.run && st.run.started) e.textContent = z('elapsed', { s: Math.max(0, Math.round((Date.now() - st.run.started) / 1000)) });
+    }
+
+    function count(k, v, cls) {
+      return h('div', { class: 'zip-count' + (cls && v ? ' ' + cls : ''), 'data-test': 'zip-c-' + k }, h('div', { class: 'v', text: String(v || 0) }), h('div', { class: 'l', text: z('c_' + k) }));
+    }
+    function result(x) {
+      const c = x.counts || {}, review = Array.isArray(x.review) ? x.review : [], ask = Array.isArray(x.ask_customer) ? x.ask_customer : [];
+      const text = typeof x.supplier_text === 'string' ? x.supplier_text : '';
+      const frag = document.createDocumentFragment();
+      frag.append(h('div', { class: 'zip-counts', 'data-test': 'zip-counts' },
+        count('orders', c.orders), count('zips', c.zips), count('review', c.review !== undefined ? c.review : review.length, 'warn'),
+        count('ask', c.ask !== undefined ? c.ask : ask.length, 'bad')));
+      if (x.ran_at || x.brand) frag.append(h('div', { class: 'zip-meta', 'data-test': 'zip-meta', text: z('ran_at', { b: brandName(x.brand || st.brand), when: x.ran_at ? fmtDate(x.ran_at, true) : '—' }) }));
+
+      const sup = h('div', { class: 'card', 'data-test': 'zip-supplier' }, h('h3', { text: z('supplier') }));
+      if (text.trim()) {
+        const box = h('textarea', { class: 'zip-text', readOnly: true, 'data-test': 'zip-text', dir: 'ltr', rows: String(Math.min(14, text.split('\n').length + 1)), spellcheck: 'false', 'aria-label': z('supplier') });
+        box.value = text;
+        const cb = h('button', { class: 'btn primary zip-copy', type: 'button', 'data-test': 'zip-copy', text: '📋 ' + z('copy') });
+        let reset = null;
+        cb.addEventListener('click', async function () {
+          const ok = await copyText(text, null);          // exact text, two paths (Clipboard API, then execCommand)
+          clearTimeout(reset);
+          cb.textContent = ok ? z('copied') : '📋 ' + z('copy');
+          cb.classList.toggle('done', ok);
+          if (!ok) { toast(z('copy_fail')); box.focus(); box.select(); }
+          reset = setTimeout(function () { cb.textContent = '📋 ' + z('copy'); cb.classList.remove('done'); }, 2500);
+        });
+        sup.append(box, cb);
+      } else sup.append(h('p', { class: 'zip-none', 'data-test': 'zip-no-zips', text: z('no_zips') }));
+      frag.append(sup);
+
+      const rv = h('div', { class: 'card', 'data-test': 'zip-review' }, h('h3', null, '⚠️ ' + z('review'), h('span', { class: 'chip', text: String(review.length) })));
+      if (review.length) {
+        rv.append(h('p', { class: 'zip-meta', text: z('review_note') }));
+        const list = h('div', { class: 'zip-items' });
+        review.forEach(function (it) { list.append(item(it, 'review')); });
+        rv.append(list);
+      } else rv.append(h('p', { class: 'zip-none', text: z('review_none') }));
+      frag.append(rv);
+
+      const ak = h('div', { class: 'card', 'data-test': 'zip-ask' }, h('h3', null, '📞 ' + z('ask'), h('span', { class: 'chip', text: String(ask.length) })));
+      if (ask.length) {
+        ak.append(h('p', { class: 'zip-meta', text: z('ask_note') }));
+        const list = h('div', { class: 'zip-items' });
+        ask.forEach(function (it) { list.append(item(it, 'ask')); });
+        ak.append(list);
+      } else ak.append(h('p', { class: 'zip-none', text: z('ask_none') }));
+      frag.append(ak);
+
+      const again = h('button', { class: 'btn', type: 'button', 'data-test': 'zip-new', text: z('new_run') });
+      again.addEventListener('click', function () { writeRun(st.brand, null); st.run = null; st.err = null; paint(); const ta = el('zip-orders'); if (ta) ta.focus(); });
+      frag.append(h('div', null, again));
+      return frag;
+    }
+    function item(it, kind) {
+      const s = function (v) { return v === null || v === undefined ? '' : String(v); };
+      const addr = [s(it.address), s(it.city)].filter(Boolean).join(', ');
+      const top = h('div', { class: 'top' }, h('span', null, z('order') + ' ', h('bdi', { class: 'ltr', 'data-test': 'zip-order', text: s(it.order) })));
+      if (kind === 'review') top.append(h('span', null, z('zip') + ' ', h('bdi', { class: 'ltr', 'data-test': 'zip-zip', text: s(it.zip) })));
+      const row = h('div', { class: 'zip-item ' + kind, 'data-test': 'zip-' + kind + '-item', 'data-order': s(it.order) }, top);
+      if (kind === 'review' && s(it.reason)) row.append(h('div', { class: 'reason', 'data-test': 'zip-reason', text: s(it.reason) }));
+      row.append(h('div', { class: 'addr', 'data-test': 'zip-addr' }, h('bdi', { text: addr || '—' })));
+      const acts = h('div', { class: 'acts' });
+      if (kind === 'review') acts.append(h('a', { class: 'btn small', href: POST_URL, target: '_blank', rel: 'noopener noreferrer', 'data-test': 'zip-verify', text: z('verify') }));
+      if (addr) {
+        const cb = h('button', { class: 'btn small', type: 'button', text: z('copy_addr') });
+        cb.addEventListener('click', async function () { const ok = await copyText(addr, null); cb.textContent = ok ? z('copied') : z('copy_addr'); setTimeout(function () { cb.textContent = z('copy_addr'); }, 1600); });
+        acts.append(cb);
+      }
+      row.append(acts);
+      return row;
+    }
+
+    async function start() {
+      if (st.busy || running()) return;
+      const ta = el('zip-orders');
+      const raw = ta ? ta.value.trim() : '';
+      const list = parseOrders(raw);
+      if (raw && !list.length) { paintParse(); if (ta) ta.focus(); return; }   // never turn junk into "all open orders"
+      const brand = st.brand;
+      st.busy = true; st.err = null; st.fails = 0;
+      if (st.run && st.run.result) { st.run = null; writeRun(brand, null); }
+      paint();
+      const r = await api('/api/' + encodeURIComponent(brand) + '/zipfix', { orders: list.length ? list.join(', ') : null });
+      st.busy = false;
+      if (brand !== st.brand) return;                    // the agent switched brand meanwhile
+      if (!r || !r.ok || typeof r.job !== 'string' || !r.job) {
+        st.err = { title: z('start_failed') + ':', msg: (r && r.msg) || t('err_bad_engine'), code: r && r.error };
+        paint();
+        return;
+      }
+      st.run = { job: r.job, started: Date.now(), orders: list.length ? list.join(', ') : null, progress: { done: 0, total: list.length || 0 } };
+      writeRun(brand, st.run);
+      paint();
+      follow();
+    }
+
+    function follow() {
+      stopTimers();
+      if (!running()) return;
+      st.tick = setInterval(paintElapsed, 1000);
+      poll();
+    }
+    async function poll() {
+      const brand = st.brand, run = st.run;
+      if (!run || !running() || S.view !== 'zip') return;
+      const seq = ++st.seq;
+      const r = await api('/api/' + encodeURIComponent(brand) + '/zipfix/' + encodeURIComponent(run.job), undefined, 'GET', { quiet: true, retry: false });
+      if (seq !== st.seq || st.run !== run || brand !== st.brand || S.view !== 'zip') return;
+      if (r && (r.error === 'server_restarting' || r.error === 'server_restarted')) {
+        st.fails++;                                      // a deploy blip: keep the run, say so after two misses, try again
+      } else if (!r || !r.ok) {
+        writeRun(brand, null);
+        st.run = null;
+        st.err = { retry: true, title: z('failed') + ':', msg: (r && r.error === 'not_found') ? z('lost') : ((r && r.msg) || t('err_bad_engine')), code: r && r.error };
+      } else if (r.state === 'done' && r.result && typeof r.result === 'object') {
+        st.fails = 0;
+        run.progress = r.progress || run.progress;
+        run.result = r.result;
+        writeRun(brand, run);
+      } else if (r.state === 'error') {
+        writeRun(brand, null);
+        st.run = null;
+        const e = r.result && typeof r.result === 'object' ? r.result : {};
+        st.err = { retry: true, title: z('failed') + ':', msg: r.msg || e.msg || r.message || e.error || r.error || t('err_bad_engine'), code: r.error && r.msg ? r.error : null };
+      } else {
+        st.fails = 0;
+        if (r.progress && typeof r.progress === 'object') run.progress = r.progress;
+        writeRun(brand, run);
+      }
+      paint();
+      if (running()) st.timer = setTimeout(poll, POLL_MS); else stopTimers();
+    }
+    function show(brand) {
+      $('zip-pane').hidden = false;
+      if (brand !== st.brand) { stopTimers(); st.err = null; st.busy = false; st.fails = 0; }
+      st.brand = brand;
+      st.run = readRun(brand);
+      render();
+      if (running()) follow();
+    }
+    function leave() { stopTimers(); st.seq++; $('zip-pane').hidden = true; }
+    return { show: show, leave: leave, parse: parseOrders };
+  })();
 
   const Settings = (function () {
     const KEYS = [['DRY_RUN', ['on', 'off']], ['KACHING_WRITES', ['on', 'off']], ['AUTO_CANCEL', ['off', 'shadow', 'on']], ['AUTO_REPLY', ['off', 'shadow', 'on']]];

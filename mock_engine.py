@@ -227,7 +227,7 @@ def build_brand(brand, now):
         add({"id": "t18f2a07", "status": "delay", "category": "shipping", "name": "Olga Petrova", "email": "olga.p@example.com",
              "channel": "email", "subject": "Где мой заказ?", "summary": "לקוחה דוברת רוסית: הזמנה לפני 16 יום, עוד לא הגיעה.",
              "action": "delay: late", "waiting_since": h(14), "created_at": h(14), "language": "ru",
-             "draft_text": "Здравствуйте, Ольга! Заказ уже в пути, вот ссылка для отслеживания: https://t.17track.net/en#nums=JY4421337799\nОбычно доставка занимает до трёх недель.\n\nYehuda\nRozela Team"},
+             "draft_text": "היי אולגה, ההזמנה כבר בדרך אלייך. מספר המעקב: JY4421337799\n\nנועם משירות לקוחות"},
             _conv(now, ("customer", 14, "Здравствуйте, я заказала 16 дней назад и ещё ничего не получила.")),
             [_order(now, "#4421", 16, [(product, 1)], shipped_days_ago=13, track_no="JY4421337799")])
         add({"id": "t18f2a08", "status": "sent", "category": "product", "name": "נועה שמש", "email": "noa.s@example.com",
@@ -874,3 +874,45 @@ class MockEngines:
             return {"ok": True, "found": False}
         fn, _u, reply = hit
         return {"ok": True, "found": True, "forFn": fn, "reply": dict(reply, fn=fn, rid=a.get("rid"))}
+
+
+
+# ---------- מילוי מיקודים (zip-code fill) — preview/test runner for zipfix.JobManager (2026-10-10) ----------
+# The real routes and jobs are zipfix/routes.py + zipfix/jobs.py. Only the RUNNER (Shopify + the zip sources) is faked,
+# so the preview and the browser tests exercise the real job lifecycle, gates and error codes. Pass it as
+#   create_app({"ZIPFIX_RUNNER": mock_engine.zipfix_runner, "ZIPFIX_CONFIGURED": lambda b: True})
+# Hooks: order 666 fails the run half way ("shopify" error → shopify_failed); MOCK_ZIPFIX_STEP_MS = time per order (400).
+_ZIP_CITIES = (("תל אביב-יפו", "דיזנגוף 112"), ("חיפה", "שדרות מוריה 45"), ("ירושלים", "עמק רפאים 30"),
+               ("באר שבע", "רגר 18"), ("ראשון לציון", "הרצל 70"), ("פתח תקווה", "ז׳בוטינסקי 3"),
+               ("אשדוד", "הנשיאים 9"), ("נתניה", "שדרות בנימין 21"), ("רמת גן", "ביאליק 50"), ("קריית שמונה", "תל חי 4"))
+_ZIP_REASONS = ("אין מספר בית בכתובת — המיקוד לפי הרחוב בלבד", "לרחוב יש כמה מיקודים — נבחר לפי מספר הבית, כדאי לוודא",
+                "שם הרחוב לא נמצא כמו שהוא — נבחר השם הקרוב")
+
+
+def zipfix_runner(brand, nums=None, progress=None):
+    step = float(os.environ.get("MOCK_ZIPFIX_STEP_MS", "400")) / 1000.0
+    prog = progress or (lambda d, t: None)
+    if nums is None:
+        base = {"rozela": 1640, "celesta": 3210, "apexmen": 870, "selera": 5100, "velora": 2200}.get(brand, 1000)
+        nums = [str(base + i) for i in range(12)]
+    orders = [o for o in nums if o != "404"]                     # 404 = an order the store does not have
+    total = len(orders)
+    prog(0, total)
+    lines, review, ask = [], [], []
+    for i, o in enumerate(orders):
+        time.sleep(step)
+        if o == "666" and i >= total // 2:
+            raise RuntimeError("shopify: mock outage")
+        n = int(o)
+        city, addr = _ZIP_CITIES[n % len(_ZIP_CITIES)]
+        zipc = "%07d" % (1000000 + (n * 7919) % 8999999)
+        if n % 10 == 9:
+            ask.append({"order": o, "city": city, "address": addr.split(" ")[0]})       # street only: no house number
+        else:
+            lines.append("%s - %s" % (o, zipc))
+            if n % 10 in (3, 7):
+                review.append({"order": o, "zip": zipc, "reason": _ZIP_REASONS[n % 3], "city": city, "address": addr})
+        prog(i + 1, total)
+    return {"supplier_text": "\n".join(lines), "review": review, "ask_customer": ask,
+            "counts": {"orders": total, "zips": len(lines), "review": len(review), "ask": len(ask)},
+            "brand": brand, "ran_at": _iso(datetime.now(timezone.utc)), "not_found": [o for o in nums if o == "404"]}

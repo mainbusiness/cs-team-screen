@@ -45,6 +45,14 @@ HE = {
 }
 
 
+HE_IN = {
+    "Здравствуйте, я заказала 16 дней назад и ещё ничего не получила.": "שלום, הזמנתי לפני 16 ימים ועדיין לא קיבלתי כלום.",
+    "Где мой заказ?": "איפה ההזמנה שלי?",
+    "Здравствуйте, где мой заказ? Я заказала две недели назад.": "שלום, איפה ההזמנה שלי? הזמנתי לפני שבועיים.",
+    "مرحبا، متى يصل طلبي؟": "שלום, מתי ההזמנה שלי מגיעה?",
+}
+
+
 def _sys(payload):
     s = payload.get("system")
     return "\n".join(b.get("text", "") for b in s) if isinstance(s, list) else str(s or "")
@@ -66,6 +74,9 @@ class MockClaude:
         sys_text = _sys(payload)
         if "Task: translate-" in sys_text:
             items = json.loads(payload["messages"][-1]["content"])["items"]
+            if "Task: translate-in-he" in sys_text:          # Hebrew desk: a foreign customer message -> Hebrew
+                out = [{"i": it["i"], "text": HE_IN.get(it["text"], "תרגום לדוגמה: הלקוח כתב בשפה אחרת ושואל איפה ההזמנה שלו.")} for it in items]
+                return _resp(json.dumps({"translations": out}, ensure_ascii=False))
             table = HE if "Task: translate-out" in sys_text else EN
             pref = "(HE) " if table is HE else "(EN) "
             out = [{"i": it["i"], "text": table.get(it["text"], "שלום, תודה על הפנייה. אנחנו בודקים ונעדכן בהקדם." if table is HE else pref + it["text"])} for it in items]
