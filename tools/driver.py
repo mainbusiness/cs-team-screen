@@ -6,7 +6,7 @@ their 5-minute trigger as a fallback and leave at once while this driver is aliv
 
   TOKEN_SECRET   the engines' Script Property (env, or the Keychain item cs-engine / all/TOKEN_SECRET on the Mac)
   ENGINES_JSON   {"rozela": "https://script.google.com/macros/s/<id>/exec", ...} (env, or --engines FILE, or deploy/deployments.json)
-  DRIVER_BRANDS  comma list, default rozela,celesta,apexmen,selera,velora (a brand not yet live must not be driven)
+  DRIVER_BRANDS  comma list, default rozela,celesta,apexmen,selera,velora (a brand not yet live must not be driven); "none" = drive no brand
   DRIVER_WEEKLY_BRANDS  comma list for the weekly owner report (default: DRIVER_BRANDS); includes brands the core server drives itself
 
 Brands run in parallel. Logs one status line per brand, never customer data. Exit 0 = every brand answered and is healthy,
@@ -357,7 +357,8 @@ def main(argv=None, environ=None, transport=None, out=print, now_utc=None):
     transport = transport or http_transport
     secret = environ.get("TOKEN_SECRET") or keychain("all/TOKEN_SECRET")
     engines = load_engines(environ, a.engines)
-    want = [b.strip().lower() for b in (a.brands or environ.get("DRIVER_BRANDS") or DEFAULT_BRANDS).split(",") if b.strip()]
+    raw = a.brands or environ.get("DRIVER_BRANDS") or DEFAULT_BRANDS
+    want = [] if raw.strip().lower() == "none" else [b.strip().lower() for b in raw.split(",") if b.strip()]   # "none": the core drives every brand; an empty value would mean the default list
     if len(secret) < 32:
         out("driver: TOKEN_SECRET missing")
         return 1
@@ -384,13 +385,13 @@ def main(argv=None, environ=None, transport=None, out=print, now_utc=None):
                 if wants_backoff(line):
                     backoff_set(state, b, time.time() + GMAIL_BACKOFF_S)
                     out(time.strftime("%H:%M:%S ") + "%s backoff 30 min (Gmail daily quota)" % b)
-    if todo or paused_any:
+    if todo or paused_any or not want:
         # The weekly report covers every brand, also the ones this driver no longer runs (the core server drives its own brands).
         weekly = [b.strip().lower() for b in (environ.get("DRIVER_WEEKLY_BRANDS") or "").split(",") if b.strip()] or want
         line = maybe_weekly(engines, secret, transport, weekly, now_utc, out)
         if line:
             out(time.strftime("%H:%M:%S ") + line)
-    return max(codes) if codes else 1
+    return max(codes) if codes else (0 if not want else 1)
 
 
 if __name__ == "__main__":

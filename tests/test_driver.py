@@ -317,3 +317,17 @@ def test_the_pause_is_per_brand_and_never_when_the_brand_has_whatsapp_work(tmp_p
     driver.main(["--brands", "selera,celesta"], env, tr, lambda s: None)
     st = json.load(open(env["DRIVER_STATE_FILE"]))
     assert "selera" in st and "celesta" not in st, st
+
+
+def test_none_drives_no_brand_and_the_weekly_report_still_goes_out():
+    tr, calls = weekly_transport()
+    lines = []
+    env = dict(ENV, DRIVER_BRANDS="none", DRIVER_WEEKLY_BRANDS="rozela,celesta,apexmen,selera,velora")
+    code = driver.main(["--window", "1"], env, tr, lines.append, now_utc=utc(2026, 10, 8, 15, 2))
+    assert code == 0
+    assert not any(c[1] == "runAgent" for c in calls)
+    assert [c[0] for c in calls if c[1] == "weeklyStats"].count("selera") == 1
+    assert any("weekly: sent via celesta" in l for l in lines)
+    calls.clear()
+    assert driver.main(["--window", "1"], env, tr, lines.append, now_utc=utc(2026, 10, 8, 14, 0)) == 0
+    assert calls == []
