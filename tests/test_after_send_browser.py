@@ -22,7 +22,7 @@ def _send_with(pg, base, after):
     pg.locator("#list-pane > a.row.email").first.click()
     pg.wait_for_selector("[data-test=send-btn]")
     pg.click("[data-test=send-btn]")
-    pg.wait_for_timeout(350)
+    pg.wait_for_timeout(600)                                     # two separate clicks (review 2026-10-11 #2)
     pg.click("[data-test=send-btn]")
 
 

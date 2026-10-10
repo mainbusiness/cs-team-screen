@@ -32,6 +32,7 @@ def test_bot_tab_takeover_and_photos(server):
         assert pg.locator("[data-test=photo-wait]").count() == 1
         assert pg.locator(".msg img").count() == 0                                  # never a broken image
         pg.click("[data-test=takeover]")
+        pg.wait_for_timeout(600)                    # two separate clicks: a double-click never confirms (review 2026-10-11 #2)
         pg.click("[data-test=takeover]")
         pg.wait_for_selector("text=השיחה אצלך")
         pg.wait_for_selector("[data-test=bot-banner]", state="detached", timeout=15000)

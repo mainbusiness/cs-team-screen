@@ -43,9 +43,12 @@
       saved: 'נשמר ✓', save_failed: 'לא נשמר בשרת: {m} — הטקסט שמור במכשיר הזה.', restored: 'שוחזרה טיוטה שלא נשמרה מהמכשיר הזה.',
       conflict: 'הטיוטה בשרת השתנתה מאז שערכת (אולי הלקוח כתב שוב והמערכת כתבה טיוטה חדשה). מוצגת הגרסה שלך.',
       use_server: 'החלף בגרסת השרת', keep_mine: 'השאר את שלי',
+      local_older: 'הלקוח כתב שוב אחרי שערכת את הטיוטה הזאת במכשיר. מוצגת הטיוטה החדשה.', use_mine_old: 'להחזיר את הגרסה שלי',
+      search_archive_wait: 'מחפש בארכיון…', tpl_load_failed: 'לא הצלחנו לטעון את התבניות כרגע.', tpl_retry: 'לנסות שוב',
       send: 'שליחה', send_arm: 'לחצו שוב לשליחה', send_dry: 'השליחה כבויה (מצב ניסיון)', sent_ok: 'נשלח ללקוח', queued_ok: 'נכנס לתור הוואטסאפ',
       send_anyway: 'לשלוח בכל זאת (יירשם ביומן)', handled: 'טופל בלי שליחה', handled_arm: 'לחצו שוב — טופל בלי שליחה',
       close: 'סגירה', close_arm: 'לחצו שוב לסגירה', closed_ok: 'הפנייה נסגרה', handled_ok: 'סומן כטופל',
+      close_ns: 'סגירה בלי שליחה', close_ns_arm: 'ללחוץ שוב לסגירה', close_ns_title: 'הפנייה נסגרת בלי לשלוח ללקוח. בוואטסאפ היא נסגרת גם בדונדי.',
       safety: 'בדיקת בטיחות: {p}',
       orders: 'הזמנות', no_orders: 'לא נמצאה הזמנה (הזמנות מעל 60 יום לא נראות).', lookup_error: 'בדיקת ההזמנות נכשלה ברגע הכתיבה.',
       track: 'מעקב', items: 'פריטים', ordered: 'הוזמן', shipped_on: 'נשלח',
@@ -67,7 +70,7 @@
       afs_sub_unreachable: 'המנוי לא בוטל: לא הצלחנו להתחבר למערכת המנויים. לבטל ידנית.',
       afs_sub_several: 'המנוי לא בוטל: ללקוח יש כמה מנויים פעילים. לבחור איזה לבטל בפאנל המנויים.',
       afs_sub_refused: 'המנוי לא בוטל: מערכת המנויים דחתה את הביטול. לבטל ידנית.',
-      afs_order_cancel: 'לפי שופיפיי ההזמנה עדיין לא בוטלה. לבטל אותה בשופיפיי.', afs_newer_message: 'הלקוח כתב הודעה נוספת לפני שהתשובה נשלחה. לקרוא אותה ולוודא שהתשובה עונה גם ענציגה ב.',
+      afs_order_cancel: 'לפי שופיפיי ההזמנה עדיין לא בוטלה. לבטל אותה בשופיפיי.', afs_newer_message: 'הלקוח כתב הודעה נוספת לפני שהתשובה נשלחה. לקרוא אותה ולוודא שהתשובה עונה גם עליה.',
       afs_order_refund: 'לפי שופיפיי עדיין לא בוצע החזר. לבצע את ההחזר בשופיפיי.',
       afs_order_unknown: 'ההודעה מדברת על ביטול הזמנה או החזר, ולא הצלחנו לבדוק את זה בשופיפיי. לבדוק ידנית.',
       dlg_title: 'ביטול מנוי', dlg_type: 'כדי לאשר, הקלידו את 4 הספרות האחרונות של מספר המנוי',
@@ -125,13 +128,13 @@
       ac_last_msg: 'ההודעה האחרונה של הלקוח', ac_contract: 'המנוי שזוהה', ac_next: 'חיוב הבא', ac_reply: 'התשובה ללקוח (אפשר לערוך)',
       ac_ev_auth_ok: 'המייל מאומת ✓', ac_ev_auth_bad: 'המייל לא מאומת ✗', ac_ev_one: 'מנוי אחד פעיל ✓', ac_ev_many: '{n} מנויים פעילים ✗', ac_ev_none: 'אין מנוי פעיל ✗',
       ac_ev_reason_ok: 'בקשה יחידה: ביטול ✓',
-      ac_approve: 'אשר וביטול', ac_approve_q: 'לאשר את הביטול?', ac_approve_body: 'המנוי יבוטל ותשלח תשובה ללקוח בעוד כמה דקות.',
+      ac_approve: 'לאשר ולבטל', ac_approve_q: 'לאשר את הביטול?', ac_approve_body: 'המנוי יבוטל ותשלח תשובה ללקוח בעוד כמה דקות.',
       ac_manual: 'העבר לטיפול ידני', ac_note_ph: 'למה לטיפול ידני? (חובה)', ac_manual_go: 'העבר', ac_note_req: 'צריך לכתוב הערה.',
       ac_ok: 'אושר — המנוי יבוטל והתשובה תישלח בעוד כמה דקות', ac_moved: 'הועבר לטיפול ידני', ac_refused: 'המנוע סירב:', ac_mode: 'מצב: {m}',
       mode_off: 'כבוי', mode_live: 'חי', mode_shadow: 'צל',
-      ok: 'אישור', cancel_btn: 'ביטול',
+      ok: 'אישור', cancel_btn: 'חזרה',
       settings: 'מצב מערכת', set_title: 'מצב מערכת — {b}', set_admin_only: 'רק אדמין.',
-      set_DRY_RUN: 'מצב ניסיון', set_DRY_RUN_help: 'מצב ניסיון: טיוטות לשיט בלבד, שום דבר לא נשלח',
+      set_DRY_RUN: 'מצב ניסיון', set_DRY_RUN_help: 'מצב ניסיון: טיוטות לגיליון בלבד, שום דבר לא נשלח',
       set_KACHING_WRITES: 'ביטולי מנוי', set_KACHING_WRITES_help: "ביטולי מנוי בקאצ'ינג מופעלים",
       set_AUTO_CANCEL: 'ביטול אוטומטי', set_AUTO_CANCEL_help: 'כבוי / צל: רק מציע / פעיל: מבטל ועונה לבד אחרי כמה דקות',
       val_on: 'פועל', val_off: 'כבוי', val_shadow: 'צל', set_confirm_q: 'לשנות "{k}" ל"{v}" במותג {b}?', set_ok: 'עודכן', set_noop: 'לא השתנה — כבר היה במצב הזה', set_refused: 'המנוע סירב לשינוי:',
@@ -153,6 +156,16 @@
       live_new_msg: 'התקבלה הודעה חדשה', live_new_msgs: 'התקבלו {n} הודעות חדשות', live_ok: 'הבנתי',
       draft_new_avail: 'המנוע כתב טיוטה חדשה — הטיוטה שלך לא נגעה.', use_new_draft: 'החלף לטיוטה החדשה', draft_updated: 'הטיוטה עודכנה לפי ההודעה החדשה.',
       orders_err: 'בדיקת ההזמנות נכשלה: {m}', subs_err: 'בדיקת המנויים נכשלה: {m}',
+      mailbox_at: 'התקבל בתיבה:', order_open: 'פתיחת ההזמנה בשופיפיי (בלשונית חדשה)',
+      ain_title: 'שיפור ה-AI — הערות למנהלים', ain_help: 'ההערות נכנסות לכל טיוטה שה-AI כותב, מהטיוטה הבאה. הן לא גוברות על כללי המדיניות.',
+      ain_jump: '🧠 שיפור ה-AI', ain_ph: 'מה ה-AI צריך לעשות אחרת? למשל: "לא לכתוב \'מצטערים על אי הנוחות\' — לפתוח ישר בתשובה."',
+      ain_scope: 'למי ההערה', ain_all: 'כל המותגים', ain_add: 'הוספת הערה', ain_adding: 'שומר…', ain_count: '{n}/600',
+      ain_general: 'כללי — כל המותגים', ain_brand: 'רק {b}', ain_empty: 'אין עדיין הערות. הערה שתוסיפו תיכנס לטיוטות הבאות של ה-AI.',
+      ain_by: '{u} · {d}', ain_del: '✕', ain_del_arm: 'למחוק? לחצו שוב', ain_del_title: 'מחיקת ההערה',
+      ain_saved_all: 'נשמר בכל {n} המותגים', ain_saved_one: 'נשמר ל-{b}', ain_saved_part: 'נשמר ב-{ok} מתוך {n} מותגים — נכשל: {bad}',
+      ain_save_fail: 'לא נשמר — {m}', ain_deleted: 'נמחק', ain_del_part: 'נמחק ב-{ok} מתוך {n} מותגים — נכשל: {bad}', ain_del_fail: 'לא נמחק — {m}',
+      ain_missing: 'חסר ב: {b}', ain_fill: 'להשלים', ain_load_err: 'לא נטען מ-{b}: {m}', ain_retry: 'לטעון שוב', ain_loading: 'טוען הערות…',
+      ain_not_conn: 'מותגים שלא מחוברים למערכת לא מקבלים הערות: {b}', ain_too_long: 'עד 600 תווים',
       // users
       u_title: 'ניהול משתמשים', u_new: 'משתמש חדש', u_username: 'שם משתמש (לועזית)', u_display: 'שם תצוגה', u_roles: 'תפקיד', u_brands: 'מותגים',
       u_lang: 'שפה', u_disabled: 'מושבת', u_active: 'פעיל', u_create: 'יצירה', u_save: 'שמירה', u_edit: 'עריכה', u_cancel: 'ביטול',
@@ -187,9 +200,12 @@
       saved: 'Saved ✓', save_failed: 'Not saved on the server: {m} — the text is kept on this device.', restored: 'Restored an unsaved draft from this device.',
       conflict: 'The server draft changed since you edited (maybe the customer wrote again). Your version is shown.',
       use_server: 'Use the server version', keep_mine: 'Keep mine',
+      local_older: 'The customer wrote again after you edited this draft on this device. The new draft is shown.', use_mine_old: 'Bring back my version',
+      search_archive_wait: 'Searching the archive…', tpl_load_failed: 'The templates could not be loaded right now.', tpl_retry: 'Try again',
       send: 'Send', send_arm: 'Click again to send', send_dry: 'Sending is off (test mode)', sent_ok: 'Sent to the customer', queued_ok: 'Queued for WhatsApp',
       send_anyway: 'Send anyway (logged)', handled: 'Handled without sending', handled_arm: 'Click again — handled without sending',
       close: 'Close', close_arm: 'Click again to close', closed_ok: 'Ticket closed', handled_ok: 'Marked handled', safety: 'Safety check: {p}',
+      close_ns: 'Close without sending', close_ns_arm: 'Click again to close', close_ns_title: 'The ticket closes without sending anything to the customer. On WhatsApp it is closed in Dondy too.',
       orders: 'Orders', no_orders: 'No order found (orders older than 60 days are invisible).', lookup_error: 'The order lookup failed when the draft was written.',
       track: 'Tracking', items: 'Items', ordered: 'Ordered', shipped_on: 'Shipped',
       ship_not_late: 'On time', ship_late: 'Late', ship_very_late: 'Very late', ship_unknown: 'Unknown', ship_not_applicable: 'Not applicable',
@@ -272,7 +288,7 @@
       ac_manual: 'Move to manual handling', ac_note_ph: 'Why manual? (required)', ac_manual_go: 'Move', ac_note_req: 'A note is required.',
       ac_ok: 'Approved — cancels and replies in a few minutes', ac_moved: 'Moved to manual handling', ac_refused: 'The engine refused:', ac_mode: 'Mode: {m}',
       mode_off: 'off', mode_live: 'live', mode_shadow: 'shadow',
-      ok: 'OK', cancel_btn: 'Cancel',
+      ok: 'OK', cancel_btn: 'Back',
       settings: 'System mode', set_title: 'System mode — {b}', set_admin_only: 'Admin only.',
       set_DRY_RUN: 'Test mode', set_DRY_RUN_help: 'Test mode: drafts to the sheet only, nothing is sent',
       set_KACHING_WRITES: 'Subscription cancels', set_KACHING_WRITES_help: 'Kaching subscription cancellations are enabled',
@@ -296,6 +312,16 @@
       live_new_msg: 'A new message arrived', live_new_msgs: '{n} new messages arrived', live_ok: 'Got it',
       draft_new_avail: 'The engine wrote a new draft — yours is untouched.', use_new_draft: 'Use the new draft', draft_updated: 'The draft was updated for the new message.',
       orders_err: 'Order lookup failed: {m}', subs_err: 'Subscription lookup failed: {m}',
+      mailbox_at: 'Received at:', order_open: 'Open the order in Shopify (new tab)',
+      ain_title: 'Improve the AI — managers\' notes', ain_help: 'Notes go into every draft the AI writes, from the next draft on. They never override the policy rules.',
+      ain_jump: '🧠 Improve the AI', ain_ph: 'What should the AI do differently? E.g. "Don\'t write \'sorry for the inconvenience\' — open with the answer."',
+      ain_scope: 'Who is it for', ain_all: 'All brands', ain_add: 'Add note', ain_adding: 'Saving…', ain_count: '{n}/600',
+      ain_general: 'General — all brands', ain_brand: '{b} only', ain_empty: 'No notes yet. A note you add goes into the AI\'s next drafts.',
+      ain_by: '{u} · {d}', ain_del: '✕', ain_del_arm: 'Delete? Click again', ain_del_title: 'Delete the note',
+      ain_saved_all: 'Saved in all {n} brands', ain_saved_one: 'Saved for {b}', ain_saved_part: 'Saved in {ok} of {n} brands — failed: {bad}',
+      ain_save_fail: 'Not saved — {m}', ain_deleted: 'Deleted', ain_del_part: 'Deleted in {ok} of {n} brands — failed: {bad}', ain_del_fail: 'Not deleted — {m}',
+      ain_missing: 'Missing in: {b}', ain_fill: 'Complete', ain_load_err: 'Not loaded from {b}: {m}', ain_retry: 'Load again', ain_loading: 'Loading notes…',
+      ain_not_conn: 'Brands not connected to the system get no notes: {b}', ain_too_long: 'Up to 600 characters',
       tr_loading: 'Translating…', tr_failed: 'Translation failed: {m}', show_orig: 'Show original', show_en: 'Show English', tr_from: 'translated from {l}',
       en_draft: 'Your reply (write in English)', en_draft_loading: 'Translating the AI draft into English…', en_draft_ai: 'Prefilled with the AI draft, translated to English. Edit freely.',
       en_safety: 'Write in English. Customers receive only the approved Hebrew translation. If translation fails, nothing is sent.', en_invalid: 'A valid Hebrew translation is required. Nothing was sent. Please translate again.', en_review: 'Translate to Hebrew', en_reviewing: 'Translating…', en_side_en: 'Your English', en_side_out: 'What the customer gets ({l})',
@@ -467,8 +493,10 @@
       err.hidden = false;
       paintBtn();
     }
+    btn.addEventListener('keydown', function (e) { if (e.repeat && (e.key === 'Enter' || e.key === ' ')) e.preventDefault(); });   // a held key is not a second click
     btn.addEventListener('click', function () {
       if (btn.disabled) return;
+      if (mem.armedAt && Date.now() - mem.armedAt < ARM_MIN_MS) return;                 // a double-click is not a confirmation (review 2026-10-11 #2)
       if (Date.now() - mem.armedAt < ARM_MS) { mem.armedAt = 0; fire(); return; }      // the second click sends
       mem.armedAt = Date.now();
       paintBtn();
@@ -479,14 +507,22 @@
     const box = h('div', { class: 'tpl-box', 'data-test': 'tpl-box' }, h('b', { text: t('tpl_title') }), status, sel, prev, thenRow, h('div', { class: 'actions' }, btn), err);
     box.refresh = paint;
     paintBtn();
-    loadTemplates(brand).then(function (l) {
-      list = l || [];
+    function fill(l) {
+      if (l === null) {                                  // the server failed: say so and offer a retry (review 2026-10-11 #8)
+        clear(status); status.hidden = false; sel.hidden = true; list = []; paintBtn();
+        status.append(t('tpl_load_failed') + ' ', h('button', { class: 'btn small ghost', type: 'button', 'data-test': 'tpl-retry', text: t('tpl_retry'), onclick: function () {
+          clear(status); status.textContent = t('tpl_loading'); loadTemplates(brand).then(fill);
+        } }));
+        return;
+      }
+      list = l;
       if (!list.length) { status.textContent = t('tpl_none'); sel.hidden = true; paintBtn(); return; }
-      status.hidden = true;
+      status.hidden = true; sel.hidden = false; clear(sel);
       list.forEach(function (tp) { const o = document.createElement('option'); o.textContent = tp.name; o.value = tp.name; sel.append(o); });
       mem.name = chosen().name;
       paint();
-    });
+    }
+    loadTemplates(brand).then(fill);
     return box;
   }
   /** The "failed" tab is for sends a person can still do something about here; a chat past 24 hours lives in its own tab. */
@@ -509,6 +545,45 @@
   }
   function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
   function safeUrl(u) { return /^https:\/\/[^\s"<>]+$/i.test(String(u || '')) ? String(u) : null; }
+  /** Clicking an order number opens it in Shopify (Owner, 2026-10-11). The store handle comes from the engine (apiBoot.myshopify);
+   *  the order's own page when its gid is known, else the store's order search by the number shown. No handle -> null (plain text). */
+  function shopHandle(brand) {
+    const b = S.boots[brand];
+    const m = /^([a-z0-9][a-z0-9-]{0,62})\.myshopify\.com$/i.exec(String((b && b.myshopify) || '').trim());
+    return m ? m[1].toLowerCase() : null;
+  }
+  function orderUrl(brand, name, gid) {
+    const hd = shopHandle(brand);
+    if (!hd) return null;
+    const m = /^gid:\/\/shopify\/Order\/(\d{1,20})$/.exec(String(gid || '').trim());
+    if (m) return 'https://admin.shopify.com/store/' + hd + '/orders/' + m[1];
+    const n = String(name || '').trim();
+    return n ? 'https://admin.shopify.com/store/' + hd + '/orders?query=' + encodeURIComponent(n) : null;
+  }
+  /** The brand's list (with its myshopify) came after the ticket was drawn: plain order numbers become links, nothing is rebuilt. */
+  function upgradeOrderLinks(brand) {
+    if (!shopHandle(brand)) return;
+    Array.prototype.forEach.call(document.querySelectorAll('bdi[data-order-brand]'), function (el) {
+      if (el.getAttribute('data-order-brand') !== brand) return;
+      const a = orderLink(brand, el.getAttribute('data-order'), el.getAttribute('data-gid'), el.className || null);
+      if (a.tagName === 'A') el.replaceWith(a);
+    });
+  }
+  /** The gid of an order shown by name, when the ticket's order lookup has it. */
+  function orderGid(ex, name) {
+    const n = String(name || '').trim();
+    const o = n && ((ex && ex.orders) || []).filter(function (x) { return x && String(x.name || '').trim() === n; })[0];
+    return (o && o.id) || null;
+  }
+  /** An order number: a new-tab link to Shopify, or the same text when there is no link. The click never reaches a row under it. */
+  function orderLink(brand, name, gid, cls) {
+    const text = String(name || '').trim();
+    const u = safeUrl(orderUrl(brand, text, gid));
+    // no link yet: remembers what it needs, so the brand's list arriving later (a deep link) turns it into a link in place
+    if (!u) return h('bdi', { class: cls || null, text: text, 'data-order': text || null, 'data-order-brand': text ? brand : null, 'data-gid': gid || null });
+    return h('a', { class: 'order-link' + (cls ? ' ' + cls : ''), href: u, target: '_blank', rel: 'noopener noreferrer', dir: 'ltr', title: t('order_open'),
+      'data-test': 'order-link', text: text, onclick: function (e) { e.stopPropagation(); } });
+  }
 
   let toastTimer = null;
   function toast(msg) {
@@ -549,13 +624,17 @@
     return b;
   }
 
-  /** A button that needs two clicks within 4s. */
+  /** A button that needs two clicks within 4s — two separate clicks: a double-click or a held Enter never confirms
+   *  (review 2026-10-11 #2: a double-click sent to the customer / closed the ticket with no confirm step). */
+  const ARM_MIN_MS = 500;
   function armed(label, armLabel, cls, onFire) {
     const b = h('button', { class: 'btn ' + (cls || ''), type: 'button', text: label });
     let armedAt = 0;
     let timer = null;
+    b.addEventListener('keydown', function (e) { if (e.repeat && (e.key === 'Enter' || e.key === ' ')) e.preventDefault(); });
     b.addEventListener('click', function () {
       if (b.disabled) return;
+      if (armedAt && Date.now() - armedAt < ARM_MIN_MS) return;
       if (Date.now() - armedAt < 4000) {
         armedAt = 0; clearTimeout(timer); b.classList.remove('arm'); b.textContent = label;
         onFire(b);
@@ -566,6 +645,15 @@
       b.textContent = armLabel;
       timer = setTimeout(function () { armedAt = 0; b.classList.remove('arm'); b.textContent = label; }, 4000);
     });
+    return b;
+  }
+
+  /** Owner, 2026-10-11: "handled without sending" and "close" did the same thing in the engine (closeTicket_), so an agent gets ONE
+   *  button. apiMarkHandled stays in the proxy for outbox items queued before this change. */
+  function closeNoSendBtn(onFire) {
+    const b = armed(t('close_ns'), t('close_ns_arm'), '', onFire);
+    b.setAttribute('data-test', 'close-btn');
+    b.setAttribute('title', t('close_ns_title'));
     return b;
   }
 
@@ -615,7 +703,7 @@
    *  - Our OWN JSON answers (also 502/504, e.g. engine_timeout) are real answers and pass straight through.
    */
   const READ_FNS = ['list', 'changes', 'watch', 'ticket', 'prefetch', 'result', 'related', 'queue', 'translate', 'translate-he', 'translate-rows', 'translate-autoreply', 'translate-out',
-    'assistant', 'apiBoot', 'apiStatus', 'apiTicket', 'apiTicketExtras', 'apiTickets', 'apiSearch', 'apiAutoReplyList', 'apiAutoCancelList', 'apiTemplates'];
+    'assistant', 'apiBoot', 'apiStatus', 'apiTicket', 'apiTicketExtras', 'apiTickets', 'apiSearch', 'apiAutoReplyList', 'apiAutoCancelList', 'apiTemplates', 'apiAiNotes'];
   const RETRY_MS = [1000, 2000, 4000, 8000, 15000, 15000];
   function isRead(path, method, body) {
     if ((method || 'POST') === 'GET') return true;
@@ -939,7 +1027,7 @@
   function listAge(brand) { const x = SYNC[brand]; return x ? x.age + (Date.now() - x.at) / 1000 : null; }
   async function forceList(brand) {
     const r = await api('/api/' + encodeURIComponent(brand) + '/list', { maxAge: 0 });
-    if (r.ok && Array.isArray(r.tickets) && r.counts) { const cur = S.boots[brand]; S.boots[brand] = r; noteSync(brand, r.syncedAge || 0); if (cur) r._prev = null; }
+    if (r.ok && Array.isArray(r.tickets) && r.counts) { const cur = S.boots[brand]; S.boots[brand] = r; noteSync(brand, r.syncedAge || 0); if (cur) r._prev = null; upgradeOrderLinks(brand); }
     if (brand === S.brand) { renderBanners(); renderTabs(); renderList(true); }
   }
 
@@ -1002,7 +1090,7 @@
     }
     if (r.ok && canWork() && String(r.subscriptions || '').toLowerCase() !== 'none') loadAuto(brand);
     if (r.ok && canWork()) AutoReply.load(brand);
-    if (r.ok) { S.boots[brand] = r; delete S.bootErr[brand]; noteSync(brand, r.syncedAge); }
+    if (r.ok) { S.boots[brand] = r; delete S.bootErr[brand]; noteSync(brand, r.syncedAge); upgradeOrderLinks(brand); }
     // QA 2026-10-06: after a quiet hour the cached list is old; the server refreshes it now — fetch that, don't wait 10 s
     if (r.ok && typeof r.syncedAge === 'number' && r.syncedAge > 30) setTimeout(function () { if (S.boots[brand] === r) pollChanges(brand); }, 1500);
     else if (!S.boots[brand]) { S.bootErr[brand] = r.msg || r.error; }               // keep the last good list on a bad reply
@@ -1151,7 +1239,7 @@
     if (winChip) chips.push(winChip);
     if (Number(x.emails_count) > 1) chips.push(h('span', { class: 'chip outline', text: t('msgs', { n: x.emails_count }) }));
     if (x.language && x.language !== 'he' && x.language !== 'iw') chips.push(h('span', { class: 'chip outline', text: String(x.language).toUpperCase() }));
-    if (x.order_no) chips.push(h('span', { class: 'chip outline ltr', text: x.order_no }));
+    if (x.order_no) chips.push(h('span', { class: 'chip outline ltr', 'data-test': 'row-order' }, orderLink(S.brand, x.order_no, null)));
     if (x.cancelled) chips.push(h('span', { class: 'chip ok', text: t('cancelled_here') }));
     if (!open && /^\u26A0\uFE0F? ?ההודעה נשלחה/.test(String(x.action || ''))) chips.unshift(h('span', { class: 'chip bad', 'data-test': 'after-send-chip', text: t('afs_chip') }));
     if (Number(x.siblings) > 0) chips.push(h('span', { class: 'chip sib', text: t('siblings_short', { n: Number(x.siblings) }) }));
@@ -1233,13 +1321,14 @@
       }
       const res = lp.querySelector('.results');
       clear(res);
+      const searching = S.search.note === t('search_local');
       if (err) res.append(h('div', { class: 'err-box', text: err }));
       else if (S.search.err) res.append(h('div', { class: 'err-box', text: S.search.err }));
       else if (S.search.res === null) res.append(h('div', { class: 'empty', text: S.search.q ? t('loading') : t('search_min') }));
-      else if (!S.search.res.length) res.append(h('div', { class: 'empty' }, h('b', { text: t('search_none') })));
+      else if (!S.search.res.length) res.append(h('div', { class: 'empty' }, h('b', { text: searching ? t('search_archive_wait') : t('search_none') })));   // review 2026-10-11 #7
       else S.search.res.forEach(function (x) { res.append(rowEl(x, { showStatus: true })); });
       // after the chain, never inside it (QA round 5: a note placed in the if/else hid every result row)
-      if (S.search.note && S.search.res && !S.search.err) res.prepend(h('div', { class: 'muted small search-note', 'data-test': 'search-note', text: S.search.note }));
+      if (S.search.note && S.search.res && !S.search.err && !(searching && !S.search.res.length)) res.prepend(h('div', { class: 'muted small search-note', 'data-test': 'search-note', text: S.search.note }));
       return;
     }
     if (S.tab === 'auto') { AutoCancel.render(lp, force); return; }
@@ -1303,6 +1392,9 @@
   }
 
   // ---------------------------------------------------------------- ticket
+  /** The brand a ticket belongs to — never the brand on screen now (review 2026-10-11 #4: a brand switch while a ticket
+   *  was loading built its draft, cancel and notes against the other brand's engine). */
+  function tkBrand(x) { return S.tk && x && S.tk.id === x.id && S.tk.brand ? S.tk.brand : S.brand; }
   function renderTicketPlaceholder() {
     const tp = $('ticket-pane');
     clear(tp);
@@ -1341,6 +1433,14 @@
     k.pending = null;
     if (k.ticket && sig === k.sig) { paintSync(); return; }
     if (k.ticket && !force && userBusyInTicket()) { k.pending = r; paintSync(); return; }
+    // review 2026-10-11 #1: an edited draft stays the agent's text after its autosave landed. A whole redraw would rebuild it
+    // from this copy's draft_text, which can be OLDER than the save. Swap the conversation only and offer a new draft.
+    if (k.ticket && Draft.edited()) {
+      if (r.cache && typeof r.cache.at === 'number' && k.srvAt && r.cache.at < k.srvAt) { paintSync(); return; }   // an older copy than one already taken in
+      if ($('cancel-dlg').open || $('confirm-dlg').open) { k.pending = r; paintSync(); return; }
+      liveUpdate(k, r);
+      return;
+    }
     const pane = $('ticket-pane');
     const sy = window.scrollY;
     const ps = pane.scrollTop;
@@ -1688,6 +1788,9 @@
     body.append(h('div', { id: 'notes-card' }, notesCard(x)));
     body.append(h('div', { id: 'related-card' }, relatedCard()));
     body.append(detailsCard(x));
+    // Owner, 2026-10-11: which of the brand's mailboxes the customer wrote to — small, at the very bottom. Email only; nothing when unknown.
+    const mbox = !isWA(x) && typeof ex.mailbox === 'string' ? ex.mailbox.trim() : '';
+    if (mbox) body.append(h('p', { class: 'muted small tk-mailbox', 'data-test': 'tk-mailbox' }, t('mailbox_at') + ' ', h('bdi', { dir: 'ltr', text: mbox })));
     if (k.extrasErr) body.insertBefore(h('div', { class: 'err-box', text: k.extrasErr }), body.children[1]);
     Outbox.paintBanner();
     paintLive(k);
@@ -1850,7 +1953,8 @@
       mine.saving = false;
       if (r.ok) {
         if (st === mine) {
-          if (mine.ta.value === text && !mine.dirty) { dropLocal(); setState('saved'); } else writeLocal();
+          writeLocal();                                // kept until a server copy shows this text (review 2026-10-11 #1)
+          if (mine.ta.value === text && !mine.dirty) setState('saved');
           // Owner, 2026-10-06: a person's send is never blocked by a content check — the engine's check is an audit only,
           // so nothing about it is shown here (agents read any note as "must edit")
         }
@@ -1870,12 +1974,13 @@
     function card(x) {
       pruneOld();
       const isOpen = OPEN.indexOf(x.status) >= 0;
-      const k = key(S.brand, x.id);
+      const brand = tkBrand(x);
+      const k = key(brand, x.id);
       const server = String(x.draft_text || '');
       const local = readLocal(k);
       const ta = h('textarea', { dir: 'auto', 'aria-label': t('draft'), spellcheck: 'true', rows: '9' });
       ta.value = server;
-      st = { id: x.id, brand: S.brand, key: k, ta: ta, base: server, dirty: false, saving: false, timer: null };
+      st = { id: x.id, brand: brand, key: k, ta: ta, base: server, dirty: false, saving: false, timer: null };
       const stateEl = h('div', { class: 'save-state', 'aria-live': 'polite' });
       const note = h('div');
       const offerEl = h('div', { class: 'stale', hidden: true, 'data-test': 'draft-offer' });
@@ -1888,7 +1993,17 @@
         c.append(h('div', { class: 'muted small', text: t('draft_readonly') }));
         return c;
       }
-      if (local && local.text !== server && local.text.trim()) {
+      const wroteAt = ms(x.waiting_since);
+      if (local && local.text !== server && local.text.trim() && wroteAt && local.at && local.at < wroteAt) {
+        // review 2026-10-11 #5: the customer wrote after this device copy — the new server draft leads, the old text is offered
+        const older = h('div', { class: 'stale', 'data-test': 'draft-older-local' }, h('span', { text: t('local_older') }));
+        older.append(' ', h('button', { class: 'btn small ghost', type: 'button', text: t('use_mine_old'), onclick: function () {
+          if (!st || st.ta !== ta) return;
+          ta.value = local.text; st.dirty = true; st.edited = true; clear(note); writeLocal(); save();
+          if (st.refreshSend) st.refreshSend();
+        } }));
+        note.append(older);
+      } else if (local && local.text !== server && local.text.trim()) {
         ta.value = local.text;
         st.dirty = true;
         st.edited = true;
@@ -1961,10 +2076,9 @@
         sendBtn.title = isDry() ? t('dry_run') : '';
       };
       st.refreshSend();
-      const handledBtn = armed(t('handled'), t('handled_arm'), '', function () { doClose('apiMarkHandled', t('handled_ok')); });
-      const closeBtn = armed(t('close'), t('close_arm'), 'ghost', function () { doClose('apiClose', t('closed_ok')); });
-      all.push(sendBtn, handledBtn, closeBtn);
-      actions.append(sendBtn, handledBtn, closeBtn);
+      const closeBtn = closeNoSendBtn(function () { doClose('apiClose', t('closed_ok')); });
+      all.push(sendBtn, closeBtn);
+      actions.append(sendBtn, closeBtn);
       if (winClosed()) {
         c.append(h('div', { class: 'wa-win-note', role: 'status', 'data-test': 'wa-win-note', text: t('wa_win_note') }));
         const tb = templateBox(st.brand, x, function () { return ta.value; });
@@ -2160,7 +2274,7 @@
   const EnDraft = (function () {
     let cur = null;
     function card(x) {
-      const brand = S.brand;
+      const brand = tkBrand(x);
       const key = 'cs.draft.en.' + brand + '.' + x.id;
       let local = null;
       try { local = localStorage.getItem(key); } catch (e) { local = null; }
@@ -2235,8 +2349,7 @@
       async function doClose(fn, okMsg) {
         if (Outbox.start(fn, brand, x, { id: x.id })) goNext(brand, x.id);
       }
-      const handledBtn = armed(t('handled'), t('handled_arm'), '', function () { doClose('apiMarkHandled', t('handled_ok')); });
-      const closeBtn = armed(t('close'), t('close_arm'), 'ghost', function () { doClose('apiClose', t('closed_ok')); });
+      const closeBtn = closeNoSendBtn(function () { doClose('apiClose', t('closed_ok')); });
       refresh();
       const enCard = h('div', { class: 'card draft en-draft', 'data-test': 'en-draft' }, h('h3', { text: t('en_draft') }), h('div', { class: 'muted small', text: t('en_safety'), 'data-test': 'hebrew-only-notice' }), note, ta);
       if (waWinClosed(x)) {     // past 24 hours: no free text; a template instead (the reply that waits is translated to Hebrew by the server)
@@ -2245,7 +2358,7 @@
         ta.addEventListener('input', function () { tbe.refresh(); });
         enCard.append(h('div', { class: 'wa-win-note', role: 'status', 'data-test': 'wa-win-note', text: t('wa_win_note') }), tbe);
       }
-      enCard.append(h('div', { class: 'actions' }, reviewBtn, handledBtn, closeBtn), review, errEl);
+      enCard.append(h('div', { class: 'actions' }, reviewBtn, closeBtn), review, errEl);
       return enCard;
     }
     function prefill(id, text) {
@@ -2358,14 +2471,15 @@
     const orders = ex.orders || [];
     const sh = ex.shipping || null;
     if (sh && sh.state && sh.state !== 'unknown' && sh.orderName) {
-      c.append(h('p', { class: 'small ship-line' }, h('bdi', { class: 'chip ' + (sh.state === 'not_late' ? 'ok' : sh.state === 'not_applicable' ? '' : 'bad'), text: sh.orderName }), ' ',
+      c.append(h('p', { class: 'small ship-line' }, h('bdi', { class: 'chip ' + (sh.state === 'not_late' ? 'ok' : sh.state === 'not_applicable' ? '' : 'bad') },
+        orderLink(S.tk ? S.tk.brand : S.brand, sh.orderName, orderGid(ex, sh.orderName))), ' ',
         t('ship_line', { state: t('ship_' + sh.state), d: sh.daysSinceOrder })));             // never the internal thresholds
     }
     if (ex.ordersError) c.append(h('div', { class: 'problem' }, tx('orders_err', { m: String(ex.ordersError) })));
     if (!orders.length) {
       const note = (ex.notes && typeof ex.notes === 'object') ? ex.notes.orders : undefined;
       const chipNo = (sh && sh.state && sh.state !== 'unknown' && sh.orderName) || (ex.notes && ex.notes.orderNo) || (x && x.order_no);
-      if (chipNo && !(sh && sh.orderName)) c.append(h('p', { class: 'small ship-line' }, h('bdi', { class: 'chip outline', text: chipNo })));
+      if (chipNo && !(sh && sh.orderName)) c.append(h('p', { class: 'small ship-line' }, h('bdi', { class: 'chip outline' }, orderLink(S.tk ? S.tk.brand : S.brand, chipNo, null))));
       let line = null;
       if (note === 'chip_only' || (note === undefined && chipNo)) line = note === 'chip_only' ? t('orders_chip_only') : null;
       else if (note === 'error' || (note === undefined && ex.lookup === 'error')) line = t('check_error');
@@ -2387,7 +2501,7 @@
       });
       const shipped = (o.fulfillments || []).map(function (f) { return f.createdAt; }).filter(Boolean)[0];
       list.append(h('div', { class: 'item-card' },
-        h('div', { class: 'hd' }, h('b', { class: 'ltr', text: o.name || '—' }),
+        h('div', { class: 'hd' }, o.name ? h('b', { class: 'ltr' }, orderLink(S.tk ? S.tk.brand : S.brand, o.name, o.id)) : h('b', { class: 'ltr', text: '—' }),
           o.financialStatus ? h('span', { class: 'chip ' + (/PAID/.test(o.financialStatus) && !/REFUND/.test(o.financialStatus) ? 'ok' : ''), text: t('fin_' + o.financialStatus) }) : null,
           o.fulfillmentStatus ? h('span', { class: 'chip ' + (o.fulfillmentStatus === 'FULFILLED' ? 'st-sent' : 'outline'), text: t('ful_' + o.fulfillmentStatus) }) : null),
         h('dl', { class: 'kv' },
@@ -2458,26 +2572,37 @@
       const wants = /^cancel:/i.test(String(x.action || ''));
       const b = boot() || {};
       const num = contractNum(s.id);
+      const brand = tkBrand(x);
+      const last4 = String(s.id).slice(-4);              // the gate's own rule (Kaching.gs): the contract id's last 4 digits
       const items = (s.lines || []).map(function (l) { return (l.quantity > 1 ? l.quantity + ' × ' : '') + l.title; }).join(', ');
       const code = h('input', { class: 'code', inputmode: 'numeric', maxlength: '4', autocomplete: 'off', pattern: '[0-9]{4}', 'aria-label': t('dlg_type') });
       const reason = h('textarea', { rows: '3', dir: 'auto', maxlength: '500' });
       const result = h('div', { 'aria-live': 'assertive' });
       const go = h('button', { class: 'btn danger', type: 'button', text: t('dlg_go'), disabled: true });
       const back = h('button', { class: 'btn ghost', type: 'button', text: t('dlg_back') });
-      code.addEventListener('input', function () { code.value = code.value.replace(/\D/g, '').slice(0, 4); go.disabled = busy || code.value.length !== 4; });
+      // review 2026-10-11 #9: the button lights only when the gate would accept — the right 4 digits, and a written reason
+      // (10+ characters, 2 words) when the customer did not ask to cancel
+      function reasonOk() { const v = reason.value.trim(); return v.length >= 10 && v.split(/\s+/).filter(function (w) { return /[\p{L}\p{N}]{2,}/u.test(w); }).length >= 2; }
+      function ready() { return code.value === last4 && (wants || reasonOk()); }
+      code.addEventListener('input', function () {
+        code.value = code.value.replace(/\D/g, '').slice(0, 4);
+        code.setAttribute('aria-invalid', code.value.length === 4 && code.value !== last4 ? 'true' : 'false');
+        go.disabled = busy || !ready();
+      });
+      reason.addEventListener('input', function () { go.disabled = busy || !ready(); });
       back.addEventListener('click', function () { if (!busy) dlg.close(); });
       dlg.addEventListener('cancel', function (e) { if (busy) e.preventDefault(); });
       go.addEventListener('click', async function () {
-        if (busy || code.value.length !== 4) return;
+        if (busy || !ready()) return;
         busy = true; go.disabled = true; back.disabled = true; go.textContent = t('dlg_working');
         clear(result);
-        const r = await engine('apiKachingCancel', { id: x.id, contractId: s.id, confirm: code.value, reason: reason.value.trim() }, S.brand);
+        const r = await engine('apiKachingCancel', { id: x.id, contractId: s.id, confirm: code.value, reason: reason.value.trim() }, brand);
         busy = false; back.disabled = false; go.textContent = t('dlg_go');
         if (r.ok) {
           dlg.close();
           toast(r.msg || t('ss_CANCELLED'));
           if (S.tk && S.tk.id === x.id) {               // refresh only the panels the cancel changed; the draft is untouched
-            const fr = await fetchTicket(S.brand, x.id, true);
+            const fr = await fetchTicket(brand, x.id, true);
             if (S.tk && S.tk.id === x.id && fr.ok) {
               S.tk.ticket.cancelled = fr.ticket.cancelled;
               S.tk.extras = fr.extras || {};
@@ -2487,7 +2612,7 @@
           }
           return;
         }
-        go.disabled = code.value.length !== 4;
+        go.disabled = !ready();
         result.append(h('div', { class: 'err-box', role: 'alert' }, h('div', { text: r.msg || r.error }),
           r.message ? h('bdi', { class: 'raw', text: r.message }) : null));
       });
@@ -2518,16 +2643,20 @@
     const inp = h('input', { type: 'text', placeholder: t('note_ph'), maxlength: '1000', dir: 'auto', 'aria-label': t('note_ph') });
     const btn = h('button', { class: 'btn small', type: 'button', text: t('note_add') });
     const err = h('div');
+    const brand = tkBrand(x);
+    let busy = false;                                    // review 2026-10-11 #6: a double Enter saved the same note twice
     async function addNote() {
       const text = inp.value.trim();
-      if (!text) return;
-      btn.disabled = true;
+      if (!text || busy) return;
+      busy = true; btn.disabled = true;
       clear(err);
-      const r = await engine('apiNote', { id: x.id, text: text });
-      btn.disabled = false;
+      let r;
+      try { r = await engine('apiNote', { id: x.id, text: text }, brand); } catch (e) { r = { ok: false, error: String(e && e.message || e) }; }
+      finally { busy = false; btn.disabled = false; }
       if (!r.ok) { err.append(h('div', { class: 'err-box', text: r.msg || r.error })); return; }
+      if (inp.value.trim() === text) inp.value = '';
       toast(t('note_ok'));
-      const fresh = await fetchTicket(S.brand, x.id, true);
+      const fresh = await fetchTicket(brand, x.id, true);
       if (S.tk && S.tk.id === x.id) {
         if (fresh.ok) S.tk.ticket.notes = fresh.ticket.notes;
         const slot = document.getElementById('notes-card');
@@ -2579,7 +2708,8 @@
       h('dl', { class: 'kv' },
         h('dt', { text: t('created') }), h('dd', { text: fmtDate(x.created_at, true) }),
         x.handled_at ? h('dt', { text: t('handled_at') }) : null, x.handled_at ? h('dd', { text: fmtDate(x.handled_at, true) + ' ' + t('by') + ' ' + (x.handled_by || '—') }) : null,
-        x.order_no ? h('dt', { text: t('order') }) : null, x.order_no ? h('dd', { class: 'ltr', text: x.order_no }) : null,
+        x.order_no ? h('dt', { text: t('order') }) : null,
+        x.order_no ? h('dd', { class: 'ltr' }, orderLink(S.tk ? S.tk.brand : S.brand, x.order_no, orderGid(S.tk && S.tk.extras, x.order_no))) : null,
         x.language ? h('dt', { text: t('language') }) : null, x.language ? h('dd', { text: x.language }) : null,
         h('dt', { text: t('ticket_id') }), h('dd', { class: 'ltr', text: x.id })),
       h('p', { class: 'muted small mt8', text: t('audit_na') }));
@@ -2898,7 +3028,12 @@
     const pos = all.map(function (x) { return x.id; }).indexOf(fromId);
     const after = rows.filter(function (x) { return all.map(function (y) { return y.id; }).indexOf(x.id) > pos && x.id !== fromId; });
     const next = after[0] || rows.filter(function (x) { return x.id !== fromId; })[0];
-    if (next) go(ticketHash(next.id)); else go(listHash(tab || 'ready'));
+    if (next) { go(ticketHash(next.id)); return; }
+    // review 2026-10-11 #3: on a wide screen the list keeps the ticket pane, and its send button lit up again once the reply
+    // landed. The handed-off ticket leaves the screen with it.
+    if (S.ticketId === fromId) { Draft.detach(); S.ticketId = null; S.tk = null; }
+    const lh = listHash(tab || 'ready');
+    if (location.hash === lh) { if (!S.ticketId) renderTicketPlaceholder(); renderList(true); } else go(lh);
   }
 
   // ---------------------------------------------------------------- automatic cancellations queue
@@ -3207,6 +3342,190 @@
   })();
 
   // ---------------------------------------------------------------- system mode (admin)
+  // ---------------------------------------------------------------- AI notes (Owner, 2026-10-11)
+  /** "A section in the managers' dashboard where a manager can improve the AI and give notes — general or per brand."
+   *  Every brand engine keeps its own list (engine AiNotes.gs). A general note is written to EVERY connected brand with ONE id made here,
+   *  so a repeat is a no-op and the list de-dupes by id. Every fan-out reports per brand — never "saved" when a brand failed.
+   *  The card is built once; only its list and status repaint, so the textarea is never rebuilt under the manager's fingers. */
+  const AiNotes = (function () {
+    const MAX = 600;
+    const st = { lists: {}, errs: {}, loaded: false, seq: 0, busy: false, pending: null, status: null };
+    let el = null;
+    function brands() { return S.me.brands.filter(function (b) { return b.connected; }).map(function (b) { return b.id; }); }
+    function newId() {
+      const a = new Uint8Array(16);
+      crypto.getRandomValues(a);
+      return Array.prototype.map.call(a, function (x) { return (x < 16 ? '0' : '') + x.toString(16); }).join('');
+    }
+    function call(brand, fn, args) { return api('/api/' + encodeURIComponent(brand) + '/' + fn, { args: args, lang: LANG }); }
+    /** Runs one call per brand in parallel -> {ok: [brands], bad: [[brand, msg]]}. "Not found" on a delete is a success. */
+    async function fan(targets, fn, args) {
+      const res = await Promise.all(targets.map(function (b) { return call(b, fn, args).catch(function () { return null; }); }));
+      const out = { ok: [], bad: [] };
+      res.forEach(function (r, i) {
+        if (r && r.ok) out.ok.push(targets[i]);
+        else out.bad.push([targets[i], (r && (r.msg || r.error)) || t('err_bad_engine')]);
+      });
+      return out;
+    }
+    function badNames(bad) { return bad.map(function (x) { return brandName(x[0]); }).join(', '); }
+    function setStatus(kind, text) { st.status = text ? { kind: kind, text: text } : null; paintStatus(); }
+    async function load() {
+      const seq = ++st.seq;
+      const bs = brands();
+      const res = await Promise.all(bs.map(function (b) { return api('/api/' + encodeURIComponent(b) + '/apiAiNotes', { args: {} }, 'POST', { quiet: true }).catch(function () { return null; }); }));
+      if (seq !== st.seq) return;                          // a newer load (after an add / delete) owns the screen
+      st.lists = {}; st.errs = {};
+      res.forEach(function (r, i) {
+        if (r && r.ok && Array.isArray(r.notes)) st.lists[bs[i]] = r.notes.filter(function (n) { return n && typeof n.id === 'string' && typeof n.text === 'string'; });
+        else st.errs[bs[i]] = (r && (r.msg || r.error)) || t('err_bad_engine');
+      });
+      st.loaded = true;
+      paintList();
+    }
+    /** {general: [{note, have: [brands]}], brand: {b: [notes]}} — newest first; a general note is listed once, by id. */
+    function grouped() {
+      const gen = {}, order = [], per = {};
+      Object.keys(st.lists).forEach(function (b) {
+        st.lists[b].forEach(function (n) {
+          if (n.scope === 'all') {
+            if (!gen[n.id]) { gen[n.id] = { note: n, have: [] }; order.push(n.id); }
+            gen[n.id].have.push(b);
+          } else (per[b] = per[b] || []).push(n);
+        });
+      });
+      const byAt = function (a, b) { return (ms(b.at) || 0) - (ms(a.at) || 0); };
+      Object.keys(per).forEach(function (b) { per[b].sort(byAt); });
+      return { general: order.map(function (id) { return gen[id]; }).sort(function (a, b) { return byAt(a.note, b.note); }), brand: per };
+    }
+    function delBtn(onFire) {
+      const b = armed(t('ain_del'), t('ain_del_arm'), 'small ghost ain-del', onFire);
+      b.setAttribute('data-test', 'ai-note-del');
+      b.setAttribute('title', t('ain_del_title'));
+      b.setAttribute('aria-label', t('ain_del_title'));
+      return b;
+    }
+    function item(n, scopeBrands, extra) {
+      const li = h('li', { class: 'ain-item', 'data-test': 'ai-note', 'data-id': n.id, 'data-scope': n.scope },
+        h('div', { class: 'ain-text', dir: 'auto', text: n.text }),
+        h('div', { class: 'ain-meta muted small' }, h('span', null, tx('ain_by', { u: n.by || '—', d: fmtDate(n.at, true) })), extra || null,
+          delBtn(async function (btn) {
+            btn.disabled = true;
+            const r = await fan(scopeBrands, 'apiAiNoteDelete', { id: n.id });
+            if (!r.bad.length) setStatus('ok', t('ain_deleted'));
+            else if (r.ok.length) setStatus('bad', t('ain_del_part', { ok: r.ok.length, n: scopeBrands.length, bad: badNames(r.bad) }));
+            else setStatus('bad', t('ain_del_fail', { m: r.bad[0][1] }));
+            await load();
+          })));
+      return li;
+    }
+    function paintList() {
+      if (!el) return;
+      const list = el.querySelector('[data-test=ai-note-list]');
+      clear(list);
+      if (!st.loaded) { list.append(h('div', { class: 'muted small', text: t('ain_loading') })); return; }
+      Object.keys(st.errs).forEach(function (b) {
+        list.append(h('div', { class: 'err-box ain-err', role: 'alert', 'data-test': 'ai-note-load-err', 'data-brand': b }, t('ain_load_err', { b: brandName(b), m: st.errs[b] }), ' ',
+          h('button', { type: 'button', class: 'btn small', text: t('ain_retry'), onclick: function () { load(); } })));
+      });
+      const g = grouped();
+      const all = brands();
+      const loadedBrands = Object.keys(st.lists);
+      let any = false;
+      if (g.general.length) {
+        any = true;
+        const ul = h('ul', { class: 'ain-list' });
+        g.general.forEach(function (x) {
+          // missing = brands that answered and do NOT have it (a brand that failed to load is unknown, not missing)
+          const missing = loadedBrands.filter(function (b) { return x.have.indexOf(b) < 0; });
+          const extra = missing.length ? h('span', { class: 'ain-missing' }, h('span', { class: 'chip bad', 'data-test': 'ai-note-missing', text: t('ain_missing', { b: missing.map(brandName).join(', ') }) }), ' ',
+            h('button', { type: 'button', class: 'btn small', 'data-test': 'ai-note-fill', text: t('ain_fill'), onclick: async function (e) {
+              e.currentTarget.disabled = true;
+              const r = await fan(missing, 'apiAiNoteAdd', { id: x.note.id, scope: 'all', text: x.note.text });
+              report(r, missing.length, null);
+              await load();
+            } })) : null;
+          ul.append(item(x.note, all, extra));
+        });
+        list.append(h('section', { class: 'ain-group', 'data-test': 'ai-group-all' }, h('h4', { text: t('ain_general') }), ul));
+      }
+      all.forEach(function (b) {
+        const ns = g.brand[b];
+        if (!ns || !ns.length) return;
+        any = true;
+        const ul = h('ul', { class: 'ain-list' });
+        ns.forEach(function (n) { ul.append(item(n, [b])); });
+        list.append(h('section', { class: 'ain-group', 'data-test': 'ai-group-brand', 'data-brand': b }, h('h4', null, tx('ain_brand', { b: brandName(b) })), ul));
+      });
+      if (!any && !Object.keys(st.errs).length) list.append(h('div', { class: 'muted small', 'data-test': 'ai-note-empty', text: t('ain_empty') }));
+    }
+    function paintStatus() {
+      if (!el) return;
+      const s0 = el.querySelector('[data-test=ai-note-status]');
+      s0.textContent = st.status ? st.status.text : '';
+      s0.className = 'ain-status small' + (st.status ? (st.status.kind === 'ok' ? ' ok' : ' bad') : '');
+      s0.hidden = !st.status;
+    }
+    /** One line for an add: every brand, one brand, part of them, or none — never "saved" over a failure. */
+    function report(r, n, oneBrand) {
+      if (!r.bad.length) setStatus('ok', oneBrand ? t('ain_saved_one', { b: brandName(oneBrand) }) : t('ain_saved_all', { n: n }));
+      else if (r.ok.length) setStatus('bad', t('ain_saved_part', { ok: r.ok.length, n: n, bad: badNames(r.bad) }));
+      else setStatus('bad', t('ain_save_fail', { m: r.bad[0][1] }));
+    }
+    function build() {
+      const ta = h('textarea', { class: 'ain-ta', rows: 3, maxlength: String(MAX), dir: 'auto', placeholder: t('ain_ph'), 'aria-label': t('ain_title'), 'data-test': 'ai-note-text' });
+      const count = h('span', { class: 'muted small ain-count', 'data-test': 'ai-note-count', text: t('ain_count', { n: 0 }) });
+      const sel = h('select', { class: 'ain-scope', 'aria-label': t('ain_scope'), 'data-test': 'ai-note-scope' });
+      sel.append(h('option', { value: 'all', text: t('ain_all') }));
+      brands().forEach(function (b) { sel.append(h('option', { value: b, text: brandName(b) })); });
+      const btn = h('button', { type: 'button', class: 'btn primary', 'data-test': 'ai-note-add', text: t('ain_add') });
+      const paintBtn = function () {
+        const n = ta.value.trim().length;
+        count.textContent = t('ain_count', { n: ta.value.length });
+        btn.disabled = st.busy || !n || n > MAX || !brands().length;
+        btn.textContent = st.busy ? t('ain_adding') : t('ain_add');
+      };
+      ta.addEventListener('input', paintBtn);
+      sel.addEventListener('change', paintBtn);
+      btn.addEventListener('click', async function () {
+        const text = ta.value.trim();
+        if (st.busy || !text || text.length > MAX) return;
+        const scope = sel.value;
+        const targets = scope === 'all' ? brands() : [scope];
+        // The same text to the same place again reuses its id: a retry after an unclear answer is a no-op in the engine, never a twin.
+        const p0 = st.pending;
+        const id = p0 && p0.text === text && p0.scope === scope ? p0.id : newId();
+        st.pending = { id: id, text: text, scope: scope };
+        st.busy = true; paintBtn(); setStatus(null, '');
+        let r;
+        try { r = await fan(targets, 'apiAiNoteAdd', { id: id, scope: scope === 'all' ? 'all' : 'brand', text: text }); }
+        finally { st.busy = false; }
+        report(r, targets.length, scope === 'all' ? null : scope);
+        if (r.ok.length) { st.pending = null; ta.value = ''; }     // saved somewhere: it is in the list now (a part-save offers "complete" there)
+        paintBtn();
+        await load();
+      });
+      const nc = S.me.brands.filter(function (b) { return !b.connected; }).map(function (b) { return brandName(b.id); });
+      el = h('div', { class: 'dash-card ain-card', id: 'ai-notes', 'data-test': 'ai-notes' },
+        h('h3', { text: t('ain_title') }),
+        h('p', { class: 'muted small ain-help', 'data-test': 'ai-notes-help', text: t('ain_help') }),
+        ta,
+        h('div', { class: 'ain-row' }, h('label', { class: 'small' }, t('ain_scope') + ' ', sel), count, btn),
+        nc.length ? h('div', { class: 'muted small', 'data-test': 'ai-note-not-conn', text: t('ain_not_conn', { b: nc.join(', ') }) }) : null,
+        h('div', { class: 'ain-status small', role: 'status', 'aria-live': 'polite', 'data-test': 'ai-note-status', hidden: true }),
+        h('div', { class: 'ain-lists', 'data-test': 'ai-note-list' }));
+      paintBtn();
+      paintStatus();
+      paintList();
+    }
+    function mount(slot) {
+      if (!el) build();
+      if (el.parentNode !== slot) { clear(slot); slot.append(el); }
+      load();
+    }
+    return { mount: mount, load: load };
+  })();
+
   // ---------------------------------------------------------------- managers' dashboard (Owner, 2026-10-06)
   /** Admin + user-manager only (the server answers 403 to anyone else). Real work time from the activity log: actions
    *  at most 5 min apart are one session; being logged in is not work. Charts are plain SVG (strict CSP, no libraries). */
@@ -3544,8 +3863,20 @@
       box.append(h('div', { class: 'src-split' }, pieBox, h('div', { class: 'table-wrap' }, tb)));
       return box;
     }
+    /** The pane holds two parts: the numbers (rebuilt on every 30 s refresh) and the AI notes card (built once — the 30 s refresh must
+     *  never rebuild a textarea a manager is typing in; build-rules §1ב). */
+    function parts() {
+      const root = $('dash-pane');
+      let main = document.getElementById('dash-main');
+      if (!main) {
+        clear(root);
+        main = h('div', { id: 'dash-main' });
+        root.append(main, h('div', { id: 'dash-ai' }));
+      }
+      return { main: main, ai: document.getElementById('dash-ai') };
+    }
     function render() {
-      const p = $('dash-pane');
+      const p = parts().main;
       clear(p);
       const head = h('div', { class: 'dash-head' }, h('h2', { text: L.title }));
       const rg = h('div', { class: 'seg', role: 'group' });
@@ -3557,6 +3888,8 @@
       const di = h('input', { type: 'date', value: st.date || st.shown || '', max: st.shown || null, 'aria-label': 'date', 'data-test': 'dash-date' });
       di.addEventListener('change', function () { st.date = di.value; st.data = null; render(); load(); });
       head.append(rg, di);
+      if (S.me.is_admin) head.append(h('button', { type: 'button', class: 'btn small ghost', 'data-test': 'ai-notes-jump', text: t('ain_jump'),
+        onclick: function () { const c = document.getElementById('ai-notes'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }));
       if (st.data) head.append(h('b', { class: 'shown-day', 'data-test': 'dash-shown', text: st.data.days.length > 1 ? st.data.days[0] + ' – ' + st.data.end_day : st.data.end_day }));
       if (st.data) head.append(h('span', { class: 'muted small', 'data-test': 'dash-updated', text: L.updated + ' ' + new Date(st.data.generated_at * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL') }));
       p.append(head);
@@ -3606,6 +3939,7 @@
     function show() {
       $('dash-pane').hidden = false;
       render();
+      if (S.me.is_admin) AiNotes.mount(parts().ai);       // admin only (the proxy answers 403 to anyone else)
       load();
       if (!timer) timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) load(true); }, 30000);
     }
@@ -3834,7 +4168,7 @@
     function item(it, kind) {
       const s = function (v) { return v === null || v === undefined ? '' : String(v); };
       const addr = [s(it.address), s(it.city)].filter(Boolean).join(', ');
-      const top = h('div', { class: 'zi-head' }, h('span', null, z('order') + ' ', h('bdi', { class: 'ltr', 'data-test': 'zip-order', text: s(it.order) })));
+      const top = h('div', { class: 'zi-head' }, h('span', null, z('order') + ' ', h('bdi', { class: 'ltr', 'data-test': 'zip-order' }, orderLink(st.brand, s(it.order), null))));
       if (kind === 'review') top.append(h('span', null, z('zip') + ' ', h('bdi', { class: 'ltr', 'data-test': 'zip-zip', text: s(it.zip) })));
       const row = h('div', { class: 'zip-item ' + kind, 'data-test': 'zip-' + kind + '-item', 'data-order': s(it.order) }, top);
       if (kind === 'review' && s(it.reason)) row.append(h('div', { class: 'reason', 'data-test': 'zip-reason', text: s(it.reason) }));

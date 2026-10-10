@@ -61,6 +61,11 @@ FN_TABLE = {
     "apiSendTemplate": (WORK_ROLES, ("id", "template", "then")),
     # System switches. Admin only — checked HERE as well as in the engine.
     "apiSettings": (ADMIN_ONLY, ("action", "key", "value")),
+    # Managers' notes to the AI (Owner, 2026-10-11): written into every draft the engine writes. Admin only — checked HERE as
+    # well as in the engine. `id` is made by the browser, so one general note fanned out to every brand keeps ONE id.
+    "apiAiNotes": (ADMIN_ONLY, ()),
+    "apiAiNoteAdd": (ADMIN_ONLY, ("id", "scope", "text")),
+    "apiAiNoteDelete": (ADMIN_ONLY, ("id",)),
 }
 
 # Server-internal only (phase 5 assistant): never reachable from the browser route, only via call(internal=True).
@@ -118,7 +123,7 @@ log = logging.getLogger("cs_screen.engine")
 # retried either: a slow engine would turn into minutes of waiting.
 READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "apiTicketExtras", "apiTickets", "apiSearch",
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
-                      "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
+                      "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates", "apiAiNotes"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
 # the time a server thread was held (70-110 s), the 16 threads ran out, Render's health check timed out and the
@@ -285,6 +290,10 @@ def parse_engines(raw, url_re=ENGINE_URL_RE):
     return engines, bad
 
 
+AI_NOTE_ID_RE = re.compile(r"^[a-z0-9]{8,40}$")
+AI_NOTE_MAX = 600
+
+
 def clean_args(fn, args, table=None):
     _, keys = (table or FN_TABLE)[fn]
     if args is None:
@@ -321,6 +330,16 @@ def clean_args(fn, args, table=None):
             out = {"action": "set", "key": key, "value": val}
         else:
             raise ProxyError("bad_request", 400)
+    if fn in ("apiAiNoteAdd", "apiAiNoteDelete"):
+        if not AI_NOTE_ID_RE.match(out.get("id", "")):
+            raise ProxyError("bad_request", 400)
+        if fn == "apiAiNoteAdd":
+            text = out.get("text", "").strip()
+            if out.get("scope") not in ("all", "brand"):
+                raise ProxyError("bad_request", 400)
+            if not (1 <= len(text) <= AI_NOTE_MAX):
+                raise ProxyError("bad_ai_note", 400)
+            out["text"] = text
     if fn == "apiAutoCancelReject" and not (2 <= len(out.get("note", "").strip()) <= 300):
         raise ProxyError("bad_note", 400)
     if fn == "apiAutoReplyReview":
@@ -370,7 +389,7 @@ def http_transport(session=None):
 # Every engine reply is checked against the shape its fn must have BEFORE anything uses or caches it. A bare
 # {"ok":true} (doGet) once rendered "no tickets" over ~280 open ones, cached empty knowledge, and would have shown
 # "sent" for a send that never happened. An invalid reply is treated exactly like Google's HTML page.
-LEGIT_BARE = frozenset(("apiMarkHandled", "apiClose", "apiNote", "apiAutoReplyReview"))   # their real reply IS {ok:true}
+LEGIT_BARE = frozenset(("apiMarkHandled", "apiClose", "apiNote", "apiAutoReplyReview", "apiAiNoteDelete"))   # their real reply IS {ok:true}
 
 
 def _tid_ok(r, key, tid):
@@ -405,6 +424,8 @@ SCHEMAS = {
     "apiWaTakeOver": lambda r, a: r.get("id") == a.get("id") or "status" in r,
     "apiTemplates": lambda r, a: isinstance(r.get("templates"), list),
     "apiSendTemplate": lambda r, a: r.get("queued") is True and r.get("template") == a.get("template"),
+    "apiAiNotes": lambda r, a: isinstance(r.get("notes"), list),
+    "apiAiNoteAdd": lambda r, a: isinstance(r.get("note"), dict) and r["note"].get("id") == a.get("id"),
 }
 
 

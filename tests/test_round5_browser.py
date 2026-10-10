@@ -17,6 +17,7 @@ def test_whatsapp_queued_blocks_a_second_send(page):
     pg.wait_for_selector(".draft textarea")
     pg.fill(".draft textarea", "היי, כן יש משלוח לאילת")
     pg.click("[data-test=send-btn]")
+    pg.wait_for_timeout(600)                    # two separate clicks: a double-click never confirms (review 2026-10-11 #2)
     pg.click("[data-test=send-btn]")
     pg.wait_for_timeout(500)
     pg.goto(base + "/cs#/b/rozela/t/w8ab77c1")                                        # back to it after the hand-off

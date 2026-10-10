@@ -63,6 +63,7 @@ def test_resend_requeues_the_same_text_through_the_outbox_with_a_new_rid(page):
     assert pg.inner_text(".tk-head [data-test=wa-fail-chip]") == "⚠️ השליחה נכשלה"
     pg.click("[data-test=wa-resend]")
     assert not sends                                                               # armed: the first click only arms
+    pg.wait_for_timeout(600)  # two separate clicks: a double-click never confirms (review 2026-10-11 #2)
     pg.click("[data-test=wa-resend]")
     pg.wait_for_function("() => !location.hash.endsWith('/t/w8ab77f1')", timeout=5000)   # handed off, next ticket
     pg.wait_for_timeout(1500)

@@ -17,6 +17,7 @@ import hmac
 import json
 import os
 import random
+import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -38,9 +39,16 @@ TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTick
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
          "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK,
          "apiResult": WORK, "apiTicketLite": WORK, "apiDayStats": ("admin", "user-manager"),
-         "apiTemplates": WORK, "apiSendTemplate": WORK}
+         "apiTemplates": WORK, "apiSendTemplate": WORK,
+         "apiAiNotes": ("admin",), "apiAiNoteAdd": ("admin",), "apiAiNoteDelete": ("admin",)}
 MOCK_WRITES = ("apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiWaTakeOver",
-               "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate")
+               "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate", "apiAiNoteAdd", "apiAiNoteDelete")
+# engine 2026-10-11: apiBoot.myshopify (the store's admin handle) and extras.mailbox (the support address an email ticket came to).
+# apexmen has no myshopify on purpose (order numbers stay plain text); t18f2a02 has no mailbox (an older ticket: the line is hidden).
+MYSHOPIFY = {"rozela": "achq3j-nj.myshopify.com", "celesta": "celesta-il.myshopify.com", "apexmen": "", "selera": "selera-tea.myshopify.com"}
+MAILBOX = {"rozela": "support@tryrozela.com", "celesta": "hello@celesta.co.il", "apexmen": "support@apexmen.co.il", "selera": "support@selera.co.il"}
+NO_MAILBOX = ("t18f2a02",)
+AI_NOTE_ID_RE = re.compile(r"^[a-z0-9]{8,40}$")
 CONTRACT_RE_PREFIX = "gid://shopify/SubscriptionContract/"
 
 
@@ -156,6 +164,8 @@ def build_brand(brand, now):
         (archive if arch else tickets).append(row)
         snaps[row["id"]] = {"orders": orders, "subscriptions": list(subs), "shipping": sh, "conversation": conv,
                             "lookup": "ok" if orders else "none"}
+        if row.get("channel") != "whatsapp":
+            snaps[row["id"]]["mailbox"] = "" if row["id"] in NO_MAILBOX else MAILBOX.get(brand, "")
 
     sig = "\n\nיהודה\nצוות " + name
     h = lambda x: _iso(now - timedelta(hours=x))
@@ -401,6 +411,7 @@ class MockEngines:
                 self.slow[f.strip()] = int(ms) / 1000.0
         self.version = {b: 1 for b in MOCK_BRANDS}
         self.touched = {b: {} for b in MOCK_BRANDS}     # ticket id -> version of its last change
+        self.ai_notes = {b: [] for b in MOCK_BRANDS}    # engine AiNotes.gs: [{id, scope, text, by, at}] in the order added
 
     def transport(self, url, body):
         brand = url.split("mock://", 1)[1]
@@ -472,7 +483,8 @@ class MockEngines:
                 "counts": counts, "tickets": [self._row(brand, t) for t in b["tickets"]],
                 "serverTime": self._now(),
                 "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]),
-                "subscriptions": "none" if brand == "selera" else "kaching", "version": self.version[brand]}
+                "subscriptions": "none" if brand == "selera" else "kaching", "version": self.version[brand],
+                "myshopify": MYSHOPIFY.get(brand, "")}
 
     def apiStatus(self, brand, a, c):
         sw = self.switches[brand]
@@ -867,6 +879,34 @@ class MockEngines:
         self.version[brand] += 1
         self.touched[brand][t["id"]] = self.version[brand]
         return {"ok": True, "id": t["id"], "status": "action"}
+
+    # ---------- managers' notes to the AI (engine AiNotes.gs, 2026-10-11) ----------
+    def apiAiNotes(self, brand, a, c):
+        return {"ok": True, "notes": [dict(n) for n in reversed(self.ai_notes[brand])]}
+
+    def apiAiNoteAdd(self, brand, a, c):
+        if not isinstance(a.get("id"), str) or not AI_NOTE_ID_RE.match(a["id"]):
+            return {"ok": False, "error": "bad_id"}
+        if a.get("scope") not in ("all", "brand"):
+            return {"ok": False, "error": "bad_scope"}
+        text = a.get("text").strip() if isinstance(a.get("text"), str) else ""
+        if not text or len(text) > 600:
+            return {"ok": False, "error": "bad_text"}
+        for n in self.ai_notes[brand]:
+            if n["id"] == a["id"]:
+                return {"ok": True, "note": dict(n), "noop": True}
+        if len(self.ai_notes[brand]) >= 60:
+            return {"ok": False, "error": "too_many", "max": 60}
+        note = {"id": a["id"], "scope": a["scope"], "text": text, "by": str(c.get("user") or "")[:60], "at": self._now()}
+        self.ai_notes[brand].append(note)
+        return {"ok": True, "note": dict(note)}
+
+    def apiAiNoteDelete(self, brand, a, c):
+        if not isinstance(a.get("id"), str) or not AI_NOTE_ID_RE.match(a["id"]):
+            return {"ok": False, "error": "bad_id"}
+        before = len(self.ai_notes[brand])
+        self.ai_notes[brand] = [n for n in self.ai_notes[brand] if n["id"] != a["id"]]
+        return {"ok": True} if len(self.ai_notes[brand]) < before else {"ok": True, "noop": True}
 
     def apiResult(self, brand, a, c):
         hit = self.results[brand].get(a.get("rid"))

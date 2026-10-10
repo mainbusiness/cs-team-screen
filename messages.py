@@ -21,6 +21,7 @@ PROXY = {
     "brand_not_connected": ("המותג הזה עוד לא מחובר למערכת.", "This brand is not connected yet."),
     "bad_request": ("הבקשה לא תקינה.", "Bad request."),
     "bad_note": ("הערה של 2 עד 300 תווים.", "A note of 2 to 300 characters."),
+    "bad_ai_note": ("הערה ל-AI: בין 1 ל-600 תווים.", "A note to the AI: 1 to 600 characters."),
     # phase 5: assistant + English mode
     "assistant_off": ("העוזר כבוי (חסר מפתח Anthropic בשרת). לדווח לבעלים.", "The assistant is off (no Anthropic key on the server). Tell the owner."),
     "assistant_misconfigured": ("מפתח ה-Anthropic בשרת לא תקין. לדווח לבעלים.", "The server's Anthropic key is invalid. Tell the owner."),
@@ -32,7 +33,7 @@ PROXY = {
                               "The brand's knowledge is not available from the engine yet — the assistant will not answer without it."),
     "translate_failed": ("התרגום נכשל. נסו שוב.", "The translation failed. Try again."),
     "not_found": ("לא נמצא.", "Not found."),
-    "engine_timeout": ("המנוע לא ענה בזמן. נסו שוב בעוד רגע — הפעולה אולי בוצעה, רעננו לפני שחוזרים ענציגה ב.",
+    "engine_timeout": ("המנוע לא ענה בזמן. נסו שוב בעוד רגע — הפעולה אולי בוצעה, רעננו לפני שחוזרים עליה.",
                        "The engine did not answer in time. The action may have happened; refresh before repeating it."),
     "engine_unreachable": ("אין חיבור למנוע של המותג. נסו שוב בעוד רגע.", "Cannot reach the brand engine. Try again shortly."),
     "write_unknown": ("לא הצלחנו לאשר אם הפעולה בוצעה — רעננו את הפנייה ובדקו.",
@@ -105,7 +106,7 @@ ENGINE = {
     "no_phone": ("אין מספר טלפון בפנייה, אי אפשר לשלוח תבנית.", "This ticket has no phone number, so a template cannot be sent."),
     "wa_window_closed": ("עברו יותר מ-24 שעות מאז ההודעה האחרונה של הלקוח. וואטסאפ מאפשר עכשיו רק תבנית מאושרת.",
                          "More than 24 hours have passed since the customer's last message. WhatsApp now allows only an approved template."),
-    "already": ("הפעולה כבר בוצעה — אין צורך לחזור ענציגה ב.", "This was already done — no need to repeat it."),
+    "already": ("הפעולה כבר בוצעה — אין צורך לחזור עליה.", "This was already done — no need to repeat it."),
     "engine_slow": ("המנוע איטי כרגע, מנסה שוב…", "The engine is slow right now, trying again…"),
     "not_bot": ("השיחה כבר לא אצל הבוט — רעננו את הפנייה.", "The bot is no longer handling this chat — refresh the ticket."),
     "rate_limited": ("המנוע מגביל קריאות כרגע. נסו שוב בעוד כמה דקות.", "The engine is rate-limiting. Try again in a few minutes."),
@@ -182,6 +183,17 @@ AUTO = {
     "live_switches_off": ("הביטול האוטומטי לא יכול לרוץ: המערכת לא במצב חי.", "Auto-cancel cannot run: the system is not live."),
     "bad_note": ("הערה של 2 עד 300 תווים.", "A note of 2 to 300 characters."),
 }
+# Managers' notes to the AI (engine AiNotes.gs, 2026-10-11). An explicit set: a future fn with a similar name must not borrow these texts.
+AI_NOTE_FNS = frozenset(("apiAiNotes", "apiAiNoteAdd", "apiAiNoteDelete"))
+AI_NOTES = {
+    "bad_id": ("מזהה ההערה לא תקין. רעננו את הדף ונסו שוב.", "Invalid note id. Refresh and try again."),
+    "bad_scope": ("לא נבחר למי ההערה (כל המותגים או מותג אחד).", "Choose who the note is for (all brands or one brand)."),
+    "bad_text": ("הערה ל-AI: בין 1 ל-600 תווים.", "A note to the AI: 1 to 600 characters."),
+    "too_many": ("הגעתם ל-60 הערות — מחקו הערה ישנה כדי להוסיף", "You have reached 60 notes — delete an old note to add a new one"),
+    "unauthorized": ("המנוע של המותג סירב (אולי עוד לא עודכן להערות ל-AI, או שההרשאה פגה). רעננו את הדף.",
+                     "The brand engine refused (maybe not updated for AI notes yet, or the session expired). Refresh."),
+}
+
 SETTINGS = {
     "bad_action": ("פעולה לא מוכרת.", "Unknown action."),
     "bad_key": ("מתג לא מוכר.", "Unknown switch."),
@@ -238,7 +250,7 @@ def engine_error_msg(resp, fn, lang="he"):
     if fn == "apiKachingCancel" and resp.get("message"):
         return kaching_msg(resp.get("message"), lang)
     code = str(resp.get("error") or "")
-    table = AUTO if fn in AUTO_FNS else SETTINGS if fn == "apiSettings" else None
+    table = AUTO if fn in AUTO_FNS else SETTINGS if fn == "apiSettings" else AI_NOTES if fn in AI_NOTE_FNS else None
     if table and code in table:
         allowed = resp.get("allowed")
         kw = {"state": iso(resp.get("state") or "?"), "reason": iso(resp.get("reason") or "?"),

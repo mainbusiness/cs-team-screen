@@ -93,7 +93,7 @@ def test_past_24h_a_template_is_picked_and_sent_with_the_reply_that_waits(page):
     if not pg.is_checked("[data-test=tpl-then]"):
         pg.check("[data-test=tpl-then]")
     pg.click("[data-test=tpl-send]")                    # first click arms
-    pg.wait_for_timeout(300)
+    pg.wait_for_timeout(600)
     assert calls == []
     pg.click("[data-test=tpl-send]")                    # second click sends
     for _ in range(100):                                # (the page's CSP forbids evaluating a string, so poll from here)

@@ -77,6 +77,7 @@ def test_a_passing_refusal_is_sent_again_by_itself(pg, code, http, tid):
     open_from(page, base, "action" if tid == "t18f2a04" else "ready", tid)
     page.fill(".draft textarea", "היי, ההזמנה בדרך אליך.")
     page.click("[data-test=send-btn]")
+    page.wait_for_timeout(600)                    # two separate clicks: a double-click never confirms (review 2026-10-11 #2)
     page.click("[data-test=send-btn]")
     row = "a.row[data-id=%s] [data-test=row-outbox]" % tid
     page.wait_for_selector(row + "[data-state=retry]", state="attached", timeout=8000)
@@ -100,6 +101,7 @@ def test_a_refusal_about_the_ticket_is_not_retried(pg):
     open_from(page, base, "ready", "t18f2c02")
     page.fill(".draft textarea", "היי אילנה, כן אפשר.")
     page.click("[data-test=send-btn]")
+    page.wait_for_timeout(600)                    # two separate clicks: a double-click never confirms (review 2026-10-11 #2)
     page.click("[data-test=send-btn]")
     page.wait_for_selector("[data-test=row-outbox][data-state=refused]", state="attached", timeout=8000)
     page.wait_for_timeout(7000)
@@ -160,6 +162,7 @@ def test_a_ticket_already_answered_from_gmail_is_closed_not_flagged(pg):
     open_from(page, base, "ready", "t18f2a01")
     page.fill(".draft textarea", "היי, ההזמנה בדרך אליך.")
     page.click("[data-test=send-btn]")
+    page.wait_for_timeout(600)                    # two separate clicks: a double-click never confirms (review 2026-10-11 #2)
     page.click("[data-test=send-btn]")
     assert wait_state(page, "id", "t18f2a01", lambda st: st in ("ok", "refused")) == "ok"
     assert page.locator("[data-test=outbox-indicator].warn").count() == 0                 # nothing to fix

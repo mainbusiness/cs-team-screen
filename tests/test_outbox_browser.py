@@ -45,6 +45,7 @@ def open_from(page, base, tab, tid):
 
 def armed_click(page, sel):
     page.click(sel)
+    page.wait_for_timeout(600)                    # two separate clicks: a double-click never confirms (review 2026-10-11 #2)
     page.click(sel)
 
 
@@ -137,7 +138,7 @@ def test_close_is_optimistic_and_reverts_with_a_flag(pg):
     page, base = pg
     open_from(page, base, "action", "t18f2a11")
     t0 = time.time()
-    armed_click(page, ".draft .btn.ghost:has-text('סגירה')")
+    armed_click(page, ".draft [data-test=close-btn]")
     for _ in range(40):
         if not page.url.endswith("/t18f2a11"):
             break
@@ -151,7 +152,7 @@ def test_close_is_optimistic_and_reverts_with_a_flag(pg):
     page.route("**/api/rozela/apiClose", lambda route, req: route.fulfill(status=200, content_type="application/json",
                body=json.dumps({"ok": False, "error": "not_found", "msg": "הפנייה לא נמצאה."})))   # a refusal about the ticket; a passing one ("busy") is retried: test_outbox_retry_browser
     open_from(page, base, "action", "t18f2a04")
-    armed_click(page, ".draft .btn.ghost:has-text('סגירה')")
+    armed_click(page, ".draft [data-test=close-btn]")
     page.goto(base + "/cs#/b/rozela/action")
     page.wait_for_selector("a.row[data-id=t18f2a04] [data-test=row-outbox][data-state=refused]", timeout=10000)
     assert page.locator("#list-pane > a.row").first.get_attribute("data-id") == "t18f2a04"

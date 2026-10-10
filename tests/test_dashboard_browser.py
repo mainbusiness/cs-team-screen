@@ -30,7 +30,7 @@ def test_admin_sees_live_numbers_from_real_actions(server):
         ag.goto(base + "/cs#/b/rozela/t/t18f2a11")
         ag.wait_for_selector(".draft textarea")
         ag.fill(".draft textarea", "היי אגי, ההזמנה בדרך — תגיע עד יום חמישי.")
-        ag.click("[data-test=send-btn]"); ag.click("[data-test=send-btn]")
+        ag.click("[data-test=send-btn]"); ag.wait_for_timeout(600); ag.click("[data-test=send-btn]")
         ag.wait_for_timeout(2500)
         ad = b.new_context(viewport={"width": 1280, "height": 900}).new_page()
         ad.goto(base + "/cs/login"); ad.fill("input[name=username]", "admin1"); ad.fill("input[name=password]", pwd)

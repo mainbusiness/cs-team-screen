@@ -113,6 +113,7 @@ def test_write_is_sent_exactly_once_and_says_check_first(page):
     pg.goto(base + "/cs#/b/rozela/t/t18f2a01")
     pg.wait_for_selector(".draft .btn.primary:not([disabled])", timeout=15000)
     pg.click(".draft .btn.primary")
+    pg.wait_for_timeout(600)                    # two separate clicks: a double-click never confirms (review 2026-10-11 #2)
     pg.click(".draft .btn.primary")                                                    # armed: second click hands off
     pg.wait_for_selector("[data-test=row-outbox][data-state=checking]", state="attached", timeout=10000)
     pg.wait_for_timeout(4000)                                                          # longer than the first two read backoffs
@@ -168,6 +169,7 @@ def test_unknown_write_flags_and_locks_the_ticket(page):
     pg.goto(base + "/cs#/b/rozela/t/t18f2a01")
     pg.wait_for_selector(".draft .btn.primary:not([disabled])", timeout=15000)
     pg.click(".draft .btn.primary")
+    pg.wait_for_timeout(600)                    # two separate clicks: a double-click never confirms (review 2026-10-11 #2)
     pg.click(".draft .btn.primary")
     pg.wait_for_selector("[data-test=row-outbox][data-state=unknown]", state="attached", timeout=10000)
     pg.goto(base + "/cs#/b/rozela/t/t18f2a01")
