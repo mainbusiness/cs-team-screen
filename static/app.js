@@ -3250,8 +3250,9 @@
       const key = S.brand + '|' + it.id;
       let tr = trCache[key];
       if (!tr) {
-        const r = await api('/api/' + encodeURIComponent(S.brand) + '/translate-autoreply', { id: it.id });
-        if (!r.ok) return;
+        if (Date.now() < (S.arTrPause || 0)) return;      // refused a moment ago: no storm of retries, the cards stay in the original
+        const r = await api('/api/' + encodeURIComponent(S.brand) + '/translate-autoreply', { id: it.id }, 'POST', { quiet: true });
+        if (!r.ok) { if (r.error === 'rate_limited') S.arTrPause = Date.now() + Math.max(1, Number(r.wait) || 1) * 60000; return; }
         tr = trCache[key] = r;
       }
       if (!card.isConnected) return;

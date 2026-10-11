@@ -455,6 +455,10 @@ def register(app, d):
     """d: api_user, json_error, engines, transport, store, llm_call, cache_dir."""
     assist_limit = d.get("assist_limiter") or WindowLimiter(20, 600)
     tr_limit = d.get("translate_limiter") or WindowLimiter(120, 600)
+    # 2026-10-11: the English desk's auto-reply list translated every card at once and used up the agent's whole budget,
+    # so opening a ticket and the translation before SENDING were refused (429). Lists and the send each have their own.
+    bg_limit = d.get("translate_bg_limiter") or WindowLimiter(600, 600)
+    out_limit = d.get("translate_out_limiter") or WindowLimiter(120, 600)
     kcache = d.get("knowledge_cache") or KnowledgeCache()
     tcache = DiskCache(d["cache_dir"])
     store = d["store"]
@@ -798,7 +802,7 @@ def register(app, d):
         if not isinstance(ids, list) or len(ids) > 60:
             return fail("bad_request", 400, lang)
         ids = list(dict.fromkeys(i for i in ids if isinstance(i, str)))        # dedupe (Codex 2026-10-05)
-        wait = tr_limit.hit(u["username"])
+        wait = bg_limit.hit(u["username"])
         if wait:
             return fail("rate_limited", 429, lang, wait=max(1, (wait + 59) // 60))
         tc = d.get("ticket_cache")
@@ -850,7 +854,7 @@ def register(app, d):
         iid = (request.get_json(silent=True) or {}).get("id")
         if not isinstance(iid, str) or not ID_RE.match(iid):
             return fail("bad_request", 400, lang)
-        wait = tr_limit.hit(u["username"])
+        wait = bg_limit.hit(u["username"])
         if wait:
             return fail("rate_limited", 429, lang, wait=max(1, (wait + 59) // 60))
         lst = ar_list(u, brand)
@@ -880,7 +884,7 @@ def register(app, d):
         tid, text = body.get("ticketId"), body.get("text")
         if not isinstance(tid, str) or not ID_RE.match(tid) or not isinstance(text, str) or not text.strip() or len(text) > 8000:
             return fail("bad_request", 400, lang)
-        wait = tr_limit.hit(u["username"])
+        wait = out_limit.hit(u["username"])
         if wait:
             return fail("rate_limited", 429, lang, wait=max(1, (wait + 59) // 60))
         t, x = ticket_bundle(u, brand, tid)

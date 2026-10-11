@@ -432,3 +432,26 @@ def test_subject_only_cancellation_is_translated_or_explicitly_incomplete(app5, 
     assert result['ok']
     assert result['subject'] == (None if missing else 'Do not send me anything')
     assert result['incomplete'] == (1 if missing else 0)
+
+
+def test_json_of_takes_the_corrected_answer_after_a_self_correction():
+    import llm
+    raw = ('{"translations":[{"i":0,"text":"first try"}]}\n\nWait, I need to correct this to keep the line breaks.\n\n'
+           '{"translations":[{"i":0,"text":"corrected"}]}')
+    assert llm.json_of(raw)["translations"][0]["text"] == "corrected"
+    assert llm.json_of('```json\n{"a": {"b": 1}}\n```')["a"] == {"b": 1}
+    assert llm.json_of('broken {"x": } then {"ok": true}') == {"ok": True}
+    with pytest.raises(llm.LLMError):
+        llm.json_of("sorry, I cannot")
+
+
+def test_send_translation_is_never_refused_because_lists_used_the_budget(make_app, transport, fake_llm, tmp_path, pw_hash):
+    transport.reply = engine_reply
+    app = make_app(LLM=fake_llm, TRANSLATE_CACHE_DIR=str(tmp_path / "tc"), TRANSLATE_LIMITER=assistant.WindowLimiter(1, 600))
+    c, tok = logged_in(app, pw_hash, "eve", ["agent"], ["rozela"], lang="en")
+    fake_llm.script = [lambda p: text(json.dumps({"translations": [{"i": n, "text": "Hello"} for n in range(9)]})),
+                       lambda p: text(json.dumps({"translations": [{"i": 0, "text": "שלום דנה"}]}))]
+    assert c.post("/api/rozela/translate", json={"ticketId": "t1"}, headers={"X-CSRF-Token": tok}).status_code == 200
+    assert c.post("/api/rozela/translate", json={"ticketId": "t1"}, headers={"X-CSRF-Token": tok}).status_code == 429
+    r = c.post("/api/rozela/translate-out", json={"ticketId": "t1", "text": "Hi Dana"}, headers={"X-CSRF-Token": tok})
+    assert r.status_code == 200 and r.get_json()["text"] == "שלום דנה"

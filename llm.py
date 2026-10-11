@@ -64,11 +64,21 @@ def text_of(resp):
 
 
 def json_of(text):
-    """First JSON object in a model answer (tolerates a code fence or a sentence around it)."""
-    m = re.search(r"\{.*\}", text or "", re.S)
-    if not m:
+    """The JSON object of a model answer (tolerates a code fence or a sentence around it). A model that corrects itself writes
+    a SECOND object after a sentence ("Wait, I need to correct this..."); one greedy match over both was not JSON, and 1 in 6
+    English-desk sends failed with "translation failed" (Owner, 2026-10-11). The last complete object is the answer."""
+    s = text or ""
+    dec, found = json.JSONDecoder(), None
+    i = s.find("{")
+    while i >= 0:
+        try:
+            obj, end = dec.raw_decode(s, i)
+        except ValueError:
+            i = s.find("{", i + 1)
+            continue
+        if isinstance(obj, dict):
+            found = obj
+        i = s.find("{", end)
+    if found is None:
         raise LLMError("translate_failed", 502)
-    try:
-        return json.loads(m.group(0))
-    except ValueError:
-        raise LLMError("translate_failed", 502)
+    return found
