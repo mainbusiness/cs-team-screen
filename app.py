@@ -17,6 +17,7 @@ Safety model (the parts that live here; see security.py, users_store.py, engine_
    same-origin (no referrer to other sites; ticket ids live only in the URL fragment anyway).
 """
 
+import base64
 import hashlib
 import hmac
 import logging
@@ -257,8 +258,9 @@ def create_app(overrides=None):
         resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         if cookie_secure:
             resp.headers["Strict-Transport-Security"] = "max-age=31536000"
-        if not request.path.startswith("/cs/static/"):
-            resp.headers["Cache-Control"] = "no-store"
+        if not request.path.startswith("/cs/static/") and not (resp.status_code == 200 and resp.mimetype == "image/jpeg"
+                                                                and re.match(r"^/api/[a-z0-9]+/photo/m[0-9a-f]{24}$", request.path)):
+            resp.headers["Cache-Control"] = "no-store"          # a customer photo may stay in THIS browser's private cache (1 day)
         if request.path.startswith("/api/") and hasattr(g, "t0"):
             # debug timing for the browser's Network panel (durations and cache hit/miss only — no data)
             parts = []
@@ -416,6 +418,32 @@ def create_app(overrides=None):
             "valid_brands": valid_brands if is_manager(u) else [], "roles": list(ROLES),
             "mock": mock, "warnings": warnings, "assistant": bool(api_key) or mock or bool(o.get("LLM")),
         })
+
+    PHOTO_ID_RE = re.compile(r"^m[0-9a-f]{24}$")
+
+    @app.get("/api/<brand>/photo/<fid>")
+    def wa_photo(brand, fid):
+        """A customer's WhatsApp photo (2026-10-11: stored on the core; before, agents had to open Dondy). Logged-in, brand-checked."""
+        u, err = api_user()
+        if err:
+            return err
+        if not PHOTO_ID_RE.match(str(fid)):
+            return json_error("bad_request", 400)
+        status, out = engine_proxy.call(engines, transport, app.config["TOKEN_SECRET"], u, str(brand).lower(), "apiWaPhotoGet",
+                                        {"id": fid}, ui_lang(u), internal=True)
+        if status != 200 or not isinstance(out, dict) or out.get("ok") is not True or not isinstance(out.get("data"), str):
+            code = out.get("error") if isinstance(out, dict) else ""
+            return json_error("not_found" if code == "not_found" else (code or "engine_error"), 404 if code == "not_found" else 502)
+        if out.get("mime") != "image/jpeg":
+            return json_error("bad_request", 400)
+        try:
+            data = base64.b64decode(out["data"], validate=True)
+        except ValueError:
+            return json_error("engine_error", 502)
+        resp = app.response_class(data, mimetype="image/jpeg")
+        resp.headers["Cache-Control"] = "private, max-age=86400"
+        resp.headers["X-Content-Type-Options"] = "nosniff"
+        return resp
 
     @app.post("/api/<brand>/<fn>")
     def engine_call(brand, fn):

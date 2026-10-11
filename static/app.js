@@ -102,7 +102,7 @@
       wa_fail_note: 'ההודעה לא יצאה. אפשר לשלוח שוב את אותו הטקסט.', wa_resend: 'שלח שוב', wa_resend_arm: 'לחצו שוב לשליחה חוזרת',
       bot_banner: 'הבוט של דונדי מטפל בשיחה הזאת. אין טיוטה — המנוע בודק אותה בכל ריצה.', takeover: 'לקחת את השיחה', takeover_arm: 'לחצו שוב כדי לקחת את השיחה',
       takeover_ok: 'השיחה אצלך — טיוטה תיכתב בריצה הבאה של המנוע', photo_dondy: '📷 תמונה — לצפייה בדונדי', photo_open: '📷 תמונה — פתיחה',
-      photo_wait: '📷 תמונה — עוד לא הגיעה',
+      photo_wait: '📷 תמונה — עוד לא הגיעה', photo_gone: '📷 תמונה — נמחקה אחרי 7 ימים, לצפייה בדונדי',
       err_bad_engine: 'המנוע החזיר תשובה לא תקינה. נסו שוב בעוד רגע.',
       ob_flight_send: '⏳ נשלח ברקע…', ob_flight_close: '⏳ נסגר ברקע…', ob_ok_email: '✅ נשלח', ob_ok_wa: '✅ נשלח לוואטסאפ', ob_ok_queued: '📤 נכנס לתור',
       ob_ok_close: '✅ טופל', ob_refused: '⚠️ לא נשלח — צריך תיקון', ob_refused_close: '⚠️ לא נסגר — צריך תיקון', ob_unknown: '❓ לא אושר — לבדוק',
@@ -258,7 +258,7 @@
       wa_fail_note: 'The message did not go out. You can send the same text again.', wa_resend: 'Send again', wa_resend_arm: 'Click again to resend',
       bot_banner: 'The Dondy bot is handling this chat. No draft — the engine re-checks it every run.', takeover: 'Take over', takeover_arm: 'Click again to take over',
       takeover_ok: 'The chat is yours — a draft will be written on the next engine run', photo_dondy: '📷 Photo — view in Dondy', photo_open: '📷 Photo — open',
-      photo_wait: '📷 Photo — not arrived yet',
+      photo_wait: '📷 Photo — not arrived yet', photo_gone: '📷 Photo — removed after 7 days, view in Dondy',
       err_bad_engine: 'The engine returned an invalid answer. Try again in a moment.',
       ob_flight_send: '⏳ Sending in the background…', ob_flight_close: '⏳ Closing in the background…', ob_ok_email: '✅ Sent', ob_ok_wa: '✅ Sent to WhatsApp', ob_ok_queued: '📤 Queued',
       ob_ok_close: '✅ Handled', ob_refused: '⚠️ Not sent — needs a fix', ob_refused_close: '⚠️ Not closed — needs a fix', ob_unknown: '❓ Not confirmed — check',
@@ -1875,6 +1875,15 @@
     const row = h('div', { class: 'photos' });
     photos.forEach(function (p) {
       if (!p || typeof p !== 'object') return;
+      const cm = p.file && /^core-media:(m[0-9a-f]{24})$/.exec(String(p.file.url || ''));
+      if (cm && S.brand) {      // stored on our server (2026-10-11): shown right here, a click opens it full size
+        const src = '/api/' + encodeURIComponent(S.brand) + '/photo/' + cm[1];
+        const img = h('img', { class: 'photo-thumb', src: src, alt: t('photo_open'), loading: 'lazy' });
+        const a = h('a', { class: 'photo-link', href: src, target: '_blank', rel: 'noopener noreferrer', 'data-test': 'photo-img' }, img);
+        img.addEventListener('error', function () { a.replaceWith(h('span', { class: 'chip photo dondy', text: t('photo_gone'), 'data-test': 'photo-gone' })); });
+        row.append(a);
+        return;
+      }
       const url = p.file && safeUrl(p.file.url);
       if (url && /^https:\/\/(drive|docs)\.google\.com\//.test(url)) {
         row.append(h('a', { class: 'chip photo', href: url, target: '_blank', rel: 'noopener noreferrer', text: t('photo_open'), 'data-test': 'photo-file' }));

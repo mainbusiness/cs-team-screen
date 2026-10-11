@@ -74,3 +74,10 @@ def test_mixed_digit_and_worded_numbers_preserve_each_form(setup):
     r = c.post('/api/rozela/translate-out', json={'ticketId': 't1', 'text': 'Order #4512: please wait two business days. The amount is 149.90 ILS.'}, headers={'X-CSRF-Token': tok})
     assert r.status_code == 200, r.get_json()
     assert 'שני ימי עסקים' in r.get_json()['text']
+
+
+def test_long_letter_prefix_tracking_number_is_an_identifier_not_english():
+    import assistant as A
+    assert "JYDIL5000359879YQ" in A.source_delivery_ids("Your tracking number is JYDIL5000359879YQ, it is on its way.")
+    assert A.hebrew_delivery_ok("מספר המעקב שלך הוא JYDIL5000359879YQ, ההזמנה בדרך.", "rozela")
+    assert not A.hebrew_delivery_ok("ההזמנה בדרך, thank you", "rozela")

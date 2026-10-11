@@ -370,6 +370,8 @@ html[dir=rtl] .ch-banner.wa { box-shadow: inset -4px 0 0 var(--wa); }
 a.chip.photo { color: var(--accent); }
 .chip.photo.dondy { background: var(--wa-bg); color: var(--wa-ink); border-color: #bfe8cc; }
 .chip.photo.wait { color: var(--muted); }
+.photo-link { display: inline-block; line-height: 0; }
+.photo-thumb { max-width: 220px; max-height: 220px; border-radius: 8px; border: 1px solid var(--line); object-fit: cover; cursor: zoom-in; }
 
 /* ---------- live QA fixes (2026-10-05) ---------- */
 .old-section { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 8px; }

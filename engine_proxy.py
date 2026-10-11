@@ -70,6 +70,8 @@ FN_TABLE = {
 
 # Server-internal only (phase 5 assistant): never reachable from the browser route, only via call(internal=True).
 INTERNAL_FNS = {
+    # 2026-10-11: a stored WhatsApp photo, served as an image by GET /api/<brand>/photo/<id> (never JSON to the browser)
+    "apiWaPhotoGet": (WORK_ROLES, ("id",)),
     "apiKnowledge": (WORK_ROLES, ()),
     "apiCustomerLookup": (WORK_ROLES, ("q",)),
     # performance (2026-10-05): one-call ticket open + incremental list polling
@@ -123,7 +125,7 @@ log = logging.getLogger("cs_screen.engine")
 # retried either: a slow engine would turn into minutes of waiting.
 READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "apiTicketExtras", "apiTickets", "apiSearch",
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
-                      "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates", "apiAiNotes"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
+                      "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates", "apiAiNotes", "apiWaPhotoGet"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
 # the time a server thread was held (70-110 s), the 16 threads ran out, Render's health check timed out and the

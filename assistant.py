@@ -66,7 +66,8 @@ TICKET_DROP = ("draft_id", "thread_id", "message_id", "wa_sig", "wa_out", "wa_se
 
 HEBREW_RE = re.compile(r"[א-ת]")
 LATIN_RE = re.compile(r"[A-Za-z]")
-DELIVERY_ID_RE = re.compile(r"\b(?:[A-Z]{1,4}\d{6,}[A-Z]{0,2}|[A-Z]{1,4}-\d{3,}|"
+# 2026-10-11: up to 6 letters before the digits (JYDIL5000359879YQ was "English left" 7 times in a minute for one agent)
+DELIVERY_ID_RE = re.compile(r"\b(?:[A-Z]{1,6}\d{6,}[A-Z]{0,3}|[A-Z]{1,4}-\d{3,}|"
                             r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
                             r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\b")
 
@@ -967,6 +968,11 @@ def register(app, d):
                   "not digits. Do not add numeric fields that were not digits in the original. "
                   "Do not change, invent or omit identifiers; only permitted brand names, WhatsApp, SMS, URLs, emails "
                   "and these identifiers may remain Latin. Return the required JSON for ALL items.")
+        # 2026-10-11: most remaining rejections were "numbers differ" (one added or dropped). Name them, both times.
+        must = (" The Hebrew must contain EXACTLY these digit numbers, each as many times as listed, and no other digits: %s."
+                % json.dumps(source_numbers)) if source_numbers else " The source has no digits: write no digits at all."
+        note += must
+        repair += must
         for attempt in range(2 if target == "he" else 1):
             try:
                 res = translate_items([(tkey("he-delivery-v5", TRANSLATE_MODEL, target, brand, tid, text), text)],
