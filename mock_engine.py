@@ -40,7 +40,7 @@ TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTick
          "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK,
          "apiResult": WORK, "apiTicketLite": WORK, "apiDayStats": ("admin", "user-manager"),
          "apiTemplates": WORK, "apiSendTemplate": WORK,
-         "apiAiNotes": ("admin",), "apiAiNoteAdd": ("admin",), "apiAiNoteDelete": ("admin",)}
+         "apiAiNotes": ("admin",), "apiAiNoteAdd": ("admin",), "apiAiNoteDelete": ("admin",), "apiAttachPut": WORK}
 MOCK_WRITES = ("apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiWaTakeOver",
                "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate", "apiAiNoteAdd", "apiAiNoteDelete")
 # engine 2026-10-11: apiBoot.myshopify (the store's admin handle) and extras.mailbox (the support address an email ticket came to).
@@ -410,8 +410,15 @@ class MockEngines:
                 f, ms = part.split(":", 1)
                 self.slow[f.strip()] = int(ms) / 1000.0
         self.version = {b: 1 for b in MOCK_BRANDS}
+        # MOCK_WA_DELIVER_MS=4000 — a pretend WhatsApp bridge: a queued send is "sent" that long after it was queued (default: never, as before)
+        self.wa_deliver_s = int(os.environ.get("MOCK_WA_DELIVER_MS", "0") or 0) / 1000.0
+        self.wa_queued_at = {b: {} for b in MOCK_BRANDS}
         self.touched = {b: {} for b in MOCK_BRANDS}     # ticket id -> version of its last change
         self.ai_notes = {b: [] for b in MOCK_BRANDS}    # engine AiNotes.gs: [{id, scope, text, by, at}] in the order added
+        # engine Attach.gs: files agents send. MOCK_WA_ATTACH="rozela" = WhatsApp files switched on for those brands (default: off, like live)
+        self.attach = {b: {} for b in MOCK_BRANDS}
+        self.wa_attach = set(x.strip() for x in os.environ.get("MOCK_WA_ATTACH", "").split(",") if x.strip())
+        self.sent_files = []                          # (brand, ticket id, [names]) of every send with files, for the tests
 
     def transport(self, url, body):
         brand = url.split("mock://", 1)[1]
@@ -424,15 +431,33 @@ class MockEngines:
             if fn in MOCK_WRITES and rid in self.results[brand]:          # same rid again: idempotent, never twice
                 sfn, _u, stored = self.results[brand][rid]
                 return dict(stored, replayed=True, fn=fn, rid=rid) if sfn == fn else {"ok": False, "error": "rid_reuse", "fn": fn, "rid": rid}
+            self._wa_deliver(brand)
             out = self.dispatch(brand, body)
+            if fn in ("apiSend", "apiSendTemplate") and out.get("queued") and not out.get("already"):
+                self.wa_queued_at[brand][(body.get("args") or {}).get("id")] = time.time()
             if fn in MOCK_WRITES and out.get("ok") and rid:
                 self.results[brand][rid] = (fn, "", dict(out))
             if isinstance(out, dict) and rid:
                 out = dict(out, fn=fn, rid=rid)                            # the live engine echoes both
-            if out.get("ok") and body.get("fn") in ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel"):
+            if out.get("ok") and body.get("fn") in ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiSendTemplate"):
                 self.version[brand] += 1
                 self.touched[brand][(body.get("args") or {}).get("id")] = self.version[brand]
             return out
+
+    def _wa_deliver(self, brand):
+        """The pretend bridge (MOCK_WA_DELIVER_MS): queued WhatsApp sends become sent, like apiWaSent result=sent. Caller holds the lock."""
+        if not self.wa_deliver_s:
+            return
+        now = time.time()
+        for tid, at in list(self.wa_queued_at[brand].items()):
+            if now - at < self.wa_deliver_s:
+                continue
+            self.wa_queued_at[brand].pop(tid, None)
+            t = self._find(brand, tid)
+            if t and t.get("wa_send") == "pending":
+                t.update({"wa_send": "sent:mock", "status": "sent"})
+                self.version[brand] += 1
+                self.touched[brand][tid] = self.version[brand]
 
     def dispatch(self, brand, req):
         fail = lambda e, **kw: dict({"ok": False, "error": e}, **kw)
@@ -484,7 +509,7 @@ class MockEngines:
                 "serverTime": self._now(),
                 "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]),
                 "subscriptions": "none" if brand == "selera" else "kaching", "version": self.version[brand],
-                "myshopify": MYSHOPIFY.get(brand, "")}
+                "myshopify": MYSHOPIFY.get(brand, ""), "attach": self._attach_info(brand)}
 
     def apiStatus(self, brand, a, c):
         sw = self.switches[brand]
@@ -551,9 +576,24 @@ class MockEngines:
             return {"ok": False, "error": "bad_channel"}
         if t.get("wa_send") == "pending":
             return {"ok": False, "error": "wa_send_in_flight"}
-        t.update({"wa_out": tpl["text"], "wa_send": "pending", "status": "wa_queued", "handled_by": c["user"], "handled_at": self._now()})
+        moved = self._moved(t, a, c)                       # engine 2026-10-11: any status (answered / closed too), stale screens refused
+        if moved:
+            return moved
+        at = self._now()
+        t.update({"wa_out": tpl["text"], "wa_send": "pending", "status": "wa_queued", "handled_by": c["user"], "handled_at": at})
         self.template_sends = getattr(self, "template_sends", []) + [{"id": t["id"], "template": tpl["name"], "then": a.get("then") or ""}]
-        return {"ok": True, "queued": True, "template": tpl["name"], "waiting": bool(a.get("then"))}
+        return {"ok": True, "queued": True, "template": tpl["name"], "waiting": bool(a.get("then")), "handled_at": at}
+
+    @staticmethod
+    def _moved(t, a, c):
+        """engine/Api.gs handledMovedSince_: `seen` = handled_at as the screen showed it; someone ELSE handled it later -> changed_meanwhile."""
+        seen = a.get("seen")
+        if not isinstance(seen, str):
+            return None
+        now, was = str(t.get("handled_at") or ""), seen
+        if not now or now == was or (was and now < was) or t.get("handled_by") == c["user"]:
+            return None
+        return {"ok": False, "error": "changed_meanwhile", "by": t.get("handled_by") or "", "at": now, "status": t.get("status")}
 
     def apiSend(self, brand, a, c):
         text = a.get("text")
@@ -564,20 +604,100 @@ class MockEngines:
         t = self._find(brand, a.get("id"))
         if not t:
             return {"ok": False, "error": "not_found"}
-        if t["status"] in ("sent", "done"):
+        followup = a.get("followup") is True              # engine 2026-10-11: another message on an answered / closed ticket
+        moved = self._moved(t, a, c)
+        if moved:
+            return moved
+        if t["status"] in ("sent", "done") and not followup:
             return {"ok": False, "error": "already_sent" if t["channel"] == "whatsapp" else "already_handled"}
         if not text.strip():                               # engine 2026-10-06: only an EMPTY draft is refused; content
             return {"ok": False, "error": "draft_problem", "problem": "empty draft"}   # checks are an audit, never a block
+        files, ferr = self._attach_resolve(brand, a.get("attachments"), t["channel"], c)
+        if ferr:
+            return ferr
+        at = self._now()
+        snap = self._b(brand)["snaps"].get(t["id"])
         if t["channel"] == "whatsapp":                     # live engine (2026-10-05 08:14): wa_queued + double-send guard
             if t["status"] == "wa_queued" or t.get("wa_send") == "pending":
-                return {"ok": True, "queued": True, "already": True}
-            t.update({"wa_out": text, "wa_send": "pending", "status": "wa_queued", "handled_by": c["user"], "handled_at": self._now()})
-            return {"ok": True, "queued": True}
-        t.update({"status": "sent", "draft_text": text, "handled_by": c["user"], "handled_at": self._now(), "draft_id": ""})
-        snap = self._b(brand)["snaps"].get(t["id"])
+                if t.get("wa_out") == text and t.get("handled_by") == c["user"]:
+                    return {"ok": True, "queued": True, "already": True}
+                return {"ok": False, "error": "wa_send_in_flight"}
+            if t.get("wa_out") == text and str(t.get("wa_send") or "").startswith("sent"):
+                return {"ok": False, "error": "already_sent"}
+            if self._wa_window_closed(t):
+                return {"ok": False, "error": "wa_window_closed"}
+            t.update({"wa_out": text, "wa_send": "pending", "status": "wa_queued", "handled_by": c["user"], "handled_at": at})
+            if snap:                                       # the mock's bridge is instant: shown as ours at once
+                snap["conversation"].append(dict({"id": "m-sent-%d" % len(snap["conversation"]), "who": "us", "at": at, "text": text}, **({"files": files} if files else {})))
+            if files:
+                self.sent_files.append((brand, t["id"], files))
+            return {"ok": True, "queued": True, "handled_at": at}
+        if followup and t["status"] == "sent" and t.get("draft_text") == text and t.get("handled_by") == c["user"]:
+            return {"ok": False, "error": "already_sent"}
+        t.update({"status": "sent", "draft_text": text, "handled_by": c["user"], "handled_at": at, "draft_id": ""})
         if snap:
-            snap["conversation"].append({"id": "m-sent", "who": "us", "at": self._now(), "text": text})
-        return {"ok": True, "sent": True, "warnings": []}
+            snap["conversation"].append(dict({"id": "m-sent-%d" % len(snap["conversation"]), "who": "us", "at": at, "text": text}, **({"files": files} if files else {})))
+        if files:
+            self.sent_files.append((brand, t["id"], files))
+        return {"ok": True, "sent": True, "warnings": [], "handled_at": at}
+
+    # ---------- files (engine/Attach.gs) ----------
+    ATTACH_PART = 1_500_000
+    WA_TYPES = ("application/pdf", "image/jpeg", "image/png", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    def _attach_info(self, brand):
+        return {"email": True, "whatsapp": brand in self.wa_attach, "fileMax": 10 * 1024 * 1024, "emailTotalMax": 18000000, "emailFilesMax": 10,
+                "waFileMax": 5242880, "waTypes": list(self.WA_TYPES)}
+
+    def apiAttachPut(self, brand, a, c):
+        aid, size, parts, part = a.get("id"), a.get("size"), a.get("parts"), a.get("part")
+        if not re.match(r"^a[0-9a-f]{24}$", str(aid)) or not isinstance(size, int) or size < 1 or size > 10 * 1024 * 1024:
+            return {"ok": False, "error": "attach_too_big" if isinstance(size, int) and size > 10 * 1024 * 1024 else "bad_attach"}
+        if parts != -(-size // self.ATTACH_PART) or not isinstance(part, int) or not 0 <= part < parts:
+            return {"ok": False, "error": "bad_attach"}
+        rec = self.attach[brand].setdefault(aid, {"id": aid, "name": a.get("name"), "mime": a.get("mime"), "size": size, "sha256": a.get("sha256"),
+                                                  "parts": {}, "owner": c["user"], "ready": False})
+        if rec["sha256"] != a.get("sha256") or rec["size"] != size:
+            return {"ok": False, "error": "attach_id_reuse"}
+        if rec["ready"]:
+            return {"ok": True, "id": aid, "part": part, "ready": True}
+        rec["parts"][part] = base64.b64decode(a.get("data") or "")
+        if part != parts - 1:
+            return {"ok": True, "id": aid, "part": part, "ready": False}
+        whole = b"".join(rec["parts"][i] for i in sorted(rec["parts"]))
+        if len(rec["parts"]) != parts or hashlib.sha256(whole).hexdigest() != rec["sha256"]:
+            self.attach[brand].pop(aid, None)
+            return {"ok": False, "error": "attach_corrupt"}
+        rec["ready"] = True
+        return {"ok": True, "id": aid, "part": part, "ready": True}
+
+    def _attach_resolve(self, brand, ids, channel, c):
+        if not ids:
+            return [], None
+        recs = [self.attach[brand].get(i) for i in ids]
+        if any(r is None or not r["ready"] for r in recs):
+            return None, {"ok": False, "error": "attach_missing"}
+        if any(r["owner"] != c["user"] and c["role"] != "admin" for r in recs):
+            return None, {"ok": False, "error": "unauthorized"}
+        if channel == "whatsapp":
+            if brand not in self.wa_attach:
+                return None, {"ok": False, "error": "attach_wa_off"}
+            if len(recs) > 1:
+                return None, {"ok": False, "error": "attach_wa_one"}
+            if recs[0]["mime"] not in self.WA_TYPES:
+                return None, {"ok": False, "error": "attach_wa_type"}
+        elif sum(r["size"] for r in recs) > 18000000:
+            return None, {"ok": False, "error": "attach_too_big"}
+        return [r["name"] for r in recs], None
+
+    @staticmethod
+    def _wa_window_closed(t):
+        try:
+            last = datetime.fromisoformat(str(t.get("wa_last_in") or "").replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        return datetime.now(timezone.utc) - last >= timedelta(hours=24) - timedelta(minutes=2)
 
     def _close(self, brand, a, c):
         t = self._find(brand, a.get("id"))

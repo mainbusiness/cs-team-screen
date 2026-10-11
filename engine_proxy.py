@@ -41,7 +41,8 @@ FN_TABLE = {
     "apiTickets": (WORK_ROLES, ("ids",)),
     "apiSearch": (WORK_ROLES, ("q",)),
     "apiSaveDraft": (WORK_ROLES, ("id", "text")),
-    "apiSend": (WORK_ROLES, ("id", "text", "override")),
+    # followup: another message on an answered / closed ticket; seen: the ticket's handled_at as the screen showed it (Owner, 2026-10-11)
+    "apiSend": (WORK_ROLES, ("id", "text", "override", "followup", "seen", "attachments")),   # attachments: ids from POST /api/<brand>/attach
     "apiMarkHandled": (WORK_ROLES, ("id",)),
     "apiClose": (WORK_ROLES, ("id",)),
     "apiNote": (WORK_ROLES, ("id", "text")),
@@ -58,7 +59,7 @@ FN_TABLE = {
     # WhatsApp past its 24 hours (Owner, 2026-10-07): the brand's approved Dondy templates, and sending one from the screen.
     # `then` = the agent's real answer, sent by the engine once the customer replies to the template.
     "apiTemplates": (WORK_ROLES, ()),
-    "apiSendTemplate": (WORK_ROLES, ("id", "template", "then")),
+    "apiSendTemplate": (WORK_ROLES, ("id", "template", "then", "seen")),
     # System switches. Admin only — checked HERE as well as in the engine.
     "apiSettings": (ADMIN_ONLY, ("action", "key", "value")),
     # Managers' notes to the AI (Owner, 2026-10-11): written into every draft the engine writes. Admin only — checked HERE as
@@ -72,6 +73,8 @@ FN_TABLE = {
 INTERNAL_FNS = {
     # 2026-10-11: a stored WhatsApp photo, served as an image by GET /api/<brand>/photo/<id> (never JSON to the browser)
     "apiWaPhotoGet": (WORK_ROLES, ("id",)),
+    # 2026-10-11: one part of a file an agent attaches; only attach.py (POST /api/<brand>/attach) calls it, after its own checks
+    "apiAttachPut": (WORK_ROLES, ("id", "part", "parts", "size", "sha256", "name", "mime", "data")),
     "apiKnowledge": (WORK_ROLES, ()),
     "apiCustomerLookup": (WORK_ROLES, ("q",)),
     # performance (2026-10-05): one-call ticket open + incremental list polling
@@ -293,6 +296,27 @@ def parse_engines(raw, url_re=ENGINE_URL_RE):
 
 
 AI_NOTE_ID_RE = re.compile(r"^[a-z0-9]{8,40}$")
+ATTACH_ID_RE = re.compile(r"^a[0-9a-f]{24}$")
+ATTACH_MAX_FILES = 10
+# A write that is safe to repeat as it is (the same part again overwrites itself): a lost reply is retried by its caller, never resolved by apiResult.
+IDEMPOTENT_WRITES = frozenset(("apiAttachPut",))
+
+
+def _clean_attach_put(args):
+    out = {}
+    for k in ("part", "parts", "size"):
+        v = args.get(k)
+        if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+            raise ProxyError("bad_request", 400)
+        out[k] = v
+    for k, cap in (("id", 25), ("sha256", 64), ("name", 120), ("mime", 100), ("data", 2_000_000)):
+        v = args.get(k)
+        if not isinstance(v, str) or not v or len(v) > cap:
+            raise ProxyError("bad_request", 400)
+        out[k] = v
+    if not ATTACH_ID_RE.match(out["id"]):
+        raise ProxyError("bad_request", 400)
+    return out
 AI_NOTE_MAX = 600
 
 
@@ -302,16 +326,31 @@ def clean_args(fn, args, table=None):
         args = {}
     if not isinstance(args, dict):
         raise ProxyError("bad_request", 400)
+    if fn == "apiAttachPut":
+        return _clean_attach_put(args)
     out = {}
     for k in keys:
         if k in args:
             v = args[k]
+            if k == "attachments":
+                if (not isinstance(v, list) or len(v) > ATTACH_MAX_FILES or not all(isinstance(x, str) and ATTACH_ID_RE.match(x) for x in v)
+                        or len(set(v)) != len(v)):
+                    raise ProxyError("bad_request", 400)
+                if v:
+                    out[k] = list(v)
+                continue
+            if k == "seen" and fn in ("apiSend", "apiSendTemplate"):
+                # a timestamp string ('' = never handled), not apiTicketLite's message count
+                if not isinstance(v, str) or len(v) > 40 or not re.match(r"^[0-9T:.+Z-]*$", v):
+                    raise ProxyError("bad_request", 400)
+                out[k] = v
+                continue
             if k in ("since", "seen", "cursor"):
                 if isinstance(v, bool) or not isinstance(v, int) or v < 0:
                     raise ProxyError("bad_request", 400)
                 out[k] = v
                 continue
-            if k in ("override", "fresh"):
+            if k in ("override", "fresh", "followup"):
                 if v is True:
                     out[k] = True
                 continue
@@ -706,7 +745,7 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
                 _sleep(delays[attempt - 1])
                 continue
             code = e.code
-            if not is_read(fn, clean) and fn != "apiResult" and code in WRITE_UNKNOWN_CODES:
+            if not is_read(fn, clean) and fn != "apiResult" and fn not in IDEMPOTENT_WRITES and code in WRITE_UNKNOWN_CODES:
                 # the write may well have run: find out instead of guessing (QA round 4)
                 return resolve_write(engines, transport, secret, user, brand, fn, clean, lang, rid, token, url, g, bg, started)
             return e.http, {"ok": False, "error": e.code, "msg": messages.proxy_msg(code, lang)}

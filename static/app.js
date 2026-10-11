@@ -49,6 +49,17 @@
       send_anyway: 'לשלוח בכל זאת (יירשם ביומן)', handled: 'טופל בלי שליחה', handled_arm: 'לחצו שוב — טופל בלי שליחה',
       close: 'סגירה', close_arm: 'לחצו שוב לסגירה', closed_ok: 'הפנייה נסגרה', handled_ok: 'סומן כטופל',
       close_ns: 'סגירה בלי שליחה', close_ns_arm: 'ללחוץ שוב לסגירה', close_ns_title: 'הפנייה נסגרת בלי לשלוח ללקוח. בוואטסאפ היא נסגרת גם בדונדי.',
+      // Owner, 2026-10-11: sending never closes the ticket; another message on any answered / closed ticket; two agents on one ticket
+      close_tk: 'סגירת הפנייה', close_tk_arm: 'ללחוץ שוב לסגירה', close_tk_title: 'סוגרים את הפנייה ועוברים לפנייה הבאה. בוואטסאפ היא נסגרת גם בדונדי.',
+      fu_title: 'הודעה נוספת ללקוח', fu_ph: 'אפשר לכתוב כאן הודעה נוספת ללקוח…', fu_sent: 'נענתה · {who} · {when}', fu_done: 'נסגרה · {who} · {when}',
+      fu_queued: 'הודעה בדרך לוואטסאפ · {who} · {when}', fu_hint: 'ההודעה נשלחת ללקוח באותה שיחה. הפנייה לא נפתחת מחדש.',
+      fu_wait: 'ההודעה הקודמת עדיין בדרך ללקוח. אפשר כבר לכתוב את הבאה — השליחה תיפתח כשהקודמת תצא.',
+      fu_restored: 'ההודעה לא נשלחה — הטקסט שלך הוחזר לתיבה.', msg_pending: '⏳ בדרך ללקוח', msg_queued: '📤 בתור לוואטסאפ',
+      cm_answered: '{who} כבר ענה/תה בפנייה הזאת ב-{when}, אחרי שפתחת אותה.', cm_closed: '{who} כבר סגר/ה את הפנייה הזאת ב-{when}, אחרי שפתחת אותה.',
+      cm_kept: 'ההודעה שלך לא נשלחה, והטקסט שלך נשמר בתיבה. קראו את מה שנשלח בשיחה, ואם עדיין צריך — שלחו אותה כהודעה נוספת.',
+      cm_send_anyway: 'לשלוח בכל זאת כהודעה נוספת', cm_tpl_anyway: 'לשלוח את התבנית בכל זאת',
+      who_dondy: 'מישהו בדונדי', who_gmail: 'מישהו מ-Gmail', who_bot: 'המענה האוטומטי', who_merge: 'מיזוג פניות', who_someone: 'מישהו', who_me: 'את/ה',
+      pres_view: 'גם {who} בפנייה הזאת עכשיו', pres_edit: '✍️ {who} כותב/ת תשובה בפנייה הזאת עכשיו — כדאי לתאם לפני ששולחים',
       safety: 'בדיקת בטיחות: {p}',
       orders: 'הזמנות', no_orders: 'לא נמצאה הזמנה (הזמנות מעל 60 יום לא נראות).', lookup_error: 'בדיקת ההזמנות נכשלה ברגע הכתיבה.',
       track: 'מעקב', items: 'פריטים', ordered: 'הוזמן', shipped_on: 'נשלח',
@@ -103,6 +114,10 @@
       bot_banner: 'הבוט של דונדי מטפל בשיחה הזאת. אין טיוטה — המנוע בודק אותה בכל ריצה.', takeover: 'לקחת את השיחה', takeover_arm: 'לחצו שוב כדי לקחת את השיחה',
       takeover_ok: 'השיחה אצלך — טיוטה תיכתב בריצה הבאה של המנוע', photo_dondy: '📷 תמונה — לצפייה בדונדי', photo_open: '📷 תמונה — פתיחה',
       photo_wait: '📷 תמונה — עוד לא הגיעה', photo_gone: '📷 תמונה — נמחקה אחרי 7 ימים, לצפייה בדונדי',
+      att_btn: '📎 צירוף קובץ', att_uploading: 'מעלה…', att_failed: 'לא הועלה', att_remove: 'הסרת הקובץ', att_hint: 'PDF, תמונה, Word, Excel או TXT · עד {mb}MB לקובץ',
+      att_hint_wa: 'קובץ אחד: PDF, JPG, PNG, Word או Excel · עד {mb}MB', att_type: 'סוג קובץ לא נתמך: {name}', att_size: 'הקובץ גדול מדי: {name} (עד {mb}MB)',
+      att_total: 'כל הקבצים יחד גדולים מדי (עד {mb}MB למייל)', att_count: 'אפשר לצרף עד {n} קבצים', att_wa_one: 'בוואטסאפ אפשר לצרף קובץ אחד להודעה',
+      att_wait: 'ממתינים לסיום ההעלאה או להסרת קובץ שנכשל', att_sent_chip: '📎 {name}',
       err_bad_engine: 'המנוע החזיר תשובה לא תקינה. נסו שוב בעוד רגע.',
       ob_flight_send: '⏳ נשלח ברקע…', ob_flight_close: '⏳ נסגר ברקע…', ob_ok_email: '✅ נשלח', ob_ok_wa: '✅ נשלח לוואטסאפ', ob_ok_queued: '📤 נכנס לתור',
       ob_ok_close: '✅ טופל', ob_refused: '⚠️ לא נשלח — צריך תיקון', ob_refused_close: '⚠️ לא נסגר — צריך תיקון', ob_unknown: '❓ לא אושר — לבדוק',
@@ -206,6 +221,16 @@
       send_anyway: 'Send anyway (logged)', handled: 'Handled without sending', handled_arm: 'Click again — handled without sending',
       close: 'Close', close_arm: 'Click again to close', closed_ok: 'Ticket closed', handled_ok: 'Marked handled', safety: 'Safety check: {p}',
       close_ns: 'Close without sending', close_ns_arm: 'Click again to close', close_ns_title: 'The ticket closes without sending anything to the customer. On WhatsApp it is closed in Dondy too.',
+      close_tk: 'Close ticket', close_tk_arm: 'Click again to close', close_tk_title: 'Closes the ticket and moves to the next one. On WhatsApp it is closed in Dondy too.',
+      fu_title: 'Another message to the customer', fu_ph: 'You can write another message to the customer here…', fu_sent: 'Answered · {who} · {when}', fu_done: 'Closed · {who} · {when}',
+      fu_queued: 'A message is on its way to WhatsApp · {who} · {when}', fu_hint: 'The message goes to the customer in the same conversation. The ticket is not reopened.',
+      fu_wait: 'The previous message is still on its way. You can write the next one now — Send opens once the previous one is out.',
+      fu_restored: 'The message was not sent — your text is back in the box.', msg_pending: '⏳ On its way', msg_queued: '📤 Queued for WhatsApp',
+      cm_answered: '{who} already answered this ticket at {when}, after you opened it.', cm_closed: '{who} already closed this ticket at {when}, after you opened it.',
+      cm_kept: 'Your message was not sent and your text is kept in the box. Read what was sent in the conversation; if it is still needed, send yours as another message.',
+      cm_send_anyway: 'Send anyway as another message', cm_tpl_anyway: 'Send the template anyway',
+      who_dondy: 'Someone in Dondy', who_gmail: 'Someone in Gmail', who_bot: 'The automatic reply', who_merge: 'A ticket merge', who_someone: 'Someone', who_me: 'You',
+      pres_view: '{who} also has this ticket open', pres_edit: '✍️ {who} is writing a reply in this ticket right now — coordinate before sending',
       orders: 'Orders', no_orders: 'No order found (orders older than 60 days are invisible).', lookup_error: 'The order lookup failed when the draft was written.',
       track: 'Tracking', items: 'Items', ordered: 'Ordered', shipped_on: 'Shipped',
       ship_not_late: 'On time', ship_late: 'Late', ship_very_late: 'Very late', ship_unknown: 'Unknown', ship_not_applicable: 'Not applicable',
@@ -259,6 +284,10 @@
       bot_banner: 'The Dondy bot is handling this chat. No draft — the engine re-checks it every run.', takeover: 'Take over', takeover_arm: 'Click again to take over',
       takeover_ok: 'The chat is yours — a draft will be written on the next engine run', photo_dondy: '📷 Photo — view in Dondy', photo_open: '📷 Photo — open',
       photo_wait: '📷 Photo — not arrived yet', photo_gone: '📷 Photo — removed after 7 days, view in Dondy',
+      att_btn: '📎 Attach file', att_uploading: 'Uploading…', att_failed: 'Not uploaded', att_remove: 'Remove the file', att_hint: 'PDF, image, Word, Excel or TXT · up to {mb} MB a file',
+      att_hint_wa: 'One file: PDF, JPG, PNG, Word or Excel · up to {mb} MB', att_type: 'File type not allowed: {name}', att_size: 'File too large: {name} (up to {mb} MB)',
+      att_total: 'All files together are too large (up to {mb} MB an email)', att_count: 'Up to {n} files', att_wa_one: 'WhatsApp takes one file per message',
+      att_wait: 'Waiting for an upload to finish, or for a failed file to be removed', att_sent_chip: '📎 {name}',
       err_bad_engine: 'The engine returned an invalid answer. Try again in a moment.',
       ob_flight_send: '⏳ Sending in the background…', ob_flight_close: '⏳ Closing in the background…', ob_ok_email: '✅ Sent', ob_ok_wa: '✅ Sent to WhatsApp', ob_ok_queued: '📤 Queued',
       ob_ok_close: '✅ Handled', ob_refused: '⚠️ Not sent — needs a fix', ob_refused_close: '⚠️ Not closed — needs a fix', ob_unknown: '❓ Not confirmed — check',
@@ -422,14 +451,57 @@
   /** WhatsApp's 24-hour window, counted from the customer's last message (engine column wa_last_in). Meta refuses free text after it.
    *  -> { state: 'closed' | 'soon' | 'open', left } or null when the time is unknown / not an open WhatsApp ticket. */
   const WA_WINDOW_MS = 24 * 3600000, WA_WINDOW_MARGIN_MS = 2 * 60000, WA_SOON_MS = 4 * 3600000;
-  function waWin(x) {
-    if (!x || !isWA(x) || OPEN.indexOf(x.status) < 0) return null;
+  function waWin(x, any) {          // any: also an answered / closed chat (another message or a template, 2026-10-11)
+    if (!x || !isWA(x) || (!any && OPEN.indexOf(x.status) < 0)) return null;
     const at = ms(x.wa_last_in);
     if (!at) return null;
     const left = at + WA_WINDOW_MS - WA_WINDOW_MARGIN_MS - Date.now();
     return { state: left <= 0 ? 'closed' : left < WA_SOON_MS ? 'soon' : 'open', left: left };
   }
-  function waWinClosed(x) { const w = waWin(x); return !!w && w.state === 'closed'; }
+  function waWinClosed(x, any) { const w = waWin(x, any); return !!w && w.state === 'closed'; }
+  /** Owner, 2026-10-11: "after it's closed there is no option to reply anymore". An answered, closed or queued ticket takes another message. */
+  const FOLLOWUP_ST = ['sent', 'done', 'wa_queued'];
+  function canFollowUp(x) { return !!x && FOLLOWUP_ST.indexOf(x.status) >= 0; }
+  /** Who handled a ticket, in words: a person's name, or what Dondy / Gmail / the bot did. */
+  function whoName(by) {
+    const b = String(by || '').trim();
+    if (!b) return t('who_someone');
+    if (S.me && S.me.user && b === S.me.user.username) return t('who_me');
+    const m = { dondy: 'who_dondy', gmail: 'who_gmail', 'auto-reply': 'who_bot', auto: 'who_bot', engine: 'who_bot', bot: 'who_bot', merge: 'who_merge' }[b.toLowerCase()];
+    return m ? t(m) : b;
+  }
+  /** HH:MM today, else the date with the time. */
+  function whenShort(iso) {
+    const v = ms(iso);
+    if (v === null) return '—';
+    if (ilDay(v) === ilDay(Date.now())) return new Intl.DateTimeFormat(LANG === 'en' ? 'en-GB' : 'he-IL', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }).format(new Date(v));
+    return fmtDate(iso, true);
+  }
+  /** Messages this page sent and the conversation does not show yet (WhatsApp waits for the bridge's echo): shown as ours with a
+   *  "on its way" mark, so the agent sees what went out and can write the next one. Dropped once the conversation has them. */
+  const OUTGOING = {};
+  const TYPED = {};          // brand|id -> last keystroke in this ticket (presence: "is writing")
+  function outgoingFor(brand, id, conv) {
+    const list = OUTGOING[brand + '|' + id] || [];
+    const have = (conv || []).filter(function (m) { return m && m.who === 'us'; }).map(function (m) { return String(m.text || '').trim().slice(0, 200); });
+    const left = list.filter(function (o) { return have.indexOf(String(o.text).trim().slice(0, 200)) < 0 && Date.now() - o.at < 30 * 60000; });
+    if (left.length) OUTGOING[brand + '|' + id] = left; else delete OUTGOING[brand + '|' + id];
+    return left;
+  }
+  /** Who else has this ticket on screen (from /watch and the open): a quiet chip; a stronger one when they are writing. */
+  function paintPresence(k, others) {
+    const el = document.getElementById('tk-presence');
+    if (!el || S.tk !== k) return;
+    const list = Array.isArray(others) ? others.filter(function (o) { return o && typeof o.user === 'string'; }) : [];
+    clear(el);
+    el.hidden = !list.length;
+    if (!list.length) return;
+    const editing = list.filter(function (o) { return o.editing; });
+    const names = (editing.length ? editing : list).map(function (o) { return String(o.name || o.user); }).join(', ');
+    el.className = 'chip presence' + (editing.length ? ' bad' : ' outline');
+    el.setAttribute('data-state', editing.length ? 'editing' : 'viewing');
+    el.append(tx(editing.length ? 'pres_edit' : 'pres_view', { who: names }));
+  }
   function waWinChip(x) {
     const w = waWin(x);
     if (!w || w.state === 'open') return null;
@@ -478,18 +550,38 @@
       thenCb.checked = has && (mem.then === null ? true : mem.then);
       paintBtn();
     };
-    async function fire() {
+    async function fire(seenOverride) {
       const tpl = chosen();
       if (!tpl || busy) return;
       busy = true; paintBtn();
       err.hidden = true;
-      const args = { id: x.id, template: tpl.name };
+      const tk = S.tk && S.tk.id === x.id ? S.tk.ticket : x;
+      // seen: someone else's answer after this screen loaded stops it (2026-10-11, rozela: the same template re-sent 3 minutes later)
+      const args = { id: x.id, template: tpl.name, seen: typeof seenOverride === 'string' ? seenOverride : String(tk.handled_at || '') };
       const draft = String(getDraft() || '').trim();
       if (thenCb.checked && draft) args.then = draft;
       const r = await api('/api/' + encodeURIComponent(brand) + '/apiSendTemplate', { args: args, lang: LANG });
       busy = false;
-      if (r && r.ok) { delete TPL_UI[brand + '|' + x.id]; toast(t('tpl_sent_ok')); pollChanges(brand); goNext(brand, x.id); return; }
-      err.textContent = (r && (r.msg || r.message)) || t('err_bad_engine');
+      if (r && r.ok) {
+        // Owner, 2026-10-11: a send never moves on. The template shows as on its way; the ticket stays on screen.
+        delete TPL_UI[brand + '|' + x.id]; toast(t('tpl_sent_ok')); pollChanges(brand);
+        (OUTGOING[brand + '|' + x.id] || (OUTGOING[brand + '|' + x.id] = [])).push({ text: tpl.text, at: Date.now(), rid: 'tpl', queued: true });
+        if (S.tk && S.tk.id === x.id) {
+          if (typeof r.handled_at === 'string' && S.tk.ticket) { S.tk.ticket.handled_at = r.handled_at; S.tk.ticket.handled_by = S.me.user.username; S.tk.ticket.wa_send = 'pending'; }
+          repaintConv(S.tk); Draft.refreshSend(); EnDraft.refresh(); Watch.kick(true);
+        }
+        clear(status); status.hidden = false; status.textContent = t('tpl_sent_ok');
+        paintBtn();
+        return;
+      }
+      clear(err);
+      if (r && r.error === 'changed_meanwhile') {
+        err.append(h('div', { text: t(r.status === 'done' ? 'cm_closed' : 'cm_answered', { who: whoName(r.by), when: whenShort(r.at) }) }));
+        const again = armed(t('cm_tpl_anyway'), t('tpl_send_arm'), 'btn small', function () { fire(typeof r.at === 'string' ? r.at : ''); });
+        again.setAttribute('data-test', 'tpl-anyway');
+        err.append(h('div', { class: 'actions' }, again));
+        if (S.tk && S.tk.id === x.id) refreshOpen(brand, x.id);
+      } else err.textContent = (r && (r.msg || r.message)) || t('err_bad_engine');
       err.hidden = false;
       paintBtn();
     }
@@ -650,9 +742,18 @@
 
   /** Owner, 2026-10-11: "handled without sending" and "close" did the same thing in the engine (closeTicket_), so an agent gets ONE
    *  button. apiMarkHandled stays in the proxy for outbox items queued before this change. */
+  /** After an answer (Owner, 2026-10-11): sending no longer closes; this button does, and moves to the next ticket. */
+  function closeTicketBtn(onFire) {
+    const b = armed(t('close_tk'), t('close_tk_arm'), '', onFire);
+    b.setAttribute('data-test', 'close-btn');
+    b.setAttribute('data-kind', 'close');
+    b.setAttribute('title', t('close_tk_title'));
+    return b;
+  }
   function closeNoSendBtn(onFire) {
     const b = armed(t('close_ns'), t('close_ns_arm'), '', onFire);
     b.setAttribute('data-test', 'close-btn');
+    b.setAttribute('data-kind', 'nosend');
     b.setAttribute('title', t('close_ns_title'));
     return b;
   }
@@ -1479,6 +1580,7 @@
     }
     if (S.tk !== k) return;
     k.firstPaintMs = Math.round(performance.now() - t0);
+    if (r && Array.isArray(r.others)) { k.others = r.others; paintPresence(k, r.others); }
     if (!r.ok) {
       k.syncing = false;
       if (!k.ticket) { renderPartial(brand, id, null, t('tk_failed')); return; }
@@ -1571,7 +1673,7 @@
     k.cachedAt = new Date().toISOString();
     S.tkMemo[k.brand + '|' + k.id] = { ticket: k.ticket, extras: k.extras, extrasErr: k.extrasErr, sig: k.sig, cachedAt: k.cachedAt };
     if (old) {
-      const cc = convCard(k.extras.conversation || []);
+      const cc = convCard(k.extras.conversation || [], outgoingFor(k.brand, k.id, k.extras.conversation || []));
       cc.id = 'tk-conv';
       if (isWA(k.ticket)) cc.classList.add('wa');
       old.replaceWith(cc);
@@ -1628,8 +1730,10 @@
       busy = true;
       const shown = setTimeout(function () { mark(k, true); }, now ? 0 : 800);
       let r;
-      try { r = await api('/api/' + encodeURIComponent(k.brand) + '/watch', { id: k.id, at: k.srvAt || 0 }, 'POST', { retry: false, quiet: true }); }
+      const ed = Date.now() - (TYPED[k.brand + '|' + k.id] || 0) < 30000;      // "is writing" for the others' presence chip
+      try { r = await api('/api/' + encodeURIComponent(k.brand) + '/watch', { id: k.id, at: k.srvAt || 0, ed: ed }, 'POST', { retry: false, quiet: true }); }
       finally { busy = false; clearTimeout(shown); mark(k, false); }
+      if (S.tk === k && r && Array.isArray(r.others)) { k.others = r.others; paintPresence(k, r.others); }
       if (S.tk !== k || !r || !r.ok) return;
       if (typeof r.syncedAge === 'number') noteSync(k.brand, r.syncedAge);
       if (r.changed && r.ticket) liveUpdate(k, r);
@@ -1666,6 +1770,16 @@
   /** One ticket's panels after a write: from the server cache (already patched or revalidated), never a full pane rebuild. */
   async function fetchTicket(brand, id, revalidate) {
     return api('/api/' + encodeURIComponent(brand) + '/ticket', revalidate ? { id: id, revalidate: true } : { id: id });
+  }
+  /** The open ticket changed under the agent (someone else answered): bring the engine's copy in now, never under their fingers. */
+  async function refreshOpen(brand, id) {
+    const k = S.tk;
+    if (!k || k.brand !== brand || k.id !== id) return;
+    const r = await fetchTicket(brand, id, true);
+    if (S.tk !== k || !r || !r.ok || !r.ticket || typeof r.ticket !== 'object') return;
+    if (r.cache && typeof r.cache.at === 'number') k.srvAt = Math.max(k.srvAt || 0, r.cache.at);
+    liveUpdate(k, r);
+    Draft.refreshSend();
   }
 
   function backBtn() {
@@ -1730,7 +1844,8 @@
       h('div', { class: 'l1' }, backBtn(), h('h2', { dir: 'auto', text: x.name || x.email || x.phone || t('no_name') }),
         isAutoReplied(x) ? h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }) : null, statusChip(x.status), waFailChip(x), waWinChip(x)),
       h('div', { class: 'sync-row' }, h('span', { id: 'tk-sync', class: 'chip sync outline', hidden: true, 'aria-live': 'polite', 'data-test': 'tk-sync' }),
-        h('span', { id: 'tk-check', class: 'tk-check', hidden: true, 'data-test': 'tk-check' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' ', t('checking'))),
+        h('span', { id: 'tk-check', class: 'tk-check', hidden: true, 'data-test': 'tk-check' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' ', t('checking')),
+        h('span', { id: 'tk-presence', class: 'chip presence outline', hidden: true, role: 'status', 'aria-live': 'polite', 'data-test': 'tk-presence' })),
       h('div', { class: 'ch-banner ' + (isWA(x) ? 'wa' : 'email'), 'data-test': isWA(x) ? 'wa-banner' : 'email-banner' },
         icon(isWA(x) ? 'wa' : 'mail'), t(isWA(x) ? 'wa_banner' : 'email_banner')),
       contact,
@@ -1759,7 +1874,7 @@
       body.append(h('div', { class: 'why' + (x.status === 'health' ? ' health' : ''), role: 'note', 'data-test': 'why-human' }, h('b', { text: t('why_human') }),
         lines.map(function (l) { return h('div', null, h('span', { text: l.text }), l.text !== l.raw ? h('div', null, h('bdi', { class: 'raw', text: l.raw })) : null); })));
     }
-    const cc = convCard(ex.conversation || []);
+    const cc = convCard(ex.conversation || [], outgoingFor(k.brand, k.id, ex.conversation || []));
     cc.id = 'tk-conv';
     if (isWA(x)) cc.classList.add('wa');
     body.append(cc);
@@ -1775,7 +1890,7 @@
       body.insertBefore(h('div', { class: 'bot-banner', role: 'note', 'data-test': 'bot-banner' }, h('div', null, t('bot_banner')), h('div', { class: 'actions' }, tb)),
         body.children[1] || null);
     }
-    const dcard = x.status === 'bot' ? null : (enMode(x) && isOpen ? EnDraft.card(x) : Draft.card(x));
+    const dcard = x.status === 'bot' ? null : (enMode(x) && (isOpen || canFollowUp(x)) ? EnDraft.card(x) : Draft.card(x));
     if (dcard && x.recommendation && isOpen) {
       const h3 = dcard.querySelector('h3');
       h3.after(h('div', { class: 'todo-chip', 'data-test': 'what-to-do-chip' }, h('b', { text: t('what_to_do') + ': ' }), h('span', { class: 'tk-reco2', dir: 'auto', text: x.recommendation })));
@@ -1794,6 +1909,7 @@
     if (k.extrasErr) body.insertBefore(h('div', { class: 'err-box', text: k.extrasErr }), body.children[1]);
     Outbox.paintBanner();
     paintLive(k);
+    paintPresence(k, k.others);
     if (enMode(x)) {
       if (k.tr && k.tr.ok) { Translate.paint(k); EnDraft.prefill(x.id, k.tr.draft); } else Translate.load(k);
     } else if (HeTranslate.needed(k)) {
@@ -1813,7 +1929,10 @@
     const b0 = S.boots[k.brand];
     const btn = armed(t('wa_resend'), t('wa_resend_arm'), 'primary wa', function () {
       if (btn.disabled) return;
-      if (Outbox.start('apiSend', k.brand, x, { id: x.id, text: text, channel: 'whatsapp' }, 'resend')) goNext(k.brand, x.id);
+      if (Outbox.start('apiSend', k.brand, x, { id: x.id, text: text, channel: 'whatsapp' }, 'resend')) {     // stays on the ticket (2026-10-11)
+        (OUTGOING[k.brand + '|' + x.id] || (OUTGOING[k.brand + '|' + x.id] = [])).push({ text: text, at: Date.now(), rid: 'resend', queued: true });
+        repaintConv(S.tk);
+      }
     });
     btn.setAttribute('data-test', 'wa-resend');
     btn.disabled = !b0 || !!b0.dryRun || Outbox.blocks(k.brand, x.id) || waLocked(k.brand, x.id) || waQueued(x);
@@ -1895,8 +2014,122 @@
     });
     return row;
   }
+  // ---- files the agent sends with the reply (Owner, 2026-10-11). Server: attach.py (checks + upload) -> engine/Attach.gs (stored on the core).
+  // A file is uploaded the moment it is picked; the send carries only its id, so the Outbox's retries never upload or send it twice.
+  // Shown only where the engine says it can go (apiBoot.attach): email; WhatsApp only while the brand's switch is on and the 24 hours are open.
+  const Attach = (function () {
+    const EXT = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'doc', 'docx', 'xls', 'xlsx', 'txt'];
+    const WA_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'];
+    const state = {};                 // 'brand|ticket' -> [{key, name, size, id, status: 'up'|'ok'|'err', msg}]
+    const painters = {};              // 'brand|ticket' -> the open composer's repaint
+    let seq = 0;
+    function k(brand, id) { return brand + '|' + id; }
+    function info(brand) { const b = S.boots[brand]; return b && b.attach && typeof b.attach === 'object' ? b.attach : null; }
+    function allowed(brand, x) {
+      const i = info(brand);
+      if (!i || !canWork()) return false;
+      return isWA(x) ? !!i.whatsapp && !waWinClosed(x) : !!i.email;
+    }
+    function items(brand, id) { return state[k(brand, id)] || (state[k(brand, id)] = []); }
+    function ext(name) { const m = /\.([A-Za-z0-9]{1,5})$/.exec(String(name || '')); return m ? m[1].toLowerCase() : ''; }
+    function mb(n) { return Math.round(n / 1048576); }
+    function size(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+    function ids(brand, id) { return (state[k(brand, id)] || []).filter(function (a) { return a.status === 'ok'; }).map(function (a) { return a.id; }); }
+    function blocks(brand, id) { return (state[k(brand, id)] || []).some(function (a) { return a.status === 'up' || a.status === 'err'; }); }
+    function sent(brand, id) { delete state[k(brand, id)]; const p = painters[k(brand, id)]; if (p) p(); }   // handed to the Outbox: the row empties
+    async function upload(brand, x, it, file, repaint) {
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      fd.append('channel', isWA(x) ? 'whatsapp' : 'email');
+      let r = null;
+      try {
+        const res = await fetch('/api/' + encodeURIComponent(brand) + '/attach', { method: 'POST', credentials: 'same-origin', body: fd,
+          headers: { 'X-CSRF-Token': CSRF, Accept: 'application/json', 'X-UI-Lang': LANG } });
+        r = await res.json().catch(function () { return { ok: false, msg: t('att_failed') }; });
+      } catch (e) { r = { ok: false, msg: t('err_network') }; }
+      if (items(brand, x.id).indexOf(it) < 0) return;          // removed meanwhile
+      if (r && r.ok === true && /^a[0-9a-f]{24}$/.test(String(r.id || ''))) { it.status = 'ok'; it.id = r.id; it.name = r.name || it.name; it.size = r.size || it.size; }
+      else { it.status = 'err'; it.msg = (r && (r.msg || r.error)) || t('att_failed'); }
+      repaint();
+    }
+    /** The 📎 row of a composer, or null where files cannot go. onChange: the composer re-checks its send button.
+     *  A deep link can draw the composer before the brand's list (apiBoot) is in: then a hidden slot waits for it (measured: the row was missing). */
+    function box(brand, x, onChange) {
+      if (info(brand)) return build(brand, x, onChange);
+      const slot = h('div', { class: 'attach-slot', hidden: true });
+      let n = 0;
+      const tick = function () {
+        if (info(brand)) { const real = build(brand, x, onChange); if (real) slot.replaceWith(real); else slot.remove(); return; }
+        if (++n < 100 && (slot.isConnected || n < 5)) setTimeout(tick, 300);
+      };
+      setTimeout(tick, 300);
+      return slot;
+    }
+    function build(brand, x, onChange) {
+      if (!allowed(brand, x)) return null;
+      const i = info(brand);
+      const wa = isWA(x);
+      const input = h('input', { type: 'file', hidden: true, 'data-test': 'attach-input', accept: (wa ? WA_EXT : EXT).map(function (e) { return '.' + e; }).join(',') });
+      if (!wa) input.multiple = true;
+      const btn = h('button', { class: 'btn small ghost', type: 'button', text: t('att_btn'), 'data-test': 'attach-btn', onclick: function () { input.click(); } });
+      const hint = h('span', { class: 'muted small', text: t(wa ? 'att_hint_wa' : 'att_hint', { mb: mb(wa ? i.waFileMax : i.fileMax) }) });
+      const chips = h('div', { class: 'att-chips', 'data-test': 'attach-chips' });
+      const err = h('div', { class: 'att-err small', 'aria-live': 'polite', hidden: true, 'data-test': 'attach-err' });   // not role=alert: the composer's own error box is the alert
+      const wait = h('div', { class: 'muted small', hidden: true, 'data-test': 'attach-wait', text: t('att_wait') });
+      const el = h('div', { class: 'attach', 'data-test': 'attach' }, h('div', { class: 'att-row' }, btn, hint), chips, err, wait, input);
+      function paint() {
+        clear(chips);
+        const list = items(brand, x.id);
+        list.forEach(function (a) {
+          const rm = h('button', { class: 'att-x', type: 'button', 'aria-label': t('att_remove'), title: t('att_remove'), text: '✕', 'data-test': 'attach-remove',
+            onclick: function () { const l = items(brand, x.id); const n = l.indexOf(a); if (n >= 0) l.splice(n, 1); paint(); } });
+          chips.append(h('span', { class: 'chip file ' + a.status, 'data-test': 'attach-chip', 'data-status': a.status, title: a.status === 'err' ? a.msg : '' },
+            h('span', { class: 'att-name', dir: 'auto', text: a.name }), h('span', { class: 'att-size', text: size(a.size) }),
+            a.status === 'up' ? h('span', { class: 'att-st', text: t('att_uploading') }) : a.status === 'err' ? h('span', { class: 'att-st', text: a.msg }) : null, rm));
+        });
+        btn.disabled = wa && list.length >= 1;
+        wait.hidden = !blocks(brand, x.id);
+        if (onChange) onChange();
+      }
+      function say(msg) { err.textContent = msg; err.hidden = !msg; }
+      input.addEventListener('change', function () {
+        const files = Array.prototype.slice.call(input.files || []);
+        input.value = '';
+        say('');
+        const list = items(brand, x.id);
+        const room = wa ? 1 - list.length : (i.emailFilesMax || 10) - list.length;
+        if (files.length > room) { say(wa ? t('att_wa_one') : t('att_count', { n: i.emailFilesMax || 10 })); return; }
+        let total = list.reduce(function (s, a) { return s + (a.size || 0); }, 0);
+        for (let n = 0; n < files.length; n++) {
+          const f = files[n];
+          if ((wa ? WA_EXT : EXT).indexOf(ext(f.name)) < 0) { say(t('att_type', { name: f.name })); return; }
+          const cap = wa ? i.waFileMax : i.fileMax;
+          if (f.size > cap || f.size < 1) { say(t('att_size', { name: f.name, mb: mb(cap) })); return; }
+          total += f.size;
+        }
+        if (!wa && total > i.emailTotalMax) { say(t('att_total', { mb: Math.floor(i.emailTotalMax / 1000000) })); return; }
+        files.forEach(function (f) {
+          const it = { key: ++seq, name: f.name, size: f.size, id: null, status: 'up', msg: '' };
+          list.push(it);
+          upload(brand, x, it, f, function () { const p = painters[k(brand, x.id)]; if (p) p(); });   // the row on screen NOW (the ticket may have re-rendered)
+        });
+        paint();
+      });
+      painters[k(brand, x.id)] = paint;
+      paint();
+      return el;
+    }
+    /** Names of the files that went with a message (conversation). Names only: the customer's copy is in their inbox. */
+    function fileChips(files) {
+      if (!Array.isArray(files) || !files.length) return null;
+      return h('div', { class: 'att-chips sent', 'data-test': 'msg-files' }, files.slice(0, 10).map(function (n) {
+        return h('span', { class: 'chip file ok', dir: 'auto', text: t('att_sent_chip', { name: String(n) }) });
+      }));
+    }
+    return { box: box, ids: ids, blocks: blocks, sent: sent, fileChips: fileChips, allowed: allowed };
+  })();
   const ORIG = new WeakMap();
-  function convCard(conv) {
+  function convCard(conv, outgoing) {
     const card = h('div', { class: 'card' }, h('h3', null, t('conversation'), h('span', { id: 'tr-state', class: 'chip outline', hidden: true })));
     const list = h('div', { class: 'conv' });
     const msgs = conv.map(function (m, i) { return Object.assign({ _i: i }, m); }).sort(function (a, b) { return (ms(a.at) || 0) - (ms(b.at) || 0); });
@@ -1905,7 +2138,7 @@
       const long = String(m.text || '').length > 600 && i < msgs.length - 1;
       const el = h('div', { class: 'msg ' + who + (long ? ' collapsed' : ''), 'data-i': String(m._i) },
         h('div', { class: 'meta' }, h('b', { text: t(who) }), h('span', { text: fmtDate(m.at, true) })),
-        h('div', { class: 'mbody' }, messageBody(m.text)), photoChips(m.photos));
+        h('div', { class: 'mbody' }, messageBody(m.text)), photoChips(m.photos), Attach.fileChips(m.files));
       ORIG.set(el, String(m.text || ''));
       if (long) {
         const mb = h('button', { class: 'more-btn', type: 'button', text: t('show_more') });
@@ -1914,9 +2147,24 @@
       }
       list.append(el);
     });
-    if (!msgs.length) list.append(h('div', { class: 'muted', text: '—' }));
+    (outgoing || []).forEach(function (o) {          // sent from this page, not in the conversation yet (2026-10-11)
+      list.append(h('div', { class: 'msg us pending', 'data-test': 'msg-outgoing' },
+        h('div', { class: 'meta' }, h('b', { text: t('us') }), h('span', { text: fmtDate(new Date(o.at).toISOString(), true) }), ' ',
+          h('span', { class: 'chip st-sent', text: o.queued ? t('msg_queued') : t('msg_pending') })),
+        h('div', { class: 'mbody', dir: 'auto' }, messageBody(o.text))));
+    });
+    if (!msgs.length && !(outgoing || []).length) list.append(h('div', { class: 'muted', text: '—' }));
     card.append(list);
     return card;
+  }
+  /** Redraw only the conversation of the open ticket (an outgoing message was added, or one came back refused). */
+  function repaintConv(k) {
+    const old = document.getElementById('tk-conv');
+    if (!old || !k || S.tk !== k) return;
+    const cc = convCard((k.extras && k.extras.conversation) || [], outgoingFor(k.brand, k.id, (k.extras && k.extras.conversation) || []));
+    cc.id = 'tk-conv';
+    if (isWA(k.ticket)) cc.classList.add('wa');
+    old.replaceWith(cc);
   }
 
   // ---- draft (editor + send / handled / close)
@@ -1944,6 +2192,7 @@
     }
     async function save() {
       if (!st || !st.dirty) return;
+      if (st.fu) { writeLocal(); return; }               // another message on an answered ticket: the engine keeps no draft for it
       if (st.saving) { st.again = true; return; }
       const mine = st;
       const text = mine.ta.value;
@@ -1977,7 +2226,7 @@
     }
     function flush() { if (st) { clearTimeout(st.timer); if (st.dirty) save(); } }
     function detach() { flush(); st = null; }
-    window.addEventListener('beforeunload', function (e) { if (st && (st.dirty || st.saving)) { writeLocal(); e.preventDefault(); e.returnValue = ''; } });
+    window.addEventListener('beforeunload', function (e) { if (st && (st.dirty || st.saving)) { writeLocal(); if (st.fu) return; e.preventDefault(); e.returnValue = ''; } });
     window.addEventListener('pagehide', function () { if (st && st.dirty) writeLocal(); });
 
     function card(x) {
@@ -1985,25 +2234,50 @@
       const isOpen = OPEN.indexOf(x.status) >= 0;
       const brand = tkBrand(x);
       const k = key(brand, x.id);
-      const server = String(x.draft_text || '');
+      // Owner, 2026-10-11: an answered / closed ticket takes another message. It starts EMPTY: never the answer already sent.
+      const fu0 = !isOpen && canFollowUp(x);
+      const server = fu0 ? '' : String(x.draft_text || '');
       const local = readLocal(k);
-      const ta = h('textarea', { dir: 'auto', 'aria-label': t('draft'), spellcheck: 'true', rows: '9' });
+      const ta = h('textarea', { dir: 'auto', 'aria-label': t('draft'), spellcheck: 'true', rows: fu0 ? '5' : '9' });
       ta.value = server;
-      st = { id: x.id, brand: brand, key: k, ta: ta, base: server, dirty: false, saving: false, timer: null };
+      st = { id: x.id, brand: brand, key: k, ta: ta, base: server, dirty: false, saving: false, timer: null, fu: fu0 };
+      const me = st;
+      const title = h('h3', { text: fu0 ? t('fu_title') : t('draft') });
       const stateEl = h('div', { class: 'save-state', 'aria-live': 'polite' });
       const note = h('div');
+      const fuEl = h('div', { class: 'fu-note muted small', 'data-test': 'fu-note', hidden: true });
       const offerEl = h('div', { class: 'stale', hidden: true, 'data-test': 'draft-offer' });
       st.stateEl = stateEl; st.offerEl = offerEl;
       const errEl = h('div', { hidden: true });
-      const c = h('div', { class: 'card draft' }, h('h3', { text: t('draft') }), note, offerEl, ta, stateEl, errEl);
-      if (!isOpen) {
+      const c = h('div', { class: 'card draft' + (fu0 ? ' followup' : ''), 'data-test': 'draft-card' }, title, fuEl, note, offerEl, ta, stateEl, errEl);
+      if (!isOpen && !fu0) {
         ta.readOnly = true;
         if (local) dropLocal();
         c.append(h('div', { class: 'muted small', text: t('draft_readonly') }));
         return c;
       }
+      function cur() { return S.tk && S.tk.id === x.id ? S.tk.ticket : x; }
+      function paintFu() {
+        if (!me.fu) { fuEl.hidden = true; return; }
+        const tk = cur();
+        title.textContent = t('fu_title');
+        c.classList.add('followup');
+        ta.placeholder = t('fu_ph');
+        clear(fuEl);
+        const line = tk.status === 'done' ? 'fu_done' : waQueued(tk) ? 'fu_queued' : 'fu_sent';
+        if (tk.handled_at || tk.handled_by) fuEl.append(h('div', { 'data-test': 'fu-who' }, tx(line, { who: whoName(tk.handled_by), when: whenShort(tk.handled_at) })));
+        fuEl.append(h('div', { text: t('fu_hint') }));
+        fuEl.hidden = false;
+      }
+      paintFu();
       const wroteAt = ms(x.waiting_since);
-      if (local && local.text !== server && local.text.trim() && wroteAt && local.at && local.at < wroteAt) {
+      if (me.fu) {
+        // another message lives on this device only (the engine keeps no draft for an answered ticket); a refused one comes back here
+        if (local && String(local.text || '').trim()) {
+          ta.value = local.text; me.dirty = true; me.edited = true;
+          note.append(h('div', { class: 'muted small', 'data-test': local.back ? 'fu-restored' : 'restored', text: local.back ? t('fu_restored') : t('restored') }));
+        } else if (local) dropLocal();
+      } else if (local && local.text !== server && local.text.trim() && wroteAt && local.at && local.at < wroteAt) {
         // review 2026-10-11 #5: the customer wrote after this device copy — the new server draft leads, the old text is offered
         const older = h('div', { class: 'stale', 'data-test': 'draft-older-local' }, h('span', { text: t('local_older') }));
         older.append(' ', h('button', { class: 'btn small ghost', type: 'button', text: t('use_mine_old'), onclick: function () {
@@ -2017,7 +2291,7 @@
         st.dirty = true;
         st.edited = true;
         if (local.base === server) {
-          note.append(h('div', { class: 'muted small', text: t('restored') }));
+          note.append(h('div', { class: 'muted small', 'data-test': local.back ? 'fu-restored' : 'restored', text: local.back ? t('fu_restored') : t('restored') }));
           st.timer = setTimeout(save, 800);
         } else {
           const banner = h('div', { class: 'stale' }, h('span', { text: t('conflict') }));
@@ -2030,77 +2304,131 @@
       } else if (local) dropLocal();
 
       ta.addEventListener('input', function () {
-        pingEdit(st.brand, st.id);
-        st.dirty = true;
-        st.edited = true;                                    // for good: a saved edit is still the agent's text
+        pingEdit(me.brand, me.id);
+        TYPED[me.brand + '|' + me.id] = Date.now();
+        me.dirty = true;
+        me.edited = true;                                    // for good: a saved edit is still the agent's text
         writeLocal();
         setState('local');
-        clearTimeout(st.timer);
-        st.timer = setTimeout(save, 2500);
+        clearTimeout(me.timer);
+        me.timer = setTimeout(save, 2500);
         sendBtn.disabled = sendDisabled();
       });
-      ta.addEventListener('blur', function () { clearTimeout(st.timer); if (st.dirty) save(); });
+      ta.addEventListener('blur', function () { clearTimeout(me.timer); if (me.dirty && st === me) save(); });
 
       // Live, never captured at render time: a deep link can render this card before apiBoot answers.
       // Unknown mode = disabled (fail closed); loadBoot() calls refreshSend() when the answer lands.
-      function isDry() { const b = S.boots[st.brand]; return !b || !!b.dryRun; }
-      function winClosed() { return waWinClosed(S.tk && S.tk.id === x.id ? S.tk.ticket : x); }
-      function sendDisabled() { return isDry() || winClosed() || !ta.value.trim() || waQueued(S.tk && S.tk.id === x.id ? S.tk.ticket : x) || waLocked(st.brand, x.id) || Outbox.blocks(st.brand, x.id); }
+      function isDry() { const b = S.boots[me.brand]; return !b || !!b.dryRun; }
+      function winClosed() { return waWinClosed(cur(), me.fu); }
+      function sendDisabled() { return isDry() || winClosed() || !ta.value.trim() || waQueued(cur()) || waLocked(me.brand, x.id) || Outbox.blocks(me.brand, x.id) || Attach.blocks(me.brand, x.id); }
       const actions = h('div', { class: 'actions' });
-      const all = [];
       async function doSend() {
         const text = ta.value;
         clear(errEl); errEl.hidden = true;
-        clearTimeout(st.timer);
+        clearTimeout(me.timer);
         writeLocal();                                        // the text is safe on this device whatever happens
-        const args = { id: x.id, text: text };
+        const tk = cur();
+        // seen: the ticket as THIS screen shows it — someone else's answer after it is refused by the engine (changed_meanwhile)
+        const args = { id: x.id, text: text, seen: String(tk.handled_at || '') };
+        const files = Attach.ids(me.brand, x.id);            // ids of files already uploaded (attach.py): the send carries only these
+        if (files.length) args.attachments = files;
+        if (me.fu || OPEN.indexOf(tk.status) < 0) args.followup = true;      // answered / closed, OR this page already sent on it (its copy may lag)
         if (isWA(x)) args.channel = 'whatsapp';
-        // Owner, 2026-10-05: the agent never waits for the engine — hand it to the outbox and go to the next ticket
-        if (Outbox.start('apiSend', st.brand, x, args)) { st.dirty = false; goNext(st.brand, x.id); }
-        return;
+        // Owner, 2026-10-05: the agent never waits for the engine — the outbox sends it in the background.
+        // Owner, 2026-10-11: and the send never closes or moves on. The message shows in the conversation, the box empties for the next one.
+        const it = Outbox.start('apiSend', me.brand, x, args);
+        if (!it) return;
+        delete TYPED[me.brand + '|' + x.id];                // sent: no longer "writing" for the others' presence chip
+        Attach.sent(me.brand, x.id);
+        const ok = OUTGOING[me.brand + '|' + x.id] || (OUTGOING[me.brand + '|' + x.id] = []);
+        ok.push({ text: text, at: Date.now(), rid: it.rid, queued: isWA(x) });
+        ta.value = ''; me.base = ''; me.dirty = false; me.edited = false; me.saving = false;
+        dropLocal(); setState('', ''); clear(note); clear(offerEl); offerEl.hidden = true;
+        me.fu = true; paintFu();
+        repaintConv(S.tk);
+        me.refreshSend();
       }
-      async function doClose(fn, okMsg) {
+      async function doClose(fn) {
         clear(errEl); errEl.hidden = true;
-        if (Outbox.start(fn, st.brand, x, { id: x.id })) goNext(st.brand, x.id);   // optimistic: off the list, next ticket
-        return;
+        if (Outbox.start(fn, me.brand, x, { id: x.id })) goNext(me.brand, x.id);   // closing DOES move on: off the list, next ticket
       }
       const sendLabel = isWA(x) ? t('send_wa') : t('send_email');
       const waNote = h('div', { class: 'wa-note', 'data-test': 'wa-queued' });
-      c.append(waNote);
+      const waitEl = h('div', { class: 'fu-wait muted small', role: 'status', 'data-test': 'fu-wait', hidden: true, text: t('fu_wait') });
+      c.append(waNote, waitEl);
       function paintWa() {
         clear(waNote);
-        const tk = S.tk && S.tk.id === x.id ? S.tk.ticket : x;
-        if (waQueued(tk) && tk.status !== 'wa_queued') waNote.append(h('span', { class: 'chip ch-wa big', text: t('wa_queued_chip') }));
-        else if (waLocked(st.brand, x.id)) waNote.append(h('span', { class: 'chip bad big', text: t('wa_locked') }), ' ',
+        const tk = cur();
+        if (!me.fu && waQueued(tk) && tk.status !== 'wa_queued') waNote.append(h('span', { class: 'chip ch-wa big', text: t('wa_queued_chip') }));
+        else if (waLocked(me.brand, x.id)) waNote.append(h('span', { class: 'chip bad big', text: t('wa_locked') }), ' ',
           h('button', { class: 'btn small', type: 'button', text: t('wa_check'), onclick: function () { openTicket(x.id, { fresh: true }); } }));
         waNote.hidden = !waNote.firstChild;
+        waitEl.hidden = !(me.fu && (waQueued(tk) || Outbox.blocks(me.brand, x.id)));
       }
       const sendBtn = armed(sendLabel, t('send_arm'), 'primary' + (isWA(x) ? ' wa' : ''), function () { if (!sendDisabled()) doSend(); });
       sendBtn.setAttribute('data-test', 'send-btn');
+      // The close button says what it does: "close without sending" before any answer, "close the ticket" after one. Rebuilt only when that changes.
+      const closeSlot = h('span', { class: 'close-slot' });
+      let closeKind = null;
+      function paintClose() {
+        const tk = cur();
+        const mineOut = !!OUTGOING[me.brand + '|' + x.id];
+        const kind = tk.status === 'done' && !mineOut ? 'none' : (me.fu || tk.status === 'sent' || mineOut) ? 'close' : 'nosend';
+        if (kind !== closeKind) {
+          closeKind = kind;
+          clear(closeSlot);
+          if (kind !== 'none') closeSlot.append(kind === 'close' ? closeTicketBtn(function () { doClose('apiClose'); }) : closeNoSendBtn(function () { doClose('apiClose'); }));
+        }
+        const b = closeSlot.firstChild;
+        if (b && !b.classList.contains('arm')) b.disabled = Outbox.blocks(me.brand, x.id);
+      }
       st.refreshSend = function () {
         paintWa();
+        paintClose();
+        if (me.fu) paintFu();
         if (sendBtn.classList.contains('arm')) return;
         sendBtn.disabled = sendDisabled();
-        sendBtn.textContent = isDry() && S.boots[st.brand] ? t('send_dry') : sendLabel;
+        const cm = Outbox.lastChange(me.brand, x.id);
+        sendBtn.textContent = isDry() && S.boots[me.brand] ? t('send_dry') : cm && ta.value.trim() ? t('cm_send_anyway') : sendLabel;
         sendBtn.title = isDry() ? t('dry_run') : '';
       };
       st.refreshSend();
-      const closeBtn = closeNoSendBtn(function () { doClose('apiClose', t('closed_ok')); });
-      all.push(sendBtn, closeBtn);
-      actions.append(sendBtn, closeBtn);
+      actions.append(sendBtn, closeSlot);
       if (winClosed()) {
         c.append(h('div', { class: 'wa-win-note', role: 'status', 'data-test': 'wa-win-note', text: t('wa_win_note') }));
-        const tb = templateBox(st.brand, x, function () { return ta.value; });
+        const tb = templateBox(me.brand, x, function () { return ta.value; });
         ta.addEventListener('input', function () { tb.refresh(); });
         c.append(tb);
       }
+      const attEl = Attach.box(me.brand, x, function () { if (me.refreshSend) me.refreshSend(); });   // 📎 (null where files cannot go)
+      if (attEl) c.append(attEl);
       c.append(actions);
       return c;
+    }
+    /** A send that did not go out (refused, or "unsent" after the last try): the text comes back to the box on THIS ticket, or to the
+     *  device copy that the next open restores. The box is never overwritten when the agent already typed something new. */
+    function giveBack(brand, id, text) {
+      if (typeof text !== 'string' || !text.trim()) return;
+      const k = key(brand, id);
+      if (st && st.key === k && st.ta && !st.ta.readOnly) {
+        if (st.ta.value.trim()) return;
+        st.ta.value = text; st.dirty = true; st.edited = true;
+        writeLocal();
+        try { const v = readLocal(k); if (v) { v.back = true; localStorage.setItem(k, JSON.stringify(v)); } } catch (e) { /* ignore */ }
+        setState('local');
+        if (st.refreshSend) st.refreshSend();
+        return;
+      }
+      const prev = readLocal(k);
+      if (prev && String(prev.text || '').trim()) return;
+      const memo = S.tkMemo[brand + '|' + id];
+      const base = memo && memo.ticket && OPEN.indexOf(memo.ticket.status) >= 0 ? String(memo.ticket.draft_text || '') : '';
+      try { localStorage.setItem(k, JSON.stringify({ text: text, base: base, at: Date.now(), back: true })); } catch (e) { /* the outbox banner still names it */ }
     }
     /** The engine wrote a new draft while this one is on screen. Untouched text is replaced (and said so); an edited
      *  one is never overwritten — the new draft is offered next to it. */
     function offer(text) {
-      if (!st || !st.ta || !st.offerEl || st.ta.readOnly) return;
+      if (!st || !st.ta || !st.offerEl || st.ta.readOnly || st.fu) return;     // another message is never replaced by an engine draft
       const mine = st;
       if (text === mine.ta.value || text === mine.base) return;
       clear(mine.offerEl);
@@ -2126,7 +2454,7 @@
         } }));
       mine.offerEl.hidden = false;
     }
-    return { card: card, flush: flush, detach: detach, offer: offer, isDirty: function () { return !!(st && (st.dirty || st.saving)); },
+    return { card: card, flush: flush, detach: detach, offer: offer, giveBack: giveBack, isDirty: function () { return !!(st && (st.dirty || st.saving)); },
       edited: function () { return !!(st && st.edited); },
       refreshSend: function () { if (st && st.refreshSend) st.refreshSend(); } };
   })();
@@ -2287,13 +2615,30 @@
       const key = 'cs.draft.en.' + brand + '.' + x.id;
       let local = null;
       try { local = localStorage.getItem(key); } catch (e) { local = null; }
-      const ta = h('textarea', { dir: 'ltr', lang: 'en', rows: '8', 'aria-label': t('en_draft') });
+      // Owner, 2026-10-11: an answered / closed ticket takes another message — written in English, delivered in Hebrew, starting EMPTY
+      const fu0 = OPEN.indexOf(x.status) < 0 && canFollowUp(x);
+      const ta = h('textarea', { dir: 'ltr', lang: 'en', rows: fu0 ? '5' : '8', 'aria-label': t('en_draft') });
       const note = h('div', { class: 'muted small' });
       const review = h('div', { class: 'en-review', hidden: true, 'data-test': 'en-review' });
       const errEl = h('div');
-      const me = { id: x.id, brand: brand, ta: ta, note: note, prefilled: false, translated: null, busy: false };
+      const me = { id: x.id, brand: brand, ta: ta, note: note, prefilled: fu0, translated: null, busy: false, fu: fu0, key: key };
       cur = me;
-      if (local !== null && local.trim()) { ta.value = local; note.textContent = t('restored'); me.prefilled = true; } else note.textContent = t('en_draft_loading');
+      function tkNow() { return S.tk && S.tk.id === x.id ? S.tk.ticket : x; }
+      const title = h('h3', { text: fu0 ? t('fu_title') : t('en_draft') });
+      const fuEl = h('div', { class: 'fu-note muted small', 'data-test': 'fu-note', hidden: true });
+      function paintFu() {
+        if (!me.fu) return;
+        const tk = tkNow();
+        title.textContent = t('fu_title');
+        ta.placeholder = t('fu_ph');
+        clear(fuEl);
+        const line = tk.status === 'done' ? 'fu_done' : waQueued(tk) ? 'fu_queued' : 'fu_sent';
+        if (tk.handled_at || tk.handled_by) fuEl.append(h('div', { 'data-test': 'fu-who' }, tx(line, { who: whoName(tk.handled_by), when: whenShort(tk.handled_at) })));
+        fuEl.append(h('div', { text: t('fu_hint') }));
+        fuEl.hidden = false;
+      }
+      paintFu();
+      if (local !== null && local.trim()) { ta.value = local; note.textContent = t('restored'); me.prefilled = true; } else note.textContent = fu0 ? '' : t('en_draft_loading');
       function isDry() { const b = S.boots[brand]; return !b || !!b.dryRun; }
       function showErr(r) {
         clear(errEl);
@@ -2304,7 +2649,9 @@
       const editBtn = h('button', { class: 'btn ghost', type: 'button', text: t('en_edit') });
       function refresh() {
         reviewBtn.disabled = me.busy || !ta.value.trim();
-        confirmBtn.disabled = me.busy || !me.translated || isDry() || waQueued(S.tk && S.tk.id === x.id ? S.tk.ticket : x) || waLocked(brand, x.id) || Outbox.blocks(brand, x.id);
+        confirmBtn.disabled = me.busy || !me.translated || isDry() || waQueued(S.tk && S.tk.id === x.id ? S.tk.ticket : x) || waLocked(brand, x.id) || Outbox.blocks(brand, x.id) || Attach.blocks(brand, x.id);
+        if (me.fu) paintFu();
+        paintClose();
         confirmBtn.textContent = isDry() && S.boots[brand] ? t('send_dry') : t(isWA(x) ? 'en_confirm_wa' : 'en_confirm_email');
         confirmBtn.title = isDry() ? t('dry_run') : '';
       }
@@ -2323,6 +2670,7 @@
       }
       ta.addEventListener('input', function () {
         if (S.tk) pingEdit(S.tk.brand, S.tk.id);
+        TYPED[brand + '|' + x.id] = Date.now();
         me.typed = true;
         try { localStorage.setItem(key, ta.value); } catch (e) { /* the server never holds this English text */ }
         if (me.translated) { me.translated = null; paintReview(); showErr({ msg: t('en_stale') }); }
@@ -2345,30 +2693,74 @@
         if (!me.translated || isDry() || me.busy) return;
         if (ta.value !== me.translated.en || normLang(me.translated.target) !== 'he') { me.translated = null; paintReview(); showErr({ msg: t('en_stale') }); return; }
         me.busy = true; refresh(); clear(errEl);
-        const args = { id: x.id, text: me.translated.out };
+        const tk = tkNow();
+        const args = { id: x.id, text: me.translated.out, seen: String(tk.handled_at || '') };
+        const files = Attach.ids(brand, x.id);              // the files go with the approved Hebrew text
+        if (files.length) args.attachments = files;
+        if (me.fu || OPEN.indexOf(tk.status) < 0) args.followup = true;      // as in Draft: the page's own send counts before its copy says so
         if (isWA(x)) args.channel = 'whatsapp';
         try {
-          if (Outbox.start('apiSend', brand, x, args)) goNext(brand, x.id);
+          // Owner, 2026-10-11: the send never closes or moves on; the message shows in the conversation and the box empties for the next one
+          const it = Outbox.start('apiSend', brand, x, args, undefined, me.translated.en);
+          if (it) {
+            Attach.sent(brand, x.id);
+            (OUTGOING[brand + '|' + x.id] || (OUTGOING[brand + '|' + x.id] = [])).push({ text: me.translated.out, at: Date.now(), rid: it.rid, queued: isWA(x) });
+            ta.value = ''; me.translated = null; me.typed = false;
+            try { localStorage.removeItem(key); } catch (e) { /* ignore */ }
+            note.textContent = '';
+            me.fu = true; paintFu();
+            paintReview();
+            repaintConv(S.tk);
+          }
         } finally {
           // Outbox owns the in-flight lock after handoff; a rejected handoff must not freeze this editor.
           me.busy = false; refresh();
         }
       }
       confirmBtn.addEventListener('click', function () { send(); });
-      async function doClose(fn, okMsg) {
-        if (Outbox.start(fn, brand, x, { id: x.id })) goNext(brand, x.id);
+      async function doClose(fn) {
+        if (Outbox.start(fn, brand, x, { id: x.id })) goNext(brand, x.id);       // closing DOES move on
       }
-      const closeBtn = closeNoSendBtn(function () { doClose('apiClose', t('closed_ok')); });
+      const closeSlot = h('span', { class: 'close-slot' });
+      let closeKind = null;
+      function paintClose() {
+        const tk = tkNow();
+        const mineOut = !!OUTGOING[brand + '|' + x.id];
+        const kind = tk.status === 'done' && !mineOut ? 'none' : (me.fu || tk.status === 'sent' || mineOut) ? 'close' : 'nosend';
+        if (kind !== closeKind) {
+          closeKind = kind;
+          clear(closeSlot);
+          if (kind !== 'none') closeSlot.append(kind === 'close' ? closeTicketBtn(function () { doClose('apiClose'); }) : closeNoSendBtn(function () { doClose('apiClose'); }));
+        }
+        const b = closeSlot.firstChild;
+        if (b && !b.classList.contains('arm')) b.disabled = Outbox.blocks(brand, x.id);
+      }
       refresh();
-      const enCard = h('div', { class: 'card draft en-draft', 'data-test': 'en-draft' }, h('h3', { text: t('en_draft') }), h('div', { class: 'muted small', text: t('en_safety'), 'data-test': 'hebrew-only-notice' }), note, ta);
-      if (waWinClosed(x)) {     // past 24 hours: no free text; a template instead (the reply that waits is translated to Hebrew by the server)
+      const enCard = h('div', { class: 'card draft en-draft' + (fu0 ? ' followup' : ''), 'data-test': 'en-draft' }, title, fuEl, h('div', { class: 'muted small', text: t('en_safety'), 'data-test': 'hebrew-only-notice' }), note, ta);
+      if (waWinClosed(x, me.fu)) {     // past 24 hours: no free text; a template instead (the reply that waits is translated to Hebrew by the server)
         reviewBtn.hidden = true;
         const tbe = templateBox(brand, x, function () { return ta.value; });
         ta.addEventListener('input', function () { tbe.refresh(); });
         enCard.append(h('div', { class: 'wa-win-note', role: 'status', 'data-test': 'wa-win-note', text: t('wa_win_note') }), tbe);
       }
-      enCard.append(h('div', { class: 'actions' }, reviewBtn, closeBtn), review, errEl);
+      const attE = Attach.box(brand, x, function () { refresh(); });   // 📎 (null where files cannot go)
+      if (attE) enCard.append(attE);
+      enCard.append(h('div', { class: 'actions' }, reviewBtn, closeSlot), review, errEl);
       return enCard;
+    }
+    /** A send that did not go out: the agent's ENGLISH text comes back to the box (or to the device copy the next open restores). */
+    function giveBack(brand, id, src) {
+      if (typeof src !== 'string' || !src.trim()) return;
+      const k = 'cs.draft.en.' + brand + '.' + id;
+      if (cur && cur.id === id && cur.brand === brand && cur.ta && cur.ta.isConnected) {
+        if (cur.ta.value.trim()) return;
+        cur.ta.value = src; cur.typed = true; cur.prefilled = true;
+        try { localStorage.setItem(k, src); } catch (e) { /* ignore */ }
+        cur.note.textContent = t('fu_restored');
+        if (cur.refresh) cur.refresh();
+        return;
+      }
+      try { if (!String(localStorage.getItem(k) || '').trim()) localStorage.setItem(k, src); } catch (e) { /* the outbox banner still names it */ }
     }
     function prefill(id, text) {
       if (!cur || cur.id !== id || cur.prefilled) return;
@@ -2376,7 +2768,7 @@
       else cur.note.textContent = '';
       cur.refresh();
     }
-    return { card: card, prefill: prefill, refresh: function () { if (cur && cur.refresh) cur.refresh(); },
+    return { card: card, prefill: prefill, giveBack: giveBack, refresh: function () { if (cur && cur.refresh) cur.refresh(); },
       busy: function () { return !!(cur && S.tk && cur.id === S.tk.id && (cur.typed || cur.translated || cur.busy)); } };
   })();
 
@@ -2771,7 +3163,7 @@
       timers[it.rid] = setTimeout(function () {
         const waiting = function () { return items[it.rid] === it && it.state === 'retry'; };   // not dismissed, not decided meanwhile
         if (waiting() && Date.now() - it.at > RETRY_WINDOW_MS) {           // the page was closed for too long: never a surprise send
-          it.state = 'refused'; toast(tx('ob_toast_refused', { name: it.name }).textContent); changed(it); return;
+          it.state = 'refused'; giveBack(it); toast(tx('ob_toast_refused', { name: it.name }).textContent); changed(it); return;
         }
         const go = function () { it.state = 'flight'; it.tried_at = Date.now(); changed(it); return run(it); };
         if (!waiting()) return;
@@ -2841,6 +3233,7 @@
       if (it.state === 'delivery_issue') return t(it.delivery_state === 'unknown' ? 'wa_fail_unknown_note' : it.delivery_state === 'template_required' ? 'wa_fail_tpl' : 'wa_fail');
       if (it.state === 'ok' && it.reply && it.reply.elsewhere) return t('ob_elsewhere');
       if (it.state === 'ok') return close ? t('ob_ok_close') : it.reply && it.reply.queued ? t('ob_ok_queued') : it.channel === 'whatsapp' ? t('ob_ok_wa') : t('ob_ok_email');
+      if (it.state === 'refused' && it.err && it.err.error === 'changed_meanwhile') return t(it.err.status === 'done' ? 'cm_closed' : 'cm_answered', { who: whoName(it.err.by), when: whenShort(it.err.at) });
       if (it.state === 'refused') return close ? t('ob_refused_close') : t('ob_refused');
       if (it.state === 'unsent') return t('ob_unsent');
       return t('ob_unknown');
@@ -2862,7 +3255,24 @@
       if (r && r.ok) {
         it.state = 'ok'; it.reply = { queued: !!r.queued, already: !!r.already }; it.msg = null; delete it.delivery_state;
         patchRow(it);
-        if (it.fn === 'apiSend') { try { localStorage.removeItem('cs.draft.' + it.brand + '.' + it.id); localStorage.removeItem('cs.draft.en.' + it.brand + '.' + it.id); } catch (e) { /* ignore */ } }
+        if (it.fn === 'apiSend') {
+          // the device copy goes only if it still IS what was sent: the agent may already be writing the next message (2026-10-11)
+          try {
+            const k1 = 'cs.draft.' + it.brand + '.' + it.id, v1 = JSON.parse(localStorage.getItem(k1) || 'null');
+            if (v1 && it.args && v1.text === it.args.text) localStorage.removeItem(k1);
+            const k2 = 'cs.draft.en.' + it.brand + '.' + it.id;
+            if (it.src !== undefined && localStorage.getItem(k2) === it.src) localStorage.removeItem(k2);
+          } catch (e) { /* ignore */ }
+        }
+        if (typeof r.handled_at === 'string' && S.tk && S.tk.brand === it.brand && S.tk.id === it.id && S.tk.ticket) {
+          // the next message from this screen carries exactly the engine's value as `seen`
+          S.tk.ticket.handled_at = r.handled_at; S.tk.ticket.handled_by = S.me.user.username;
+        }
+        if (it.fn === 'apiSend' && r.queued && !r.already && S.tk && S.tk.brand === it.brand && S.tk.id === it.id && S.tk.ticket) {
+          // WhatsApp: ONE message on its way per chat. Until the engine's copy arrives, this copy says so too (else Send would light up
+          // and the next message be refused as wa_send_in_flight) — the same patch the server's cache makes.
+          S.tk.ticket.wa_send = 'pending'; S.tk.ticket.status = 'wa_queued';
+        }
         toast(tx(it.fn !== 'apiSend' ? 'ob_toast_closed' : r.queued ? 'ob_toast_queued' : 'ob_toast_ok', { name: it.name }).textContent);
         if (it.fn === 'apiSend' && r.after && typeof r.after === 'object') {
           const codes = Array.isArray(r.after.reminders) ? r.after.reminders.filter(function (c) { return typeof c === 'string' && /^[a-z_]{3,30}$/.test(c); }) : [];
@@ -2871,8 +3281,9 @@
         }
       } else if (r && r.error === 'replied_elsewhere' && r.closed === true && it.fn === 'apiSend') {
         // Owner, 2026-10-09 (option A): the customer already got an answer straight from Gmail. Nothing was sent, the engine closed the ticket as
-        // answered: not a failure, nothing to fix. The agent's text stays in the draft store (it was not sent).
+        // answered: not a failure, nothing to fix. The agent's text goes back to the box (it was not sent).
         it.state = 'ok'; it.reply = { elsewhere: true }; it.msg = r.msg || null; delete it.delivery_state;
+        giveBack(it);
         patchRow(it);
         toast(tx('ob_toast_elsewhere', { name: it.name }).textContent);
       } else if (r && (r.error === 'network' || r.error === 'server_restarted' || r.error === 'bad_response')) {
@@ -2887,6 +3298,13 @@
         // scheduled, quietly: the agent has nothing to do
       } else {
         it.state = 'refused'; it.msg = (r && (r.msg || r.error)) || null; it.err = r ? { error: r.error, problem: r.problem, problem_msg: r.problem_msg } : null;
+        if (r && r.error === 'changed_meanwhile') {
+          // Owner, 2026-10-11 (two agents on one ticket): say who and when, show their answer, keep this agent's text for "send anyway"
+          it.err.by = typeof r.by === 'string' ? r.by.slice(0, 60) : ''; it.err.at = typeof r.at === 'string' ? r.at.slice(0, 40) : ''; it.err.status = typeof r.status === 'string' ? r.status : '';
+          it.msg = null;
+          refreshOpen(it.brand, it.id);
+        }
+        giveBack(it);
         toast(tx('ob_toast_refused', { name: it.name }).textContent);
       }
       changed(it);
@@ -2957,17 +3375,33 @@
         return;
       }
       if (acceptedQueue || it.state === 'refused' || it.state === 'unsent') return;
-      if (Date.now() - (it.tried_at || it.at) > 90000 && OPEN.indexOf(tk.status) >= 0) {
+      // a follow-up's ticket is never "open": nothing went out when nothing was handled after the `seen` it carried
+      const noNews = !!(it.args && it.args.followup && typeof it.args.seen === 'string' && (ms(tk.handled_at) || 0) <= (ms(it.args.seen) || 0));
+      if (Date.now() - (it.tried_at || it.at) > 90000 && (OPEN.indexOf(tk.status) >= 0 || noNews)) {
         // the engine says nothing went out: send it again by ourselves, and only after the last try hand it to the agent
-        if (!again(it, { error: 'unsent' })) { it.state = 'unsent'; it.msg = null; }
+        if (!again(it, { error: 'unsent' })) { it.state = 'unsent'; it.msg = null; giveBack(it); }
         changed(it);
       }
     }
-    function start(fn, brand, x, args, via) {
+    /** A send that did not go out: its text goes back to the box (or the device copy), and its "on its way" bubble leaves the conversation. */
+    function giveBack(it) {
+      if (!it || it.fn !== 'apiSend' || !it.args) return;
+      const k = it.brand + '|' + it.id;
+      if (OUTGOING[k]) { OUTGOING[k] = OUTGOING[k].filter(function (o) { return o.rid !== it.rid; }); if (!OUTGOING[k].length) delete OUTGOING[k]; }
+      if (it.src !== undefined) EnDraft.giveBack(it.brand, it.id, it.src); else Draft.giveBack(it.brand, it.id, it.args.text);
+      if (S.tk && S.tk.brand === it.brand && S.tk.id === it.id) repaintConv(S.tk);
+    }
+    /** The newest send of this ticket was refused because someone else answered meanwhile (and nothing newer went out). */
+    function lastChange(brand, id) {
+      const it = forTicket(brand, id);
+      return it && it.fn === 'apiSend' && it.state === 'refused' && it.err && it.err.error === 'changed_meanwhile' ? it : null;
+    }
+    function start(fn, brand, x, args, via, src) {
       const prev = forTicket(brand, x.id);
       if (prev && (prev.state === 'flight' || prev.state === 'checking' || prev.state === 'retry' || prev.state === 'unknown' || prev.state === 'delivery_issue')) { toast(t('ob_inflight_lock')); return null; }
       const it = { rid: newRid(), brand: brand, id: x.id, fn: fn, args: args, channel: isWA(x) ? 'whatsapp' : 'email',
         name: x.name || x.email || x.phone || x.id, state: 'flight', at: Date.now(), via: via || null };
+      if (typeof src === 'string') it.src = src;          // the English desk's own text (local only, never sent): given back on a refusal
       items[it.rid] = it;
       changed(it);
       run(it);
@@ -2998,6 +3432,7 @@
       if (!it || (it.state === 'ok' && Date.now() - it.at > 15 * 60000)) return;
       const box = h('div', { class: 'outbox-banner ' + cls(it), role: 'status', 'data-test': 'outbox-banner', 'data-state': it.state }, h('b', { text: label(it) }));
       if (it.msg && it.state !== 'ok') box.append(h('div', { class: 'small' }, t('ob_why') + ' ', h('span', { dir: 'auto', text: it.msg })));
+      if (it.state === 'refused' && it.err && it.err.error === 'changed_meanwhile') { box.setAttribute('data-reason', 'changed_meanwhile'); box.append(h('div', { class: 'small', 'data-test': 'cm-kept', text: t('cm_kept') })); }
       if (it.state === 'retry') box.append(h('div', { class: 'small', 'data-test': 'outbox-retry-n', text: t('ob_retry_n', { n: it.tries, max: RETRY_AFTER_MS.length }) }));
       if (it.state === 'refused' || it.state === 'unsent' || it.state === 'retry') box.append(h('button', { class: 'btn small ghost', type: 'button', text: '✕', 'aria-label': 'dismiss', onclick: function () { dismiss(it); } }));
       slot.append(box);
@@ -3024,7 +3459,7 @@
       save();
       setTimeout(recoverFailures, 2000);
     }
-    return { start: start, forTicket: forTicket, blocks: blocks, hidesRow: hidesRow, flagged: flagged, label: label, cls: cls,
+    return { start: start, forTicket: forTicket, blocks: blocks, hidesRow: hidesRow, flagged: flagged, label: label, cls: cls, lastChange: lastChange,
       list: list, pending: pending, reconcile: reconcile, paintBanner: paintBanner, boot: boot, ver: function () { return ver; } };
   })();
 

@@ -31,6 +31,7 @@ from flask import Flask, abort, g, jsonify, redirect, render_template, request, 
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import assistant
+import attach
 import engine_proxy
 import ticket_cache
 import llm
@@ -55,6 +56,7 @@ def _env_bool(name, default=False):
 def create_app(overrides=None):
     o = dict(overrides or {})
     app = Flask(__name__, static_folder="static", static_url_path="/cs/static", template_folder="templates")
+    app.request_class = attach.request_class(app.request_class)   # one larger body cap: the file upload route only
 
     mock = o.get("MOCK_ENGINE", _env_bool("MOCK_ENGINE"))
     engines_raw = o.get("ENGINES_JSON", os.environ.get("ENGINES_JSON", ""))
@@ -630,6 +632,7 @@ def create_app(overrides=None):
     })
 
     zipfix_routes.register(app, {"store": store, "api_user": api_user, "ui_lang": ui_lang, "users_path": users_path, "overrides": o, "mock": mock})
+    attach.register(app, {"engines": engines, "transport": transport, "api_user": api_user, "ui_lang": ui_lang, "store": store})
 
     @app.errorhandler(404)
     def nf(_e):
@@ -650,6 +653,6 @@ def create_app(overrides=None):
 
     @app.errorhandler(413)
     def too_big(_e):
-        return json_error("bad_request", 413)
+        return json_error("attach_too_big" if attach.PATH_RE.match(request.path or "") else "bad_request", 413)
 
     return app

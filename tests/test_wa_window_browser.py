@@ -101,7 +101,8 @@ def test_past_24h_a_template_is_picked_and_sent_with_the_reply_that_waits(page):
             break
         pg.wait_for_timeout(100)
     pg.wait_for_timeout(500)
-    assert len(calls) == 1 and calls[0]["args"] == {"id": "w8ab77f2", "template": "Check 2", "then": "ההזמנה שלך יצאה אתמול."}, calls
+    assert len(calls) == 1 and {k: v for k, v in calls[0]["args"].items() if k != "seen"} == {"id": "w8ab77f2", "template": "Check 2", "then": "ההזמנה שלך יצאה אתמול."}, calls
+    assert isinstance(calls[0]["args"].get("seen"), str)                                      # 2026-10-11: what this screen saw (two agents)
 
 
 def test_inside_the_window_no_template_box_is_offered(page):

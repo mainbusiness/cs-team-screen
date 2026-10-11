@@ -932,11 +932,20 @@ class TicketCache:
         if ok and fn == "apiSaveDraft":
             patch = {"draft_text": args.get("text", "")}
         elif ok and fn == "apiSend":
-            patch = {"draft_text": args.get("text", ""), "handled_by": user["username"], "handled_at": now_iso}
+            # the engine's own handled_at when it says it (2026-10-11): the screen's next message carries it back as `seen`
+            at = out.get("handled_at") if isinstance(out.get("handled_at"), str) and len(out["handled_at"]) <= 40 else now_iso
+            patch = {"draft_text": args.get("text", ""), "handled_by": user["username"], "handled_at": at}
             if out.get("queued"):
                 patch["wa_send"] = "pending"             # the screen must not offer a second WhatsApp send (QA round 5)
+                patch["wa_out"] = args.get("text", "")
+                if out.get("already") is not True:
+                    patch["status"] = "wa_queued"
             else:
                 patch["status"] = "sent"
+        elif ok and fn == "apiSendTemplate":
+            # a template on any WhatsApp chat (also answered / closed ones, 2026-10-11); the agent now stays on the ticket and sees it queued
+            at = out.get("handled_at") if isinstance(out.get("handled_at"), str) and len(out["handled_at"]) <= 40 else now_iso
+            patch = {"wa_send": "pending", "status": "wa_queued", "handled_by": user["username"], "handled_at": at}
         elif ok and fn == "apiAutoReplyReview" and args.get("verdict") == "problem":
             patch = {"status": "action"}                 # "⚠ problem" reopens the ticket (the engine confirms on revalidate)
         elif ok and fn == "apiWaTakeOver":
@@ -952,7 +961,7 @@ class TicketCache:
                 e["stale"] = True            # anything the engine adds (notes line, cancelled ids, refusals) comes on revalidate
             b = self._bucket(brand)["boot"]
             if b and patch:
-                row_patch = {k: v for k, v in patch.items() if k != "draft_text"}
+                row_patch = {k: v for k, v in patch.items() if k not in ("draft_text", "wa_out")}   # list rows carry no message text
                 if row_patch:
                     b["at"] = self.clock()
                     self._apply_rows(b["data"], [dict(next((r for r in b["data"].get("tickets", []) if r.get("id") == tid), {"id": tid}), **row_patch)])
@@ -963,7 +972,11 @@ class TicketCache:
 
 
 WRITE_FNS = ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel",
-             "apiAutoCancelApprove", "apiAutoCancelReject", "apiAutoReplyReview", "apiWaTakeOver")
+             "apiAutoCancelApprove", "apiAutoCancelReject", "apiAutoReplyReview", "apiWaTakeOver", "apiSendTemplate")
+# Who else has a ticket on screen (Owner, 2026-10-11: two agents answered the same ticket). Fed by every /watch tick (every 5 s while the ticket is
+# on screen) and every open; "editing" = the agent typed in it lately. In memory: one gunicorn worker (render.yaml). Names only, never text.
+PRESENCE_SEEN_S = 15.0
+PRESENCE_EDIT_S = 12.0     # "editing" lasts until the writer's next tick says otherwise (ticks every 5 s)
 SWITCH_KEYS = ("dryRun", "cancelEnabled", "cancelFrozen", "subscriptions")
 SWITCH_MAX_AGE_S = 15      # how stale DRY_RUN & co may be on a client (live E2E 2026-10-05: send stayed disabled)
 LIST_STARVE_S = 60         # QA round 5: a list older than this is refreshed at interactive priority, breaker or not
@@ -973,6 +986,21 @@ TICKET_WAIT_S = 15         # an agent waits at most this long for a ticket; the 
 def register(app, d):
     """d: api_user, json_error, engines, cache (TicketCache)."""
     cache = d["cache"]
+    presence, presence_lock = {}, threading.Lock()
+
+    def presence_mark(u, brand, tid, editing):
+        """Stamp this user on the ticket and return the OTHER users who had it on screen in the last PRESENCE_SEEN_S."""
+        now, me = time.time(), u.get("username") or ""
+        with presence_lock:
+            room = presence.setdefault((brand, tid), {})
+            was = room.get(me) or {}
+            room[me] = {"at": now, "ed": now if editing else 0.0, "name": (u.get("display_name") or me)[:60]}   # the client says "typed in the last 30 s"
+            others = [{"user": k, "name": v["name"], "editing": now - v["ed"] < PRESENCE_EDIT_S}
+                      for k, v in sorted(room.items()) if k != me and now - v["at"] < PRESENCE_SEEN_S]
+            if len(presence) > 3000:                 # forget rooms nobody looked at for a minute
+                for key in [k for k, r in presence.items() if all(now - v["at"] > 60 for v in r.values())]:
+                    presence.pop(key, None)
+        return others
 
     def gate(brand, work):
         u, err = d["api_user"]()
@@ -1042,11 +1070,15 @@ def register(app, d):
                     act["after_open"](u, brand, tid)
                 except Exception:                                      # noqa: BLE001 — the log never fails an open
                     engine_proxy.log.exception("activity log failed")
+        others = presence_mark(u, brand, tid, False) if body.get("open") is True else None
         full, e, meta = cache.get_ticket(u, brand, tid, revalidate=body.get("revalidate") is True or fresh, fresh=fresh,
                                          top=body.get("open") is True)       # the ticket on the agent's screen: reserved slot
         if not full:
             return jsonify(localized(dict(e or {"ok": False, "error": "server_error"}), d["ui_lang"](u), "apiTicket")), 200
-        return jsonify(ticket_body(full, meta))
+        out = ticket_body(full, meta)
+        if others is not None:
+            out["others"] = others
+        return jsonify(out)
 
     def ticket_body(full, meta):
         return {"ok": True, "ticket": full.get("ticket"), "extras": full.get("extras") or {}, "snapshotAt": full.get("snapshotAt"),
@@ -1064,12 +1096,13 @@ def register(app, d):
         if not isinstance(tid, str) or not ID_RE.match(tid):
             return d["json_error"]("bad_request", 400, d["ui_lang"](u))
         at = float(at) if isinstance(at, (int, float)) and not isinstance(at, bool) else 0.0
+        others = presence_mark(u, brand, tid, body.get("ed") is True)
         full, e, meta = cache.watch(u, brand, tid, at)
         if e:
-            return jsonify(localized(dict(e), d["ui_lang"](u), "apiTicket"))
+            return jsonify(dict(localized(dict(e), d["ui_lang"](u), "apiTicket"), others=others))
         if not full:
-            return jsonify({"ok": True, "changed": False, "cache": meta, "syncedAge": cache.synced_age(brand)})
-        return jsonify(dict(ticket_body(full, meta), changed=True, syncedAge=cache.synced_age(brand)))
+            return jsonify({"ok": True, "changed": False, "cache": meta, "syncedAge": cache.synced_age(brand), "others": others})
+        return jsonify(dict(ticket_body(full, meta), changed=True, syncedAge=cache.synced_age(brand), others=others))
 
     @app.post("/api/<brand>/result")
     def outbox_result(brand):

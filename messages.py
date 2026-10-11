@@ -74,6 +74,24 @@ PROXY = {
 
 # Api.gs error codes ({ok:false, error:<code>})
 ENGINE = {
+    # files an agent attaches (attach.py + engine/Attach.gs, 2026-10-11)
+    "attach_none": ("לא נבחר קובץ.", "No file was chosen."),
+    "attach_empty": ("הקובץ ריק.", "The file is empty."),
+    "attach_type": ("סוג הקובץ לא נתמך, או שהתוכן לא תואם לסיומת. מותר: PDF, JPG, PNG, WEBP, GIF, DOC/DOCX, XLS/XLSX, TXT.",
+                    "This file type is not allowed, or its content does not match its extension. Allowed: PDF, JPG, PNG, WEBP, GIF, DOC/DOCX, XLS/XLSX, TXT."),
+    "attach_too_big": ("הקובץ גדול מדי: עד 10MB לקובץ ועד 18MB לכל הקבצים במייל; בוואטסאפ עד 5MB.",
+                       "The file is too large: up to 10 MB a file and 18 MB for all files of an email; 5 MB on WhatsApp."),
+    "attach_budget": ("הועלו יותר מדי קבצים בזמן קצר. נסו שוב בעוד כמה דקות.", "Too many files in a short time. Try again in a few minutes."),
+    "attach_unavailable": ("צירוף קבצים לא זמין למותג הזה.", "Attaching files is not available for this brand."),
+    "attach_missing": ("קובץ מצורף כבר לא נמצא בשרת (נמחק אחרי 30 יום או שההעלאה לא הסתיימה). להסיר אותו ולצרף שוב.",
+                       "An attached file is no longer on the server (removed after 30 days, or its upload did not finish). Remove it and attach it again."),
+    "attach_wa_off": ("צירוף קבצים בוואטסאפ עוד לא פעיל במותג הזה.", "Files on WhatsApp are not switched on for this brand yet."),
+    "attach_wa_one": ("בוואטסאפ אפשר לצרף קובץ אחד להודעה.", "WhatsApp takes one file per message."),
+    "attach_wa_type": ("בוואטסאפ אפשר לצרף רק PDF, JPG, PNG, DOC/DOCX או XLS/XLSX.", "On WhatsApp only PDF, JPG, PNG, DOC/DOCX or XLS/XLSX can be attached."),
+    "attach_corrupt": ("הקובץ הגיע פגום לשרת. לצרף אותו שוב.", "The file arrived damaged. Attach it again."),
+    "attach_id_reuse": ("תקלה בהעלאת הקובץ. לצרף אותו שוב.", "The upload failed. Attach the file again."),
+    "attach_failed": ("תקלה בהעלאת הקובץ. לצרף אותו שוב.", "The upload failed. Attach the file again."),
+    "bad_attach": ("תקלה בהעלאת הקובץ. לצרף אותו שוב.", "The upload failed. Attach the file again."),
     "unauthorized": ("המנוע סירב להרשאה (פג תוקף, תפקיד או מותג לא תואם). רעננו את הדף.",
                      "The engine refused the credentials (expired, role or brand mismatch). Refresh."),
     "busy": ("המערכת באמצע פעולה אחרת. נסו שוב בעוד כמה שניות.", "The engine is busy. Try again in a few seconds."),
@@ -102,6 +120,9 @@ ENGINE = {
     "wa_send_in_flight": ("תשובה אחרת כבר ממתינה לשליחה בוואטסאפ. הטיוטה שלך נשמרה; רעננו ובדקו לפני שליחה נוספת.",
                           "Another WhatsApp reply is already pending. Your draft is preserved; refresh and check before sending again."),
     "already_sent": ("התשובה כבר נשלחה בפנייה הזאת — אין צורך לשלוח שוב.", "This reply was already sent — no need to send again."),
+    # Owner, 2026-10-11: two agents on one ticket. The screen names who and when itself (by / at) and offers "send anyway"; this is the fallback line.
+    "changed_meanwhile": ("מישהו אחר כבר ענה או סגר את הפנייה אחרי שפתחת אותה. ההודעה שלך לא נשלחה והטקסט נשמר — קראו את התשובה שלו ואז החליטו.",
+                          "Someone else answered or closed this ticket after you opened it. Your message was not sent and your text is kept — read their answer, then decide."),
     "bad_template": ("התבנית לא נמצאה ברשימה של דונדי. רעננו ונסו שוב.", "That template is not in Dondy's list. Refresh and try again."),
     "no_phone": ("אין מספר טלפון בפנייה, אי אפשר לשלוח תבנית.", "This ticket has no phone number, so a template cannot be sent."),
     "wa_window_closed": ("עברו יותר מ-24 שעות מאז ההודעה האחרונה של הלקוח. וואטסאפ מאפשר עכשיו רק תבנית מאושרת.",

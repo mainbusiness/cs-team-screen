@@ -49,18 +49,20 @@ def armed_click(page, sel):
     page.click(sel)
 
 
-def test_send_hands_off_and_the_agent_moves_on(pg):
+def test_send_hands_off_and_the_agent_stays_ready_for_the_next_message(pg):
+    # Owner, 2026-10-05: the agent never waits for the engine. Owner, 2026-10-11: and a send never closes / moves on (was: "send -> next ticket")
     page, base = pg
     open_from(page, base, "ready", "t18f2a01")
     page.fill(".draft textarea", "היי מיכל, ההזמנה בדרך.")
     t0 = time.time()
     armed_click(page, "[data-test=send-btn]")
     for _ in range(40):
-        if not page.url.endswith("/t18f2a01"):
+        if page.input_value(".draft textarea") == "":
             break
         page.wait_for_timeout(25)
-    moved = time.time() - t0
-    assert moved < 1.0 and not page.url.endswith("/t18f2a01"), moved          # on the next ticket within 1 s
+    took = time.time() - t0
+    assert took < 1.0 and page.url.endswith("/t18f2a01"), took                 # handed off within 1 s, still on the ticket, box empty
+    assert "היי מיכל, ההזמנה בדרך." in page.inner_text("#tk-conv")            # the message is shown as on its way
     page.wait_for_selector("[data-test=outbox-indicator]")
     assert "(1)" in page.inner_text("[data-test=outbox-indicator]")
     row = page.locator("a.row[data-id=t18f2a01] [data-test=row-outbox]")

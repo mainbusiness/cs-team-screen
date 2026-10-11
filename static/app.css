@@ -310,7 +310,7 @@ bdi.ltr, bdi.raw { direction: ltr; }
 .tabs:empty { display: none; }
 
 /* ---------- performance layer ---------- */
-.sync-row:has(#tk-sync[hidden]):has(#tk-check[hidden]) { display: none; }
+.sync-row:has(#tk-sync[hidden]):has(#tk-check[hidden]):has(#tk-presence[hidden]) { display: none; }
 .sync-row { margin-top: 4px; }
 .chip.sync { gap: 6px; }
 .chip.sync .more-btn { padding: 0; font-size: 12px; }
@@ -619,3 +619,30 @@ html[dir=rtl] .zip-orders::placeholder { direction: rtl; text-align: right; }
 .ain-missing { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 /* an empty dir=auto textarea is LTR: the Hebrew placeholder read backwards ("AI-מה ה") — measured 2026-10-11 at 1280 */
 html[dir=rtl] .ain-ta:placeholder-shown { direction: rtl; }
+
+/* Owner, 2026-10-11: another message on an answered / closed ticket, messages on their way, who else is in the ticket */
+.draft.followup { border-color: var(--line); }
+.fu-note { margin: 0 0 8px; line-height: 1.5; }
+.fu-wait { margin-top: 6px; }
+.msg.us.pending { opacity: .8; border-style: dashed; }
+.msg.us.pending .chip { font-size: 11px; padding: 0 6px; }
+.chip.presence { white-space: normal; max-width: 100%; }
+.close-slot { display: inline-flex; }
+html[dir=rtl] .draft textarea:placeholder-shown { direction: rtl; }
+
+/* files the agent sends (Attach in app.js, 2026-10-11) */
+.attach { margin: 8px 0 4px; display: flex; flex-direction: column; gap: 6px; }
+.att-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.att-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.att-chips:empty { display: none; }
+.chip.file { background: #fff; border: 1px solid var(--line); color: var(--ink); max-width: 100%; white-space: normal; gap: 6px; padding: 2px 4px 2px 10px; }
+.chip.file .att-name { font-weight: 600; overflow-wrap: anywhere; }
+.chip.file .att-size { color: var(--muted); font-size: 11px; direction: ltr; unicode-bidi: isolate; }
+.chip.file.up { border-style: dashed; color: var(--muted); }
+.chip.file.err { border-color: #e3a1a1; background: #fdf1f1; color: #8a1f1f; }
+.chip.file .att-st { font-size: 11px; }
+.att-chips.sent { margin-top: 6px; }
+.att-chips.sent .chip.file { padding: 1px 10px; }
+.att-x { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 13px; line-height: 1; padding: 2px 6px; border-radius: 999px; }
+.att-x:hover, .att-x:focus-visible { background: var(--bg); }
+.att-err { color: #8a1f1f; }

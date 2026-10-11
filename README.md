@@ -601,3 +601,46 @@ Backend: `zipfix/` (routes, jobs, core). The screen is `Zip` in `static/app.js`,
 - **Preview/tests:** `mock_engine.zipfix_runner` replaces only the Shopify/zip runner
   (`create_app({"ZIPFIX_RUNNER": ..., "ZIPFIX_CONFIGURED": lambda b: True})`). Order 666 fails the run, 404 is "not in the store",
   `MOCK_ZIPFIX_STEP_MS` sets the speed. Tests: `tests/test_zipfix_browser.py`. Shots: `screens/30_zip_*`, `31_zip_*`, `32_zip_*`.
+
+## Send keeps the ticket open; another message; two agents on one ticket (Owner, 2026-10-11)
+
+Owner, from the team: "when a message is sent, don't close the chat — put a close button next to it"; "after it's closed there is no
+option to reply anymore"; "unlike Dondy, the system doesn't let them send a template"; "two agents answer the same ticket".
+- **Send never moves on.** The outbox sends in the background as before. The agent stays on the ticket, the message appears in
+  the conversation at once (dashed, "⏳ בדרך ללקוח" / "📤 בתור לוואטסאפ", until the conversation itself has it), and the box empties
+  for the next one. **Close is its own button.** It reads "סגירה בלי שליחה" before any answer and "סגירת הפנייה" after one (`data-kind`
+  nosend / close; no button on a ticket that is already closed). Closing still goes to the next ticket. A template and "שלח שוב" stay too.
+  The 2026-10-05 "send → next" rule is reversed; "close → next" stays.
+- **Another message (follow-up).** Every `sent`, `done` or `wa_queued` ticket, email or WhatsApp, opened from anywhere, has an EMPTY
+  composer titled "הודעה נוספת ללקוח". It shows who answered or closed it, and when. It is kept on the device only (`apiSaveDraft`
+  refuses non-open tickets). The send is `apiSend {followup: true, seen}`. It is a follow-up when the ticket is not open OR this page
+  already sent on it, because the page's copy can lag behind the engine. The English desk has the same composer (`EnDraft`).
+  - WhatsApp: one message per chat is on its way at a time. While one is queued, Send stays off with "ההודעה הקודמת עדיין בדרך" and the
+    next one can be typed. The page marks its own copy queued as soon as the engine accepts it.
+  - WhatsApp past 24 hours: the template box is offered on answered and closed chats too (`waWin(x, any)`).
+- **A send that did not go out gives the text back.** This covers refused, unsent after the last try, and "already answered in
+  Gmail". The text returns to the box, or to the device copy the next open restores, and is never written over newer typing.
+  On success the device copy is removed only if it still IS the sent text.
+- **Two agents.** Every send and template carries `seen` (the ticket's handled_at as this screen shows it). If someone else answered
+  or closed it after that, the engine answers `changed_meanwhile {by, at, status}`. The banner then says who and when
+  ("agent1 כבר ענה/תה … ב-13:46"), the conversation is re-read so their answer is in front of the agent, the agent's text is back in
+  the box, and Send reads "לשלוח בכל זאת כהודעה נוספת". That send goes with the fresh `seen`. It is never retried automatically.
+- **Who else is here.** `/watch` (every 5 s) and the open (`/ticket {open:true}`) answer `others: [{user, name, editing}]`.
+  They come from an in-memory map (one gunicorn worker) of users who had the ticket on screen in the last 15 s. `editing` is
+  the other agent's own "typed in the last 30 s" (`/watch {ed}`). Shown as a chip in the ticket head: "גם X בפנייה הזאת עכשיו",
+  or red "✍️ X כותב/ת תשובה …". Names only, never text.
+- Cache: `apiSend` / `apiSendTemplate` patches use the engine's own `handled_at` (so the next `seen` matches exactly). A queued
+  send is `wa_queued` at once, and no message text goes into list rows.
+- Mock: `MOCK_WA_DELIVER_MS` makes a pretend bridge that marks queued WhatsApp sends as sent. The mock mirrors `followup`, `seen`,
+  `changed_meanwhile`, the WhatsApp in-flight / identical-text / 24 h refusals, and `handled_at` in replies.
+- Tests: `tests/test_followup_browser.py` (real Chromium, both desks, two agents), `tests/test_followup_server.py`.
+  Shots: `screens/40_*`–`45_*`.
+
+## Files to the customer (Owner, 2026-10-11)
+
+`POST /api/<brand>/attach` (attach.py) — multipart, one file, `channel=email|whatsapp`; -> `{ok, id, name, size, mime}`. The send is
+`apiSend {…, attachments: [id]}` (ids only; the proxy allows ≤10 well-formed unique ids). Content is checked by magic bytes, never by the
+browser's type; the engine checks again. Limits: 10 MB a file, 18 MB an email, 10 files; WhatsApp 1 file, 5 MB, pdf/jpg/png/doc(x)/xls(x).
+The 📎 row (`Attach` in static/app.js) shows only where `apiBoot.attach` allows it: email always on the core; WhatsApp only while the brand's
+`WA_ATTACH` is on and the 24 hours are open. Full design and limits: DECISIONS.md 2026-10-11 "files from the system to the customer".
+Tests: `tests/test_attach.py`, `tests/test_attach_browser.py`. Local preview with WhatsApp files on: `MOCK_WA_ATTACH=rozela`.

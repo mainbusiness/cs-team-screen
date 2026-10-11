@@ -127,9 +127,14 @@ def test_3_the_last_hand_off_leaves_no_send_button_behind(server):
         pg.wait_for_selector(".draft textarea")
         pg.fill(".draft textarea", "היי, ההזמנה בדרך.")
         confirm_click(pg, "[data-test=send-btn]")
-        pg.wait_for_selector("#ticket-pane .placeholder", timeout=4000)
+        # Owner, 2026-10-11: the send no longer leaves the ticket; the box empties instead, so the sent text can never be sent again
+        assert until(lambda: pg.input_value(".draft textarea") == "", 4000)
         pg.wait_for_timeout(1500)                                                   # the reply lands: nothing to click again
-        assert pg.locator("[data-test=send-btn]").count() == 0
+        assert pg.is_disabled("[data-test=send-btn]")
+        pg.click("[data-test=send-btn]", force=True)
+        pg.wait_for_timeout(700)
+        pg.click("[data-test=send-btn]", force=True)
+        pg.wait_for_timeout(500)
         assert pg.calls.count("apiSend") == 1
         browser.close()
 
