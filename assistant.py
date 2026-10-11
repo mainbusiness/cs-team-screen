@@ -926,14 +926,30 @@ def register(app, d):
         def normal(value):
             return humanize_hebrew_dashes(normalize_hebrew_currency(value))
 
+        why = []          # the reason of the last rejection, for the log (2026-10-11: "rejected" alone could not be diagnosed)
+
         def valid(value):
-            return (isinstance(value, str) and len(value) <= 8000
-                    and not has_forbidden_dash(delivery_without_ids(value, source_ids))
-                    and hebrew_delivery_ok(delivery_without_ids(value, source_ids), brand)
-                    and all(len(re.findall(r"(?<![A-Za-z0-9_-])" + re.escape(token) + r"(?![A-Za-z0-9_-])", value))
-                            == len(re.findall(r"(?<![A-Za-z0-9_-])" + re.escape(token) + r"(?![A-Za-z0-9_-])", text))
-                            for token in source_ids)
-                    and delivery_numbers(value) == source_numbers)
+            r = []
+            if not isinstance(value, str) or len(value) > 8000:
+                r.append("empty_or_long")
+            else:
+                bare = delivery_without_ids(value, source_ids)
+                if has_forbidden_dash(bare):
+                    r.append("dash")
+                if not hebrew_delivery_ok(bare, brand):
+                    plain = re.sub(r"https?://[^\s<>]+|www\.[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "", bare)
+                    plain = DELIVERY_ID_RE.sub("", plain)
+                    left = sorted(set(w for w in re.findall(r"[A-Za-z][A-Za-z0-9'-]*", plain) if w.lower() not in (brand.lower(), "whatsapp", "sms")))
+                    r.append("latin:" + ",".join(left[:6]) if left else "no_hebrew")
+                if not all(len(re.findall(r"(?<![A-Za-z0-9_-])" + re.escape(token) + r"(?![A-Za-z0-9_-])", value))
+                           == len(re.findall(r"(?<![A-Za-z0-9_-])" + re.escape(token) + r"(?![A-Za-z0-9_-])", text))
+                           for token in source_ids):
+                    r.append("identifiers")
+                got = delivery_numbers(value)
+                if got != source_numbers:
+                    r.append("numbers:%d!=%d" % (len(got), len(source_numbers)))
+            why[:] = r
+            return not r
         note += (" Preserve these exact source identifiers verbatim: %s. Keep numbers originally written as digits "
                  "in their EXACT original digit format, including amounts, dates, last card digits and order numbers. "
                  "Numbers originally written in English words must stay as natural Hebrew WORDS, never convert them "
@@ -965,8 +981,9 @@ def register(app, d):
                 return result
             except llm.LLMError as e:
                 if e.code == "translate_failed":
-                    engine_proxy.log.warning("translation %s out rejected attempt=%d source_chars=%d identifiers=%d numeric_fields=%d",
-                                             brand, attempt + 1, len(text), len(source_ids), len(source_numbers))
+                    engine_proxy.log.warning("translation %s out rejected attempt=%d source_chars=%d identifiers=%d numeric_fields=%d why=%s",
+                                             brand, attempt + 1, len(text), len(source_ids), len(source_numbers),
+                                             " ".join(why) or "no_usable_answer")
                 if e.code != "translate_failed" or target != "he" or attempt:
                     raise
                 engine_proxy.log.warning("translation %s out failed validation; repairing once", brand)
