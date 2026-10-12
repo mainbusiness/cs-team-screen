@@ -187,8 +187,14 @@ def script_lang(text):
     return max(("ru", "ar", "en"), key=lambda k: counts[k])
 
 
+MEDIA_MARKER_RE = re.compile(r"^\[(audio|video|file|image|sticker|document|location|contacts?)\]$", re.I)
+
+
 def needs_hebrew(text):
-    """True when an agent on the Hebrew desk cannot read this as is: it is written in another language."""
+    """True when an agent on the Hebrew desk cannot read this as is: it is written in another language.
+    A media marker ("[audio]") is not text: the screen shows it in Hebrew itself (2026-10-12)."""
+    if MEDIA_MARKER_RE.match(str(text or "").strip()):
+        return False
     return script_lang(text) not in ("he", "")
 
 

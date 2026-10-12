@@ -54,3 +54,10 @@ def test_voice_message_is_served_as_audio_and_only_known_mimes(make_app, transpo
     assert r.status_code == 200 and r.mimetype == "audio/ogg" and r.data == b"OggS-voice"
     assert "private" in r.headers["Cache-Control"]
     assert c.get("/api/rozela/photo/" + bad).status_code == 400, "never serves an unexpected type"
+
+
+def test_media_markers_are_never_sent_to_translation():
+    import assistant
+    for m in ("[audio]", "[video]", "[file]", " [Audio] "):
+        assert assistant.needs_hebrew(m) is False
+    assert assistant.needs_hebrew("where is my order") is True

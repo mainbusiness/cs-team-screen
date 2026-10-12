@@ -114,7 +114,7 @@
       wa_fail_note: 'ההודעה לא יצאה. אפשר לשלוח שוב את אותו הטקסט.', wa_resend: 'שלח שוב', wa_resend_arm: 'לחצו שוב לשליחה חוזרת',
       bot_banner: 'הבוט של דונדי מטפל בשיחה הזאת. אין טיוטה — המנוע בודק אותה בכל ריצה.', takeover: 'לקחת את השיחה', takeover_arm: 'לחצו שוב כדי לקחת את השיחה',
       takeover_ok: 'השיחה אצלך — טיוטה תיכתב בריצה הבאה של המנוע', photo_dondy: '📷 תמונה — לצפייה בדונדי', photo_open: '📷 תמונה — פתיחה',
-      photo_wait: '📷 תמונה — עוד לא הגיעה', photo_gone: '📷 תמונה — נמחקה אחרי 7 ימים, לצפייה בדונדי', voice_wait: '🎤 הודעה קולית — עוד לא הגיעה', voice_dondy: '🎤 הודעה קולית — לשמיעה בדונדי', voice_gone: '🎤 הודעה קולית — נמחקה אחרי 30 יום',
+      photo_wait: '📷 תמונה — עוד לא הגיעה', photo_gone: '📷 תמונה — נמחקה אחרי 7 ימים, לצפייה בדונדי', voice_wait: '🎤 הודעה קולית — עוד לא הגיעה', voice_dondy: '🎤 הודעה קולית — לשמיעה בדונדי', voice_gone: '🎤 הודעה קולית — נמחקה אחרי 30 יום', media_video: '🎬 וידאו — לצפייה בדונדי', media_file: '📎 קובץ — לצפייה בדונדי',
       att_btn: '📎 צירוף קובץ', att_uploading: 'מעלה…', att_failed: 'לא הועלה', att_remove: 'הסרת הקובץ', att_hint: 'PDF, תמונה, Word, Excel או TXT · עד {mb}MB לקובץ',
       att_hint_wa: 'קובץ אחד: PDF, JPG, PNG, Word או Excel · עד {mb}MB', att_type: 'סוג קובץ לא נתמך: {name}', att_size: 'הקובץ גדול מדי: {name} (עד {mb}MB)',
       att_total: 'כל הקבצים יחד גדולים מדי (עד {mb}MB למייל)', att_count: 'אפשר לצרף עד {n} קבצים', att_wa_one: 'בוואטסאפ אפשר לצרף קובץ אחד להודעה',
@@ -285,7 +285,7 @@
       wa_fail_note: 'The message did not go out. You can send the same text again.', wa_resend: 'Send again', wa_resend_arm: 'Click again to resend',
       bot_banner: 'The Dondy bot is handling this chat. No draft — the engine re-checks it every run.', takeover: 'Take over', takeover_arm: 'Click again to take over',
       takeover_ok: 'The chat is yours — a draft will be written on the next engine run', photo_dondy: '📷 Photo — view in Dondy', photo_open: '📷 Photo — open',
-      photo_wait: '📷 Photo — not arrived yet', photo_gone: '📷 Photo — removed after 7 days, view in Dondy', voice_wait: '🎤 Voice message — not arrived yet', voice_dondy: '🎤 Voice message — listen in Dondy', voice_gone: '🎤 Voice message — removed after 30 days',
+      photo_wait: '📷 Photo — not arrived yet', photo_gone: '📷 Photo — removed after 7 days, view in Dondy', voice_wait: '🎤 Voice message — not arrived yet', voice_dondy: '🎤 Voice message — listen in Dondy', voice_gone: '🎤 Voice message — removed after 30 days', media_video: '🎬 Video — view in Dondy', media_file: '📎 File — view in Dondy',
       att_btn: '📎 Attach file', att_uploading: 'Uploading…', att_failed: 'Not uploaded', att_remove: 'Remove the file', att_hint: 'PDF, image, Word, Excel or TXT · up to {mb} MB a file',
       att_hint_wa: 'One file: PDF, JPG, PNG, Word or Excel · up to {mb} MB', att_type: 'File type not allowed: {name}', att_size: 'File too large: {name} (up to {mb} MB)',
       att_total: 'All files together are too large (up to {mb} MB an email)', att_count: 'Up to {n} files', att_wa_one: 'WhatsApp takes one file per message',
@@ -1991,6 +1991,15 @@
   }
   /** WhatsApp photo slots {ref, file:{url}|null, unavailable?}. Never an <img> (Drive files are private; the CSP allows
    *  images only from this site): a stored file is a link, an unavailable one says where to look. */
+  const MEDIA_MARKER_RE = /^\[(audio|video|file|image|sticker|document|location|contacts?)\]$/i;
+  /** What the message body shows: a media-only message gets a Hebrew label instead of "[audio]" (and nothing when the player is there). */
+  function bodyText(m) {
+    const mk = MEDIA_MARKER_RE.exec(String(m.text || '').trim());
+    if (!mk) return m.text;
+    const kind = mk[1].toLowerCase();
+    if (kind === 'audio') return (m.photos || []).some(isVoiceSlot) ? '' : t('voice_dondy');
+    return t('media_' + (kind === 'video' ? 'video' : 'file'));
+  }
   function isVoiceSlot(p) { return !!p && (/^a\d/.test(String(p.ref || '')) || (!!p.file && (p.file.kind === 'audio' || /^audio\//.test(String(p.file.mime || ''))))); }
   function photoChips(photos) {
     if (!Array.isArray(photos) || !photos.length) return null;
@@ -2149,7 +2158,7 @@
       const long = String(m.text || '').length > 600 && i < msgs.length - 1;
       const el = h('div', { class: 'msg ' + who + (long ? ' collapsed' : ''), 'data-i': String(m._i) },
         h('div', { class: 'meta' }, h('b', { text: t(who) }), h('span', { text: fmtDate(m.at, true) })),
-        h('div', { class: 'mbody' }, messageBody(/^\[audio\]$/.test(String(m.text || '').trim()) && (m.photos || []).some(isVoiceSlot) ? '' : m.text)), photoChips(m.photos), Attach.fileChips(m.files));
+        h('div', { class: 'mbody' }, messageBody(bodyText(m))), photoChips(m.photos), Attach.fileChips(m.files));
       ORIG.set(el, String(m.text || ''));
       if (long) {
         const mb = h('button', { class: 'more-btn', type: 'button', text: t('show_more') });
@@ -2493,6 +2502,7 @@
   /** True when a Hebrew-desk agent cannot read the text as is (Russian, Arabic, English...). Links, emails and tokens with a
    *  digit (order / tracking numbers) do not count. Mirror of assistant.py script_lang. */
   function foreignText(text) {
+    if (MEDIA_MARKER_RE.test(String(text || '').trim())) return false;     // "[audio]" is not text (2026-10-12)
     const s = String(text || '').replace(/https?:\/\/\S+|www\.\S+|\S+@\S+|\S*\d\S*/g, ' ');
     const he = (s.match(/[\u0590-\u05FF]/g) || []).length, ru = (s.match(/[\u0400-\u04FF]/g) || []).length;
     const ar = (s.match(/[\u0600-\u06FF]/g) || []).length, la = (s.match(/[A-Za-z]/g) || []).length;
