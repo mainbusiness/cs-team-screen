@@ -2926,6 +2926,11 @@
       c.append(h('p', { class: 'small ship-line' }, h('bdi', { class: 'chip ' + (sh.state === 'not_late' ? 'ok' : sh.state === 'not_applicable' ? '' : 'bad') },
         orderLink(S.tk ? S.tk.brand : S.brand, sh.orderName, orderGid(ex, sh.orderName))), ' ',
         t('ship_line', { state: t('ship_' + sh.state), d: sh.daysSinceOrder })));             // never the internal thresholds
+      if (!orders.length && typeof sh.daysSinceOrder === 'number') {   // no order list on this ticket: the stage from the engine's summary (2026-10-12)
+        const DAYMS = 86400000, now = Date.now();
+        c.append(shipStageEl({ createdAt: new Date(now - sh.daysSinceOrder * DAYMS).toISOString(),
+          fulfillments: sh.shipped && typeof sh.daysSinceShipped === 'number' ? [{ createdAt: new Date(now - sh.daysSinceShipped * DAYMS).toISOString() }] : [] }));
+      }
     }
     if (ex.ordersError) c.append(h('div', { class: 'problem' }, tx('orders_err', { m: String(ex.ordersError) })));
     if (!orders.length) {
