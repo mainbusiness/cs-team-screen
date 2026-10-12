@@ -67,6 +67,7 @@
       ship_line: '{state} · {d} ימים מההזמנה',
       fin_PAID: 'שולם', fin_PENDING: 'ממתין לתשלום', fin_REFUNDED: 'הוחזר', fin_PARTIALLY_REFUNDED: 'הוחזר חלקית', fin_VOIDED: 'בוטל',
       fin_AUTHORIZED: 'מאושר', fin_PARTIALLY_PAID: 'שולם חלקית',
+      dlv_steps: 'הוזמן|נשלח|בדרך|אמור להגיע', dlv_cancelled: 'ההזמנה בוטלה', dlv_prep: 'בהכנה במחסן (יום {d} מההזמנה)', dlv_prep_late: 'מתעכב: {d} ימים מההזמנה ועוד לא נשלח', dlv_shipped: 'נשלח מהמחסן, צפי הגעה {a}–{b}', dlv_transit: 'בדרך ללקוח, צפי הגעה {a}–{b}', dlv_arriving: 'אמור להגיע בימים אלה ({a}–{b})', dlv_due: 'היה אמור להגיע עד {b}. כדאי לוודא עם הלקוח', dlv_late: 'באיחור: {d} ימים מההזמנה', dlv_note: 'הערכה לפי תאריכי ההזמנה והשליחה (אין מעקב חי מחברת השילוח)',
       ful_FULFILLED: 'נשלח', ful_UNFULFILLED: 'עוד לא נשלח', ful_PARTIALLY_FULFILLED: 'נשלח חלקית', ful_IN_PROGRESS: 'בהכנה',
       ful_ON_HOLD: 'בהמתנה', ful_SCHEDULED: 'מתוזמן', ful_RESTOCKED: 'הוחזר למלאי',
       subs: 'מנויים', no_subs: 'אין מנויים ללקוח הזה (לפי המייל).', sub_status: 'סטטוס', sub_every: 'תדירות', sub_next: 'חיוב הבא',
@@ -113,7 +114,7 @@
       wa_fail_note: 'ההודעה לא יצאה. אפשר לשלוח שוב את אותו הטקסט.', wa_resend: 'שלח שוב', wa_resend_arm: 'לחצו שוב לשליחה חוזרת',
       bot_banner: 'הבוט של דונדי מטפל בשיחה הזאת. אין טיוטה — המנוע בודק אותה בכל ריצה.', takeover: 'לקחת את השיחה', takeover_arm: 'לחצו שוב כדי לקחת את השיחה',
       takeover_ok: 'השיחה אצלך — טיוטה תיכתב בריצה הבאה של המנוע', photo_dondy: '📷 תמונה — לצפייה בדונדי', photo_open: '📷 תמונה — פתיחה',
-      photo_wait: '📷 תמונה — עוד לא הגיעה', photo_gone: '📷 תמונה — נמחקה אחרי 7 ימים, לצפייה בדונדי',
+      photo_wait: '📷 תמונה — עוד לא הגיעה', photo_gone: '📷 תמונה — נמחקה אחרי 7 ימים, לצפייה בדונדי', voice_wait: '🎤 הודעה קולית — עוד לא הגיעה', voice_dondy: '🎤 הודעה קולית — לשמיעה בדונדי', voice_gone: '🎤 הודעה קולית — נמחקה אחרי 30 יום',
       att_btn: '📎 צירוף קובץ', att_uploading: 'מעלה…', att_failed: 'לא הועלה', att_remove: 'הסרת הקובץ', att_hint: 'PDF, תמונה, Word, Excel או TXT · עד {mb}MB לקובץ',
       att_hint_wa: 'קובץ אחד: PDF, JPG, PNG, Word או Excel · עד {mb}MB', att_type: 'סוג קובץ לא נתמך: {name}', att_size: 'הקובץ גדול מדי: {name} (עד {mb}MB)',
       att_total: 'כל הקבצים יחד גדולים מדי (עד {mb}MB למייל)', att_count: 'אפשר לצרף עד {n} קבצים', att_wa_one: 'בוואטסאפ אפשר לצרף קובץ אחד להודעה',
@@ -237,6 +238,7 @@
       ship_line: '{state} · {d} days since the order',
       fin_PAID: 'Paid', fin_PENDING: 'Payment pending', fin_REFUNDED: 'Refunded', fin_PARTIALLY_REFUNDED: 'Partially refunded', fin_VOIDED: 'Voided',
       fin_AUTHORIZED: 'Authorized', fin_PARTIALLY_PAID: 'Partially paid',
+      dlv_steps: 'Ordered|Shipped|On the way|Due', dlv_cancelled: 'Order cancelled', dlv_prep: 'Being prepared (day {d} since the order)', dlv_prep_late: 'Delayed: {d} days since the order and not shipped yet', dlv_shipped: 'Left the warehouse, expected {a}–{b}', dlv_transit: 'On the way, expected {a}–{b}', dlv_arriving: 'Should arrive these days ({a}–{b})', dlv_due: 'Should have arrived by {b}. Worth checking with the customer', dlv_late: 'Late: {d} days since the order', dlv_note: 'Estimate from the order and shipping dates (no live carrier tracking)',
       ful_FULFILLED: 'Shipped', ful_UNFULFILLED: 'Not shipped yet', ful_PARTIALLY_FULFILLED: 'Partially shipped', ful_IN_PROGRESS: 'In progress',
       ful_ON_HOLD: 'On hold', ful_SCHEDULED: 'Scheduled', ful_RESTOCKED: 'Restocked',
       subs: 'Subscriptions', no_subs: 'No subscriptions for this customer (by email).', sub_status: 'Status', sub_every: 'Frequency', sub_next: 'Next billing',
@@ -283,7 +285,7 @@
       wa_fail_note: 'The message did not go out. You can send the same text again.', wa_resend: 'Send again', wa_resend_arm: 'Click again to resend',
       bot_banner: 'The Dondy bot is handling this chat. No draft — the engine re-checks it every run.', takeover: 'Take over', takeover_arm: 'Click again to take over',
       takeover_ok: 'The chat is yours — a draft will be written on the next engine run', photo_dondy: '📷 Photo — view in Dondy', photo_open: '📷 Photo — open',
-      photo_wait: '📷 Photo — not arrived yet', photo_gone: '📷 Photo — removed after 7 days, view in Dondy',
+      photo_wait: '📷 Photo — not arrived yet', photo_gone: '📷 Photo — removed after 7 days, view in Dondy', voice_wait: '🎤 Voice message — not arrived yet', voice_dondy: '🎤 Voice message — listen in Dondy', voice_gone: '🎤 Voice message — removed after 30 days',
       att_btn: '📎 Attach file', att_uploading: 'Uploading…', att_failed: 'Not uploaded', att_remove: 'Remove the file', att_hint: 'PDF, image, Word, Excel or TXT · up to {mb} MB a file',
       att_hint_wa: 'One file: PDF, JPG, PNG, Word or Excel · up to {mb} MB', att_type: 'File type not allowed: {name}', att_size: 'File too large: {name} (up to {mb} MB)',
       att_total: 'All files together are too large (up to {mb} MB an email)', att_count: 'Up to {n} files', att_wa_one: 'WhatsApp takes one file per message',
@@ -1989,12 +1991,21 @@
   }
   /** WhatsApp photo slots {ref, file:{url}|null, unavailable?}. Never an <img> (Drive files are private; the CSP allows
    *  images only from this site): a stored file is a link, an unavailable one says where to look. */
+  function isVoiceSlot(p) { return !!p && (/^a\d/.test(String(p.ref || '')) || (!!p.file && (p.file.kind === 'audio' || /^audio\//.test(String(p.file.mime || ''))))); }
   function photoChips(photos) {
     if (!Array.isArray(photos) || !photos.length) return null;
     const row = h('div', { class: 'photos' });
     photos.forEach(function (p) {
       if (!p || typeof p !== 'object') return;
       const cm = p.file && /^core-media:(m[0-9a-f]{24})$/.exec(String(p.file.url || ''));
+      if (isVoiceSlot(p)) {     // a voice message (2026-10-11): played right here
+        if (cm && S.brand) {
+          const au = h('audio', { class: 'voice-player', controls: '', preload: 'none', src: '/api/' + encodeURIComponent(S.brand) + '/photo/' + cm[1], 'data-test': 'voice-player' });
+          au.addEventListener('error', function () { au.replaceWith(h('span', { class: 'chip photo dondy', text: t('voice_gone'), 'data-test': 'voice-gone' })); });
+          row.append(au);
+        } else row.append(h('span', { class: 'chip photo ' + (p.unavailable ? 'dondy' : 'wait'), text: t(p.unavailable ? 'voice_dondy' : 'voice_wait'), 'data-test': 'voice-wait' }));
+        return;
+      }
       if (cm && S.brand) {      // stored on our server (2026-10-11): shown right here, a click opens it full size
         const src = '/api/' + encodeURIComponent(S.brand) + '/photo/' + cm[1];
         const img = h('img', { class: 'photo-thumb', src: src, alt: t('photo_open'), loading: 'lazy' });
@@ -2138,7 +2149,7 @@
       const long = String(m.text || '').length > 600 && i < msgs.length - 1;
       const el = h('div', { class: 'msg ' + who + (long ? ' collapsed' : ''), 'data-i': String(m._i) },
         h('div', { class: 'meta' }, h('b', { text: t(who) }), h('span', { text: fmtDate(m.at, true) })),
-        h('div', { class: 'mbody' }, messageBody(m.text)), photoChips(m.photos), Attach.fileChips(m.files));
+        h('div', { class: 'mbody' }, messageBody(/^\[audio\]$/.test(String(m.text || '').trim()) && (m.photos || []).some(isVoiceSlot) ? '' : m.text)), photoChips(m.photos), Attach.fileChips(m.files));
       ORIG.set(el, String(m.text || ''));
       if (long) {
         const mb = h('button', { class: 'more-btn', type: 'button', text: t('show_more') });
@@ -2867,6 +2878,36 @@
   }
 
   // ---- orders
+  // Owner, 2026-10-12: every order shows where its delivery stands. Shopify never records delivery (one carrier, no delivery events), so the
+  // stage is computed from the real order / shipping dates and the brand rules: 7-12 Israeli business days on the way (Sun-Thu), late =
+  // not shipped by day 4 or not arrived by day 17 (engine Config.gs LATE_UNSHIPPED_DAYS / LATE_SHIPPED_DAYS). Shown as an estimate.
+  const SHIP_MIN_BD = 7, SHIP_MAX_BD = 12, SHIP_LATE_UNSHIPPED = 4, SHIP_LATE_SHIPPED = 17;
+  function addBusinessDays(t0, n) { const d = new Date(t0); let k = 0; while (k < n) { d.setDate(d.getDate() + 1); if (d.getDay() !== 5 && d.getDay() !== 6) k++; } return d.getTime(); }
+  function shipStage(o, nowMs) {
+    const now = nowMs || Date.now(), DAY = 86400000;
+    const ordered = ms(o.createdAt);
+    const shipped = ms((o.fulfillments || []).map(function (f) { return f.createdAt; }).filter(Boolean)[0]);
+    const days = ordered ? Math.max(0, Math.floor((now - ordered) / DAY)) : 0;
+    if (o.cancelledAt) return { key: 'cancelled', step: -1, tone: 'bad' };
+    if (!shipped) return days >= SHIP_LATE_UNSHIPPED ? { key: 'prep_late', step: 0, tone: 'bad', d: days } : { key: 'prep', step: 0, tone: '', d: days + 1 };
+    const a = addBusinessDays(shipped, SHIP_MIN_BD), b = addBusinessDays(shipped, SHIP_MAX_BD);
+    const base = { a: a, b: b, d: days };
+    if (days >= SHIP_LATE_SHIPPED) return Object.assign({ key: 'late', step: 3, tone: 'bad' }, base);
+    if (now > b) return Object.assign({ key: 'due', step: 3, tone: 'warn' }, base);
+    if (now >= a) return Object.assign({ key: 'arriving', step: 3, tone: 'ok' }, base);
+    if (now - shipped < 2 * DAY) return Object.assign({ key: 'shipped', step: 1, tone: '' }, base);
+    return Object.assign({ key: 'transit', step: 2, tone: '' }, base);
+  }
+  function shipStageEl(o) {
+    const st = shipStage(o);
+    const dm = function (x) { const d = new Date(x); return d.getDate() + '/' + (d.getMonth() + 1); };
+    const text = t('dlv_' + st.key, { d: st.d, a: st.a ? dm(st.a) : '', b: st.b ? dm(st.b) : '' });
+    const steps = t('dlv_steps').split('|');
+    return h('div', { class: 'ship-stage ' + (st.tone || ''), 'data-test': 'ship-stage', 'data-stage': st.key },
+      st.step >= 0 ? h('ol', { class: 'ship-steps' }, steps.map(function (s, i) { return h('li', { class: i < st.step ? 'done' : (i === st.step ? 'now' : ''), text: s }); })) : null,
+      h('div', { class: 'ship-text', text: text }),
+      h('div', { class: 'ship-note muted small', text: t('dlv_note') }));
+  }
   function ordersCard(ex, x) {
     const c = h('div', { class: 'card' }, h('h3', { text: t('orders') }));
     const orders = ex.orders || [];
@@ -2905,6 +2946,7 @@
         h('div', { class: 'hd' }, o.name ? h('b', { class: 'ltr' }, orderLink(S.tk ? S.tk.brand : S.brand, o.name, o.id)) : h('b', { class: 'ltr', text: '—' }),
           o.financialStatus ? h('span', { class: 'chip ' + (/PAID/.test(o.financialStatus) && !/REFUND/.test(o.financialStatus) ? 'ok' : ''), text: t('fin_' + o.financialStatus) }) : null,
           o.fulfillmentStatus ? h('span', { class: 'chip ' + (o.fulfillmentStatus === 'FULFILLED' ? 'st-sent' : 'outline'), text: t('ful_' + o.fulfillmentStatus) }) : null),
+        shipStageEl(o),
         h('dl', { class: 'kv' },
           h('dt', { text: t('ordered') }), h('dd', { text: fmtDate(o.createdAt) + ' (' + ago(o.createdAt) + ')' }),
           shipped ? h('dt', { text: t('shipped_on') }) : null, shipped ? h('dd', { text: fmtDate(shipped) }) : null,

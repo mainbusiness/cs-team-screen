@@ -7,12 +7,12 @@ JPEG = bytes([0xFF, 0xD8, 0xFF, 0xC0, 0, 0x11, 8, 0, 0x10, 0, 0x10, 3, 1, 0x22, 
 FID = "m" + "a1" * 12
 
 
-def photo_engine(store):
+def photo_engine(store, mimes=None):
     def reply(url, body):
         if body["fn"] == "apiWaPhotoGet":
             fid = (body.get("args") or {}).get("id")
             if fid in store:
-                return {"ok": True, "id": fid, "mime": "image/jpeg", "data": base64.b64encode(store[fid]).decode()}
+                return {"ok": True, "id": fid, "mime": (mimes or {}).get(fid, "image/jpeg"), "data": base64.b64encode(store[fid]).decode()}
             return {"ok": False, "error": "not_found"}
         return valid_reply(url, body)
     return reply
@@ -44,3 +44,13 @@ def test_the_browser_cannot_call_the_photo_fn_as_json(make_app, transport, pw_ha
     c, tok = logged_in(make_app(), pw_hash, "noa", ["agent"], ["rozela"])
     r = c.post("/api/rozela/apiWaPhotoGet", json={"args": {"id": FID}}, headers={"X-CSRF-Token": tok})
     assert r.status_code == 404
+
+
+def test_voice_message_is_served_as_audio_and_only_known_mimes(make_app, transport, pw_hash):
+    vid, bad = "m" + "c3" * 12, "m" + "d4" * 12
+    transport.reply = photo_engine({vid: b"OggS-voice", bad: b"<script>"}, {vid: "audio/ogg", bad: "text/html"})
+    c, _ = logged_in(make_app(), pw_hash, "noa", ["agent"], ["rozela"])
+    r = c.get("/api/rozela/photo/" + vid)
+    assert r.status_code == 200 and r.mimetype == "audio/ogg" and r.data == b"OggS-voice"
+    assert "private" in r.headers["Cache-Control"]
+    assert c.get("/api/rozela/photo/" + bad).status_code == 400, "never serves an unexpected type"

@@ -260,7 +260,7 @@ def create_app(overrides=None):
         resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         if cookie_secure:
             resp.headers["Strict-Transport-Security"] = "max-age=31536000"
-        if not request.path.startswith("/cs/static/") and not (resp.status_code == 200 and resp.mimetype == "image/jpeg"
+        if not request.path.startswith("/cs/static/") and not (resp.status_code == 200 and (resp.mimetype == "image/jpeg" or resp.mimetype.startswith("audio/"))
                                                                 and re.match(r"^/api/[a-z0-9]+/photo/m[0-9a-f]{24}$", request.path)):
             resp.headers["Cache-Control"] = "no-store"          # a customer photo may stay in THIS browser's private cache (1 day)
         if request.path.startswith("/api/") and hasattr(g, "t0"):
@@ -422,6 +422,9 @@ def create_app(overrides=None):
         })
 
     PHOTO_ID_RE = re.compile(r"^m[0-9a-f]{24}$")
+    # 2026-10-11: voice messages are served by the same route (stored on the core, kept 30 days)
+    MEDIA_MIMES = frozenset(("image/jpeg", "audio/ogg", "audio/mpeg", "audio/mp4", "audio/aac", "audio/webm", "audio/amr",
+                             "audio/x-m4a", "audio/wav", "audio/opus"))
 
     @app.get("/api/<brand>/photo/<fid>")
     def wa_photo(brand, fid):
@@ -436,13 +439,13 @@ def create_app(overrides=None):
         if status != 200 or not isinstance(out, dict) or out.get("ok") is not True or not isinstance(out.get("data"), str):
             code = out.get("error") if isinstance(out, dict) else ""
             return json_error("not_found" if code == "not_found" else (code or "engine_error"), 404 if code == "not_found" else 502)
-        if out.get("mime") != "image/jpeg":
+        if out.get("mime") not in MEDIA_MIMES:
             return json_error("bad_request", 400)
         try:
             data = base64.b64decode(out["data"], validate=True)
         except ValueError:
             return json_error("engine_error", 502)
-        resp = app.response_class(data, mimetype="image/jpeg")
+        resp = app.response_class(data, mimetype=out["mime"])
         resp.headers["Cache-Control"] = "private, max-age=86400"
         resp.headers["X-Content-Type-Options"] = "nosniff"
         return resp
