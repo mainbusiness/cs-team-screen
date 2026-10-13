@@ -481,14 +481,30 @@ It makes **no engine calls of its own**: it reads the activity log and the serve
   - `close`, `cancel`, `autocancel`, `note`, `takeover`, `review`.
 - **Dedupe:** opens and edits count at most once per user, ticket and minute.
 
-**Work time is not login time.**
-- **Sessions:** actions at most `IDLE_GAP_S = 300` s (5 min) apart are one session; a longer gap ends it.
-  `SESSION_TAIL_S = 60` s is credited after a session's last action.
-- **Midnight:** a session that crosses midnight is split between the two days (Asia/Jerusalem).
+**Work time (Owner, 2026-10-13: "they work ~8 hours, the board showed ~3").**
+- **Work time** = from the agent's first action of the day to the last, minus **breaks**: a stretch of more than
+  `BREAK_GAP_S = 1800` s (30 min) with no action at all on the screen. A shorter stretch between two actions is counted
+  as work done elsewhere (Shopify, Kaching, Dondy, Gmail). `SESSION_TAIL_S = 60` s is credited after each run's last
+  action. Each agent row shows the shift (first–last action) and its breaks.
+- **"On screen"** (`screen_s`, the number before 2026-10-13): actions at most `IDLE_GAP_S = 300` s apart; kept beside
+  work time for comparison. **Occupancy** = on screen ÷ work time (target 75–85%).
+- **Assumption:** an agent who comes back to the screen within 30 min was working in between; a longer silence is a
+  break. Measured from 138,000 Render request-log lines (2026-10-07..13, 4 agents, 20 agent-days): gaps between actions
+  thin out steadily up to 30 min (5–10 min: 50, 10–20: 53, 20–30: 27) and drop 3.4x per minute of width after it
+  (30–45: 12, 45–60: 7, 1–2 h: 12, >2 h: 11); the screen was visible during ~40% of a 5–20 min gap's minutes, 25% of a
+  20–30 min gap's, 19% of a 30–60 min gap's, 0% beyond 2 h. Replies typed straight in Dondy / Gmail are not where the time went: 6–21 a day across
+  all brands (dayStats `dondy_direct` / `gmail_direct`), and they carry no agent name.
+- **Presence never extends work time:** a screen left open over lunch keeps polling. Presence (`pres-*.jsonl`, one mark
+  per user per minute while the tab is visible) is shown as "מחובר" in the agent's details only.
+- **Midnight:** a run that crosses midnight is split between the two days (Asia/Jerusalem).
 - **Handle time** of a reply runs from the agent's latest open of THAT ticket to the send, if within 2 h. AHT is the
   median.
-- **Presence** (`pres-*.jsonl`): one mark per user per minute while the screen polls (polls stop when the tab is
-  hidden). It is used only for occupancy = active ÷ logged in.
+
+**Live open tickets (Owner, 2026-10-13).** A strip at the top of the board: per brand (and in total), the tickets open NOW
+— status ready / action / health / delay, the same set and the same list as the agents' "פתוחות" badge — split WhatsApp
+/ email. `GET /api/dash/open` (admin + user-manager) counts the server's cached list; a brand copy older than
+`LIVE_SYNC_S = 30` s gets ONE shared change-feed read (the read every agent's poll makes anyway), so while agents work it
+costs no engine call. The strip re-reads every 30 s on its own timer and repaints only when a number changed.
 
 **Engine truth.** Each agent's sends and closes are also counted from the cached list (`handled_by` / `handled_at`) and
 shown next to the logged numbers ("במנוע N").

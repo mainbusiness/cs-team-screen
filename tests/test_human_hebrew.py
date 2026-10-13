@@ -24,4 +24,7 @@ def test_style_brief_is_sent_for_hebrew_and_forbids_dashes(app5, pw_hash, fake_l
     r = c.post("/api/rozela/translate-out", json={"ticketId": "t1", "text": "Hi Dana, I checked, all good"}, headers={"X-CSRF-Token": tok}).get_json()
     assert r == {"ok": True, "text": "שלום דנה, בדקתי, הכול בסדר", "target": "he"}
     system = fake_llm.payloads[-1]["system"][0]["text"]
-    assert "NEVER use the em dash" in system and "word for word" in system
+    assert "never an em dash" in system and "word for word" in system
+    # Owner, 2026-10-13: plain words, ONE customer (never the plural you), one signing name per brand
+    assert "a child of 8 understands" in system and "NEVER the plural you" in system
+    assert "the last line is exactly נועם" in system and "masculine singular" in system

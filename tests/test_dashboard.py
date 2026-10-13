@@ -1,4 +1,5 @@
-"""Managers' dashboard (Owner, 2026-10-06): permissions, real work time (5-min idle gap, midnight), handle time in a burst,
+"""Managers' dashboard (Owner, 2026-10-06): permissions, work time (first to last action minus breaks over 30 min; the old
+5-min "on screen" number beside it; midnight), handle time in a burst,
 brand counters, the activity log written by real screen actions, snapshots."""
 import json
 
@@ -23,7 +24,7 @@ def agent(out, u="noa"):
     return next(a for a in out["agents"] if a["user"] == u)
 
 
-# ---------- active time: the 5-minute idle gap ----------
+# ---------- work time: first to last action, minus breaks over 30 min (Owner, 2026-10-13) ----------
 
 def test_gap_of_exactly_five_minutes_is_one_session(tmp_path):
     now = [T0 + 86000]
@@ -31,17 +32,51 @@ def test_gap_of_exactly_five_minutes_is_one_session(tmp_path):
     ev(log, T0 + 36000, "open")
     ev(log, T0 + 36000 + D.IDLE_GAP_S, "send")
     a = agent(D.build(log, {}, USERS, ["rozela"], DAY, 1, now[0]))
-    assert a["active_s"] == D.IDLE_GAP_S + D.SESSION_TAIL_S                  # 300 + 60: one session
+    assert a["screen_s"] == a["active_s"] == D.IDLE_GAP_S + D.SESSION_TAIL_S  # 300 + 60: one session on both measures
 
 
-def test_a_gap_over_five_minutes_ends_the_session(tmp_path):
+def test_a_gap_over_five_minutes_ends_the_on_screen_run_but_is_still_work(tmp_path):
     now = [T0 + 86000]
     log = mklog(tmp_path, now)
     ev(log, T0 + 36000, "open")
-    ev(log, T0 + 36000 + D.IDLE_GAP_S + 1, "send")
+    ev(log, T0 + 36000 + D.IDLE_GAP_S + 1, "send")                         # 5 min 1 s in Shopify / Kaching / Dondy
     a = agent(D.build(log, {}, USERS, ["rozela"], DAY, 1, now[0]))
-    assert a["active_s"] == 2 * D.SESSION_TAIL_S                             # two sessions of one action each
-    assert len(D.sessions(log.events(DAY))) == 2
+    assert a["screen_s"] == 2 * D.SESSION_TAIL_S                             # the old number: two runs of one action each
+    assert a["active_s"] == D.IDLE_GAP_S + 1 + D.SESSION_TAIL_S              # work time: the gap is work elsewhere
+    assert len(D.sessions(log.events(DAY))) == 2 and a["breaks_n"] == 0
+
+
+def test_a_gap_of_exactly_thirty_minutes_is_work_and_one_second_more_is_a_break(tmp_path):
+    now = [T0 + 86000]
+    log = mklog(tmp_path, now)
+    b = T0 + 36000                                                           # 10:00
+    ev(log, b, "open", t="a")
+    ev(log, b + D.BREAK_GAP_S, "send", t="a")                                # 10:30 — exactly 30 min later: work
+    ev(log, b + 2 * D.BREAK_GAP_S + 1, "open", t="b")                        # 11:00:01 — 30 min 1 s later: a break
+    ev(log, b + 2 * D.BREAK_GAP_S + 121, "close", t="b")
+    a = agent(D.build(log, {}, USERS, ["rozela"], DAY, 1, now[0]))
+    assert a["active_s"] == D.BREAK_GAP_S + D.SESSION_TAIL_S + 120 + D.SESSION_TAIL_S
+    assert a["breaks_n"] == 1 and a["breaks_s"] == D.BREAK_GAP_S + 1
+    assert a["shift"] == {"first": b, "last": b + 2 * D.BREAK_GAP_S + 121, "breaks_n": 1, "breaks_s": D.BREAK_GAP_S + 1}
+    # work time + breaks = the shift (first to last action) + the last action's tail
+    assert a["active_s"] + a["breaks_s"] == a["shift"]["last"] - a["shift"]["first"] + 2 * D.SESSION_TAIL_S   # each run ends with its tail
+
+
+def test_a_real_day_is_its_shift_minus_its_lunch(tmp_path):
+    """Measured shape (2026-10-11..13): actions every few minutes, 10-25 min away in other tools, one ~1 h lunch."""
+    now = [T0 + 86000]
+    log = mklog(tmp_path, now)
+    t, n = T0 + 9 * 3600, 0
+    for step in [120] * 20 + [1200] + [180] * 20 + [3600] + [240] * 20 + [1500] + [120] * 10:
+        ev(log, t, "send", t="x%d" % n); n += 1
+        t += step
+    ev(log, t, "send", t="last")
+    a = agent(D.build(log, {}, USERS, ["rozela"], DAY, 1, now[0]))
+    span = t - (T0 + 9 * 3600)
+    assert a["active_s"] == span - 3600 + 2 * D.SESSION_TAIL_S               # everything but the hour away (+ each run's tail)
+    assert a["breaks_n"] == 1 and a["breaks_s"] == 3600
+    assert a["screen_s"] == span - 3600 - 1200 - 1500 + D.SESSION_TAIL_S * 4  # the old number also drops the 20 + 25 min
+    assert a["occupancy"] == round(a["screen_s"] / a["active_s"], 3)
 
 
 def test_login_time_without_actions_is_not_work(tmp_path):
@@ -51,8 +86,32 @@ def test_login_time_without_actions_is_not_work(tmp_path):
         log.touch("noa", ts=T0 + 36000 + m * 60)
     ev(log, T0 + 36000, "open")
     a = agent(D.build(log, {}, USERS, ["rozela"], DAY, 1, now[0]))
-    assert a["active_s"] == D.SESSION_TAIL_S and a["present_s"] == 3600
-    assert a["occupancy"] == round(D.SESSION_TAIL_S / 3600, 3)
+    assert a["active_s"] == D.SESSION_TAIL_S and a["present_s"] == 3600       # a screen left open is never work time
+    assert a["occupancy"] == 1.0                                             # on screen ÷ work time
+
+
+def test_a_screen_left_open_over_lunch_does_not_bridge_the_break(tmp_path):
+    now = [T0 + 86000]
+    log = mklog(tmp_path, now)
+    ev(log, T0 + 43200, "send", t="a")                                       # 12:00
+    for m in range(1, 60):
+        log.touch("noa", ts=T0 + 43200 + m * 60)                             # polling all through lunch
+    ev(log, T0 + 43200 + 3600, "open", t="b")                                # 13:00
+    a = agent(D.build(log, {}, USERS, ["rozela"], DAY, 1, now[0]))
+    assert a["active_s"] == 2 * D.SESSION_TAIL_S and a["breaks_s"] == 3600
+
+
+def test_shift_per_day_over_a_range(tmp_path):
+    nxt = D.next_day(DAY)
+    now = [D.day_start(nxt) + 80000]
+    log = mklog(tmp_path, now)
+    ev(log, T0 + 9 * 3600, "open"); ev(log, T0 + 9 * 3600 + 600, "send")
+    ev(log, D.day_start(nxt) + 10 * 3600, "open", t="t2")
+    both = agent(D.build(log, {}, USERS, ["rozela"], nxt, 2, now[0]))
+    assert both["shift"] is None                                             # a single shift only on a one-day view
+    assert [(x["first"], x["last"]) for x in both["days"]] == [(T0 + 9 * 3600, T0 + 9 * 3600 + 600),
+                                                               (D.day_start(nxt) + 10 * 3600,) * 2]
+    assert [x["screen_s"] for x in both["days"]] == [120, 60] and [x["active_s"] for x in both["days"]] == [660, 60]   # 10 min apart: two on-screen runs, one work stretch
 
 
 def test_a_session_across_midnight_is_split_between_the_days(tmp_path):
@@ -119,7 +178,7 @@ def test_brand_overview_counts(tmp_path):
     o = D.overview(rows, DAY, now)
     assert (o["received"], o["answered"], o["closed"]) == (6, 2, 1)          # a b e f g i created today
     assert o["answered_pct"] == 33.3 and o["closed_pct"] == 16.7
-    assert o["open_now"] == 6 and o["awaiting"] == 5                         # + bot; awaiting = needs a person
+    assert o["open_now"] == 5 and o["awaiting"] == 5                         # 2026-10-13: = the agents' "פתוחות" tab (no bot)
     assert o["aging"] == {"0-4h": 2, "4-24h": 1, "1-3d": 1, "3d+": 1}
     assert o["frt_median_s"] == 3600 and o["auto_pct"] == 50.0 and o["wa_failed"] == 1 and o["truncated"] is False
 
@@ -463,3 +522,37 @@ def test_qa_and_automation_accounts_are_not_agents(tmp_path):
     assert [a["user"] for a in out["agents"]] == ["noa"]
     assert set(out["heat"]) == {"noa"} and out["pies"]["who"]["agents"] == 1 and out["pies"]["brand"] == {"rozela": 180}
     assert out["kpis"]["aht_s"] == 120 and out["kpis"]["occupancy"] == 1.0            # the QA sends moved nothing
+
+
+
+def test_open_counts_equal_the_agents_open_tab_split_by_channel():
+    rows = [{"id": "a", "status": "ready", "channel": "whatsapp"}, {"id": "b", "status": "action", "channel": "email"},
+            {"id": "c", "status": "health", "channel": "WhatsApp"}, {"id": "d", "status": "delay"},
+            {"id": "e", "status": "bot", "channel": "whatsapp"}, {"id": "f", "status": "wa_queued", "channel": "whatsapp"},
+            {"id": "g", "status": "sent"}, {"id": "h", "status": "done"}, "junk"]
+    assert D.open_counts(rows) == {"total": 4, "whatsapp": 2, "email": 2}
+
+
+def test_live_open_endpoint_is_for_managers_and_reads_the_cache(app, pw_hash, transport):
+    from conftest import valid_reply
+    rows = [{"id": "w1", "status": "ready", "channel": "whatsapp"}, {"id": "e1", "status": "action", "channel": "email"},
+            {"id": "e2", "status": "delay", "channel": "email"}, {"id": "b1", "status": "bot", "channel": "whatsapp"},
+            {"id": "s1", "status": "sent", "channel": "email"}]
+
+    def reply(url, body):
+        if body["fn"] == "apiBoot":
+            return {"ok": True, "tickets": rows, "counts": {"ready": 1, "action": 1, "delay": 1, "bot": 1, "sent": 1}, "version": 7}
+        return valid_reply(url, body)
+    transport.reply = reply
+    c, _ = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    assert c.get("/api/dash/open").status_code == 403
+    m, _ = logged_in(app, pw_hash, "boss", ["admin"], ["rozela"])
+    j = m.get("/api/dash/open").get_json()
+    assert j["ok"] and j["refresh_s"] == D.LIVE_REFRESH_S
+    o = j["brands"]["rozela"]
+    assert (o["total"], o["whatsapp"], o["email"], o["known"]) == (3, 1, 2, True)            # bot and sent are not open
+    assert j["total"] == {"total": 3, "whatsapp": 1, "email": 2}
+    n = len(transport.calls)
+    for _ in range(3):                                                        # a fresh copy: no engine call at all
+        assert m.get("/api/dash/open").get_json()["brands"]["rozela"]["total"] == 3
+    assert len(transport.calls) == n

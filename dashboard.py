@@ -2,8 +2,11 @@
 
 Activity log: every agent action the screen sees (open a ticket, edit, send, close, cancel, re-send, ...) is appended to
 a per-day file on the private disk — user, brand, ticket id, channel, kind, time. No customer content, ever.
-Work sessions are cut from it: actions no more than IDLE_GAP_S apart belong to one session; a longer gap ends it (the
-agent was not working). Being logged in is NOT work; it is measured separately (presence) only to compute occupancy.
+Work time (Owner, 2026-10-13: "they work ~8 hours, the board shows 3"): from the agent's first action of the day to the last,
+minus breaks — a stretch of more than BREAK_GAP_S with no action at all on the screen. A shorter stretch between two actions
+is work done elsewhere (Shopify, Kaching, Dondy, Gmail). The threshold comes from the measured gaps (README "Work time").
+The older, stricter number stays as "on screen" (screen_s): actions at most IDLE_GAP_S apart. Being logged in is NOT work:
+a screen left open over lunch keeps polling, so presence never extends work time.
 Sends and closes are also counted from the ENGINE (handled_by / handled_at on the ticket list) and shown side by side.
 
 Everything here reads the activity log and the server's cached ticket lists: the dashboard makes no engine call of its own.
@@ -24,7 +27,8 @@ from flask import g, jsonify, request
 import engine_proxy
 
 TZ = ZoneInfo("Asia/Jerusalem")
-IDLE_GAP_S = 300            # two actions at most 5 min apart are one work session; a longer gap ends it (documented in README)
+IDLE_GAP_S = 300            # "on screen": two actions at most 5 min apart are one run of on-screen work (the pre-2026-10-13 number)
+BREAK_GAP_S = 1800          # work time: a stretch over 30 min with no action is a break; a shorter one is work elsewhere (README)
 SESSION_TAIL_S = 60         # credited after a session's LAST action (reading / typing that produced no event of its own)
 HANDLE_MAX_S = 2 * 3600     # an open more than 2 h before a send is not that reply's handle time
 DEDUPE_S = {"open": 60, "edit": 60}   # one "open"/"edit" per user+ticket per minute (retries, autosave, typing heartbeats)
@@ -59,6 +63,8 @@ DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # agents table and do not move work time, AHT, occupancy, the heat map or the pies.
 TEST_USER_RE = re.compile(r"^(qa-.*|claude-admin|guy-admin-cli|warmup)$", re.I)
 SERVICE_KEYS = ("received", "person", "auto", "closed", "unanswered")
+LIVE_REFRESH_S = 30         # the managers' live open-tickets strip re-reads /api/dash/open this often
+LIVE_SYNC_S = 30            # a brand copy older than this gets one shared feed read (agents' polls keep it ~4 s fresh)
 
 
 def is_test_user(name):
@@ -234,6 +240,16 @@ def sessions(evts, gap=IDLE_GAP_S, tail=SESSION_TAIL_S):
     return [(s, e + tail) for s, e in out]
 
 
+def shift(evts, lo, hi, gap=BREAK_GAP_S):
+    """ONE user's sorted events -> the day's first and last action in [lo, hi) and its breaks (stretches over `gap` with no
+    action between them): {"first", "last", "breaks_n", "breaks_s"}, or None when there was no action."""
+    ts = [e["ts"] for e in evts if lo <= e["ts"] < hi]
+    if not ts:
+        return None
+    br = [b - a for a, b in zip(ts, ts[1:]) if b - a > gap]
+    return {"first": ts[0], "last": ts[-1], "breaks_n": len(br), "breaks_s": round(sum(br))}
+
+
 def clip(ivs, lo, hi):
     for s, e, ev in ivs:
         s2, e2 = max(s, lo), min(e, hi)
@@ -306,6 +322,16 @@ def wa_failed(r):
     return bool(WA_FAIL_TEXT.search(str(r.get("action") or "").strip()))
 
 
+def open_counts(rows):
+    """Open NOW = the agents' "פתוחות" tab badge (app.js tabCount('ready')): status ready / action / health / delay."""
+    out = {"total": 0, "whatsapp": 0, "email": 0}
+    for r in rows:
+        if isinstance(r, dict) and r.get("status") in OPEN_ST:
+            out["total"] += 1
+            out["whatsapp" if is_wa(r) else "email"] += 1
+    return out
+
+
 def overview(rows, day, now):
     """One brand, one Israel day, from its cached ticket list (open tickets are all there; closed ones only the last 100)."""
     lo, hi = day_start(day), day_start(next_day(day))
@@ -334,7 +360,9 @@ def overview(rows, day, now):
     return {
         "received": len(received), "answered": len(answered), "closed": len(closed),
         "answered_pct": _pct(len(answered), len(received)), "closed_pct": _pct(len(closed), len(received)),
-        "open_now": sum(1 for r in rows if r.get("status") in LIVE_ST), "awaiting": len(awaiting), "aging": aging,
+        # Owner, 2026-10-13: "open now" is the same number as the agents' "פתוחות" tab. Chats Dondy's bot is handling and sends in the
+        # WhatsApp queue are not waiting for a person.
+        "open_now": len(awaiting), "awaiting": len(awaiting), "aging": aging,
         "frt_median_s": _median(frt["email"] + frt["whatsapp"]), "frt_email_s": _median(frt["email"]),
         "frt_wa_s": _median(frt["whatsapp"]), "auto_pct": _pct(len(auto), len(answered)),
         "wa_failed": sum(1 for r in rows if wa_failed(r)),
@@ -411,11 +439,16 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
     agents, all_handles, sent_tickets = [], [], {}
     for user in sorted(roster | {u for u in by_user if isinstance(u, str)}):
         ue = by_user.get(user, [])
-        per_day = {d: {"active_s": 0.0, "sends": 0, "closes": 0} for d in days}
+        per_day = {d: {"active_s": 0.0, "screen_s": 0.0, "sends": 0, "closes": 0} for d in days}
         by_b, by_c = {}, {}
         uh = heat.setdefault(user, {d: [0.0] * 24 for d in days})
-        active = 0.0
-        for s, e, ev in clip(intervals(ue), lo, hi):
+        active = screen = 0.0
+        for s, e, _ in clip(intervals(ue, IDLE_GAP_S), lo, hi):       # the old, stricter number: on-screen runs only
+            for hs, he in split_hours(s, e):
+                if il_day(hs) in per_day:
+                    per_day[il_day(hs)]["screen_s"] += he - hs
+            screen += e - s
+        for s, e, ev in clip(intervals(ue, BREAK_GAP_S), lo, hi):
             for hs, he in split_hours(s, e):
                 d = il_day(hs)
                 if d not in per_day:
@@ -460,16 +493,23 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
                 elif r.get("status") == "done":
                     eng_c += 1
         pres_s = len(present.get(user, ())) * 60
+        shifts = {d: shift(ue, day_start(d), day_start(next_day(d))) for d in days}
+        one = shifts[days[-1]] if len(days) == 1 else None
         agents.append({
-            "user": user, "name": names.get(user, user), "active_s": round(active), "sends": len(sends),
+            "user": user, "name": names.get(user, user), "active_s": round(active), "screen_s": round(screen), "sends": len(sends),
+            "shift": one, "breaks_s": sum((x or {}).get("breaks_s", 0) for x in shifts.values()),
+            "breaks_n": sum((x or {}).get("breaks_n", 0) for x in shifts.values()),
             "resends": sum(1 for e in sends if e["k"] == "resend"), "closes": len(closes),
             "per_hour": round(len(sends) / (active / 3600.0), 1) if active >= 300 else None,
             "aht_s": _median(hts), "handled": len(hts), "present_s": pres_s,
-            "occupancy": round(min(1.0, active / pres_s), 3) if pres_s else None,
+            # occupancy = on-screen work / work time (was: / logged in — logged-in time is now shorter than work time)
+            "occupancy": round(min(1.0, screen / active), 3) if active >= 60 else None,
             "engine_sends": eng_s, "engine_closes": eng_c,
             "by_brand": {k: dict(v, active_s=round(v["active_s"])) for k, v in by_b.items()},
             "by_channel": {k: dict(v, active_s=round(v["active_s"])) for k, v in by_c.items()},
-            "days": [dict(day=d, active_s=round(v["active_s"]), sends=v["sends"], closes=v["closes"]) for d, v in per_day.items()],
+            "days": [dict(day=d, active_s=round(v["active_s"]), screen_s=round(v["screen_s"]), sends=v["sends"], closes=v["closes"],
+                          first=(shifts[d] or {}).get("first"), last=(shifts[d] or {}).get("last"),
+                          breaks_s=(shifts[d] or {}).get("breaks_s", 0)) for d, v in per_day.items()],
         })
     by_sender = {}
     for ds in ds_by_brand.values():
@@ -478,7 +518,8 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
     known = {u["username"] for u in users}
     for k in list(by_sender):
         if k in known and not is_test_user(k) and k not in {a["user"] for a in agents}:      # a screen user outside the roster (e.g. an admin)
-            agents.append({"user": k, "name": names.get(k, k), "active_s": 0, "sends": 0, "resends": 0, "closes": 0, "per_hour": None,
+            agents.append({"user": k, "name": names.get(k, k), "active_s": 0, "screen_s": 0, "shift": None, "breaks_s": 0, "breaks_n": 0,
+                           "sends": 0, "resends": 0, "closes": 0, "per_hour": None,
                            "aht_s": None, "handled": 0, "present_s": 0, "occupancy": None, "engine_sends": 0, "engine_closes": 0,
                            "by_brand": {}, "by_channel": {}, "days": []})
     for a in agents:
@@ -532,7 +573,7 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
     auto_n = sum(1 for r in answered if AUTO_RE.match(str(r.get("handled_by") or "")))
     agent_replies = max(sum(a["sends"] for a in agents), sum(a["engine_sends"] for a in agents))
     tot_active = sum(a["active_s"] for a in agents)
-    tot_present = sum(a["present_s"] for a in agents)
+    tot_screen = sum(a.get("screen_s", 0) for a in agents)
     ds_ok = bool(brands) and all(o.get("stats") == "dayStats" for o in brands_out.values())
     ds_any = any(o.get("stats") == "dayStats" for o in brands_out.values())
 
@@ -552,7 +593,7 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
         "frt_human_wa_s": wmean("frt_human_wa_s", "whatsapp", "frt_human_n"),
         "aht_s": _median(all_handles), "fcr_pct": _pct(single, len(sent_tickets)),
         "reopen_pct": _pct(reopened, len(sent_tickets)), "fcr_window_open": now - hi < 72 * 3600,
-        "occupancy": round(min(1.0, tot_active / tot_present), 3) if tot_present else None,
+        "occupancy": round(min(1.0, tot_screen / tot_active), 3) if tot_active >= 60 else None,
         "backlog": sum(o.get("awaiting_all") or 0 for o in brands_out.values()),
         "sla_wa_pct": _pct(*sla["whatsapp"]), "sla_email_pct": _pct(*sla["email"]),
         "sla_wa_n": sla["whatsapp"][1], "sla_email_n": sla["email"][1], "csat": None,
@@ -567,7 +608,7 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
         "heat": heat, "hour_total": [round(x) for x in hour_total], "kpis": kpis, "bench": BENCH,
         "pies": {"brand": {k: round(v) for k, v in pie_brand.items()}, "channel": {k: round(v) for k, v in pie_chan.items()},
                  "category": {k: round(v) for k, v in pie_cat.items()}, "who": {"agents": agent_replies, "auto": auto_n}},
-        "idle_gap_s": IDLE_GAP_S, "session_tail_s": SESSION_TAIL_S, "log_since": log.first_day(),
+        "idle_gap_s": IDLE_GAP_S, "break_gap_s": BREAK_GAP_S, "session_tail_s": SESSION_TAIL_S, "log_since": log.first_day(),
         # Owner, 2026-10-06: agents also answer in Dondy / Gmail directly, so received/answered/closed/FRT come from the
         # engine's dayStats (computed from the conversations). Brands without it yet say "not final".
         "stats_source": "dayStats" if ds_ok else ("mixed" if any(o.get("stats") == "dayStats" for o in brands_out.values()) else "list"),
@@ -689,6 +730,32 @@ def register(app, d):
         brands = [b for b in u.get("brands", []) if b in d["engines"]]
         force = request.args.get("refresh") == "1" and "admin" in u.get("roles", [])    # admin: re-read the day from the engine now
         return jsonify(build(log, rows_for(u, brands), d["store"].all(), brands, end, ndays, now, ds_for(u, brands, end, now, force)))
+
+    live_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="cs-dash-live")
+
+    @app.get("/api/dash/open")
+    def dash_open():
+        """Owner, 2026-10-13: how many tickets are open NOW in every brand, live. Counted from the server's cached list — the
+        same list the agents' screens hold, so it equals their "פתוחות" badge. A brand whose copy is older than LIVE_SYNC_S
+        gets one shared feed read (the read every agent's poll makes anyway); the engine is never read per manager."""
+        u, err = d["api_user"]()
+        if err:
+            return err
+        if not d["is_manager"](u):
+            return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
+        brands = [b for b in u.get("brands", []) if b in d["engines"]]
+
+        def one(b):
+            try:
+                cache.sync_if_older(u, b, LIVE_SYNC_S)
+            except Exception:                         # noqa: BLE001 — a slow brand shows its last copy with its age
+                app.logger.exception("live open count: sync failed for %s", b)
+            rows = cache.cached_rows(b)
+            age = cache.synced_age(b)
+            return b, dict(open_counts(rows.values()), synced_age=age, known=age is not None)
+        out = dict(f.result() for f in [live_pool.submit(one, b) for b in brands])
+        tot = {k: sum(o[k] for o in out.values() if o["known"]) for k in ("total", "whatsapp", "email")}
+        return jsonify({"ok": True, "at": log.clock(), "brands": out, "total": tot, "refresh_s": LIVE_REFRESH_S})
 
     @app.post("/api/<brand>/activity")
     def activity(brand):

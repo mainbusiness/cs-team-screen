@@ -288,6 +288,18 @@ class TicketCache:
         e = self._boot_entry(brand)
         return None if not e else round(self.clock() - e.get("synced_at", e.get("full_at", e["at"])), 1)
 
+    def sync_if_older(self, user, brand, max_age):
+        """The managers' live open count (Owner, 2026-10-13). At most ONE shared change-feed read when this brand's copy is
+        older than max_age — the same single-flight read every agent's /changes poll makes, so while agents work it costs
+        nothing. Returns the copy's age after it (None: no copy and the engine did not answer)."""
+        if self._boot_entry(brand) is None:
+            self._once(("boot", brand), lambda: self._fetch_boot(user, brand))
+        else:
+            age = self.synced_age(brand)
+            if age is None or age > max_age:
+                self._once(("chg", brand), lambda: self._sync(user, brand), wait=WATCH_WAIT_S)
+        return self.synced_age(brand)
+
     def _fetch_boot(self, user, brand):
         # QA round 5: the rozela list went 27 min stale — the breaker kept dropping every background refresh. The list
         # is the one call that must always get through: background priority while fresh, interactive once starved.

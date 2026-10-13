@@ -153,7 +153,7 @@ def run_desk(p, brand, lang, token, mailbox, admin):
             say(True, '%s: ticket opens' % label, 'in %.2f s' % (time.time() - t_open))
             approved = ticket['draft_text']
             pg.click('[data-test=send-btn]')          # first click arms the button
-            pg.wait_for_timeout(350)
+            pg.wait_for_timeout(650)              # > ARM_MIN_MS (500): a faster second click is a double-click, not a confirmation
             t_click = time.time()
             pg.click('[data-test=send-btn]')          # second click sends
         t_free = None

@@ -4029,12 +4029,13 @@
   })();
 
   // ---------------------------------------------------------------- managers' dashboard (Owner, 2026-10-06)
-  /** Admin + user-manager only (the server answers 403 to anyone else). Real work time from the activity log: actions
-   *  at most 5 min apart are one session; being logged in is not work. Charts are plain SVG (strict CSP, no libraries). */
+  /** Admin + user-manager only (the server answers 403 to anyone else). Work time from the activity log: first to last
+   *  action minus breaks over 30 min (Owner, 2026-10-13); "on screen" keeps the old 5-min runs. Being logged in is not work.
+   *  Charts are plain SVG (strict CSP, no libraries). */
   const Dash = (function () {
     const HE = {
       title: 'לוח מנהלים', day: 'יום', d7: '7 ימים', d30: '30 ימים', updated: 'עודכן', loading: 'טוען…',
-      method: 'זמן עבודה = פעולות ברצף (פתיחה, עריכה, שליחה, סגירה). הפסקה של יותר מ-{m} דק׳ מסיימת רצף. זמן מחובר למסך לא נספר כעבודה.',
+      method: 'זמן עבודה = מהפעולה הראשונה עד האחרונה, פחות הפסקות (יותר מ-{b} דק׳ בלי אף פעולה במסך); רווח קצר יותר נספר כעבודה בשופיפיי, קצ׳ינג, דונדי וג׳ימייל. "במסך" = החישוב הקודם (רווח עד {m} דק׳).',
       since: 'יומן הפעילות נאסף מ-{d}', received: 'נכנסו היום', answered: 'נענו', closed: 'נסגרו', of: 'מהנכנסות',
       open_now: 'פתוחות עכשיו', awaiting: 'ממתינות למענה', frt: 'זמן למענה ראשון (חציון)', frt_human: 'מענה ראשון של אדם (חציון)',
       incl_bot: 'כולל בוט: {v}', human_pending: 'ממתין לנתון מהמנוע', gmail_blocked: 'מייל: גוגל חסם זמנית — יתעדכן',
@@ -4042,7 +4043,7 @@
       wa_failed: 'כשלי שליחה בוואטסאפ', aging: 'גיל הממתינות', partial: 'חלקי: הרשימה מחזיקה רק 100 סגורות אחרונות',
       src_snapshot: 'תמונת חצות', src_rebuilt: 'שוחזר מהרשימה הנוכחית', kpis: 'מדדים מול השוק (2026)',
       frt_email: 'מענה ראשון — מייל', frt_wa: 'מענה ראשון — וואטסאפ', aht: 'זמן טיפול לתשובה (AHT)', fcr: 'פתרון במענה אחד (קירוב)',
-      reopen: 'נפתחו מחדש', occ: 'ניצולת (פעיל ÷ מחובר)', backlog: 'בקלוג', sla_wa: 'וואטסאפ נענה תוך שעה', sla_email: 'מייל נענה תוך 24 ש׳',
+      reopen: 'נפתחו מחדש', occ: 'ניצולת (במסך ÷ זמן עבודה)', backlog: 'בקלוג', sla_wa: 'וואטסאפ נענה תוך שעה', sla_email: 'מייל נענה תוך 24 ש׳',
       csat: 'שביעות רצון (CSAT)', csat_missing: 'חסר — אין סקר שביעות רצון', bench: 'יעד', n_a: 'אין עדיין נתונים',
       fcr_note: 'חלון 72 השעות עוד פתוח', agents: 'נציגים', agent: 'נציג', active: 'זמן עבודה', replies: 'תשובות', closes: 'סגירות',
       per_hour: 'תשובות לשעת עבודה', engine: 'במנוע', none: 'אין פעילות בטווח', by_brand: 'לפי מותג', by_channel: 'לפי ערוץ',
@@ -4050,14 +4051,14 @@
       pie_chan: 'לפי ערוץ', pie_cat: 'לפי נושא', pie_who: 'מי ענה', agents_w: 'נציגים', auto_w: 'מענה אוטומטי', email: 'מייל', whatsapp: 'וואטסאפ',
       h: 'ש׳', m: 'דק׳', s: 'שנ׳', resends: 'מתוכן שליחה חוזרת', per_day: 'לפי יום', present: 'מחובר',
       fixing: 'הנתונים בתיקון — לא סופיים', fixing_sub: 'נציגים עונים גם ישירות בדונדי ובג׳ימייל; המספרים יעברו לחישוב מהשיחות עצמן במנוע.',
-      onscreen: 'פעילות במסך', log_word: 'ביומן', ds_age: 'לפני {m} דק׳', ds_updating: 'מתעדכן…', missing: 'עוד לא מהשיחות — לא סופי: {b}', from_conv: 'מהשיחות', computing: 'מחשב מהשיחות…',
+      onscreen: 'זמן עבודה ופעילות במסך', log_word: 'ביומן', ds_age: 'לפני {m} דק׳', ds_updating: 'מתעדכן…', missing: 'עוד לא מהשיחות — לא סופי: {b}', from_conv: 'מהשיחות', computing: 'מחשב מהשיחות…',
       src_answered: 'נענו — לפי מקור', src_closed: 'נסגרו — לפי מקור', src_fromSystem: 'מהמערכת', src_fromDondy: 'מדונדי', src_fromEmail: 'מהמייל',
       sub_agent: 'נציג', sub_auto: 'אוטומטי', sub_human: 'אדם', sub_bot: 'בוט', sub_template: 'תבנית', sub_close: 'סגירה', sub_direct: 'ישיר', total: 'סה״כ',
       conv_answered: 'ענו (מהשיחות)', direct_note: 'בלי שם נציג: ישירות בדונדי {d} · ישירות במייל {g} · אוטומטי {a} · בוט ותבניות {b}', others: 'אחרים', all_brands: 'כל המותגים', brand_col: 'מותג', idle_agents: '{n} משתמשים בלי פעילות בטווח', log_new: 'יומן הפעילות עוד ריק — זמן העבודה נספר מהפעולה הבאה של כל נציג; תשובות וסגירות כבר נספרות מהמנוע.'
     };
     const EN = {
       title: 'Managers', day: 'Day', d7: '7 days', d30: '30 days', updated: 'Updated', loading: 'Loading…',
-      method: 'Work time = consecutive actions (open, edit, send, close). A gap over {m} min ends a session. Being logged in is not work.',
+      method: 'Work time = first to last action, minus breaks (over {b} min with no action on the screen); a shorter gap counts as work in Shopify, Kaching, Dondy and Gmail. "On screen" = the previous measure (gaps up to {m} min).',
       since: 'Activity log collected since {d}', received: 'Received today', answered: 'Answered', closed: 'Closed', of: 'of received',
       open_now: 'Open now', awaiting: 'Awaiting a reply', frt: 'First reply (median)', frt_human: 'First reply by a person (median)',
       incl_bot: 'incl. bot: {v}', human_pending: 'waiting for the engine field', gmail_blocked: 'Email: temporarily blocked by Google — will update',
@@ -4065,7 +4066,7 @@
       wa_failed: 'WhatsApp send failures', aging: 'Backlog age', partial: 'Partial: the list holds only the last 100 closed',
       src_snapshot: 'Midnight snapshot', src_rebuilt: 'Rebuilt from the current list', kpis: 'KPIs vs 2026 benchmarks',
       frt_email: 'First reply — email', frt_wa: 'First reply — WhatsApp', aht: 'Handle time per reply (AHT)', fcr: 'First-contact resolution (proxy)',
-      reopen: 'Reopened', occ: 'Occupancy (active ÷ logged in)', backlog: 'Backlog', sla_wa: 'WhatsApp answered within 1h', sla_email: 'Email answered within 24h',
+      reopen: 'Reopened', occ: 'Occupancy (on screen ÷ work time)', backlog: 'Backlog', sla_wa: 'WhatsApp answered within 1h', sla_email: 'Email answered within 24h',
       csat: 'CSAT', csat_missing: 'Missing — no satisfaction survey', bench: 'Target', n_a: 'No data yet',
       fcr_note: 'the 72h window is still open', agents: 'Agents', agent: 'Agent', active: 'Work time', replies: 'Replies', closes: 'Closed',
       per_hour: 'Replies per work hour', engine: 'engine', none: 'No activity in range', by_brand: 'By brand', by_channel: 'By channel',
@@ -4073,7 +4074,7 @@
       pie_chan: 'By channel', pie_cat: 'By topic', pie_who: 'Who answered', agents_w: 'Agents', auto_w: 'Auto-reply', email: 'Email', whatsapp: 'WhatsApp',
       h: 'h', m: 'min', s: 's', resends: 'of them re-sends', per_day: 'Per day', present: 'Logged in',
       fixing: 'The numbers are being fixed — not final', fixing_sub: 'Agents also answer directly in Dondy and Gmail; the numbers will move to the engine\'s count from the conversations.',
-      onscreen: 'On-screen activity', log_word: 'log', ds_age: '{m} min ago', ds_updating: 'updating…', missing: 'Not from the conversations yet — not final: {b}', from_conv: 'from conversations', computing: 'Counting from conversations…',
+      onscreen: 'Work time and on-screen activity', log_word: 'log', ds_age: '{m} min ago', ds_updating: 'updating…', missing: 'Not from the conversations yet — not final: {b}', from_conv: 'from conversations', computing: 'Counting from conversations…',
       src_answered: 'Answered — by source', src_closed: 'Closed — by source', src_fromSystem: 'From the system', src_fromDondy: 'From Dondy', src_fromEmail: 'From email',
       sub_agent: 'agent', sub_auto: 'auto', sub_human: 'person', sub_bot: 'bot', sub_template: 'template', sub_close: 'close', sub_direct: 'direct', total: 'Total',
       conv_answered: 'Answered (conversations)', direct_note: 'No agent name: directly in Dondy {d} · directly in email {g} · auto {a} · bot and templates {b}', others: 'Others', all_brands: 'All brands', brand_col: 'Brand', idle_agents: '{n} users with no activity in range', log_new: 'The activity log is still empty — work time counts from each agent\'s next action; replies and closes are already counted from the engine.'
@@ -4093,9 +4094,60 @@
       sv_mail_off: 'מייל לא נספר (ג׳ימייל חסום): {b}', sv_since: 'ממתינה מ-{t}', awaiting_today: 'ממתינות למענה (מהיום)', aging_all: 'גיל כל הפתוחות ({n})',
       last_day_only: 'כרטיסי המותגים והמקורות מציגים את {d} בלבד; נציגים, מדדים וגרפים מכסים את כל הטווח.'
     });
+    // Owner, 2026-10-13: open tickets per brand, live — the same count as the agents' "פתוחות" tab
+    Object.assign(L, LANG === 'en' ? {
+      live_title: 'Open now — live', live_def: 'Same as the agents\' "Open" tab · refreshes every {s} s', live_all: 'All brands',
+      live_age: 'updated {s} s ago', live_old: 'last copy {m} min ago', live_unknown: 'no data yet'
+    } : {
+      live_title: 'פתוחות עכשיו — בלייב', live_def: 'כמו הלשונית "פתוחות" של הנציגים · מתעדכן כל {s} שנ׳', live_all: 'כל המותגים',
+      live_age: 'עודכן לפני {s} שנ׳', live_old: 'עותק אחרון לפני {m} דק׳', live_unknown: 'אין עדיין נתון'
+    });
+    Object.assign(L, LANG === 'en' ? { on_screen: 'On screen', breaks: 'breaks {t}', shift_w: 'shift' } : { on_screen: 'במסך', breaks: 'הפסקות {t}', shift_w: 'משמרת' });
     function d(k, v) { let s = L[k] || k; Object.keys(v || {}).forEach(function (x) { s = s.replace('{' + x + '}', v[x]); }); return s; }
     const st = { range: '1', date: '', data: null, err: null, busy: false, who: 'all' };
     let timer = null;
+    /** The live strip: ONE element, built once and repainted in place from /api/dash/open (its own light 30 s timer, so the
+     *  heavy /api/dash load never delays it). An unchanged answer repaints nothing (build-rules §1ב). */
+    const live = { el: null, data: null, sig: '', timer: null, busy: false, at: 0 };
+    function liveStrip() {
+      if (!live.el) live.el = h('section', { class: 'dash-live', 'data-test': 'dash-live', 'aria-live': 'polite' });
+      paintLive();
+      return live.el;
+    }
+    function liveCard(name, o, test, brand, total) {
+      const unknown = !o || !o.known;
+      return h('div', { class: 'live-card' + (total ? ' total' : '') + (!unknown && !o.total ? ' zero' : ''), 'data-test': test, 'data-brand': brand || null },
+        h('div', { class: 'l' }, h('bdi', { text: name })),
+        h('div', { class: 'v', 'data-test': 'live-n', text: unknown ? '—' : String(o.total) }),
+        h('div', { class: 'ch small', 'data-test': 'live-ch' }, unknown ? L.live_unknown : L.whatsapp + ' ' + o.whatsapp + ' · ' + L.email + ' ' + o.email),
+        !unknown && !total && o.synced_age > 120 ? h('div', { class: 'muted small', 'data-test': 'live-old', text: d('live_old', { m: Math.round(o.synced_age / 60) }) }) : null);
+    }
+    function paintLive() {
+      if (!live.el) return;
+      const x = live.data;
+      const sig = x ? JSON.stringify([x.brands, x.total]) : '';
+      const ageEl = live.el.querySelector('[data-test=live-age]');
+      if (sig && sig === live.sig && ageEl) { ageEl.textContent = d('live_age', { s: Math.max(0, Math.round((Date.now() - live.at) / 1000)) }); return; }
+      live.sig = sig;
+      clear(live.el);
+      live.el.append(h('div', { class: 'live-head' }, h('h3', null, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), L.live_title),
+        h('span', { class: 'muted small', text: d('live_def', { s: (x && x.refresh_s) || 30 }) }),
+        x ? h('span', { class: 'muted small', 'data-test': 'live-age', text: d('live_age', { s: Math.max(0, Math.round((Date.now() - live.at) / 1000)) }) }) : null));
+      if (!x) { live.el.append(h('div', { class: 'skeleton' })); return; }
+      const row = h('div', { class: 'live-cards' });
+      const brands = Object.keys(x.brands || {});
+      if (brands.length > 1) row.append(liveCard(L.live_all, Object.assign({ known: true }, x.total), 'live-total', null, true));
+      brands.forEach(function (b) { row.append(liveCard(brandName(b), x.brands[b], 'live-brand', b, false)); });
+      live.el.append(row);
+    }
+    async function loadLive() {
+      if (live.busy) return;
+      live.busy = true;
+      let r;
+      try { r = await api('/api/dash/open', undefined, 'GET', { quiet: true }); } finally { live.busy = false; }
+      if (r && r.ok) { live.data = r; live.at = Date.now(); }
+      if (S.view === 'dash') paintLive();
+    }
     function fmtS(sec) {
       if (sec === null || sec === undefined) return '—';
       sec = Math.round(sec);
@@ -4265,13 +4317,17 @@
       if (idle) wrap.append(h('div', { class: 'muted small idle-note', text: d('idle_agents', { n: idle }) }));
       if (!list.length) { wrap.append(h('div', { class: 'muted', text: L.none })); return wrap; }
       const tb = h('table', { class: 'dash-table', 'data-test': 'dash-agents' });
-      tb.append(h('thead', null, h('tr', null, [L.agent, L.conv_answered, L.active, L.replies, L.closes, L.per_hour, 'AHT', L.occ].map(function (x) { return h('th', { text: x }); }))));
+      tb.append(h('thead', null, h('tr', null, [L.agent, L.conv_answered, L.active, L.on_screen, L.replies, L.closes, L.per_hour, 'AHT', L.occ].map(function (x) { return h('th', { text: x }); }))));
+      const hm = function (sec) { return sec ? new Date(sec * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' }) : ''; };
+      const shiftTxt = function (x) { return x && x.first ? hm(x.first) + '–' + hm(x.last) + (x.breaks_s ? ' · ' + d('breaks', { t: fmtS(x.breaks_s) }) : '') : ''; };
       const body = h('tbody');
       list.forEach(function (a) {
         const tr = h('tr', { 'data-test': 'dash-agent', 'data-user': a.user },
           h('td', null, h('bdi', { text: a.name })),
           h('td', { 'data-test': 'ag-conv' }, h('b', { text: a.ds_answered === null || a.ds_answered === undefined ? '—' : String(a.ds_answered) })),
-          h('td', { 'data-test': 'ag-active', text: fmtS(a.active_s) }),
+          h('td', { 'data-test': 'ag-active' }, h('b', { text: fmtS(a.active_s) }),
+            a.shift ? h('div', { class: 'muted small', 'data-test': 'ag-shift' }, h('bdi', { text: shiftTxt(a.shift) })) : null),
+          h('td', { 'data-test': 'ag-screen', text: fmtS(a.screen_s) }),
           h('td', { 'data-test': 'ag-replies' }, h('b', { text: String(Math.max(a.sends, a.engine_sends)) }),
             h('span', { class: 'muted small', text: ' (' + L.engine + ' ' + a.engine_sends + ' · ' + L.log_word + ' ' + a.sends + ')' })),
           h('td', null, h('b', { text: String(Math.max(a.closes, a.engine_closes)) }),
@@ -4287,10 +4343,13 @@
           }));
         };
         det.append(part(a.by_brand, 'brand'), part(a.by_channel, 'channel'));
-        if (a.days.length > 1) det.append(h('ul', { class: 'mini' }, a.days.map(function (x) { return h('li', null, x.day + ': ' + fmtS(x.active_s) + ' · ' + x.sends + ' ' + L.replies); })));
+        if (a.days.length > 1) det.append(h('ul', { class: 'mini' }, a.days.map(function (x) {
+          return h('li', null, x.day + ': ' + fmtS(x.active_s) + ' · ' + L.on_screen + ' ' + fmtS(x.screen_s) + ' · ' + x.sends + ' ' + L.replies,
+            x.first ? h('span', { class: 'muted small' }, ' · ', h('bdi', { text: shiftTxt(x) })) : null);
+        })));
         if (a.resends) det.append(h('div', { class: 'muted small', text: a.resends + ' ' + L.resends }));
         det.append(h('div', { class: 'muted small', text: L.present + ': ' + fmtS(a.present_s) }));
-        body.append(h('tr', { class: 'det-row' }, h('td', { colspan: '8' }, det)));
+        body.append(h('tr', { class: 'det-row' }, h('td', { colspan: '9' }, det)));
       });
       tb.append(body);
       wrap.append(tb);
@@ -4394,7 +4453,7 @@
         onclick: function () { const c = document.getElementById('ai-notes'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }));
       if (st.data) head.append(h('b', { class: 'shown-day', 'data-test': 'dash-shown', text: st.data.days.length > 1 ? st.data.days[0] + ' – ' + st.data.end_day : st.data.end_day }));
       if (st.data) head.append(h('span', { class: 'muted small', 'data-test': 'dash-updated', text: L.updated + ' ' + new Date(st.data.generated_at * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL') }));
-      p.append(head);
+      p.append(head, liveStrip());
       if (st.err) p.append(h('div', { class: 'err-box', text: st.err }));
       const x = st.data;
       if (!x) { p.append(h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); return; }
@@ -4403,7 +4462,7 @@
       if (x.stats_source === 'list') p.append(h('div', { class: 'err-box dash-fixing', role: 'alert', 'data-test': 'dash-fixing' },
         h('b', { text: '⚠️ ' + L.fixing }), h('div', { class: 'small', text: L.fixing_sub })));
       if (x.verify_note) p.append(h('div', { class: 'verified', role: 'status', 'data-test': 'dash-verify', text: x.verify_note }));
-      p.append(h('div', { class: 'muted small dash-method', text: d('method', { m: Math.round(x.idle_gap_s / 60) }) + (x.log_since ? ' · ' + d('since', { d: x.log_since }) : '') }));
+      p.append(h('div', { class: 'muted small dash-method', 'data-test': 'dash-method', text: d('method', { m: Math.round(x.idle_gap_s / 60), b: Math.round((x.break_gap_s || 1800) / 60) }) + (x.log_since ? ' · ' + d('since', { d: x.log_since }) : '') }));
       if (!x.log_since) p.append(h('div', { class: 'note-box', 'data-test': 'dash-log-new', text: L.log_new }));
       p.append(serviceBlock(x) || '');
       if (x.days.length > 1) p.append(h('div', { class: 'note-box', 'data-test': 'dash-last-day', text: d('last_day_only', { d: x.end_day }) }));
@@ -4443,9 +4502,11 @@
       render();
       if (S.me.is_admin) AiNotes.mount(parts().ai);       // admin only (the proxy answers 403 to anyone else)
       load();
+      loadLive();
       if (!timer) timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) load(true); }, 30000);
+      if (!live.timer) live.timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) loadLive(); }, 30000);
     }
-    return { show: show, load: load };
+    return { show: show, load: load, loadLive: loadLive };
   })();
 
   /** Typing in a ticket is work: a quiet heartbeat at most once a minute (autosave alone waits for a pause). */

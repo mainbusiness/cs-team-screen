@@ -123,3 +123,84 @@ def test_service_hours_block_shows_who_got_no_answer_and_opens_the_ticket(server
         ad.wait_for_function("location.hash.indexOf('#/b/rozela/t/') === 0")
         ad.wait_for_selector(".ticket-pane, #ticket-pane")
         assert ad.is_hidden("#dash-pane")
+
+
+def _login(b, base, pwd, user, width=1280):
+    pg = b.new_context(viewport={"width": width, "height": 900}).new_page()
+    pg.goto(base + "/cs/login"); pg.fill("input[name=username]", user); pg.fill("input[name=password]", pwd)
+    pg.click("button[type=submit]"); pg.wait_for_load_state("networkidle")
+    return pg
+
+
+def _live(ad):
+    card = ad.locator("[data-test=dash-live] [data-test=live-brand][data-brand=rozela]")
+    card.locator("[data-test=live-n]").wait_for()
+    n = int(card.locator("[data-test=live-n]").inner_text())
+    import re as _re
+    wa, em = (int(x) for x in _re.findall(r"\d+", card.locator("[data-test=live-ch]").inner_text()))
+    return n, wa, em
+
+
+def _until(pg, expr, want, tries=60):
+    for _ in range(tries):                       # polled from Python: the screen's CSP forbids a string-evaluated predicate
+        if pg.evaluate(expr) == want:
+            return
+        pg.wait_for_timeout(250)
+    assert pg.evaluate(expr) == want
+
+
+def test_live_open_strip_equals_the_agents_open_tab(server):
+    """Owner, 2026-10-13: the managers' board shows, live, how many tickets are open in every brand — the same number as the
+    agents' "פתוחות" badge at the same moment, split WhatsApp / email, at the top of the board."""
+    base, pwd = server
+    from pw_launch import launch
+    with pw.sync_playwright() as p:
+        b = launch(p)
+        ag = _login(b, base, pwd, "agent1")
+        ag.goto(base + "/cs#/b/rozela/ready")
+        ag.wait_for_selector("a.tab.ready .n")
+        badge = int(ag.inner_text("a.tab.ready .n"))
+        assert badge > 0
+        ad = _login(b, base, pwd, "admin1", width=390)
+        api = ad.evaluate("async () => (await (await fetch('/api/dash/open')).json())")
+        assert api["ok"] and api["brands"]["rozela"]["total"] == badge
+        ad.goto(base + "/cs#/dash")
+        n, wa, em = _live(ad)
+        assert n == badge and wa + em == n and "פתוחות עכשיו — בלייב" in ad.inner_text("[data-test=dash-live] h3")
+        assert "כמו הלשונית \"פתוחות\" של הנציגים" in ad.inner_text("[data-test=dash-live]")
+        # prominent: above the brand cards, and no sideways scroll on a phone
+        ad.wait_for_selector("[data-test=dash-brand]")
+        assert ad.evaluate("document.querySelector('[data-test=dash-live]').getBoundingClientRect().top"
+                           " < document.querySelector('[data-test=dash-brand]').getBoundingClientRect().top")
+        assert ad.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth") == 0
+        # the 30 s board reload moves the SAME strip element (never a rebuild flicker), and an unchanged answer repaints nothing
+        ad.evaluate("() => { window.__live = document.querySelector('[data-test=dash-live]'); }")
+        ad.click("[data-test=range-7]"); ad.wait_for_selector("[data-test=heat-who]")
+        assert ad.evaluate("() => document.querySelector('[data-test=dash-live]') === window.__live")
+        # an agent answers one open ticket: the agent's badge and the managers' strip move together
+        ag.click("#list-pane > a.row >> nth=0")
+        ag.wait_for_selector(".draft textarea")
+        ag.fill(".draft textarea", "היי, ההזמנה בדרך — תגיע עד יום חמישי.")
+        ag.click("[data-test=send-btn]"); ag.wait_for_timeout(600); ag.click("[data-test=send-btn]")
+        _until(ag, "Number((document.querySelector('a.tab.ready .n') || {}).textContent)", badge - 1)
+        ad.goto(base + "/cs#/b/rozela/ready"); ad.wait_for_selector("#list-pane > a.row")
+        ad.goto(base + "/cs#/dash")
+        _until(ad, "Number((document.querySelector('[data-test=live-brand][data-brand=rozela] [data-test=live-n]') || {}).textContent)", badge - 1)
+        n2, wa2, em2 = _live(ad)
+        assert n2 == int(ag.inner_text("a.tab.ready .n")) == badge - 1 and wa2 + em2 == n2
+        assert ad.locator("[data-test=dash-live]").count() == 1
+        # work time (Owner, 2026-10-13): the method in one line, the shift with its breaks, and the old on-screen number beside it
+        ad.click("[data-test=range-1]")
+        ad.wait_for_selector("[data-test=dash-agent][data-user=agent1] [data-test=ag-shift]")
+        assert "–" in ad.inner_text("[data-test=dash-agent][data-user=agent1] [data-test=ag-shift]")
+        assert ad.locator("[data-test=dash-agent][data-user=agent1] [data-test=ag-screen]").count() == 1
+        meth = ad.inner_text("[data-test=dash-method]")
+        assert "פחות הפסקות" in meth and "30 דק׳" in meth and "5 דק׳" in meth and "ג׳ימייל" in meth
+        assert "במסך ÷ זמן עבודה" in ad.inner_text("[data-test=kpi-occ]")
+        assert ad.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth") == 0
+        b.close()
+
+
+def test_live_open_is_managers_only(page):
+    pg, base = page                                                  # agent1: role agent
+    assert pg.evaluate("async () => (await fetch('/api/dash/open')).status") == 403
