@@ -1064,7 +1064,7 @@
       top.append(h('a', { class: 'dash-link zip-link', href: '#/zip/' + encodeURIComponent(S.brand || brands[0].id), 'data-test': 'zip-link', title: zl, 'aria-label': zl },
         '📮', h('span', { class: 'zip-link-txt', text: ' ' + zl })));
     }
-    if (canWork() && brands.length && S.view !== 'zip') top.append(h('button', { class: 'dash-link zip-link sales-link', type: 'button', 'data-test': 'sales-mine-link', onclick: function () { Sales.openMine(); } }, sl('mine_btn')));
+    // Owner, 2026-10-14: "only I see the sales, in the managers' table" — no sales entry for anyone outside #/dash (the engine and proxy refuse agents too)
     if (brands.length > 1 && S.view !== 'users' && S.view !== 'dash' && S.view !== 'zip') {
       const sel = h('select', { class: 'brand', 'aria-label': 'brand' });
       brands.forEach(function (b) {
@@ -1103,7 +1103,6 @@
     if (S.menuOpen) {
       const m = h('div', { class: 'menu', role: 'menu' });
       if ((S.view === 'users' || S.view === 'dash' || S.view === 'zip') && canWork()) m.append(h('a', { href: '#/', text: t('to_tickets') }));
-      if (canWork() && brands.length) m.append(h('a', { href: '#', 'data-test': 'sales-mine-menu', text: sl('mine_btn'), onclick: function (e) { e.preventDefault(); Sales.openMine(); } }));
       if (canWork() && brands.length && S.view !== 'zip') m.append(h('a', { href: '#/zip/' + encodeURIComponent(S.brand || brands[0].id), 'data-test': 'zip-menu', text: LANG === 'en' ? 'Zip-code fill' : 'מילוי מיקודים' }));
       if (S.me.can_manage_users && S.view !== 'users') m.append(h('a', { href: '#/users', text: t('users') }));
       if (S.me.is_admin && S.view !== 'settings' && S.brand) m.append(h('a', { href: '#/settings/' + encodeURIComponent(S.brand), text: t('settings') }));
@@ -1937,7 +1936,7 @@
       h('div', { class: 'ch-banner ' + (isWA(x) ? 'wa' : 'email'), 'data-test': isWA(x) ? 'wa-banner' : 'email-banner' },
         icon(isWA(x) ? 'wa' : 'mail'), t(isWA(x) ? 'wa_banner' : 'email_banner')),
       contact,
-      canWork() ? Sales.bar(x) : null,
+      null,                 // the sale button + chips were here; sales live only in the managers' table (Owner, 2026-10-14)
       siblingsChip(x),
       !isWA(x) && x.subject ? h('div', { class: 'summary-line', 'data-test': 'email-subject' },
         h('b', { text: enMode(x) ? 'Subject: ' : 'נושא: ' }),

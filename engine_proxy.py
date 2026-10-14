@@ -73,10 +73,11 @@ FN_TABLE = {
     "apiSendTemplate": (WORK_ROLES, ("id", "template", "then", "seen")),
     # Sales log for bonuses (Owner, 2026-10-14; engine/Sales.gs). The agent is ALWAYS the logged-in user (the engine takes it from the token):
     # no argument names an agent except the manager's credit of a suggestion nobody could be attributed to.
-    "apiSaleCandidates": (WORK_ROLES, ("id",)),
-    "apiSaleLog": (WORK_ROLES, ("id", "orderNo", "note")),
-    "apiSaleMine": (WORK_ROLES, ()),
-    "apiSaleProof": (WORK_ROLES, ("id",)),
+    # Owner, 2026-10-14 (later the same day): "only I see the sales, in the managers' table" — every sales call is admin-only (the engine refuses too)
+    "apiSaleCandidates": (ADMIN_ONLY, ("id",)),
+    "apiSaleLog": (ADMIN_ONLY, ("id", "orderNo", "note")),
+    "apiSaleMine": (ADMIN_ONLY, ()),
+    "apiSaleProof": (ADMIN_ONLY, ("id",)),
     "apiSaleList": (ADMIN_ONLY, ()),
     "apiSaleDecide": (ADMIN_ONLY, ("id", "decision", "note")),
     "apiSaleSuggestions": (ADMIN_ONLY, ()),

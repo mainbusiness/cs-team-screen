@@ -42,7 +42,7 @@ TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTick
          "apiResult": WORK, "apiTicketLite": WORK, "apiDayStats": ("admin", "user-manager"),
          "apiTemplates": WORK, "apiSendTemplate": WORK,
          "apiAiNotes": ("admin",), "apiAiNoteAdd": ("admin",), "apiAiNoteDelete": ("admin",), "apiAttachPut": WORK,
-         "apiSaleCandidates": WORK, "apiSaleLog": WORK, "apiSaleMine": WORK, "apiSaleProof": WORK, "apiSaleList": ("admin",), "apiSaleDecide": ("admin",),
+         "apiSaleCandidates": ("admin",), "apiSaleLog": ("admin",), "apiSaleMine": ("admin",), "apiSaleProof": ("admin",), "apiSaleList": ("admin",), "apiSaleDecide": ("admin",),
          "apiSaleSuggestions": ("admin",), "apiSaleSuggestCredit": ("admin",), "apiSaleSuggestDismiss": ("admin",), "apiSaleScan": ("admin",)}
 MOCK_WRITES = ("apiRedraftOne", "apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiWaTakeOver",
                "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate", "apiAiNoteAdd", "apiAiNoteDelete",

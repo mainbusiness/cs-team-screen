@@ -163,19 +163,25 @@ def run_desk(p, brand, lang, token, mailbox, admin, close_timing=False, send_clo
             approved = pg.inner_text('[data-test=en-review] .out .txt')
             say(bool(re.search('[֐-׿]', approved)) and not re.search('[‒-―]|--', approved) and not re.search(r'[A-Za-z]{4,}', approved.replace(tag, '')),
                 '%s: Hebrew preview is Hebrew, with no long dash' % label, 'translated in %.1f s: %s' % (time.time() - t_tr, approved.replace('\n', ' ')[:150]))
+            # 2026-10-14: the mode must reach EVERY desk — the first version of --send-close clicked the plain confirm here and reported a
+            # "live failure" of a button it never pressed. The clicked control is printed, so a report always says what was exercised.
+            clicked = '[data-test=en-confirm-close]' if send_close else '[data-test=en-confirm]'
+            if send_close:
+                pg.wait_for_selector(clicked + ':not([disabled])', timeout=10000)
             t_click = time.time()
-            pg.click('[data-test=en-confirm]')
+            pg.click(clicked)
         else:
             pg.wait_for_selector('[data-test=send-btn]', timeout=60000)
             say(True, '%s: ticket opens' % label, 'in %.2f s' % (time.time() - t_open))
             approved = ticket['draft_text']
-            btn = '[data-test=send-close-btn]' if send_close else '[data-test=send-btn]'
+            btn = clicked = '[data-test=send-close-btn]' if send_close else '[data-test=send-btn]'
             pg.click(btn)                         # first click arms the button
             pg.wait_for_timeout(650)              # > ARM_MIN_MS (500): a faster second click is a double-click, not a confirmation
             t_click = time.time()
             pg.click(btn)                         # second click sends
+        print('     %s clicked %s' % (label, clicked), flush=True)
         t_usable = None
-        if close_timing and lang != 'en' and not send_close:
+        if close_timing and not send_close:
             for _ in range(1500):                 # every ~10 ms, up to ~30 s
                 st = close_state(pg)
                 if st and st[0] == 'close' and not st[1]:
@@ -217,11 +223,11 @@ def run_desk(p, brand, lang, token, mailbox, admin, close_timing=False, send_clo
             say(body == approved.replace('\r\n', '\n').strip(), '%s: the mail text is exactly the approved text' % label, '%d chars' % len(body))
             say(customer in header(out[0], 'to') and header(out[0], 'in-reply-to') == header(th['messages'][0], 'message-id'), '%s: right recipient, same thread' % label)
             print('     %s timings: click -> Gmail accepted %.2f s' % (label, int(out[0]['internalDate']) / 1000.0 - t_click), flush=True)
-        if close_timing and lang != 'en' and not send_close and t_usable:
+        if close_timing and not send_close and t_usable:
             pg.click('[data-test=close-btn]')
             pg.wait_for_timeout(650)
             pg.click('[data-test=close-btn]')
-        want = 'done' if (send_close or (close_timing and lang != 'en' and t_usable)) else 'sent'
+        want = 'done' if (send_close or (close_timing and t_usable)) else 'sent'
         after = {}
         for _ in range(60):                       # a queued close follows the send's answer
             after = core(brand, 'apiTicketFull', {'id': tid}).get('ticket') or {}
