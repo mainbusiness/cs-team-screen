@@ -264,7 +264,76 @@ KACHING_GATE_MESSAGES = [
     "error: kaching: contracts lookup failed (500)",
     "cancelled",
     "already cancelled",
+    # contract actions (2026-10-14)
+    "unknown action",
+    "subscription changes are switched off",
+    "subscription changes are frozen: 2026-10-14T09:00:00.000Z — daily limit of 300 subscription changes reached",
+    'role "user-manager" may not change subscriptions',
+    "another subscription change is running, try again",
+    "limit: 60 subscription changes per hour per user",
+    "status CANCELLED does not allow pause",
+    "Kaching refused (400): Invalid input. Not retried — check in Kaching before trying again.",
+    "Kaching refused (502). Not retried — check in Kaching before trying again.",
+    "request accepted but the change is not visible yet — check in Kaching, do not repeat",
+    "done",
+    "a billing cycle is required",
+    "billing cycle 3 is not an upcoming cycle of this contract",
+    "billing cycle 1 is already skipped",
+    "billing cycle 2 is not skipped",
+    "a new date is required (YYYY-MM-DD)",
+    "the new date must be in the future",
+    "the new date is more than 400 days away",
+    "discount type must be PERCENTAGE or FIXED_AMOUNT",
+    "a percentage between 1 and 100 is required",
+    "an amount between 0.01 and 1000 is required",
+    "a discount title of 2 to 60 characters is required",
+    "the number of billing cycles must be between 1 and 60",
+    "a product line is required",
+    "this product line is not in the contract",
+    "the last product cannot be removed — cancel the subscription instead",
+    "a valid product variant is required",
+    "a quantity between 1 and 20 is required",
+    "a price between 0 and 20000 is required",
+    "nothing to change: a variant, a quantity or a price is required",
 ]
+
+
+def test_every_kaching_action_body_error_in_the_engine_is_translated():
+    """Drift guard for kachingActionBody_: every { error: '...' } literal in Kaching.gs has a Hebrew line."""
+    import os
+    src = os.path.join(os.path.dirname(__file__), "..", "..", "engine", "Kaching.gs")
+    if not os.path.exists(src):
+        pytest.skip("engine source not next to this folder (deployed copy)")
+    text = open(src, encoding="utf-8").read()
+    lits = []
+    for m in re.finditer(r"\{ error: (.*?) \}", text):
+        expr = m.group(1)
+        alts = expr.split(" ? ", 1)[1].split(" : ") if " ? " in expr else [expr]     # cond ? 'a' : 'b' -> both sentences
+        for alt in alts:
+            parts = re.findall(r"'((?:[^'\\]|\\.)*)'|([^+']+)", alt)
+            out = "".join(a if a else ("" if not c.strip() else "7") for a, c in parts)
+            if out:
+                lits.append(out)
+    assert len(lits) >= 15, lits
+    for lit in lits:
+        assert not messages.kaching_msg(lit, "he").startswith("תשובה מהמנוי"), lit
+
+
+def test_kaching_action_proxy_shapes(app, pw_hash, transport):
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    base = {"id": "t1", "contractId": "gid://shopify/SubscriptionContract/1234", "confirm": "1234"}
+    r = call(c, tok, "rozela", "apiKachingAction", dict(base, action="cancel"))
+    assert r.status_code == 400                                  # cancel has its own fn and gate; never through actions
+    r = call(c, tok, "rozela", "apiKachingAction", dict(base, action="pause", price=7))
+    assert r.status_code == 400                                  # numbers / objects never pass: the engine parses strings
+    transport.reply = {"ok": True, "action": "pause", "status": "PAUSED", "verified": True, "message": "done"}
+    j = call(c, tok, "rozela", "apiKachingAction", dict(base, action="pause", email="victim@x.com", role="admin")).get_json()
+    assert j["ok"] and j["msg"] == "בוצע."
+    sent = transport.calls[-1][1]["args"]
+    assert "email" not in sent and "role" not in sent and sent["action"] == "pause"
+    transport.reply = {"ok": False, "action": "pause", "status": None, "message": "status CANCELLED does not allow pause"}
+    j = call(c, tok, "rozela", "apiKachingAction", dict(base, action="pause")).get_json()
+    assert j["ok"] is False and "CANCELLED" in j["msg"] and j["message"].startswith("status")
 
 
 @pytest.mark.parametrize("raw", KACHING_GATE_MESSAGES)

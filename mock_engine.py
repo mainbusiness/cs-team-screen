@@ -35,13 +35,14 @@ TICKET_COLS = ['id', 'status', 'category', 'name', 'email', 'phone', 'channel', 
 WORK = ("agent", "admin")
 TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTicketExtras": WORK, "apiTickets": WORK,
          "apiSearch": WORK, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
-         "apiNote": WORK, "apiKachingCancel": WORK, "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
+         "apiNote": WORK, "apiKachingCancel": WORK, "apiKachingContract": WORK, "apiKachingAction": WORK, "apiKachingVariants": WORK,
+         "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
          "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK,
          "apiResult": WORK, "apiTicketLite": WORK, "apiDayStats": ("admin", "user-manager"),
          "apiTemplates": WORK, "apiSendTemplate": WORK,
          "apiAiNotes": ("admin",), "apiAiNoteAdd": ("admin",), "apiAiNoteDelete": ("admin",), "apiAttachPut": WORK}
-MOCK_WRITES = ("apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiWaTakeOver",
+MOCK_WRITES = ("apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiWaTakeOver",
                "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate", "apiAiNoteAdd", "apiAiNoteDelete")
 # engine 2026-10-11: apiBoot.myshopify (the store's admin handle) and extras.mailbox (the support address an email ticket came to).
 # apexmen has no myshopify on purpose (order numbers stay plain text); t18f2a02 has no mailbox (an older ticket: the line is hidden).
@@ -439,7 +440,7 @@ class MockEngines:
                 self.results[brand][rid] = (fn, "", dict(out))
             if isinstance(out, dict) and rid:
                 out = dict(out, fn=fn, rid=rid)                            # the live engine echoes both
-            if out.get("ok") and body.get("fn") in ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiSendTemplate"):
+            if out.get("ok") and body.get("fn") in ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiSendTemplate"):
                 self.version[brand] += 1
                 self.touched[brand][(body.get("args") or {}).get("id")] = self.version[brand]
             return out
@@ -761,6 +762,152 @@ class MockEngines:
             done.append(cid)
         t["cancelled"] = ",".join(done)
         return res(True, "cancelled", "CANCELLED")
+
+    # ---------- Kaching contract actions (engine Kaching.gs kachingContractAction, 2026-10-14) ----------
+    MOCK_VARIANTS = [{"id": "gid://shopify/ProductVariant/48134100517122", "product": "פורמולת הסלק", "title": "", "price": "189.00"},
+                     {"id": "gid://shopify/ProductVariant/48134100517123", "product": "פורמולת הסלק", "title": "זוג", "price": "329.00"},
+                     {"id": "gid://shopify/ProductVariant/48134100517124", "product": "כדורי דלעת", "title": "", "price": "149.90"}]
+    ACTION_FROM = {"pause": ("ACTIVE", "FAILED"), "resume": ("PAUSED",), "reactivate": ("CANCELLED", "EXPIRED", "FAILED")}
+
+    def _contract(self, brand, t, cid):
+        """The ticket customer's contract with ids, prices and cycles (built once from the snapshot's subscription)."""
+        subs = self._b(brand)["snaps"].get(t["id"], {}).get("subscriptions", [])
+        s = next((x for x in subs if x["id"] == cid), None)
+        if not s:
+            return None, None
+        if "cycles" not in s:
+            base = datetime.now(timezone.utc) + timedelta(days=28)
+            s["cycles"] = [{"index": i + 1, "date": _iso(base + timedelta(days=30 * i)), "skipped": False, "status": "UNBILLED"} for i in range(4)]
+            for i, l in enumerate(s["lines"]):
+                l.setdefault("id", "gid://shopify/SubscriptionLine/mock-%s-%d" % (cid[-4:], i))
+                l.setdefault("variantId", self.MOCK_VARIANTS[0]["id"])
+                l.setdefault("price", 160.65)
+            s.setdefault("discounts", [])
+            s.setdefault("currency", "ILS")
+        nxt = next((c for c in s["cycles"] if not c["skipped"]), None)
+        if s["status"] in ("ACTIVE", "FAILED"):
+            s["nextBillingDate"] = nxt["date"] if nxt else None
+        return s, subs
+
+    def apiKachingContract(self, brand, a, c):
+        t = self._find(brand, a.get("id"))
+        if not t:
+            return {"ok": False, "error": "not_found"}
+        if brand == "selera":
+            return {"ok": False, "error": "no_subscriptions"}
+        if not t.get("email"):
+            return {"ok": False, "error": "no_email"}
+        s, _ = self._contract(brand, t, a.get("contractId"))
+        if not s:
+            return {"ok": False, "error": "not_customers_contract"}
+        sw = self.switches[brand]
+        return {"ok": True, "id": t["id"], "contract": json.loads(json.dumps(s)), "writes": sw["writes"], "frozen": bool(sw["frozen"])}
+
+    def apiKachingVariants(self, brand, a, c):
+        return {"ok": True, "variants": list(self.MOCK_VARIANTS)}
+
+    def apiKachingAction(self, brand, a, c):
+        """Mirrors Kaching.gs kachingContractAction's checks, order and sentences (the common ones)."""
+        t = self._find(brand, a.get("id"))
+        if not t:
+            return {"ok": False, "error": "not_found"}
+        act = a.get("action")
+        res = lambda ok, msg, **kw: dict({"ok": ok, "action": act, "message": msg}, **kw)
+        if act not in ("pause", "resume", "reactivate", "skip", "unskip", "reschedule", "add_discount", "add_line", "update_line", "remove_line"):
+            return res(False, "unknown action")
+        sw = self.switches[brand]
+        if not sw["writes"]:
+            return res(False, "subscription changes are switched off")
+        if sw["frozen"]:
+            return res(False, "subscription changes are frozen: " + sw["frozen"])
+        if c["role"] not in ("admin", "agent"):
+            return res(False, 'role "%s" may not change subscriptions' % c["role"])
+        cid = a.get("contractId")
+        if not isinstance(cid, str) or not cid.startswith(CONTRACT_RE_PREFIX) or not cid[len(CONTRACT_RE_PREFIX):].isdigit():
+            return res(False, "exactly one valid contract id is required")
+        if str(a.get("confirm", "")) != cid[-4:]:
+            return res(False, "confirmation code does not match the contract")
+        if not t.get("email"):
+            return res(False, "ticket has no customer email")
+        s, _ = self._contract(brand, t, cid)
+        if not s:
+            return res(False, "this contract does not belong to the ticket's customer")
+        live = ("ACTIVE", "PAUSED", "FAILED")
+        if s["status"] not in self.ACTION_FROM.get(act, live):
+            return res(False, "status %s does not allow %s" % (s["status"], act))
+        cyc = None
+        if act in ("skip", "unskip", "reschedule"):
+            idx = str(a.get("cycleIndex", ""))
+            cyc = next((x for x in s["cycles"] if idx.isdigit() and x["index"] == int(idx)), None)
+            if not idx.isdigit():
+                return res(False, "a billing cycle is required")
+            if not cyc:
+                return res(False, "billing cycle %s is not an upcoming cycle of this contract" % idx)
+            if act == "skip" and cyc["skipped"]:
+                return res(False, "billing cycle %s is already skipped" % idx)
+            if act == "unskip" and not cyc["skipped"]:
+                return res(False, "billing cycle %s is not skipped" % idx)
+        line = None
+        if act in ("update_line", "remove_line"):
+            line = next((l for l in s["lines"] if l.get("id") == a.get("lineId")), None)
+            if not line:
+                return res(False, "this product line is not in the contract")
+            if act == "remove_line" and len(s["lines"]) < 2:
+                return res(False, "the last product cannot be removed — cancel the subscription instead")
+        if act == "pause":
+            s["status"] = "PAUSED"; s.pop("nextBillingDate", None)
+        elif act in ("resume", "reactivate"):
+            s["status"] = "ACTIVE"
+        elif act == "skip":
+            cyc["skipped"] = True
+        elif act == "unskip":
+            cyc["skipped"] = False
+        elif act == "reschedule":
+            d = str(a.get("billingDate", ""))
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+                return res(False, "a new date is required (YYYY-MM-DD)")
+            if d <= datetime.now(timezone.utc).strftime("%Y-%m-%d"):
+                return res(False, "the new date must be in the future")
+            cyc["date"] = d + cyc["date"][10:]
+        elif act == "add_discount":
+            typ, val, title = a.get("discountType"), str(a.get("value", "")), str(a.get("title", "")).strip()
+            if typ not in ("PERCENTAGE", "FIXED_AMOUNT"):
+                return res(False, "discount type must be PERCENTAGE or FIXED_AMOUNT")
+            try:
+                v = float(val)
+            except ValueError:
+                v = -1
+            if typ == "PERCENTAGE" and not (1 <= v <= 100):
+                return res(False, "a percentage between 1 and 100 is required")
+            if typ == "FIXED_AMOUNT" and not (0.01 <= v <= 1000):
+                return res(False, "an amount between 0.01 and 1000 is required")
+            if not (2 <= len(title) <= 60):
+                return res(False, "a discount title of 2 to 60 characters is required")
+            s["discounts"].append({"id": "gid://shopify/SubscriptionManualDiscount/mock%d" % len(s["discounts"]), "title": title,
+                                   "recurringCycleLimit": int(a["recurringCycleLimit"]) if str(a.get("recurringCycleLimit", "")).isdigit() else None})
+        elif act in ("add_line", "update_line"):
+            var = next((v for v in self.MOCK_VARIANTS if v["id"] == a.get("variantId")), None)
+            q = str(a.get("quantity", ""))
+            if act == "add_line" and not var:
+                return res(False, "a valid product variant is required")
+            if (act == "add_line" or q) and not (q.isdigit() and 1 <= int(q) <= 20):
+                return res(False, "a quantity between 1 and 20 is required")
+            if act == "add_line":
+                s["lines"].append({"id": "gid://shopify/SubscriptionLine/mock-new-%d" % len(s["lines"]), "title": var["product"],
+                                   "variantTitle": var["title"], "variantId": var["id"], "quantity": int(q), "price": float(var["price"])})
+            else:
+                if not (var or q or a.get("price")):
+                    return res(False, "nothing to change: a variant, a quantity or a price is required")
+                if var:
+                    line.update({"variantId": var["id"], "title": var["product"], "variantTitle": var["title"]})
+                if q:
+                    line["quantity"] = int(q)
+                if a.get("price"):
+                    line["price"] = float(a["price"])
+        elif act == "remove_line":
+            s["lines"] = [l for l in s["lines"] if l is not line]
+        self._contract(brand, t, cid)
+        return res(True, "done", verified=True, status=s["status"], contract=json.loads(json.dumps(s)))
 
     # ---------- auto-cancel + settings (FINAL engine shapes, coordinator 2026-10-05) ----------
     APPROVABLE = ("shadow_would_cancel", "aborted_newer", "refused")

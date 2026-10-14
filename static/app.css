@@ -185,6 +185,15 @@ body.view-settings .list-pane, body.view-settings .ticket-pane, body.view-settin
 .dlg input, .dlg textarea { border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font-weight: 400; }
 .dlg input.code { font-size: 22px; letter-spacing: 6px; text-align: center; direction: ltr; width: 140px; }
 .dlg .row-btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.dlg.dlg-wide { width: min(720px, 96vw); max-height: 92vh; }
+.dlg .row-btns.start { justify-content: flex-start; }
+.dlg h4 { margin: 0 0 6px; font-size: 15px; }
+.dlg select { border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font-weight: 400; background: var(--card, #fff); }
+.mg-sec { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 6px; }
+.mg-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+.mg-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.mg-work { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; background: var(--bg, #f8fafc); }
+.mg-summary { font-size: 15px; overflow-wrap: anywhere; }
 
 /* ---------- toast ---------- */
 .toast { position: fixed; inset-inline: 0; bottom: 18px; margin: 0 auto; width: max-content; max-width: 92vw; background: #111827; color: #fff;

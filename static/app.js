@@ -77,6 +77,26 @@
       every_day: 'כל יום', every_week: 'כל שבוע', every_month: 'כל חודש', every_year: 'כל שנה', every_n: 'כל {n} {u}',
       unit_day: 'ימים', unit_week: 'שבועות', unit_month: 'חודשים', unit_year: 'שנים',
       cancel_sub: 'ביטול מנוי', cancelled_here: 'בוטל דרך המערכת',
+      manage_sub: 'ניהול מנוי', mg_title: 'ניהול מנוי', mg_loading: 'טוען את המנוי מקצ׳ינג…', mg_err_load: 'לא הצלחנו לטעון את המנוי.',
+      mg_pause: 'השהיית מנוי', mg_resume: 'חידוש מנוי', mg_reactivate: 'הפעלה מחדש', mg_cancel: 'ביטול מנוי',
+      mg_cycles: 'משלוחים וחיובים הבאים', mg_no_cycles: 'אין משלוחים עתידיים.', mg_cycle_n: 'משלוח {n}', mg_skipped: 'מדולג',
+      mg_skip: 'דילוג', mg_unskip: 'ביטול הדילוג', mg_resched: 'שינוי תאריך', mg_new_date: 'תאריך חדש',
+      mg_lines: 'מוצרים במנוי', mg_qty: 'כמות', mg_price: 'מחיר ליחידה', mg_change: 'שינוי', mg_remove: 'הסרה', mg_add_line: 'הוספת מוצר',
+      mg_swap: 'החלפה למוצר', mg_keep: 'בלי החלפה', mg_pick: 'בחרו מוצר…', mg_variant: 'מוצר מהחנות', mg_variants_loading: 'טוען מוצרים מהחנות…',
+      mg_price_opt: 'מחיר ליחידה (ריק = בלי שינוי)', mg_price_new_opt: 'מחיר ליחידה (ריק = מחיר המנוי של החנות)',
+      mg_discounts: 'הנחות', mg_no_discounts: 'אין הנחות במנוי.', mg_add_discount: 'הוספת הנחה', mg_dtype: 'סוג', mg_dtype_pct: 'אחוזים (%)',
+      mg_dtype_fixed: 'סכום קבוע', mg_dvalue: 'ערך', mg_dtitle: 'שם ההנחה (הלקוח רואה אותו)', mg_dcycles: 'לכמה משלוחים (ריק = לתמיד)',
+      mg_dc_forever: 'לתמיד', mg_dc_n: 'ל-{n} משלוחים',
+      mg_next: 'המשך לאישור', mg_type: 'כדי לאשר, הקלידו את 4 הספרות האחרונות של מספר המנוי', mg_reason: 'הערה ליומן (אופציונלי)',
+      mg_go: 'לבצע', mg_working: 'מבצע…', mg_back: 'חזרה', mg_close: 'סגירה', mg_confirm: 'מה יקרה:',
+      mg_off: 'לפי המנוע, שינויים במנויים כבויים כרגע — סביר שהבקשה תסורב.', mg_frozen: 'שינויים במנויים מוקפאים כרגע — סביר שהבקשה תסורב.',
+      mg_done: 'בוצע ✓', mg_unverified: 'קצ׳ינג קיבל את הבקשה, אבל השינוי עוד לא מופיע. לבדוק בקצ׳ינג — לא לחזור על הפעולה.',
+      mg_do_pause: 'להשהות את המנוי. לא יהיו חיובים ומשלוחים עד שמחדשים אותו.', mg_do_resume: 'לחדש את המנוי. החיובים והמשלוחים חוזרים לפי הלוח.',
+      mg_do_reactivate: 'להפעיל מחדש מנוי מבוטל. הלקוח יחויב שוב לפי הלוח.', mg_do_skip: 'לדלג על משלוח {n} ({d}): לא יהיה חיוב ולא משלוח בתאריך הזה.',
+      mg_do_unskip: 'להחזיר את משלוח {n} ({d}).', mg_do_reschedule: 'להזיז את משלוח {n} מ-{d} ל-{nd}.',
+      mg_do_add_discount: 'להוסיף הנחה «{title}»: {v}, {c}.', mg_do_add_line: 'להוסיף למנוי: {q} × {p}{pr}.',
+      mg_do_update_line: 'לשנות את «{p}»: {what}.', mg_do_remove_line: 'להסיר מהמנוי את «{p}».',
+      mg_w_qty: 'כמות {q}', mg_w_swap: 'החלפה ל{p}', mg_w_price: 'מחיר {pr} ליחידה',
       afs_title: 'ההודעה ל{name} נשלחה. נשאר לטפל:', afs_open: 'פתח את הפנייה', afs_done: 'טיפלתי', afs_chip: 'נשאר לטפל', afs_cancelled: 'המנוי של {name} בוטל אוטומטית',
       afs_sub_no_email: 'המנוי לא בוטל: אין בפנייה כתובת מייל של הלקוח, אז אי אפשר למצוא את המנוי. לבטל ידנית.',
       afs_sub_unreachable: 'המנוי לא בוטל: לא הצלחנו להתחבר למערכת המנויים. לבטל ידנית.',
@@ -248,6 +268,26 @@
       every_day: 'Every day', every_week: 'Every week', every_month: 'Every month', every_year: 'Every year', every_n: 'Every {n} {u}',
       unit_day: 'days', unit_week: 'weeks', unit_month: 'months', unit_year: 'years',
       cancel_sub: 'Cancel subscription', cancelled_here: 'Cancelled from this screen',
+      manage_sub: 'Manage subscription', mg_title: 'Manage subscription', mg_loading: 'Loading the subscription from Kaching…', mg_err_load: 'Could not load the subscription.',
+      mg_pause: 'Pause', mg_resume: 'Resume', mg_reactivate: 'Reactivate', mg_cancel: 'Cancel subscription',
+      mg_cycles: 'Upcoming deliveries and charges', mg_no_cycles: 'No upcoming deliveries.', mg_cycle_n: 'Delivery {n}', mg_skipped: 'Skipped',
+      mg_skip: 'Skip', mg_unskip: 'Unskip', mg_resched: 'Change date', mg_new_date: 'New date',
+      mg_lines: 'Products', mg_qty: 'Quantity', mg_price: 'Unit price', mg_change: 'Change', mg_remove: 'Remove', mg_add_line: 'Add product',
+      mg_swap: 'Swap to', mg_keep: 'No swap', mg_pick: 'Choose a product…', mg_variant: 'Store product', mg_variants_loading: 'Loading the store products…',
+      mg_price_opt: 'Unit price (empty = no change)', mg_price_new_opt: 'Unit price (empty = the store subscription price)',
+      mg_discounts: 'Discounts', mg_no_discounts: 'No discounts on this subscription.', mg_add_discount: 'Add discount', mg_dtype: 'Type', mg_dtype_pct: 'Percentage (%)',
+      mg_dtype_fixed: 'Fixed amount', mg_dvalue: 'Value', mg_dtitle: 'Discount name (the customer sees it)', mg_dcycles: 'For how many deliveries (empty = forever)',
+      mg_dc_forever: 'forever', mg_dc_n: 'for {n} deliveries',
+      mg_next: 'Continue to confirm', mg_type: 'To confirm, type the last 4 digits of the contract number', mg_reason: 'Note for the log (optional)',
+      mg_go: 'Do it', mg_working: 'Working…', mg_back: 'Back', mg_close: 'Close', mg_confirm: 'What will happen:',
+      mg_off: 'The engine says subscription changes are off — this will likely be refused.', mg_frozen: 'Subscription changes are frozen — this will likely be refused.',
+      mg_done: 'Done ✓', mg_unverified: 'Kaching accepted it but the change is not visible yet. Check in Kaching — do not repeat it.',
+      mg_do_pause: 'Pause the subscription. No charges or deliveries until it is resumed.', mg_do_resume: 'Resume the subscription. Charges and deliveries continue on schedule.',
+      mg_do_reactivate: 'Reactivate a cancelled subscription. The customer will be charged again on schedule.', mg_do_skip: 'Skip delivery {n} ({d}): no charge and no delivery on that date.',
+      mg_do_unskip: 'Restore delivery {n} ({d}).', mg_do_reschedule: 'Move delivery {n} from {d} to {nd}.',
+      mg_do_add_discount: 'Add the discount “{title}”: {v}, {c}.', mg_do_add_line: 'Add to the subscription: {q} × {p}{pr}.',
+      mg_do_update_line: 'Change “{p}”: {what}.', mg_do_remove_line: 'Remove “{p}” from the subscription.',
+      mg_w_qty: 'quantity {q}', mg_w_swap: 'swap to {p}', mg_w_price: 'price {pr} each',
       afs_title: 'Your message to {name} was sent. Still to do:', afs_open: 'Open the ticket', afs_done: 'Done', afs_chip: 'Still to do', afs_cancelled: "{name}'s subscription was cancelled automatically",
       afs_sub_no_email: 'The subscription was NOT cancelled: the ticket has no customer email, so the subscription cannot be found. Cancel it manually.',
       afs_sub_unreachable: 'The subscription was NOT cancelled: the subscriptions system could not be reached. Cancel it manually.',
@@ -3011,9 +3051,12 @@
           h('dt', { text: t('sub_since') }), h('dd', { text: fmtDate(s.createdAt) }),
           s.lastPaymentStatus ? h('dt', { text: t('sub_lastpay') }) : null, s.lastPaymentStatus ? h('dd', { text: payText(s.lastPaymentStatus) }) : null,
           h('dt', { text: t('sub_id') }), h('dd', null, h('bdi', { class: 'ltr', text: contractNum(s.id) }))));
-      if (cancellable && canWork()) {
-        card.append(h('div', { class: 'actions' }, h('button', { class: 'btn danger-outline small', type: 'button', text: t('cancel_sub'),
-          disabled: !isOpen && false, onclick: function () { Cancel.open(x, s); } })));
+      if (canWork()) {
+        // Owner, 2026-10-14: every Kaching action (pause, resume, skip, date, products, discount, reactivate) from here
+        card.append(h('div', { class: 'actions' },
+          h('button', { class: 'btn small', type: 'button', text: t('manage_sub'), 'data-test': 'manage-sub', onclick: function () { Manage.open(x, s); } }),
+          cancellable ? h('button', { class: 'btn danger-outline small', type: 'button', text: t('cancel_sub'),
+            disabled: !isOpen && false, onclick: function () { Cancel.open(x, s); } }) : null));
       }
       list.append(card);
     });
@@ -3090,6 +3133,236 @@
       dlg.showModal();
       setTimeout(function () { code.focus(); }, 0);
     }
+    return { open: open };
+  })();
+
+
+  // ---- manage subscription: every Kaching action (Owner, 2026-10-14). The engine gate re-checks everything; this is the form.
+  const Manage = (function () {
+    const dlg = $('sub-dlg');
+    let st = null;
+    const LIVE = ['ACTIVE', 'PAUSED', 'FAILED'];
+    function money(v, cur) {
+      if (v === null || v === undefined || v === '' || !isFinite(Number(v))) return '—';
+      return Number(v).toFixed(2).replace(/\.00$/, '') + ' ' + (cur === 'ILS' || !cur ? '₪' : cur);
+    }
+    function lineName(l) { return (l.title || '—') + (l.variantTitle ? ' · ' + l.variantTitle : ''); }
+    function varName(v) { return (v.product || '—') + (v.title ? ' · ' + v.title : '') + (v.price ? ' (' + money(v.price) + ')' : ''); }
+    function refreshSubsCard(x) {
+      (async function () {
+        if (!(S.tk && S.tk.id === x.id)) return;
+        const fr = await fetchTicket(st ? st.brand : S.brand, x.id, true);
+        if (S.tk && S.tk.id === x.id && fr.ok) {
+          S.tk.extras = fr.extras || {};
+          const slot = document.getElementById('subs-card');
+          if (slot) { clear(slot); slot.append(subsCard(S.tk.extras || {}, S.tk.ticket)); }
+        }
+      })();
+    }
+    async function open(x, s) {
+      if (st && st.busy) return;
+      st = { x: x, s: s, brand: tkBrand(x), c: null, edit: null, busy: false, variants: null, note: null };
+      clear(dlg);
+      dlg.append(h('div', { class: 'in' }, h('h3', { text: t('mg_title') }), h('div', { class: 'muted', text: t('mg_loading') })));
+      if (!dlg.open) dlg.showModal();
+      const r = await engine('apiKachingContract', { id: x.id, contractId: s.id }, st.brand);
+      if (!st || st.s !== s) return;
+      if (!r.ok) {
+        clear(dlg);
+        dlg.append(h('div', { class: 'in' }, h('h3', { text: t('mg_title') }),
+          h('div', { class: 'err-box', role: 'alert' }, h('div', { text: r.msg || t('mg_err_load') }), r.error ? h('bdi', { class: 'raw', text: r.error }) : null),
+          h('div', { class: 'row-btns' }, h('button', { class: 'btn ghost', type: 'button', text: t('mg_close'), onclick: function () { dlg.close(); } }))));
+        return;
+      }
+      st.c = r.contract; st.writes = r.writes; st.frozen = r.frozen;
+      render();
+    }
+    async function loadVariants() {
+      if (st.variants) return;
+      const r = await engine('apiKachingVariants', {}, st.brand);
+      st.variants = r.ok && Array.isArray(r.variants) ? r.variants : [];
+      st.variantsErr = r.ok ? null : (r.msg || r.error);
+      render();
+    }
+    function startEdit(edit) {
+      if (!st || st.busy) return;
+      st.edit = edit; st.note = null;
+      if (edit.kind === 'line' || edit.kind === 'add_line') loadVariants();
+      render();
+      setTimeout(function () { const w = document.getElementById('mg-work'); if (w) w.scrollIntoView({ block: 'nearest' }); }, 0);
+    }
+    // the summary is held in ONE element (a fragment empties itself when appended, and render() may run again)
+    function confirmOf(action, params, summary) { startEdit({ kind: 'confirm', action: action, params: params || {}, summary: h('span', { dir: 'auto' }, summary) }); }
+    function btn(text, onclick, cls) { return h('button', { class: 'btn small ' + (cls || ''), type: 'button', text: text, disabled: st.busy, onclick: onclick }); }
+
+    function workArea() {
+      const e = st.edit;
+      if (!e) return null;
+      const c = st.c;
+      const wrap = h('div', { class: 'mg-work', id: 'mg-work' });
+      const put = function () { for (let k = 0; k < arguments.length; k++) add(wrap, arguments[k]); };   // add() skips null; native append would print "null"
+      const back = btn(t('mg_back'), function () { st.edit = null; render(); }, 'ghost');
+      if (e.kind === 'confirm') {
+        const last4 = String(c.id).slice(-4);
+        const code = h('input', { class: 'code', inputmode: 'numeric', maxlength: '4', autocomplete: 'off', pattern: '[0-9]{4}', 'aria-label': t('mg_type') });
+        const reason = h('textarea', { rows: '2', dir: 'auto', maxlength: '500' });
+        const result = h('div', { 'aria-live': 'assertive' });
+        const go = h('button', { class: 'btn ' + (e.action === 'pause' || e.action === 'remove_line' ? 'danger' : 'primary'), type: 'button', text: t('mg_go'), disabled: true, 'data-test': 'mg-go' });
+        code.addEventListener('input', function () {
+          code.value = code.value.replace(/\D/g, '').slice(0, 4);
+          code.setAttribute('aria-invalid', code.value.length === 4 && code.value !== last4 ? 'true' : 'false');
+          go.disabled = st.busy || code.value !== last4;
+        });
+        go.addEventListener('click', async function () {
+          if (st.busy || code.value !== last4) return;
+          st.busy = true; go.disabled = true; back.disabled = true; go.textContent = t('mg_working'); clear(result);
+          const args = Object.assign({ id: st.x.id, contractId: c.id, action: e.action, confirm: code.value, reason: reason.value.trim() }, e.params);
+          const mine = st;
+          const r = await engine('apiKachingAction', args, st.brand);
+          if (st !== mine) return;
+          st.busy = false; back.disabled = false; go.textContent = t('mg_go');
+          if (r.ok) {
+            if (r.contract && r.contract.id === c.id) st.c = r.contract;
+            st.edit = null;
+            st.note = r.verified ? null : (r.msg || t('mg_unverified'));
+            toast(r.verified ? t('mg_done') : (r.msg || t('mg_unverified')));
+            render();
+            refreshSubsCard(st.x);
+            return;
+          }
+          go.disabled = code.value !== last4;
+          result.append(h('div', { class: 'err-box', role: 'alert' }, h('div', { text: r.msg || r.error }), r.message ? h('bdi', { class: 'raw', text: r.message }) : null));
+        });
+        const warn = st.frozen ? h('div', { class: 'problem', text: t('mg_frozen') }) : (st.writes === false ? h('div', { class: 'problem', text: t('mg_off') }) : null);
+        put(h('div', { class: 'mg-summary' }, h('b', { text: t('mg_confirm') + ' ' }), e.summary), warn,
+          h('label', null, t('mg_type'), code), h('label', null, t('mg_reason'), reason), result, h('div', { class: 'row-btns' }, back, go));
+        setTimeout(function () { code.focus(); }, 0);
+        return wrap;
+      }
+      if (e.kind === 'reschedule') {
+        const tomorrow = new Date(Date.now() + 86400e3).toISOString().slice(0, 10);
+        const inp = h('input', { type: 'date', min: tomorrow, value: String(e.cycle.date).slice(0, 10) });
+        const next = btn(t('mg_next'), function () {
+          const v = inp.value;
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || v === String(e.cycle.date).slice(0, 10)) return;
+          confirmOf('reschedule', { cycleIndex: String(e.cycle.index), billingDate: v },
+            tx('mg_do_reschedule', { n: e.cycle.index, d: fmtDate(e.cycle.date), nd: fmtDate(v + 'T12:00:00Z') }));
+        }, 'primary');
+        put(h('h4', { text: tx('mg_cycle_n', { n: e.cycle.index }) }), h('label', null, t('mg_new_date'), inp), h('div', { class: 'row-btns' }, back, next));
+        return wrap;
+      }
+      if (e.kind === 'line' || e.kind === 'add_line') {
+        const l = e.line;
+        const sel = h('select', { 'aria-label': e.kind === 'line' ? t('mg_swap') : t('mg_variant') },
+          h('option', { value: '', text: e.kind === 'line' ? t('mg_keep') : t('mg_pick') }),
+          (st.variants || []).map(function (v) { return h('option', { value: v.id, text: varName(v) }); }));
+        const qty = h('input', { type: 'number', min: '1', max: '20', step: '1', inputmode: 'numeric', value: l ? String(l.quantity) : '1' });
+        const price = h('input', { type: 'text', inputmode: 'decimal', dir: 'ltr', placeholder: l && l.price !== null ? String(l.price) : '' });
+        const next = btn(t('mg_next'), function () {
+          const p = {};
+          const what = [];
+          const pr = price.value.trim();
+          if (pr && !/^\d{1,6}(\.\d{1,2})?$/.test(pr)) { price.setAttribute('aria-invalid', 'true'); return; }
+          if (e.kind === 'add_line') {
+            const v = (st.variants || []).filter(function (x) { return x.id === sel.value; })[0];
+            if (!v) { sel.setAttribute('aria-invalid', 'true'); return; }
+            p.variantId = v.id; p.quantity = String(qty.value || '1');
+            if (pr) p.price = pr;
+            confirmOf('add_line', p, tx('mg_do_add_line', { q: p.quantity, p: varName(v), pr: pr ? ' · ' + money(pr, st.c.currency) : '' }));
+            return;
+          }
+          lineId(p, l);
+          if (sel.value) { const v = (st.variants || []).filter(function (x) { return x.id === sel.value; })[0]; p.variantId = sel.value; what.push(t('mg_w_swap', { p: v ? varName(v) : sel.value })); }
+          if (String(qty.value) !== String(l.quantity)) { p.quantity = String(qty.value); what.push(t('mg_w_qty', { q: qty.value })); }
+          if (pr) { p.price = pr; what.push(t('mg_w_price', { pr: money(pr, st.c.currency) })); }
+          if (!what.length) return;
+          confirmOf('update_line', p, tx('mg_do_update_line', { p: lineName(l), what: what.join(', ') }));
+        }, 'primary');
+        put(h('h4', { text: e.kind === 'line' ? lineName(l) : t('mg_add_line') }),
+          st.variants === null ? h('div', { class: 'muted small', text: t('mg_variants_loading') }) : null,
+          st.variantsErr ? h('div', { class: 'problem', text: st.variantsErr }) : null,
+          h('label', null, e.kind === 'line' ? t('mg_swap') : t('mg_variant'), sel),
+          h('label', null, t('mg_qty'), qty),
+          h('label', null, e.kind === 'line' ? t('mg_price_opt') : t('mg_price_new_opt'), price),
+          h('div', { class: 'row-btns' }, back, next));
+        return wrap;
+      }
+      if (e.kind === 'discount') {
+        const type = h('select', { 'aria-label': t('mg_dtype') }, h('option', { value: 'PERCENTAGE', text: t('mg_dtype_pct') }), h('option', { value: 'FIXED_AMOUNT', text: t('mg_dtype_fixed') }));
+        const val = h('input', { type: 'text', inputmode: 'decimal', dir: 'ltr' });
+        const title = h('input', { type: 'text', dir: 'auto', maxlength: '60' });
+        const cyc = h('input', { type: 'number', min: '1', max: '60', step: '1', inputmode: 'numeric' });
+        const next = btn(t('mg_next'), function () {
+          const v = val.value.trim();
+          if (!/^\d{1,6}(\.\d{1,2})?$/.test(v)) { val.setAttribute('aria-invalid', 'true'); return; }
+          if (title.value.trim().length < 2) { title.setAttribute('aria-invalid', 'true'); return; }
+          const p = { discountType: type.value, value: v, title: title.value.trim() };
+          if (cyc.value) p.recurringCycleLimit = String(cyc.value);
+          confirmOf('add_discount', p, tx('mg_do_add_discount', { title: p.title, v: type.value === 'PERCENTAGE' ? v + '%' : money(v, st.c.currency),
+            c: p.recurringCycleLimit ? t('mg_dc_n', { n: p.recurringCycleLimit }) : t('mg_dc_forever') }));
+        }, 'primary');
+        put(h('h4', { text: t('mg_add_discount') }), h('label', null, t('mg_dtype'), type), h('label', null, t('mg_dvalue'), val),
+          h('label', null, t('mg_dtitle'), title), h('label', null, t('mg_dcycles'), cyc), h('div', { class: 'row-btns' }, back, next));
+        return wrap;
+      }
+      return null;
+    }
+    function lineId(p, l) { p.lineId = l.id; }
+
+    function render() {
+      if (!st || !st.c) return;
+      const c = st.c;
+      const live = LIVE.indexOf(c.status) >= 0;
+      const editing = !!st.edit;
+      const items = (c.lines || []).map(function (l) { return (l.quantity > 1 ? l.quantity + ' × ' : '') + l.title; }).join(', ');
+      const top = [];
+      if (c.status === 'ACTIVE' || c.status === 'FAILED') top.push(btn(t('mg_pause'), function () { confirmOf('pause', {}, t('mg_do_pause')); }, 'danger-outline'));
+      if (c.status === 'PAUSED') top.push(btn(t('mg_resume'), function () { confirmOf('resume', {}, t('mg_do_resume')); }, 'primary'));
+      if (['CANCELLED', 'EXPIRED', 'FAILED'].indexOf(c.status) >= 0) top.push(btn(t('mg_reactivate'), function () { confirmOf('reactivate', {}, t('mg_do_reactivate')); }));
+      if (live) top.push(btn(t('mg_cancel'), function () { const x = st.x, s = st.s; dlg.close(); st = null; Cancel.open(x, s); }, 'danger-outline'));
+
+      const cycles = h('div', { class: 'mg-sec' }, h('h4', { text: t('mg_cycles') }));
+      if (!(c.cycles || []).length) cycles.append(h('div', { class: 'muted small', text: t('mg_no_cycles') }));
+      (c.cycles || []).forEach(function (cy) {
+        cycles.append(h('div', { class: 'mg-row', 'data-test': 'mg-cycle' },
+          h('span', null, tx('mg_cycle_n', { n: cy.index }), ' · ', h('b', { text: fmtDate(cy.date) }), cy.skipped ? h('span', { class: 'chip bad', text: t('mg_skipped') }) : null),
+          live && !editing ? h('span', { class: 'mg-btns' },
+            cy.skipped ? btn(t('mg_unskip'), function () { confirmOf('unskip', { cycleIndex: String(cy.index) }, tx('mg_do_unskip', { n: cy.index, d: fmtDate(cy.date) })); })
+              : btn(t('mg_skip'), function () { confirmOf('skip', { cycleIndex: String(cy.index) }, tx('mg_do_skip', { n: cy.index, d: fmtDate(cy.date) })); }),
+            btn(t('mg_resched'), function () { startEdit({ kind: 'reschedule', cycle: cy }); })) : null));
+      });
+
+      const lines = h('div', { class: 'mg-sec' }, h('h4', { text: t('mg_lines') }));
+      (c.lines || []).forEach(function (l) {
+        lines.append(h('div', { class: 'mg-row', 'data-test': 'mg-line' },
+          h('span', null, h('b', { dir: 'auto', text: lineName(l) }), ' · ', t('mg_qty') + ' ' + l.quantity, ' · ', money(l.price, c.currency)),
+          live && !editing && l.id ? h('span', { class: 'mg-btns' },
+            btn(t('mg_change'), function () { startEdit({ kind: 'line', line: l }); }),
+            (c.lines || []).length > 1 ? btn(t('mg_remove'), function () { confirmOf('remove_line', { lineId: l.id }, tx('mg_do_remove_line', { p: lineName(l) })); }, 'danger-outline') : null) : null));
+      });
+      if (live && !editing) lines.append(h('div', { class: 'row-btns start' }, btn(t('mg_add_line'), function () { startEdit({ kind: 'add_line' }); })));
+
+      const disc = h('div', { class: 'mg-sec' }, h('h4', { text: t('mg_discounts') }));
+      if (!(c.discounts || []).length) disc.append(h('div', { class: 'muted small', text: t('mg_no_discounts') }));
+      (c.discounts || []).forEach(function (d) {
+        disc.append(h('div', { class: 'mg-row' }, h('span', null, h('b', { dir: 'auto', text: d.title || '—' }), d.recurringCycleLimit ? ' · ' + t('mg_dc_n', { n: d.recurringCycleLimit }) : '')));
+      });
+      if (live && !editing) disc.append(h('div', { class: 'row-btns start' }, btn(t('mg_add_discount'), function () { startEdit({ kind: 'discount' }); })));
+
+      clear(dlg);
+      dlg.append(h('div', { class: 'in' },
+        h('h3', { text: t('mg_title') }),
+        h('div', null, h('b', { dir: 'auto', text: items || '—' }), ' ', h('span', { class: 'chip ' + (c.status === 'ACTIVE' ? 'ok' : c.status === 'CANCELLED' ? '' : 'bad'), text: t('ss_' + c.status) })),
+        h('div', { class: 'small muted' }, t('sub_id') + ': ', h('bdi', { class: 'ltr', text: contractNum(c.id) }), ' · ', t('sub_every') + ': ' + everyText(c.every),
+          st.x.email ? [' · ', h('bdi', { class: 'ltr', text: st.x.email })] : null),
+        st.note ? h('div', { class: 'problem', role: 'status', text: st.note }) : null,
+        top.length && !editing ? h('div', { class: 'row-btns start' }, top) : null,
+        cycles, lines, disc,
+        workArea(),
+        editing ? null : h('div', { class: 'row-btns' }, h('button', { class: 'btn ghost', type: 'button', text: t('mg_close'), onclick: function () { dlg.close(); } }))));
+    }
+    dlg.addEventListener('cancel', function (e) { if (st && st.busy) e.preventDefault(); });
+    dlg.addEventListener('close', function () { if (st && !st.busy) st = null; });
     return { open: open };
   })();
 

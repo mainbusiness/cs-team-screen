@@ -92,6 +92,12 @@ ENGINE = {
     "attach_id_reuse": ("תקלה בהעלאת הקובץ. לצרף אותו שוב.", "The upload failed. Attach the file again."),
     "attach_failed": ("תקלה בהעלאת הקובץ. לצרף אותו שוב.", "The upload failed. Attach the file again."),
     "bad_attach": ("תקלה בהעלאת הקובץ. לצרף אותו שוב.", "The upload failed. Attach the file again."),
+    # Kaching contract panel (2026-10-14)
+    "no_subscriptions": ("למותג הזה אין מערכת מנויים מחוברת.", "This brand has no subscription system connected."),
+    "no_email": ("לפנייה אין מייל לקוח — אי אפשר למצוא את המנוי שלו.", "The ticket has no customer email, so the subscription cannot be found."),
+    "not_customers_contract": ("המנוי הזה לא שייך ללקוח של הפנייה.", "This subscription does not belong to the ticket's customer."),
+    "kaching_unavailable": ("אין חיבור למערכת המנויים (קצ'ינג) כרגע. נסו שוב בעוד רגע.", "Cannot reach the subscription system (Kaching). Try again shortly."),
+    "shopify_unavailable": ("אין חיבור לחנות כרגע (רשימת המוצרים). נסו שוב בעוד רגע.", "Cannot reach the store right now (product list). Try again shortly."),
     "unauthorized": ("המנוע סירב להרשאה (פג תוקף, תפקיד או מותג לא תואם). רעננו את הדף.",
                      "The engine refused the credentials (expired, role or brand mismatch). Refresh."),
     "busy": ("המערכת באמצע פעולה אחרת. נסו שוב בעוד כמה שניות.", "The engine is busy. Try again in a few seconds."),
@@ -186,6 +192,44 @@ KACHING = [
     (r"^error: (.*)$", "שגיאה בבדיקת המנוי: {0}", "Error while checking the contract: {0}"),
     (r"^cancelled$", "המנוי בוטל.", "The subscription was cancelled."),
     (r"^already cancelled$", "המנוי כבר היה מבוטל.", "The subscription was already cancelled."),
+    # Kaching.gs kachingContractAction() — pause / resume / skip / discount / products (2026-10-14)
+    (r"^unknown action$", "פעולה לא מוכרת על המנוי.", "Unknown subscription action."),
+    (r"^subscription changes are switched off$", "שינויים במנויים כבויים כרגע במערכת. רק גיא מדליק אותם.", "Subscription changes are switched off."),
+    (r"^subscription changes are frozen: (.*)$", "שינויים במנויים מוקפאים ({0}). רק אדמין יכול לשחרר את ההקפאה.",
+     "Subscription changes are frozen ({0}). Only an admin can lift it."),
+    (r"^role \"(.*)\" may not change subscriptions$", "לתפקיד \"{0}\" אין הרשאה לשנות מנויים.", "Role \"{0}\" may not change subscriptions."),
+    (r"^another subscription change is running, try again$", "שינוי אחר במנוי רץ ברגע זה. נסו שוב בעוד כמה שניות.",
+     "Another subscription change is running. Try again."),
+    (r"^limit: (\S+) subscription changes per hour per user$", "הגעת למגבלה: {0} שינויים במנויים בשעה למשתמש. גיא קיבל התראה.",
+     "Limit reached: {0} subscription changes per hour per user."),
+    (r"^status (\S+) does not allow (\S+)$", "במנוי בסטטוס {0} אי אפשר לבצע את הפעולה הזאת ({1}).", "A contract in status {0} does not allow {1}."),
+    (r"^Kaching refused \((\d+)\)(.*?)\. Not retried.*$", "קצ'ינג סירב (שגיאה {0}{1}). לא נוסה שוב — בדקו בקצ'ינג לפני ניסיון נוסף.",
+     "Kaching refused ({0}{1}). Not retried — check in Kaching first."),
+    (r"^request accepted but the change is not visible yet.*$", "קצ'ינג קיבל את הבקשה, אבל השינוי עוד לא מופיע. בדקו בקצ'ינג — לא לחזור על הפעולה.",
+     "Kaching accepted it but the change is not visible yet. Check in Kaching — do not repeat it."),
+    (r"^done$", "בוצע.", "Done."),
+    (r"^a billing cycle is required$", "צריך לבחור משלוח (מחזור חיוב).", "Choose a billing cycle."),
+    (r"^billing cycle (\d+) is not an upcoming cycle of this contract$", "משלוח {0} הוא לא משלוח עתידי של המנוי הזה. רעננו.",
+     "Cycle {0} is not an upcoming cycle of this contract. Refresh."),
+    (r"^billing cycle (\d+) is already skipped$", "משלוח {0} כבר מדולג.", "Cycle {0} is already skipped."),
+    (r"^billing cycle (\d+) is not skipped$", "משלוח {0} לא מדולג.", "Cycle {0} is not skipped."),
+    (r"^a new date is required \(YYYY-MM-DD\)$", "צריך לבחור תאריך חדש.", "Choose a new date."),
+    (r"^the new date must be in the future$", "התאריך החדש חייב להיות בעתיד.", "The new date must be in the future."),
+    (r"^the new date is more than 400 days away$", "התאריך החדש רחוק מדי (יותר מ-400 יום).", "The new date is more than 400 days away."),
+    (r"^discount type must be PERCENTAGE or FIXED_AMOUNT$", "סוג הנחה: אחוזים או סכום קבוע.", "Discount type: percentage or fixed amount."),
+    (r"^a percentage between 1 and 100 is required$", "אחוז הנחה בין 1 ל-100.", "A percentage between 1 and 100."),
+    (r"^an amount between 0\.01 and (\S+) is required$", "סכום הנחה בין 0.01 ל-{0}.", "An amount between 0.01 and {0}."),
+    (r"^a discount title of 2 to 60 characters is required$", "שם להנחה: 2 עד 60 תווים.", "A discount title of 2 to 60 characters."),
+    (r"^the number of billing cycles must be between 1 and 60$", "מספר המשלוחים להנחה: 1 עד 60 (או ריק = לתמיד).",
+     "Number of cycles: 1 to 60 (or empty = forever)."),
+    (r"^a product line is required$", "צריך לבחור מוצר במנוי.", "Choose a product of the subscription."),
+    (r"^this product line is not in the contract$", "המוצר הזה כבר לא במנוי. רעננו.", "This product is no longer in the subscription. Refresh."),
+    (r"^the last product cannot be removed.*$", "אי אפשר להסיר את המוצר האחרון במנוי — אם צריך, מבטלים את המנוי.",
+     "The last product cannot be removed — cancel the subscription instead."),
+    (r"^a valid product variant is required$", "צריך לבחור מוצר מהחנות.", "Choose a product from the store."),
+    (r"^a quantity between 1 and 20 is required$", "כמות בין 1 ל-20.", "A quantity between 1 and 20."),
+    (r"^a price between 0 and 20000 is required$", "מחיר בין 0 ל-20000.", "A price between 0 and 20000."),
+    (r"^nothing to change.*$", "לא נבחר שום שינוי (מוצר, כמות או מחיר).", "Nothing to change (product, quantity or price)."),
 ]
 
 
@@ -268,7 +312,7 @@ def kaching_msg(message, lang="he"):
 
 def engine_error_msg(resp, fn, lang="he"):
     """Localized line for an engine {ok:false} answer."""
-    if fn == "apiKachingCancel" and resp.get("message"):
+    if fn in ("apiKachingCancel", "apiKachingAction") and resp.get("message"):
         return kaching_msg(resp.get("message"), lang)
     code = str(resp.get("error") or "")
     table = AUTO if fn in AUTO_FNS else SETTINGS if fn == "apiSettings" else AI_NOTES if fn in AI_NOTE_FNS else None

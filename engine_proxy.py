@@ -31,6 +31,10 @@ ALL_ROLES = ("agent", "admin", "user-manager")
 WORK_ROLES = ("agent", "admin")
 ADMIN_ONLY = ("admin",)
 
+# apiKachingAction: the actions and their own fields (strings; the engine parses and range-checks them).
+KACHING_ACTIONS = ("pause", "resume", "reactivate", "skip", "unskip", "reschedule", "add_discount", "add_line", "update_line", "remove_line")
+KACHING_ACTION_FIELDS = ("cycleIndex", "billingDate", "discountType", "value", "title", "recurringCycleLimit", "variantId", "quantity", "price", "lineId")
+
 # fn -> (roles allowed, argument keys the browser may send). Mirrors engine/Api.gs apiTable_.
 # NOT here on purpose: apiAdminRun (maintenance, CLI only), apiWa* (the WhatsApp extension's own secret).
 FN_TABLE = {
@@ -47,6 +51,11 @@ FN_TABLE = {
     "apiClose": (WORK_ROLES, ("id",)),
     "apiNote": (WORK_ROLES, ("id", "text")),
     "apiKachingCancel": (WORK_ROLES, ("id", "contractId", "confirm", "reason")),
+    # Every other Kaching action (Owner, 2026-10-14): pause, resume, reactivate, skip / unskip / reschedule a billing cycle,
+    # add a discount, add / change / remove a product. The engine gate re-checks everything; here only shapes.
+    "apiKachingContract": (WORK_ROLES, ("id", "contractId")),
+    "apiKachingAction": (WORK_ROLES, ("id", "contractId", "action", "confirm", "reason") + KACHING_ACTION_FIELDS),
+    "apiKachingVariants": (WORK_ROLES, ()),
     # Auto-cancel queue (Owner, 2026-10-05: the CS team decides). Shapes come from the engine builder later.
     "apiAutoCancelList": (WORK_ROLES, ()),
     "apiAutoCancelApprove": (WORK_ROLES, ("id", "replyText")),
@@ -128,7 +137,8 @@ log = logging.getLogger("cs_screen.engine")
 # retried either: a slow engine would turn into minutes of waiting.
 READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "apiTicketExtras", "apiTickets", "apiSearch",
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
-                      "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates", "apiAiNotes", "apiWaPhotoGet"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
+                      "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates", "apiAiNotes", "apiWaPhotoGet",
+                      "apiKachingContract", "apiKachingVariants"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
 # the time a server thread was held (70-110 s), the 16 threads ran out, Render's health check timed out and the
@@ -381,6 +391,16 @@ def clean_args(fn, args, table=None):
             if not (1 <= len(text) <= AI_NOTE_MAX):
                 raise ProxyError("bad_ai_note", 400)
             out["text"] = text
+    if fn == "apiKachingAction":
+        if out.get("action") not in KACHING_ACTIONS:
+            raise ProxyError("bad_request", 400)
+        for k in KACHING_ACTION_FIELDS + ("contractId", "confirm"):
+            if len(out.get(k, "")) > 200:
+                raise ProxyError("bad_request", 400)
+        if len(out.get("reason", "")) > 500:
+            raise ProxyError("bad_request", 400)
+    if fn == "apiKachingContract" and len(out.get("contractId", "")) > 200:
+        raise ProxyError("bad_request", 400)
     if fn == "apiAutoCancelReject" and not (2 <= len(out.get("note", "").strip()) <= 300):
         raise ProxyError("bad_note", 400)
     if fn == "apiAutoReplyReview":
@@ -460,6 +480,9 @@ SCHEMAS = {
     "apiSend": lambda r, a: (r.get("sent") is True) != (r.get("queued") is True),
     "apiSaveDraft": lambda r, a: "problem" in r,
     "apiKachingCancel": lambda r, a: "status" in r or "message" in r,
+    "apiKachingAction": lambda r, a: "message" in r and r.get("action") == a.get("action"),
+    "apiKachingContract": lambda r, a: isinstance(r.get("contract"), dict) and r["contract"].get("id") == a.get("contractId"),
+    "apiKachingVariants": lambda r, a: isinstance(r.get("variants"), list),
     "apiAutoCancelApprove": lambda r, a: r.get("id") == a.get("id") or "state" in r,
     "apiAutoCancelReject": lambda r, a: r.get("id") == a.get("id"),
     "apiWaTakeOver": lambda r, a: r.get("id") == a.get("id") or "status" in r,
@@ -495,7 +518,7 @@ def reply_problem(fn, args, rid, r, brand=None):
     if r.get("ok") is not True:
         if r.get("ok") is False and isinstance(r.get("error"), str) and r["error"]:
             return None
-        if fn == "apiKachingCancel" and r.get("ok") is False and isinstance(r.get("message"), str):
+        if fn in ("apiKachingCancel", "apiKachingAction") and r.get("ok") is False and isinstance(r.get("message"), str):
             return None                             # the gate's refusal: {ok:false, status, message}
         return "refusal without an error code"
     check = SCHEMAS.get(fn)
@@ -622,7 +645,7 @@ def resolve_write(engines, transport, secret, user, brand, fn, clean, lang, rid,
 def localize(fn, resp, lang):
     """Adds `msg` (and `problem_msg`) in the user's language; never removes the engine's own fields."""
     out = dict(resp)
-    if fn == "apiKachingCancel" and resp.get("message"):
+    if fn in ("apiKachingCancel", "apiKachingAction") and resp.get("message"):
         out["msg"] = messages.kaching_msg(resp.get("message"), lang)
     elif not resp.get("ok"):
         out["msg"] = messages.engine_error_msg(resp, fn, lang)
