@@ -65,10 +65,24 @@ FN_TABLE = {
     "apiAutoReplyReview": (WORK_ROLES, ("id", "verdict", "note")),
     # WhatsApp chats the Dondy AI bot is handling (status "bot"): a person takes the conversation back (engine @18)
     "apiWaTakeOver": (WORK_ROLES, ("id",)),
+    # "תשובה אחרת" (2026-10-14, engine/AgentRedraft.gs): one ticket's AI draft again, with an optional short wish; undo = the replaced draft back
+    "apiRedraftOne": (WORK_ROLES, ("id", "hint", "seen", "last", "base", "undo")),
     # WhatsApp past its 24 hours (Owner, 2026-10-07): the brand's approved Dondy templates, and sending one from the screen.
     # `then` = the agent's real answer, sent by the engine once the customer replies to the template.
     "apiTemplates": (WORK_ROLES, ()),
     "apiSendTemplate": (WORK_ROLES, ("id", "template", "then", "seen")),
+    # Sales log for bonuses (Owner, 2026-10-14; engine/Sales.gs). The agent is ALWAYS the logged-in user (the engine takes it from the token):
+    # no argument names an agent except the manager's credit of a suggestion nobody could be attributed to.
+    "apiSaleCandidates": (WORK_ROLES, ("id",)),
+    "apiSaleLog": (WORK_ROLES, ("id", "orderNo", "note")),
+    "apiSaleMine": (WORK_ROLES, ()),
+    "apiSaleProof": (WORK_ROLES, ("id",)),
+    "apiSaleList": (ADMIN_ONLY, ()),
+    "apiSaleDecide": (ADMIN_ONLY, ("id", "decision", "note")),
+    "apiSaleSuggestions": (ADMIN_ONLY, ()),
+    "apiSaleSuggestCredit": (ADMIN_ONLY, ("id", "agent")),
+    "apiSaleSuggestDismiss": (ADMIN_ONLY, ("id",)),
+    "apiSaleScan": (ADMIN_ONLY, ()),
     # System switches. Admin only — checked HERE as well as in the engine.
     "apiSettings": (ADMIN_ONLY, ("action", "key", "value")),
     # Managers' notes to the AI (Owner, 2026-10-11): written into every draft the engine writes. Admin only — checked HERE as
@@ -138,7 +152,8 @@ log = logging.getLogger("cs_screen.engine")
 READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "apiTicketExtras", "apiTickets", "apiSearch",
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
                       "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates", "apiAiNotes", "apiWaPhotoGet",
-                      "apiKachingContract", "apiKachingVariants"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
+                      "apiKachingContract", "apiKachingVariants", "apiSaleCandidates", "apiSaleMine", "apiSaleProof", "apiSaleList",
+                      "apiSaleSuggestions"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
 # the time a server thread was held (70-110 s), the 16 threads ran out, Render's health check timed out and the
@@ -328,6 +343,7 @@ def _clean_attach_put(args):
         raise ProxyError("bad_request", 400)
     return out
 AI_NOTE_MAX = 600
+SALE_WRITE_FNS = frozenset(("apiSaleLog", "apiSaleDecide", "apiSaleSuggestCredit", "apiSaleSuggestDismiss"))
 
 
 def clean_args(fn, args, table=None):
@@ -349,7 +365,7 @@ def clean_args(fn, args, table=None):
                 if v:
                     out[k] = list(v)
                 continue
-            if k == "seen" and fn in ("apiSend", "apiSendTemplate"):
+            if k in ("seen", "last") and fn in ("apiSend", "apiSendTemplate", "apiRedraftOne"):
                 # a timestamp string ('' = never handled), not apiTicketLite's message count
                 if not isinstance(v, str) or len(v) > 40 or not re.match(r"^[0-9T:.+Z-]*$", v):
                     raise ProxyError("bad_request", 400)
@@ -360,7 +376,7 @@ def clean_args(fn, args, table=None):
                     raise ProxyError("bad_request", 400)
                 out[k] = v
                 continue
-            if k in ("override", "fresh", "followup"):
+            if k in ("override", "fresh", "followup", "undo"):
                 if v is True:
                     out[k] = True
                 continue
@@ -399,8 +415,15 @@ def clean_args(fn, args, table=None):
                 raise ProxyError("bad_request", 400)
         if len(out.get("reason", "")) > 500:
             raise ProxyError("bad_request", 400)
+    if fn == "apiRedraftOne" and (not re.match(r"^[0-9a-f]{8}$", str(out.get("base", ""))) or len(out.get("hint", "")) > 200):
+        raise ProxyError("bad_request", 400)
     if fn == "apiKachingContract" and len(out.get("contractId", "")) > 200:
         raise ProxyError("bad_request", 400)
+    if fn in SALE_WRITE_FNS:
+        # Sales log (Sales.gs): short fields only; the engine validates the shapes again
+        if (len(out.get("orderNo", "")) > 20 or len(out.get("note", "")) > 300 or len(out.get("agent", "")) > 60 or len(out.get("id", "")) > 80
+                or out.get("decision", "approved") not in ("approved", "rejected", "clear")):
+            raise ProxyError("bad_request", 400)
     if fn == "apiAutoCancelReject" and not (2 <= len(out.get("note", "").strip()) <= 300):
         raise ProxyError("bad_note", 400)
     if fn == "apiAutoReplyReview":
@@ -450,7 +473,7 @@ def http_transport(session=None):
 # Every engine reply is checked against the shape its fn must have BEFORE anything uses or caches it. A bare
 # {"ok":true} (doGet) once rendered "no tickets" over ~280 open ones, cached empty knowledge, and would have shown
 # "sent" for a send that never happened. An invalid reply is treated exactly like Google's HTML page.
-LEGIT_BARE = frozenset(("apiMarkHandled", "apiClose", "apiNote", "apiAutoReplyReview", "apiAiNoteDelete"))   # their real reply IS {ok:true}
+LEGIT_BARE = frozenset(("apiMarkHandled", "apiClose", "apiNote", "apiAutoReplyReview", "apiAiNoteDelete", "apiSaleSuggestDismiss"))   # their real reply IS {ok:true}
 
 
 def _tid_ok(r, key, tid):
@@ -479,6 +502,7 @@ SCHEMAS = {
     # A ticket id alone is not delivery evidence; sent and queued are distinct outcomes.
     "apiSend": lambda r, a: (r.get("sent") is True) != (r.get("queued") is True),
     "apiSaveDraft": lambda r, a: "problem" in r,
+    "apiRedraftOne": lambda r, a: isinstance(r.get("draft"), str) and bool(r["draft"].strip()),     # never "replaced" without the new draft
     "apiKachingCancel": lambda r, a: "status" in r or "message" in r,
     "apiKachingAction": lambda r, a: "message" in r and r.get("action") == a.get("action"),
     "apiKachingContract": lambda r, a: isinstance(r.get("contract"), dict) and r["contract"].get("id") == a.get("contractId"),
@@ -490,6 +514,16 @@ SCHEMAS = {
     "apiSendTemplate": lambda r, a: r.get("queued") is True and r.get("template") == a.get("template"),
     "apiAiNotes": lambda r, a: isinstance(r.get("notes"), list),
     "apiAiNoteAdd": lambda r, a: isinstance(r.get("note"), dict) and r["note"].get("id") == a.get("id"),
+    # sales log (2026-10-14): a bare {ok:true} (the doGet answer) must never look like "your sale was logged"
+    "apiSaleCandidates": lambda r, a: isinstance(r.get("orders"), list) and r.get("ticket") == a.get("id"),
+    "apiSaleLog": lambda r, a: isinstance(r.get("sale"), dict) and r["sale"].get("ticket") == a.get("id"),
+    "apiSaleMine": lambda r, a: isinstance(r.get("sales"), list) and isinstance(r.get("summary"), list),
+    "apiSaleProof": lambda r, a: r.get("id") == a.get("id") and "proof" in r,
+    "apiSaleList": lambda r, a: isinstance(r.get("sales"), list) and isinstance(r.get("summary"), list),
+    "apiSaleDecide": lambda r, a: isinstance(r.get("sale"), dict) and r["sale"].get("id") == a.get("id"),
+    "apiSaleSuggestions": lambda r, a: isinstance(r.get("items"), list),
+    "apiSaleSuggestCredit": lambda r, a: isinstance(r.get("sale"), dict),
+    "apiSaleScan": lambda r, a: isinstance(r.get("result"), dict),
 }
 
 

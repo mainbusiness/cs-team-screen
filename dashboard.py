@@ -48,6 +48,8 @@ BOOT_CLOSED_MAX = 100       # apiBoot carries every open ticket + only the 100 m
 BENCH = {"frt_email_s": 24 * 3600, "frt_wa_s": 90, "aht_s": [240, 360], "occupancy": [0.75, 0.85],
          "sla_wa_s": 3600, "sla_email_s": 24 * 3600}
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
+# the Google Sheet the Mini mirrors the sales log into (Systems/CS_Engine/sales_sync); a link only: the sheet is shared with Owner, not public
+SALES_SHEET_URL = os.environ.get("SALES_SHEET_URL", "https://docs.google.com/spreadsheets/d/1rSeuMFyTOo6RiX-1pB3zy03J1qotcusPa8IX39_EFEE/edit")
 # Owner, 2026-10-06: received / answered / closed / awaiting / FRT come from the engine's dayStats (computed from the
 # conversations: our screen, Dondy directly, Gmail directly, bots, templates). The screen's own log is only "on-screen
 # activity" (work time, AHT, hours). Read in the background, cached on disk; a running day is re-read every DS_TTL_S.
@@ -729,7 +731,13 @@ def register(app, d):
             return d["json_error"]("bad_request", 400, d["ui_lang"](u))
         brands = [b for b in u.get("brands", []) if b in d["engines"]]
         force = request.args.get("refresh") == "1" and "admin" in u.get("roles", [])    # admin: re-read the day from the engine now
-        return jsonify(build(log, rows_for(u, brands), d["store"].all(), brands, end, ndays, now, ds_for(u, brands, end, now, force)))
+        rows = rows_for(u, brands)
+        out = build(log, rows, d["store"].all(), brands, end, ndays, now, ds_for(u, brands, end, now, force))
+        if d.get("snooze") is not None:          # "לענות מאוחר יותר" (2026-10-14): how many tickets each agent has hidden from HIS list right now
+            hidden = d["snooze"].snoozed_now({b: {r.get("id"): r for r in rs} for b, rs in rows.items()})   # the store's own clock
+            for a in out["agents"]:
+                a["snoozed_now"] = hidden.get(a["user"], 0)
+        return jsonify(out)
 
     live_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="cs-dash-live")
 

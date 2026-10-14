@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """LIVE acceptance test of the team screen for one brand: a real browser, the real site, a real Gmail send.
 
-  .venv/bin/python tools/live_ui_send.py <brand> [--desk he|en|both]
+  .venv/bin/python tools/live_ui_send.py <brand> [--desk he|en|both] [--close-timing] [--send-close]
+
+--close-timing (2026-10-14): after the send click, measures when the close button becomes usable (enabled, "סגירת הפנייה") and when the
+  engine's answer to apiSend arrives; then closes with the real button and checks the engine closed it. Hebrew desk.
+--send-close (2026-10-14, needs the "שליחה וסגירה" button deployed): sends with that ONE armed button instead, checks the agent was moved on at
+  once, that exactly one mail left and that the engine closed the ticket after the send.
 
 No person receives anything: the "customer" is cstest-*@example.com (a domain reserved for tests). For each desk it plants an
 inbound mail in the brand's mailbox, waits for the ticket and its draft, opens the ticket in the browser as an agent, sends with
@@ -119,7 +124,14 @@ def outbox_state(pg, tid):
     return [i for i in items.values() if i.get('id') == tid]
 
 
-def run_desk(p, brand, lang, token, mailbox, admin):
+CSTEST_RE = re.compile(r'^cstest-[0-9a-f]{10}@example\.com$')
+
+
+def close_state(pg):
+    return pg.evaluate("() => { const b = document.querySelector('[data-test=close-btn]'); return b ? [b.getAttribute('data-kind'), b.disabled] : null; }")
+
+
+def run_desk(p, brand, lang, token, mailbox, admin, close_timing=False, send_close=False):
     label = 'English desk' if lang == 'en' else 'Hebrew desk'
     tag = str(secrets.randbelow(900000) + 100000)   # digits only: the delivery check refuses unknown Latin tokens, as it should
     thread, customer = plant(token, mailbox, 'שאלה על המוצר ' + tag, 'היי, רציתי לדעת מתי הכי טוב לקחת את הקפסולות, בבוקר או בערב? תודה. בדיקה ' + tag)
@@ -128,11 +140,16 @@ def run_desk(p, brand, lang, token, mailbox, admin):
     say(ticket is not None, '%s: mail became a ticket with a draft' % label, 'in %.1f s' % took)
     if not ticket:
         return
+    # test customers ONLY: this tool clicks a real send. The ticket must be the one planted here, to a reserved address, or nothing is clicked.
+    if not (CSTEST_RE.match(customer) and (ticket.get('email') or '').lower() == customer and ticket.get('id') == tid):
+        say(False, '%s: the ticket is the planted test customer' % label, 'email=%r' % ticket.get('email'))
+        return
     name = 'qa-core-' + lang
     browser, pg = login(p, name, ensure_user(admin, name, lang, [brand]), lang)
     try:
-        sends = []
+        sends, answers = [], []
         pg.on('request', lambda r: sends.append((time.time(), json.loads(r.post_data))) if r.url.endswith('/apiSend') else None)
+        pg.on('response', lambda r: answers.append(time.time()) if r.url.endswith('/apiSend') else None)
         t_open = time.time()
         pg.goto(BASE + ('/cs/en' if lang == 'en' else '/cs') + '#/b/%s/t/%s' % (brand, tid))
         if lang == 'en':
@@ -152,10 +169,29 @@ def run_desk(p, brand, lang, token, mailbox, admin):
             pg.wait_for_selector('[data-test=send-btn]', timeout=60000)
             say(True, '%s: ticket opens' % label, 'in %.2f s' % (time.time() - t_open))
             approved = ticket['draft_text']
-            pg.click('[data-test=send-btn]')          # first click arms the button
+            btn = '[data-test=send-close-btn]' if send_close else '[data-test=send-btn]'
+            pg.click(btn)                         # first click arms the button
             pg.wait_for_timeout(650)              # > ARM_MIN_MS (500): a faster second click is a double-click, not a confirmation
             t_click = time.time()
-            pg.click('[data-test=send-btn]')          # second click sends
+            pg.click(btn)                         # second click sends
+        t_usable = None
+        if close_timing and lang != 'en' and not send_close:
+            for _ in range(1500):                 # every ~10 ms, up to ~30 s
+                st = close_state(pg)
+                if st and st[0] == 'close' and not st[1]:
+                    t_usable = time.time()
+                    break
+                pg.wait_for_timeout(10)
+            say(t_usable is not None, '%s: the close button becomes usable after the send' % label,
+                'usable after %.2f s' % ((t_usable or time.time()) - t_click))
+        if send_close:
+            moved = None
+            for _ in range(300):
+                if not pg.url.endswith('/t/' + tid):
+                    moved = time.time()
+                    break
+                pg.wait_for_timeout(10)
+            say(moved is not None, '%s: send-and-close moves to the next ticket at once' % label, 'after %.2f s' % ((moved or time.time()) - t_click))
         t_free = None
         state = []
         for _ in range(600):
@@ -170,6 +206,8 @@ def run_desk(p, brand, lang, token, mailbox, admin):
         t_done = time.time()
         ok = any(i.get('state') == 'ok' for i in state)
         say(ok, '%s: the screen confirms the send' % label, 'agent free after %.2f s, confirmed after %.2f s%s' % ((t_free or t_done) - t_click, t_done - t_click, '' if ok else ' state=%s' % json.dumps(state, ensure_ascii=False)[:300]))
+        if answers:
+            print('     %s timings: click -> apiSend answer in the browser %.2f s' % (label, answers[0] - t_click), flush=True)
         say(len(sends) == 1, '%s: exactly one send request left the browser' % label, 'requests=%d' % len(sends))
         th = gmail(token, 'GET', 'threads/%s?format=full' % thread)
         out = [m for m in th['messages'] if 'SENT' in m.get('labelIds', [])]
@@ -179,8 +217,18 @@ def run_desk(p, brand, lang, token, mailbox, admin):
             say(body == approved.replace('\r\n', '\n').strip(), '%s: the mail text is exactly the approved text' % label, '%d chars' % len(body))
             say(customer in header(out[0], 'to') and header(out[0], 'in-reply-to') == header(th['messages'][0], 'message-id'), '%s: right recipient, same thread' % label)
             print('     %s timings: click -> Gmail accepted %.2f s' % (label, int(out[0]['internalDate']) / 1000.0 - t_click), flush=True)
-        after = core(brand, 'apiTicketFull', {'id': tid}).get('ticket') or {}
-        say(after.get('status') == 'sent' and after.get('handled_by') == name, '%s: ticket marked sent by the agent' % label, 'status %s' % after.get('status'))
+        if close_timing and lang != 'en' and not send_close and t_usable:
+            pg.click('[data-test=close-btn]')
+            pg.wait_for_timeout(650)
+            pg.click('[data-test=close-btn]')
+        want = 'done' if (send_close or (close_timing and lang != 'en' and t_usable)) else 'sent'
+        after = {}
+        for _ in range(60):                       # a queued close follows the send's answer
+            after = core(brand, 'apiTicketFull', {'id': tid}).get('ticket') or {}
+            if after.get('status') == want:
+                break
+            time.sleep(1)
+        say(after.get('status') == want and after.get('handled_by') == name, '%s: ticket marked %s by the agent' % (label, want), 'status %s' % after.get('status'))
         pg.reload()
         pg.wait_for_load_state('load')
         pg.wait_for_timeout(6000)
@@ -207,7 +255,7 @@ def main():
     with pw.sync_playwright() as p:
         for lang in (['he', 'en'] if desk == 'both' else [desk]):
             try:
-                run_desk(p, brand, lang, token, mailbox, admin)
+                run_desk(p, brand, lang, token, mailbox, admin, close_timing='--close-timing' in sys.argv, send_close='--send-close' in sys.argv)
             except Exception as e:   # one desk failing must not hide the other
                 say(False, '%s desk: no exception' % lang, repr(e)[:300])
     print('RESULT: ' + ('%d FAILED' % len(fails) if fails else 'ALL PASSED'))

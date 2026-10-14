@@ -37,7 +37,10 @@ def valid_reply(url, body):
         "apiSettings": {"settings": {}} if a.get("action") == "get" else {"key": a.get("key"), "to": a.get("value")},
         "apiSend": {"sent": True}, "apiSaveDraft": {"problem": None}, "apiKachingCancel": {"status": None, "message": "cancelled"},
         "apiAutoCancelApprove": {"id": tid, "state": "queued"}, "apiAutoCancelReject": {"id": tid}, "apiWaTakeOver": {"id": tid, "status": "action"},
-        "apiResult": {"found": False},
+        "apiResult": {"found": False}, "apiRedraftOne": {"draft": "היי, תשובה אחרת.", "recommendation": "", "left": 4},
+        "apiSaleCandidates": {"ticket": tid, "orders": []}, "apiSaleLog": {"sale": {"id": "o1", "ticket": tid}}, "apiSaleMine": {"sales": [], "summary": []},
+        "apiSaleProof": {"id": tid, "proof": None}, "apiSaleList": {"sales": [], "summary": []}, "apiSaleDecide": {"sale": {"id": tid}},
+        "apiSaleSuggestions": {"items": []}, "apiSaleSuggestCredit": {"sale": {"id": tid}}, "apiSaleScan": {"result": {}},
     }
     return dict(by_fn.get(fn, {}), ok=True)
 

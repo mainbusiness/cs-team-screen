@@ -962,6 +962,10 @@ class TicketCache:
             patch = {"status": "action"}                 # "⚠ problem" reopens the ticket (the engine confirms on revalidate)
         elif ok and fn == "apiWaTakeOver":
             patch = {"status": "action"}                 # leaves the bot; the next engine run writes a draft
+        elif ok and fn == "apiRedraftOne" and isinstance(out.get("draft"), str):
+            patch = {"draft_text": out["draft"]}                 # "תשובה אחרת" / undo: the engine's new draft (2026-10-14)
+            if isinstance(out.get("recommendation"), str):
+                patch["recommendation"] = out["recommendation"]
         elif ok and fn in ("apiMarkHandled", "apiClose"):
             patch = {"status": "done", "handled_by": user["username"], "handled_at": now_iso}
         with self.lock:
@@ -984,7 +988,7 @@ class TicketCache:
 
 
 WRITE_FNS = ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel",
-             "apiAutoCancelApprove", "apiAutoCancelReject", "apiAutoReplyReview", "apiWaTakeOver", "apiSendTemplate")
+             "apiAutoCancelApprove", "apiAutoCancelReject", "apiAutoReplyReview", "apiWaTakeOver", "apiSendTemplate", "apiRedraftOne")
 # Who else has a ticket on screen (Owner, 2026-10-11: two agents answered the same ticket). Fed by every /watch tick (every 5 s while the ticket is
 # on screen) and every open; "editing" = the agent typed in it lately. In memory: one gunicorn worker (render.yaml). Names only, never text.
 PRESENCE_SEEN_S = 15.0

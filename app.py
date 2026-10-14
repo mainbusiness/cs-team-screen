@@ -38,6 +38,7 @@ import llm
 import messages
 import dashboard
 import security
+import snooze
 from zipfix import routes as zipfix_routes
 from users_store import ROLES, UserStore, UserStoreError, public_user
 
@@ -419,6 +420,7 @@ def create_app(overrides=None):
             "can_manage_users": is_manager(u), "is_admin": "admin" in u.get("roles", []),
             "valid_brands": valid_brands if is_manager(u) else [], "roles": list(ROLES),
             "mock": mock, "warnings": warnings, "assistant": bool(api_key) or mock or bool(o.get("LLM")),
+            "sales_sheet_url": dashboard.SALES_SHEET_URL if "admin" in u.get("roles", []) else "",   # the managers' sales table mirror (Google Sheet)
         })
 
     PHOTO_ID_RE = re.compile(r"^m[0-9a-f]{24}$")
@@ -621,8 +623,11 @@ def create_app(overrides=None):
     # managers' dashboard (Owner, 2026-10-06): activity log on the private disk, real work time per agent
     act_log = o.get("ACTIVITY_LOG") or dashboard.ActivityLog(
         o.get("ACTIVITY_DIR", os.environ.get("ACTIVITY_DIR", os.path.join(os.path.dirname(users_path), "activity"))))
+    # "לענות מאוחר יותר" (2026-10-14): per agent, on the private disk next to the users file
+    snooze_store = o.get("SNOOZE_STORE") or snooze.SnoozeStore(
+        o.get("SNOOZE_PATH", os.environ.get("SNOOZE_PATH", os.path.join(os.path.dirname(users_path), "snooze.json"))))
     dashboard.register(app, {"api_user": api_user, "json_error": json_error, "is_manager": is_manager, "store": store,
-                             "cache": tcache, "engines": engines, "log": act_log, "ui_lang": ui_lang,
+                             "cache": tcache, "engines": engines, "log": act_log, "ui_lang": ui_lang, "snooze": snooze_store,
                              "start_thread": bool(o.get("DASH_SNAPSHOT_THREAD"))})
 
     assistant.register(app, {
@@ -636,6 +641,8 @@ def create_app(overrides=None):
 
     zipfix_routes.register(app, {"store": store, "api_user": api_user, "ui_lang": ui_lang, "users_path": users_path, "overrides": o, "mock": mock})
     attach.register(app, {"engines": engines, "transport": transport, "api_user": api_user, "ui_lang": ui_lang, "store": store})
+    snooze.register(app, {"api_user": api_user, "json_error": json_error, "ui_lang": ui_lang, "store": store, "cache": tcache,
+                          "snooze": snooze_store, "is_test_user": dashboard.is_test_user})
 
     @app.errorhandler(404)
     def nf(_e):

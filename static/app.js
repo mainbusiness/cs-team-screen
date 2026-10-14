@@ -51,6 +51,17 @@
       close_ns: 'סגירה בלי שליחה', close_ns_arm: 'ללחוץ שוב לסגירה', close_ns_title: 'הפנייה נסגרת בלי לשלוח ללקוח. בוואטסאפ היא נסגרת גם בדונדי.',
       // Owner, 2026-10-11: sending never closes the ticket; another message on any answered / closed ticket; two agents on one ticket
       close_tk: 'סגירת הפנייה', close_tk_arm: 'ללחוץ שוב לסגירה', close_tk_title: 'סוגרים את הפנייה ועוברים לפנייה הבאה. בוואטסאפ היא נסגרת גם בדונדי.',
+      // Owner, 2026-10-14 (from the CS team): send + close in one action, a different AI answer, answer later
+      send_close: 'שליחה וסגירה', send_close_arm: 'ללחוץ שוב — שליחה וסגירה', send_close_title: 'שולחים ללקוח, סוגרים ועוברים לפנייה הבאה מיד. אם השליחה לא תצליח, הפנייה לא תיסגר ותחזור לראש הרשימה.',
+      en_confirm_close: 'אישור, שליחה וסגירה',
+      ob_queued_close: '⏳ תיסגר מיד אחרי השליחה', ob_close_dropped: '{name}: השליחה לא הצליחה, ולכן הפנייה לא נסגרה. היא בראש הרשימה.',
+      rd_btn: 'תשובה אחרת', rd_ph: 'מה לשנות? (לא חובה) למשל: יותר קצר, בלי הצעת הנחה', rd_busy: 'כותב תשובה אחרת…', rd_done: 'נכתבה תשובה אחרת.',
+      rd_undo: 'חזרה לטיוטה הקודמת', rd_undone: 'הטיוטה הקודמת חזרה.', rd_title: 'ה-AI כותב תשובה אחרת לפי השיחה. אפשר לכתוב בקצרה מה לשנות. כל הבדיקות הרגילות חלות גם עליה.',
+      rd_tr_failed: 'התשובה החדשה נכתבה, אבל התרגום נכשל: {m}', rd_left: 'אפשר עוד {n} בשעה הזאת',
+      snz_btn: 'לענות מאוחר יותר', snz_30m: 'עוד 30 דקות', snz_1h: 'עוד שעה', snz_2h: 'עוד שעתיים', snz_eod: 'סוף היום (17:00)',
+      snz_until: 'נדחה עד {t}', snz_cancel: 'להחזיר עכשיו', snz_ok: 'נדחה עד {t}. הפנייה תחזור לראש הרשימה שלך.', snz_back: '⏰ חזרה מדחייה',
+      snz_section: 'נדחו', snz_title: 'הפנייה נעלמת רק מהרשימה שלך וחוזרת לראשה בזמן שבחרת, או מיד אם הלקוח כותב שוב. שאר הנציגים ממשיכים לראות אותה.',
+      snz_failed: 'הדחייה לא נשמרה: {m}',
       fu_title: 'הודעה נוספת ללקוח', fu_ph: 'אפשר לכתוב כאן הודעה נוספת ללקוח…', fu_sent: 'נענתה · {who} · {when}', fu_done: 'נסגרה · {who} · {when}',
       fu_queued: 'הודעה בדרך לוואטסאפ · {who} · {when}', fu_hint: 'ההודעה נשלחת ללקוח באותה שיחה. הפנייה לא נפתחת מחדש.',
       fu_wait: 'ההודעה הקודמת עדיין בדרך ללקוח. אפשר כבר לכתוב את הבאה — השליחה תיפתח כשהקודמת תצא.',
@@ -243,6 +254,16 @@
       close: 'Close', close_arm: 'Click again to close', closed_ok: 'Ticket closed', handled_ok: 'Marked handled', safety: 'Safety check: {p}',
       close_ns: 'Close without sending', close_ns_arm: 'Click again to close', close_ns_title: 'The ticket closes without sending anything to the customer. On WhatsApp it is closed in Dondy too.',
       close_tk: 'Close ticket', close_tk_arm: 'Click again to close', close_tk_title: 'Closes the ticket and moves to the next one. On WhatsApp it is closed in Dondy too.',
+      send_close: 'Send & close', send_close_arm: 'Click again: send & close', send_close_title: 'Sends to the customer, closes and moves to the next ticket at once. If the send fails, the ticket is not closed and comes back to the top.',
+      en_confirm_close: 'Confirm, send & close',
+      ob_queued_close: '⏳ Closes right after the send', ob_close_dropped: '{name}: the send did not go through, so the ticket was not closed. It is at the top of the list.',
+      rd_btn: 'Different answer', rd_ph: 'What to change? (optional) e.g. shorter, no discount offer', rd_busy: 'Writing a different answer…', rd_done: 'A different answer was written.',
+      rd_undo: 'Back to the previous draft', rd_undone: 'The previous draft is back.', rd_title: 'The AI writes a different answer from the conversation. You can say briefly what to change. All the usual checks apply.',
+      rd_tr_failed: 'The new answer was written, but its translation failed: {m}', rd_left: '{n} more this hour',
+      snz_btn: 'Answer later', snz_30m: 'In 30 minutes', snz_1h: 'In 1 hour', snz_2h: 'In 2 hours', snz_eod: 'End of day (17:00)',
+      snz_until: 'Snoozed until {t}', snz_cancel: 'Bring back now', snz_ok: 'Snoozed until {t}. It comes back to the top of your list.', snz_back: '⏰ Back from snooze',
+      snz_section: 'Snoozed', snz_title: 'The ticket leaves only your list and comes back to its top at the time you chose, or at once if the customer writes again. The other agents still see it.',
+      snz_failed: 'The snooze was not saved: {m}',
       fu_title: 'Another message to the customer', fu_ph: 'You can write another message to the customer here…', fu_sent: 'Answered · {who} · {when}', fu_done: 'Closed · {who} · {when}',
       fu_queued: 'A message is on its way to WhatsApp · {who} · {when}', fu_hint: 'The message goes to the customer in the same conversation. The ticket is not reopened.',
       fu_wait: 'The previous message is still on its way. You can write the next one now — Send opens once the previous one is out.',
@@ -1043,6 +1064,7 @@
       top.append(h('a', { class: 'dash-link zip-link', href: '#/zip/' + encodeURIComponent(S.brand || brands[0].id), 'data-test': 'zip-link', title: zl, 'aria-label': zl },
         '📮', h('span', { class: 'zip-link-txt', text: ' ' + zl })));
     }
+    if (canWork() && brands.length && S.view !== 'zip') top.append(h('button', { class: 'dash-link zip-link sales-link', type: 'button', 'data-test': 'sales-mine-link', onclick: function () { Sales.openMine(); } }, sl('mine_btn')));
     if (brands.length > 1 && S.view !== 'users' && S.view !== 'dash' && S.view !== 'zip') {
       const sel = h('select', { class: 'brand', 'aria-label': 'brand' });
       brands.forEach(function (b) {
@@ -1081,6 +1103,7 @@
     if (S.menuOpen) {
       const m = h('div', { class: 'menu', role: 'menu' });
       if ((S.view === 'users' || S.view === 'dash' || S.view === 'zip') && canWork()) m.append(h('a', { href: '#/', text: t('to_tickets') }));
+      if (canWork() && brands.length) m.append(h('a', { href: '#', 'data-test': 'sales-mine-menu', text: sl('mine_btn'), onclick: function (e) { e.preventDefault(); Sales.openMine(); } }));
       if (canWork() && brands.length && S.view !== 'zip') m.append(h('a', { href: '#/zip/' + encodeURIComponent(S.brand || brands[0].id), 'data-test': 'zip-menu', text: LANG === 'en' ? 'Zip-code fill' : 'מילוי מיקודים' }));
       if (S.me.can_manage_users && S.view !== 'users') m.append(h('a', { href: '#/users', text: t('users') }));
       if (S.me.is_admin && S.view !== 'settings' && S.brand) m.append(h('a', { href: '#/settings/' + encodeURIComponent(S.brand), text: t('settings') }));
@@ -1186,10 +1209,12 @@
     if (id === 'autoreply') { const a = S.ar[S.brand]; return a && a.items ? a.items.filter(function (x) { return x.review === 'pending'; }).length : ''; }
     if (id === 'auto') { const a = S.auto[S.brand]; return a && a.items ? a.items.filter(function (x) { return !AutoCancel.inFlight(x.state); }).length : ''; }
     if (id === 'search') return '';
-    if (id === 'failed') return (b.tickets || []).filter(waFailActionable).length;
-    if (id === 'wa24') return (b.tickets || []).filter(waWinClosed).length;
-    if (id === 'ready') return (b.tickets || []).filter(function (x) { return OPEN.indexOf(x.status) >= 0; }).length;
-    const rows = (b.tickets || []).filter(function (x) { return x.status === id; }).length;
+    // 2026-10-14: his "פתוחות" counts only what HE sees (his snoozed tickets are not in his list); everyone else's count is unchanged
+    const seen = function (x) { return !Snooze.hides(S.brand, x); };
+    if (id === 'failed') return (b.tickets || []).filter(function (x) { return waFailActionable(x) && seen(x); }).length;
+    if (id === 'wa24') return (b.tickets || []).filter(function (x) { return waWinClosed(x) && seen(x); }).length;
+    if (id === 'ready') return (b.tickets || []).filter(function (x) { return OPEN.indexOf(x.status) >= 0 && seen(x); }).length;
+    const rows = (b.tickets || []).filter(function (x) { return x.status === id && (OPEN.indexOf(id) < 0 || seen(x)); }).length;
     if (OPEN.indexOf(id) >= 0) return rows;               // apiBoot carries EVERY open ticket: the rows are the truth
     if (id === 'sent') {
       const sr = (b.tickets || []).filter(function (x) { return x.status === 'sent' || x.status === 'wa_queued'; }).length;
@@ -1346,6 +1371,7 @@
   function rowsFor(tab) {
     const b = boot();
     if (!b) return null;
+    if (Snooze.WORK_TABS.indexOf(tab) >= 0) { const r = byChannel(rowsForRaw(tab)); return r ? r.filter(function (x) { return !Snooze.hides(S.brand, x); }) : r; }   // 2026-10-14: his snoozed ones
     if (['ready', 'action', 'failed', 'wa24', 'health', 'delay', 'bot', 'sent', 'today'].indexOf(tab) >= 0) return byChannel(rowsForRaw(tab));
     return rowsForRaw(tab);
   }
@@ -1388,6 +1414,7 @@
     if (Number(x.siblings) > 0) chips.push(h('span', { class: 'chip sib', text: t('siblings_short', { n: Number(x.siblings) }) }));
     if (isAutoReplied(x)) chips.unshift(h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }));
     if (waFail(x)) chips.unshift(waFailChip(x));
+    if (open && Snooze.back(S.brand, x)) chips.unshift(h('span', { class: 'chip snz-back', 'data-test': 'snooze-back', text: t('snz_back') }));
     const ob = Outbox.forTicket(S.brand, x.id);
     if (ob && (ob.state !== 'ok' || Date.now() - ob.at < 15 * 60000)) chips.unshift(h('span', { class: 'chip ' + Outbox.cls(ob), text: Outbox.label(ob), 'data-test': 'row-outbox', 'data-state': ob.state }));
     if (x.archived) chips.push(h('span', { class: 'chip', text: t('archived') }));
@@ -1443,7 +1470,7 @@
     const err = S.bootErr[S.brand];
     let rows = rowsFor(S.tab);
     const sig = JSON.stringify([S.brand, S.tab, S.ticketId, S.chan || 'all', S.search.note || '', err || '', S.tab === 'search' ? [S.search.q, S.search.err, S.search.res] : rows,
-      S.tab === 'auto' ? [S.auto[S.brand], S.autoMsg] : null, Outbox.ver(), S.tab === 'autoreply' ? [S.ar[S.brand], S.autoMsg] : null, LANG === 'en' ? S.rowTr : null]);
+      S.tab === 'auto' ? [S.auto[S.brand], S.autoMsg] : null, Outbox.ver(), Snooze.ver(), S.tab === 'autoreply' ? [S.ar[S.brand], S.autoMsg] : null, LANG === 'en' ? S.rowTr : null]);
     if (!force && sig === S.listSig) return;           // nothing changed: zero DOM work
     if (lp.contains(document.activeElement) && S.tab !== 'search' && !force) return;
     if (S.tab === 'auto' && !force && AutoCancel.busy()) return;     // never rebuild under an edited reply
@@ -1499,6 +1526,11 @@
     const work = OPEN.indexOf(S.tab) >= 0 || S.tab === 'bot';
     if (work) rows = rows.filter(function (x) { return !Outbox.hidesRow(S.brand, x.id, x); });           // closed in the background (on its way)
     rows = rows.filter(function (x) { return Outbox.flagged(S.brand, x.id); }).concat(rows.filter(function (x) { return !Outbox.flagged(S.brand, x.id); }));   // needs a fix -> top
+    if (work) {      // back from snooze (time is up, or the customer wrote again) -> top, right after the ones that need a fix (2026-10-14)
+      const isBack = function (x) { return !Outbox.flagged(S.brand, x.id) && Snooze.back(S.brand, x); };
+      const fl = rows.filter(function (x) { return Outbox.flagged(S.brand, x.id); });
+      rows = fl.concat(rows.filter(isBack), rows.filter(function (x) { return !Outbox.flagged(S.brand, x.id) && !isBack(x); }));
+    }
     const fresh = work ? rows.filter(function (x) { return !isOld(x); }) : rows;
     const old = work ? rows.filter(isOld) : [];
     fresh.forEach(function (x) { lp.append(rowEl(x)); });
@@ -1509,6 +1541,19 @@
       det.addEventListener('toggle', function () { S.oldOpen[S.brand + '|' + S.tab] = det.open; });
       old.forEach(function (x) { det.append(rowEl(x)); });
       lp.append(det);
+    }
+    const snz = Snooze.WORK_TABS.indexOf(S.tab) >= 0 ? byChannel(Snooze.hidden(S.brand)) : [];
+    if (snz.length) {          // small, closed by default: his snoozed tickets, each with its time and "bring back now"
+      S.snzOpen = S.snzOpen || {};
+      const det2 = h('details', { class: 'old-section snz-section', open: !!S.snzOpen[S.brand], 'data-test': 'snooze-section' },
+        h('summary', null, t('snz_section'), h('span', { class: 'n', text: String(snz.length) })));
+      det2.addEventListener('toggle', function () { S.snzOpen[S.brand] = det2.open; });
+      snz.forEach(function (x) {
+        det2.append(h('div', { class: 'snz-row', 'data-test': 'snoozed-row', 'data-id': x.id }, rowEl(x),
+          h('div', { class: 'snz-act' }, h('span', { class: 'chip outline', text: t('snz_until', { t: Snooze.until(S.brand, x.id) }) }), ' ',
+            h('button', { class: 'btn small ghost', type: 'button', 'data-test': 'snooze-row-cancel', text: t('snz_cancel'), onclick: function () { Snooze.cancel(S.brand, x.id); } }))));
+      });
+      lp.append(det2);
     }
     translateRows(rows);
   }
@@ -1887,10 +1932,12 @@
         isAutoReplied(x) ? h('span', { class: 'chip bot', text: t('ar_label'), 'data-test': 'bot-chip' }) : null, statusChip(x.status), waFailChip(x), waWinChip(x)),
       h('div', { class: 'sync-row' }, h('span', { id: 'tk-sync', class: 'chip sync outline', hidden: true, 'aria-live': 'polite', 'data-test': 'tk-sync' }),
         h('span', { id: 'tk-check', class: 'tk-check', hidden: true, 'data-test': 'tk-check' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' ', t('checking')),
-        h('span', { id: 'tk-presence', class: 'chip presence outline', hidden: true, role: 'status', 'aria-live': 'polite', 'data-test': 'tk-presence' })),
+        h('span', { id: 'tk-presence', class: 'chip presence outline', hidden: true, role: 'status', 'aria-live': 'polite', 'data-test': 'tk-presence' }),
+        h('span', { id: 'tk-snooze', class: 'tk-snooze', hidden: true, 'data-test': 'tk-snooze' })),
       h('div', { class: 'ch-banner ' + (isWA(x) ? 'wa' : 'email'), 'data-test': isWA(x) ? 'wa-banner' : 'email-banner' },
         icon(isWA(x) ? 'wa' : 'mail'), t(isWA(x) ? 'wa_banner' : 'email_banner')),
       contact,
+      canWork() ? Sales.bar(x) : null,
       siblingsChip(x),
       !isWA(x) && x.subject ? h('div', { class: 'summary-line', 'data-test': 'email-subject' },
         h('b', { text: enMode(x) ? 'Subject: ' : 'נושא: ' }),
@@ -1952,6 +1999,7 @@
     Outbox.paintBanner();
     paintLive(k);
     paintPresence(k, k.others);
+    Snooze.paintTicket(k);
     if (enMode(x)) {
       if (k.tr && k.tr.ok) { Translate.paint(k); EnDraft.prefill(x.id, k.tr.draft); } else Translate.load(k);
     } else if (HeTranslate.needed(k)) {
@@ -2397,7 +2445,7 @@
         // Owner, 2026-10-05: the agent never waits for the engine — the outbox sends it in the background.
         // Owner, 2026-10-11: and the send never closes or moves on. The message shows in the conversation, the box empties for the next one.
         const it = Outbox.start('apiSend', me.brand, x, args);
-        if (!it) return;
+        if (!it) return null;
         delete TYPED[me.brand + '|' + x.id];                // sent: no longer "writing" for the others' presence chip
         Attach.sent(me.brand, x.id);
         const ok = OUTGOING[me.brand + '|' + x.id] || (OUTGOING[me.brand + '|' + x.id] = []);
@@ -2407,6 +2455,7 @@
         me.fu = true; paintFu();
         repaintConv(S.tk);
         me.refreshSend();
+        return it;
       }
       async function doClose(fn) {
         clear(errEl); errEl.hidden = true;
@@ -2427,6 +2476,40 @@
       }
       const sendBtn = armed(sendLabel, t('send_arm'), 'primary' + (isWA(x) ? ' wa' : ''), function () { if (!sendDisabled()) doSend(); });
       sendBtn.setAttribute('data-test', 'send-btn');
+      // Owner, 2026-10-14: 60% of sends were followed by a close by the same agent (median 2.6 s later). One armed action sends, closes and moves
+      // on at once; the close waits in the outbox behind THIS send and runs only once the engine accepted it.
+      function sendCloseOff() { return sendDisabled() || !!Outbox.lastChange(me.brand, x.id); }     // "someone answered meanwhile": read first
+      const sendCloseBtn = armed(t('send_close'), t('send_close_arm'), 'primary send-close' + (isWA(x) ? ' wa' : ''), function () {
+        if (sendCloseOff()) return;
+        doSend().then(function (it) { if (it && Outbox.start('apiClose', me.brand, x, { id: x.id })) goNext(me.brand, x.id); });
+      });
+      sendCloseBtn.setAttribute('data-test', 'send-close-btn');
+      sendCloseBtn.setAttribute('title', t('send_close_title'));
+      // "תשובה אחרת" (Owner, 2026-10-14): a different AI answer for this open ticket, on the agent's click; the previous one is a click away
+      const rd = Regen.row({
+        brand: me.brand, x: x, k: function () { return S.tk && S.tk.id === x.id ? S.tk : null; }, ticket: cur,
+        alive: function () { return st === me && ta.isConnected; },
+        visible: function () { return !me.fu && OPEN.indexOf(cur().status) >= 0; },
+        canUse: function () { return !me.fu && OPEN.indexOf(cur().status) >= 0 && !waQueued(cur()) && !Outbox.blocks(me.brand, x.id); },
+        snapshot: async function () {
+          clearTimeout(me.timer);
+          for (let i = 0; i < 100 && me.saving; i++) await sleep(100);        // an autosave on its way lands first: the engine then has what we show
+          return { base: me.base, box: ta.value, dirty: me.dirty || me.edited };
+        },
+        apply: function (text) {
+          ta.value = text; me.base = text; me.dirty = false; me.edited = false;
+          dropLocal(); setState('', ''); clear(offerEl); offerEl.hidden = true;
+          if (me.refreshSend) me.refreshSend();
+          return null;
+        },
+        restore: function (snap, server) {
+          if (typeof server === 'string') me.base = server;
+          ta.value = snap.box;
+          if (snap.box !== me.base) { me.dirty = true; me.edited = true; writeLocal(); save(); } else { me.dirty = false; me.edited = false; dropLocal(); setState('', ''); }
+          if (me.refreshSend) me.refreshSend();
+        }
+      });
+      stateEl.after(rd.el);
       // The close button says what it does: "close without sending" before any answer, "close the ticket" after one. Rebuilt only when that changes.
       const closeSlot = h('span', { class: 'close-slot' });
       let closeKind = null;
@@ -2440,12 +2523,14 @@
           if (kind !== 'none') closeSlot.append(kind === 'close' ? closeTicketBtn(function () { doClose('apiClose'); }) : closeNoSendBtn(function () { doClose('apiClose'); }));
         }
         const b = closeSlot.firstChild;
-        if (b && !b.classList.contains('arm')) b.disabled = Outbox.blocks(me.brand, x.id);
+        if (b && !b.classList.contains('arm')) b.disabled = Outbox.closeLocked(me.brand, x.id);     // 2026-10-14: queued behind a send, never waits for it
       }
       st.refreshSend = function () {
         paintWa();
         paintClose();
+        rd.paint();
         if (me.fu) paintFu();
+        if (!sendCloseBtn.classList.contains('arm')) sendCloseBtn.disabled = sendCloseOff();
         if (sendBtn.classList.contains('arm')) return;
         sendBtn.disabled = sendDisabled();
         const cm = Outbox.lastChange(me.brand, x.id);
@@ -2453,7 +2538,7 @@
         sendBtn.title = isDry() ? t('dry_run') : '';
       };
       st.refreshSend();
-      actions.append(sendBtn, closeSlot);
+      actions.append(sendBtn, sendCloseBtn, closeSlot);
       if (winClosed()) {
         c.append(h('div', { class: 'wa-win-note', role: 'status', 'data-test': 'wa-win-note', text: t('wa_win_note') }));
         const tb = templateBox(me.brand, x, function () { return ta.value; });
@@ -2708,6 +2793,9 @@
       const reviewBtn = h('button', { class: 'btn primary', type: 'button', text: t('en_review'), 'data-test': 'en-review-btn' });
       const confirmBtn = h('button', { class: 'btn primary' + (isWA(x) ? ' wa' : ''), type: 'button', text: t('en_confirm'), 'data-test': 'en-confirm' });
       const editBtn = h('button', { class: 'btn ghost', type: 'button', text: t('en_edit') });
+      // Owner, 2026-10-14: confirm, send and close in one click (the review step is the confirmation here, as for the plain confirm)
+      const confirmCloseBtn = h('button', { class: 'btn primary send-close' + (isWA(x) ? ' wa' : ''), type: 'button', text: t('en_confirm_close'), 'data-test': 'en-confirm-close', title: t('send_close_title') });
+      let rd = null;
       function refresh() {
         reviewBtn.disabled = me.busy || !ta.value.trim();
         confirmBtn.disabled = me.busy || !me.translated || isDry() || waQueued(S.tk && S.tk.id === x.id ? S.tk.ticket : x) || waLocked(brand, x.id) || Outbox.blocks(brand, x.id) || Attach.blocks(brand, x.id);
@@ -2715,6 +2803,8 @@
         paintClose();
         confirmBtn.textContent = isDry() && S.boots[brand] ? t('send_dry') : t(isWA(x) ? 'en_confirm_wa' : 'en_confirm_email');
         confirmBtn.title = isDry() ? t('dry_run') : '';
+        confirmCloseBtn.disabled = confirmBtn.disabled;
+        if (rd) rd.paint();
       }
       me.refresh = refresh;
       function paintReview() {
@@ -2726,7 +2816,7 @@
           h('div', { class: 'en-col' }, h('b', { text: t('en_side_en') }), h('div', { class: 'txt', dir: 'ltr', lang: 'en', text: tr.en })),
           h('div', { class: 'en-col out' }, h('b', null, tx('en_side_out', { l: langName(tr.target) })), h('div', { class: 'txt', dir: 'auto', text: tr.out }))),
           tr.same ? h('div', { class: 'muted small', text: t('en_same') }) : null,
-          h('div', { class: 'actions' }, confirmBtn, editBtn)]);
+          h('div', { class: 'actions' }, confirmBtn, confirmCloseBtn, editBtn)]);
         refresh();
       }
       ta.addEventListener('input', function () {
@@ -2760,9 +2850,11 @@
         if (files.length) args.attachments = files;
         if (me.fu || OPEN.indexOf(tk.status) < 0) args.followup = true;      // as in Draft: the page's own send counts before its copy says so
         if (isWA(x)) args.channel = 'whatsapp';
+        let started = null;
         try {
           // Owner, 2026-10-11: the send never closes or moves on; the message shows in the conversation and the box empties for the next one
           const it = Outbox.start('apiSend', brand, x, args, undefined, me.translated.en);
+          started = it;
           if (it) {
             Attach.sent(brand, x.id);
             (OUTGOING[brand + '|' + x.id] || (OUTGOING[brand + '|' + x.id] = [])).push({ text: me.translated.out, at: Date.now(), rid: it.rid, queued: isWA(x) });
@@ -2777,8 +2869,35 @@
           // Outbox owns the in-flight lock after handoff; a rejected handoff must not freeze this editor.
           me.busy = false; refresh();
         }
+        return started;
       }
       confirmBtn.addEventListener('click', function () { send(); });
+      confirmCloseBtn.addEventListener('click', function () {
+        if (confirmCloseBtn.disabled) return;
+        send().then(function (it) { if (it && Outbox.start('apiClose', brand, x, { id: x.id })) goNext(brand, x.id); });
+      });
+      // "תשובה אחרת" (2026-10-14): the engine writes a new HEBREW draft; this desk shows it in English, like the first one
+      rd = Regen.row({
+        brand: brand, x: x, k: function () { return S.tk && S.tk.id === x.id ? S.tk : null; }, ticket: tkNow,
+        alive: function () { return cur === me && ta.isConnected; },
+        visible: function () { return !me.fu && OPEN.indexOf(tkNow().status) >= 0 && !waWinClosed(x, me.fu); },
+        canUse: function () { return !me.fu && !me.busy && OPEN.indexOf(tkNow().status) >= 0 && !waQueued(tkNow()) && !Outbox.blocks(brand, x.id); },
+        snapshot: async function () { return { base: String(tkNow().draft_text || ''), box: ta.value, typed: !!me.typed }; },
+        apply: async function () {
+          const r = await api('/api/' + encodeURIComponent(brand) + '/translate', { ticketId: x.id });
+          if (cur !== me) return null;
+          if (!r.ok || typeof r.draft !== 'string' || !r.draft.trim()) return r.msg || r.error || 'translate_failed';
+          ta.value = r.draft; me.translated = null; me.typed = false; me.prefilled = true;
+          try { localStorage.removeItem(key); } catch (e) { /* the English text is never kept on the server */ }
+          note.textContent = t('en_draft_ai'); clear(errEl); paintReview(); refresh();
+          return null;
+        },
+        restore: function (snap) {
+          ta.value = snap.box; me.translated = null; me.typed = snap.typed;
+          try { if (snap.typed) localStorage.setItem(key, snap.box); else localStorage.removeItem(key); } catch (e) { /* ignore */ }
+          paintReview(); refresh();
+        }
+      });
       async function doClose(fn) {
         if (Outbox.start(fn, brand, x, { id: x.id })) goNext(brand, x.id);       // closing DOES move on
       }
@@ -2794,7 +2913,7 @@
           if (kind !== 'none') closeSlot.append(kind === 'close' ? closeTicketBtn(function () { doClose('apiClose'); }) : closeNoSendBtn(function () { doClose('apiClose'); }));
         }
         const b = closeSlot.firstChild;
-        if (b && !b.classList.contains('arm')) b.disabled = Outbox.blocks(brand, x.id);
+        if (b && !b.classList.contains('arm')) b.disabled = Outbox.closeLocked(brand, x.id);        // 2026-10-14: queued behind a send, never waits for it
       }
       refresh();
       const enCard = h('div', { class: 'card draft en-draft' + (fu0 ? ' followup' : ''), 'data-test': 'en-draft' }, title, fuEl, h('div', { class: 'muted small', text: t('en_safety'), 'data-test': 'hebrew-only-notice' }), note, ta);
@@ -2806,7 +2925,8 @@
       }
       const attE = Attach.box(brand, x, function () { refresh(); });   // 📎 (null where files cannot go)
       if (attE) enCard.append(attE);
-      enCard.append(h('div', { class: 'actions' }, reviewBtn, closeSlot), review, errEl);
+      enCard.append(rd.el, h('div', { class: 'actions' }, reviewBtn, closeSlot), review, errEl);
+      rd.paint();
       return enCard;
     }
     /** A send that did not go out: the agent's ENGLISH text comes back to the box (or to the device copy the next open restores). */
@@ -3478,6 +3598,194 @@
    * the server finishes the request even if the browser left. One open item per ticket; a ticket with an item in
    * flight / checking / unknown never offers another send.
    */
+  /** FNV-1a (32 bit) of a draft — engine/AgentRedraft.gs redraft1Fp_: the draft the screen shows is the one the engine replaces. */
+  function draftFp(s) {
+    s = String(s === null || s === undefined ? '' : s);
+    let hsh = 2166136261;
+    for (let i = 0; i < s.length; i++) { hsh ^= s.charCodeAt(i); hsh = Math.imul(hsh, 16777619) >>> 0; }
+    return ('00000000' + hsh.toString(16)).slice(-8);
+  }
+  function lastCustomerAt(k) {
+    const conv = (k && k.extras && k.extras.conversation) || [];
+    for (let i = conv.length - 1; i >= 0; i--) if (conv[i] && conv[i].who === 'customer' && typeof conv[i].at === 'string') return conv[i].at.slice(0, 40);
+    return '';
+  }
+
+  /** "תשובה אחרת" (Owner, 2026-10-14): one row under the draft, on BOTH desks — an optional short wish, the button, and after it "back to the
+   *  previous draft". The engine (apiRedraftOne) writes the new draft through every normal check; nothing here is ever sent. */
+  const Regen = {
+    undo: {},                 // brand|id -> {snap, draft, at, left}: the way back survives a redraw of the card (the 5 s watch redraws an idle ticket)
+    row: function (o) {
+      const hint = h('input', { type: 'text', class: 'rd-hint', dir: 'auto', maxlength: '200', placeholder: t('rd_ph'), 'aria-label': t('rd_ph'), 'data-test': 'rd-hint' });
+      const btn = h('button', { class: 'btn small', type: 'button', text: t('rd_btn'), title: t('rd_title'), 'data-test': 'rd-btn' });
+      const msg = h('div', { class: 'rd-msg small', role: 'status', 'aria-live': 'polite', 'data-test': 'rd-msg', hidden: true });
+      const wrap = h('div', { class: 'rd', 'data-test': 'rd-row' }, h('div', { class: 'rd-line' }, hint, btn), msg);
+      const uk = o.brand + '|' + o.x.id;
+      let busy = false, undo = null;
+      const kept = Regen.undo[uk];
+      if (kept && Date.now() - kept.at < 30 * 60000 && String(o.ticket().draft_text || '') === kept.draft) undo = kept;
+      else delete Regen.undo[uk];
+      function paint() { wrap.hidden = !o.visible(); btn.disabled = busy || !o.canUse(); hint.disabled = busy; }
+      function say(kind, text, withUndo) {
+        clear(msg);
+        msg.hidden = !text;
+        msg.className = 'rd-msg small' + (kind === 'err' ? ' bad' : '');
+        msg.setAttribute('data-kind', kind || '');
+        if (!text) return;
+        msg.append(h('span', { text: text }));
+        if (withUndo && undo) msg.append(' ', h('button', { class: 'btn small ghost', type: 'button', text: t('rd_undo'), 'data-test': 'rd-undo', onclick: doUndo }));
+      }
+      async function go() {
+        if (busy || !o.canUse()) return;
+        busy = true; btn.textContent = t('rd_busy'); paint(); say('', '');
+        const snap = await o.snapshot();
+        const tk = o.ticket();
+        const r = await engine('apiRedraftOne', { id: o.x.id, hint: hint.value.trim().slice(0, 200), seen: String(tk.handled_at || ''), last: lastCustomerAt(o.k()), base: draftFp(snap.base) }, o.brand);
+        busy = false; btn.textContent = t('rd_btn');
+        if (!o.alive()) return;
+        if (!r.ok) {
+          paint(); say('err', r.msg || r.error);
+          if (r.error === 'changed_meanwhile') refreshOpen(o.brand, o.x.id);
+          return;
+        }
+        undo = Regen.undo[uk] = { snap: snap, draft: r.draft, at: Date.now(), left: r.left };
+        tk.draft_text = r.draft;
+        if (typeof r.recommendation === 'string') tk.recommendation = r.recommendation;
+        delete S.tkMemo[o.brand + '|' + o.x.id];
+        const err = await o.apply(r.draft);
+        if (!o.alive()) return;
+        hint.value = '';
+        paint();
+        if (err) say('err', tx('rd_tr_failed', { m: String(err) }).textContent, true);
+        else say('ok', t('rd_done') + (typeof r.left === 'number' ? ' · ' + t('rd_left', { n: r.left }) : ''), true);
+      }
+      async function doUndo() {
+        if (!undo || busy) return;
+        const u = undo;
+        undo = null; delete Regen.undo[uk]; busy = true; paint(); say('', '');
+        const tk = o.ticket();
+        let r = { ok: false };
+        if (String(tk.draft_text || '') === u.draft) {           // the engine still has the new one: swap it back there (for every screen)
+          r = await engine('apiRedraftOne', { id: o.x.id, undo: true, seen: String(tk.handled_at || ''), base: draftFp(u.draft) }, o.brand);
+        }
+        busy = false;
+        if (!o.alive()) return;
+        if (r.ok) { tk.draft_text = r.draft; delete S.tkMemo[o.brand + '|' + o.x.id]; }
+        o.restore(u.snap, r.ok ? r.draft : null);
+        paint();
+        say('ok', t('rd_undone'));
+      }
+      btn.addEventListener('click', go);
+      hint.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+      paint();
+      if (undo) say('ok', t('rd_done') + (typeof undo.left === 'number' ? ' · ' + t('rd_left', { n: undo.left }) : ''), true);
+      return { el: wrap, paint: paint };
+    }
+  };
+
+  // ---------------------------------------------------------------- answer later (snooze)
+  /** Owner, 2026-10-14 (from the CS team): "לענות מאוחר יותר" — 30 min / 1 h / 2 h / 17:00. The ticket leaves THIS agent's list only (kept on the
+   *  server: snooze.py, so every device of his agrees), comes back to the top when the time is up, or at once when the customer writes again
+   *  (more customer messages / a newer WhatsApp message / a new waiting period: the row moved past what it was). Others still see it. */
+  const Snooze = (function () {
+    let recs = {};                 // brand|id -> {brand, id, until (s), at (s), n, wl, ws}
+    let timer = null, skew = 0, v = 0;
+    const WORK_TABS = ['ready', 'action', 'health', 'delay', 'failed', 'wa24'];
+    function key(b, id) { return b + '|' + id; }
+    function nowS() { return Date.now() / 1000 + skew; }
+    function voided(r, row) {
+      if (!row) return false;
+      if ((Number(row.emails_count) || 0) > (Number(r.n) || 0)) return true;
+      const wl = ms(row.wa_last_in), wl0 = ms(r.wl);
+      if (wl !== null && (wl0 === null || wl > wl0 + 1000)) return true;
+      const ws = ms(row.waiting_since);
+      return ws !== null && ws > r.at * 1000 + 1000;
+    }
+    function rec(b, id) { return recs[key(b, id)] || null; }
+    function hides(b, row) { const r = row && rec(b, row.id); return !!r && r.until > nowS() && !voided(r, row) && !Outbox.flagged(b, row.id); }
+    function back(b, row) { const r = row && rec(b, row.id); return !!r && !r.pending && !hides(b, row); }
+    function hhmm(sec) { return new Intl.DateTimeFormat(LANG === 'en' ? 'en-GB' : 'he-IL', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }).format(new Date(sec * 1000)); }
+    function eodOk() {                                    // 17:00 Israel at least 15 minutes away (the server decides; this only greys the option)
+      const p = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(nowS() * 1000)).split(':');
+      return Number(p[0]) * 60 + Number(p[1]) <= 17 * 60 - 15;
+    }
+    function repaint(force) {                          // force: his own click (the focus may sit in the list, which a plain render respects)
+      v++;
+      if (!S.brand) return;
+      renderTabs(); renderList(!!force);
+      if (S.tk && S.tk.ticket) paintTicket(S.tk);
+    }
+    function schedule() {
+      clearTimeout(timer);
+      const next = Object.keys(recs).map(function (k) { return recs[k].until; }).filter(function (u) { return u > nowS(); }).sort(function (a, b) { return a - b; })[0];
+      if (next) timer = setTimeout(function () { repaint(); schedule(); }, Math.min(2147000000, Math.max(300, (next - nowS()) * 1000 + 300)));
+    }
+    async function load() {
+      if (!canWork()) return;
+      const r = await api('/api/snooze', undefined, 'GET', { quiet: true });
+      if (!r.ok || !Array.isArray(r.snoozes)) return;
+      if (typeof r.now === 'number') skew = r.now - Date.now() / 1000;
+      const next = {};
+      r.snoozes.forEach(function (x) { if (x && typeof x.brand === 'string' && typeof x.id === 'string' && typeof x.until === 'number') next[key(x.brand, x.id)] = x; });
+      Object.keys(recs).forEach(function (k) { if (recs[k].pending) next[k] = recs[k]; });     // a choice on its way to the server stays
+      const changedNow = JSON.stringify(next) !== JSON.stringify(recs);
+      recs = next;
+      schedule();
+      if (changedNow) repaint();
+    }
+    async function set(b, x, kind) {
+      const k = key(b, x.id);
+      recs[k] = { brand: b, id: x.id, until: nowS() + 1800, at: nowS(), n: Number(x.emails_count) || 0, wl: x.wa_last_in || '', ws: x.waiting_since || '', pending: true };
+      repaint();
+      goNext(b, x.id);                                   // like a close: off his list, next ticket at once
+      const r = await api('/api/' + encodeURIComponent(b) + '/snooze', { id: x.id, kind: kind });
+      if (r.ok && r.snooze) { recs[k] = r.snooze; toast(tx('snz_ok', { t: hhmm(r.snooze.until) }).textContent); }
+      else { delete recs[k]; toast(tx('snz_failed', { m: r.msg || r.error || '' }).textContent); }
+      schedule();
+      repaint();
+    }
+    async function cancel(b, id, quiet) {
+      if (!recs[key(b, id)]) return;
+      delete recs[key(b, id)];
+      if (!quiet) repaint(true); else v++;
+      await api('/api/' + encodeURIComponent(b) + '/snooze', { id: id, cancel: true }, 'POST', { quiet: true });
+    }
+    function rowOf(b, id, fallback) { const bt = S.boots[b]; return ((bt && bt.tickets) || []).filter(function (r) { return r.id === id; })[0] || fallback; }
+    /** The ticket head: "answer later" (4 choices) on an open ticket; "snoozed until HH:MM" + "bring back now" on one of his own. */
+    function paintTicket(k) {
+      const slot = document.getElementById('tk-snooze');
+      if (!slot || !k || !k.ticket) return;
+      clear(slot);
+      const x = k.ticket, b = k.brand;
+      if (!canWork() || OPEN.indexOf(x.status) < 0) { slot.hidden = true; return; }
+      slot.hidden = false;
+      const row = rowOf(b, x.id, x);
+      if (back(b, row)) { cancel(b, x.id, true); }         // it came back and he opened it: the snooze is done
+      if (hides(b, row)) {
+        slot.append(h('span', { class: 'chip outline snz-chip', 'data-test': 'snooze-chip', text: t('snz_until', { t: hhmm(rec(b, x.id).until) }) }), ' ',
+          h('button', { class: 'btn small ghost', type: 'button', 'data-test': 'snooze-cancel', text: t('snz_cancel'), onclick: function () { cancel(b, x.id); } }));
+        return;
+      }
+      const menu = h('div', { class: 'snz-menu', role: 'menu', 'data-test': 'snooze-menu', hidden: true });
+      [['30m', 'snz_30m'], ['1h', 'snz_1h'], ['2h', 'snz_2h'], ['eod', 'snz_eod']].forEach(function (o) {
+        const opt = h('button', { class: 'btn small', type: 'button', role: 'menuitem', 'data-test': 'snooze-opt', 'data-kind': o[0], text: t(o[1]) });
+        if (o[0] === 'eod' && !eodOk()) opt.disabled = true;
+        opt.addEventListener('click', function () { menu.hidden = true; set(b, row, o[0]); });
+        menu.append(opt);
+      });
+      const btn = h('button', { class: 'btn small ghost snz-btn', type: 'button', 'aria-haspopup': 'menu', 'data-test': 'snooze-btn', title: t('snz_title'), text: '⏰ ' + t('snz_btn') });
+      btn.addEventListener('click', function () { menu.hidden = !menu.hidden; });
+      slot.append(btn, menu);
+    }
+    /** His snoozed open tickets of this brand (the small strip under his list). */
+    function hidden(b) { const bt = S.boots[b]; return ((bt && bt.tickets) || []).filter(function (x) { return OPEN.indexOf(x.status) >= 0 && hides(b, x); }); }
+    function until(b, id) { const r = rec(b, id); return r ? hhmm(r.until) : ''; }
+    setInterval(function () { if (!document.hidden && S.me) load(); }, 30000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && S.me) load(); });
+    return { load: load, hides: hides, back: back, set: set, cancel: cancel, paintTicket: paintTicket, hidden: hidden, until: until, WORK_TABS: WORK_TABS,
+      ver: function () { return v; } };
+  })();
+
   const Outbox = (function () {
     const KEY = 'cs.outbox';
     let items = {};
@@ -3530,12 +3838,30 @@
     }
     function changed(it) {
       ver++;
+      if (it && it.fn === 'apiSend') release(it);           // a close waiting behind this send: run it, or drop it (2026-10-14)
       save();
       renderTop();
       if (it && it.brand === S.brand) {
         renderList(false);
         if (S.tk && S.tk.id === it.id) { paintBanner(); Draft.refreshSend(); EnDraft.refresh(); }
       }
+    }
+    // Owner, 2026-10-14 (the close button right after a send / "שליחה וסגירה"): measured live, the close button was usable only 3.7-4.1 s after
+    // the send click (the engine's whole answer) while Gmail had the mail after 0.3-0.5 s. A close now waits in the queue behind the send of
+    // its ticket and runs the moment the engine accepted that send — never after a refusal, an unsent or an unknown (the ticket then stays,
+    // flagged, at the top of the list), never for a reply that was "already answered in Gmail" (nothing of ours went out).
+    function release(send) {
+      Object.keys(items).forEach(function (r) {
+        const c = items[r];
+        if (c.state !== 'queued' || c.after !== send.rid) return;
+        if (send.state === 'ok' && !(send.reply && send.reply.elsewhere)) {
+          c.state = 'flight'; c.tried_at = Date.now();
+          setTimeout(function () { if (items[c.rid] === c && c.state === 'flight') { changed(c); run(c); } }, 0);
+        } else if (['refused', 'unsent', 'unknown', 'delivery_issue'].indexOf(send.state) >= 0 || send.state === 'ok') {
+          c.state = 'dropped'; c.superseded_by = 'send:' + send.state;
+          setTimeout(function () { toast(tx('ob_close_dropped', { name: c.name }).textContent); changed(c); }, 0);
+        }
+      });
     }
     function forTicket(brand, id) {
       let best = null;
@@ -3544,7 +3870,15 @@
     }
     function blocks(brand, id) {
       const it = forTicket(brand, id);
-      return !!it && (it.state === 'flight' || it.state === 'checking' || it.state === 'retry' || it.state === 'unknown' || it.state === 'delivery_issue');
+      return !!it && (it.state === 'flight' || it.state === 'checking' || it.state === 'retry' || it.state === 'unknown' || it.state === 'delivery_issue' || it.state === 'queued');
+    }
+    /** The close button: usable at once after a send (the close queues behind it). Locked only while a close is already on its way, or while
+     *  a send's outcome is unknown or its delivery failed (closing then could hide a message that never reached the customer). */
+    function closeLocked(brand, id) {
+      const it = forTicket(brand, id);
+      if (!it) return false;
+      if (it.fn === 'apiSend') return it.state === 'unknown' || it.state === 'delivery_issue';
+      return it.state === 'queued' || it.state === 'flight' || it.state === 'checking' || it.state === 'retry' || it.state === 'unknown';
     }
     // Owner, 2026-10-14 ("some devices / users don't see all the open chats"): this device's own close used to hide the row for 24 h, so a
     // chat the customer reopened stayed invisible to the agent who closed it (live: 132 of 170 open chats were handled < 24 h earlier).
@@ -3554,7 +3888,7 @@
       const it = forTicket(brand, id);
       if (!it || it.fn === 'apiSend') return false;
       if (row && (ms(row.waiting_since) || 0) > it.at) return false;           // the customer wrote after the click: an open chat again
-      if (it.state === 'flight' || it.state === 'checking') return true;
+      if (it.state === 'queued' || it.state === 'flight' || it.state === 'checking') return true;
       return it.state === 'ok' && typeof it.ok_at === 'number' && Date.now() - it.ok_at < HIDE_OK_MS;
     }
     function flagged(brand, id) {
@@ -3564,6 +3898,7 @@
     function label(it) {
       if (!it) return '';
       const close = it.fn !== 'apiSend';
+      if (it.state === 'queued') return t('ob_queued_close');
       if (it.state === 'flight') return close ? t('ob_flight_close') : t('ob_flight_send');
       if (it.state === 'checking') return t('ob_checking');
       if (it.state === 'retry') return close ? t('ob_retry_close') : t('ob_retry');
@@ -3576,7 +3911,7 @@
       return t('ob_unknown');
     }
     function cls(it) {
-      return it.state === 'ok' ? 'ok' : (it.state === 'flight' || it.state === 'checking' || it.state === 'retry') ? 'st-sent' : 'bad';
+      return it.state === 'ok' ? 'ok' : (it.state === 'flight' || it.state === 'checking' || it.state === 'retry' || it.state === 'queued') ? 'st-sent' : 'bad';
     }
     function patchRow(it) {                              // what the engine now says, before the next poll brings it
       const b = S.boots[it.brand];
@@ -3626,7 +3961,7 @@
       } else if (r && (r.error === 'network' || r.error === 'server_restarted' || r.error === 'bad_response')) {
         // the connection dropped (a reload, a restart): the server is most likely still finishing it — ask it soon
         it.state = 'checking'; it.msg = null;
-        later(it, 4000);
+        later(it, 1000);                                 // 2026-10-14: was 4 s — asking early is only a lookup (never a resend)
       } else if (r && (r.refresh || r.error === 'write_unknown')) {
         it.state = 'unknown'; it.msg = r.msg || null;
         toast(tx('ob_toast_unknown', { name: it.name }).textContent);
@@ -3660,7 +3995,7 @@
       if (!items[it.rid] || (it.state !== 'checking' && it.state !== 'unknown')) return;
       if (r.ok && r.found && r.reply && typeof r.reply.ok === 'boolean') { settle(it, r.reply); return; }
       const age = Date.now() - (it.tried_at || it.at);
-      if (it.state === 'checking' && age < 150000) { later(it, 6000); return; }         // the server may still be working on it
+      if (it.state === 'checking' && age < 150000) { later(it, age < 20000 ? 2000 : 6000); return; }         // the server may still be working on it
       if (it.state === 'checking') { it.state = 'unknown'; changed(it); }
       if (age < 600000) later(it, 30000);
     }
@@ -3735,7 +4070,15 @@
     }
     function start(fn, brand, x, args, via, src) {
       const prev = forTicket(brand, x.id);
-      if (prev && (prev.state === 'flight' || prev.state === 'checking' || prev.state === 'retry' || prev.state === 'unknown' || prev.state === 'delivery_issue')) { toast(t('ob_inflight_lock')); return null; }
+      if ((fn === 'apiClose' || fn === 'apiMarkHandled') && prev && prev.fn === 'apiSend' && (prev.state === 'flight' || prev.state === 'checking' || prev.state === 'retry')) {
+        // behind the send of this ticket: runs once the engine accepted it (release), never on its own
+        const q = { rid: newRid(), brand: brand, id: x.id, fn: fn, args: args, channel: isWA(x) ? 'whatsapp' : 'email',
+          name: x.name || x.email || x.phone || x.id, state: 'queued', at: Date.now(), via: via || null, after: prev.rid };
+        items[q.rid] = q;
+        changed(q);
+        return q;
+      }
+      if (prev && (prev.state === 'flight' || prev.state === 'checking' || prev.state === 'retry' || prev.state === 'unknown' || prev.state === 'delivery_issue' || prev.state === 'queued')) { toast(t('ob_inflight_lock')); return null; }
       const it = { rid: newRid(), brand: brand, id: x.id, fn: fn, args: args, channel: isWA(x) ? 'whatsapp' : 'email',
         name: x.name || x.email || x.phone || x.id, state: 'flight', at: Date.now(), via: via || null };
       if (typeof src === 'string') it.src = src;          // the English desk's own text (local only, never sent): given back on a refusal
@@ -3760,7 +4103,12 @@
         .sort(function (a, b) { return b.at - a.at; });
     }
     function pending() { return list().filter(function (it) { return it.state !== 'ok'; }); }
-    function dismiss(it) { clearTimeout(timers[it.rid]); delete timers[it.rid]; delete items[it.rid]; changed(it); }
+    function dismiss(it) {
+      clearTimeout(timers[it.rid]); delete timers[it.rid]; delete items[it.rid];
+      // a close waiting behind this send goes with it: the agent stopped the send, so nothing may close the ticket blindly (Codex 2026-10-14)
+      Object.keys(items).forEach(function (r) { const q = items[r]; if (q.state === 'queued' && q.after === it.rid) { q.state = 'dropped'; q.superseded_by = 'send:dismissed'; } });
+      changed(it);
+    }
     function paintBanner() {
       const slot = document.getElementById('tk-outbox');
       if (!slot || !S.tk) return;
@@ -3789,14 +4137,17 @@
       load();
       Object.keys(items).forEach(function (r) {
         const it = items[r];
-        if (it.state === 'flight') { it.state = 'checking'; later(it, 1500); }     // the page died mid-send: ask, never resend
-        else if (it.state === 'checking' || it.state === 'unknown') later(it, 1500);
+        if (it.state === 'flight') { it.state = 'checking'; later(it, 500); }     // the page died mid-send: ask, never resend
+        else if (it.state === 'checking' || it.state === 'unknown') later(it, 500);
         else if (it.state === 'retry') arm(it, Math.max(1500, (it.next || 0) - Date.now()));   // the page closed between tries: go on
       });
+      // a close that waited behind a send when the page closed: decided by that send now (its send gone = never closed blindly)
+      Object.keys(items).forEach(function (r) { const q = items[r]; if (q.state === 'queued' && !items[q.after]) { q.state = 'dropped'; q.superseded_by = 'send:gone'; } });
+      Object.keys(items).forEach(function (r) { if (items[r].fn === 'apiSend') release(items[r]); });
       save();
       setTimeout(recoverFailures, 2000);
     }
-    return { start: start, forTicket: forTicket, blocks: blocks, hidesRow: hidesRow, flagged: flagged, label: label, cls: cls, lastChange: lastChange,
+    return { start: start, forTicket: forTicket, blocks: blocks, closeLocked: closeLocked, hidesRow: hidesRow, flagged: flagged, label: label, cls: cls, lastChange: lastChange,
       list: list, pending: pending, reconcile: reconcile, paintBanner: paintBanner, boot: boot, ver: function () { return ver; } };
   })();
 
@@ -4312,6 +4663,480 @@
   /** Admin + user-manager only (the server answers 403 to anyone else). Work time from the activity log: first to last
    *  action minus breaks over 30 min (Owner, 2026-10-13); "on screen" keeps the old 5-min runs. Being logged in is not work.
    *  Charts are plain SVG (strict CSP, no libraries). */
+  // ---------------------------------------------------------------- sales log for bonuses (Owner, 2026-10-14)
+  /*
+   * The agent presses "מכירה" in a ticket, picks the order that followed the conversation (or types its number); the ENGINE re-reads it from
+   * Shopify and verifies it (engine/Sales.gs). The agent is always the logged-in user. Proof = the order + the conversation frozen at that moment.
+   * Managers: a table with every sale on the managers' board (#/dash, admins) — filters, the proof, approve / reject, a per-agent bonus summary, and the
+   * sales the system found that nobody logged. Strings live here (SL), not in STR: this block is self-contained.
+   */
+  const SL = {
+    he: {
+      btn: '💰 מכירה', mine_btn: '💰 המכירות שלי', title: 'רישום מכירה', tab_log: 'רישום מכירה', tab_mine: 'המכירות שלי', close: 'סגירה', cancel: 'ביטול',
+      rules: 'ההזמנה נבדקת מול שופיפיי. "מאומת" = אותו לקוח (טלפון או מייל), ההזמנה לא בוטלה, נוצרה אחרי התשובה הראשונה של נציג בשיחה ובתוך {h} שעות מהתשובה האחרונה לפניה. המכירה נרשמת על הנציג שרושם. ההוכחה: ההזמנה עצמה + העתק קפוא של השיחה מרגע הרישום.',
+      loading: 'טוענים את ההזמנות של הלקוח…', pick: 'ההזמנות של הלקוח בשופיפיי', none: 'לא נמצאו הזמנות של הלקוח (החנות מראה 60 יום אחורה). אפשר להקליד מספר הזמנה.',
+      err_lookup: 'לא הצלחנו לקרוא את ההזמנות מהחנות. אפשר להקליד מספר הזמנה.', no_contact: 'בפנייה אין מייל או טלפון, אז אי אפשר לאתר הזמנות. אפשר להקליד מספר הזמנה (תירשם "לבדיקה").',
+      or_type: 'או מספר הזמנה אחר', note: 'הערה (לא חובה)', go: 'רשמו מכירה', busy: 'רושם…',
+      after: 'אחרי השיחה', before: 'לפני השיחה', cancelled: 'בוטלה', held: 'כבר רשומה על {a}', mine_held: 'כבר רשמת אותה',
+      done_verified: 'המכירה נרשמה ומאומתת', done_review: 'המכירה נרשמה וממתינה לבדיקה של גיא', done_why: 'למה לבדיקה', done_noop: 'המכירה הזאת כבר רשומה אצלך.',
+      st_verified: 'מאומת', st_review: 'לבדיקה', st_approved: 'אושר', st_rejected: 'נדחה', st_all: 'כל הסטטוסים',
+      r_order_cancelled: 'ההזמנה בוטלה', r_order_refunded: 'ההזמנה הוחזרה או שהתשלום בוטל', r_no_contact: 'בפנייה אין מייל או טלפון להשוואה',
+      r_contact_mismatch: 'הטלפון או המייל בהזמנה לא תואמים ללקוח בפנייה', r_no_agent_reply: 'לא נמצאה תשובה של נציג בפנייה',
+      r_before_reply: 'ההזמנה נוצרה לפני התשובה הראשונה של נציג', r_outside_window: 'ההזמנה נוצרה יותר מ-{h} שעות אחרי התשובה האחרונה',
+      r_other_agent: 'נציג אחר ({a}) ענה אחרון לפני ההזמנה', r_logger_not_in_chat: 'הנציג שרשם לא ענה בשיחה הזאת',
+      mine_head: 'המכירות שלי', mine_empty: 'עוד לא רשמת מכירות.', mine_month: 'החודש', col_date: 'הזמנה', col_order: 'הזמנה #', col_amount: 'סכום', col_status: 'סטטוס',
+      col_month: 'חודש', col_sales: 'מכירות', col_ticket: 'פנייה', col_brand: 'מותג', col_agent: 'נציג', col_customer: 'לקוח', col_items: 'פריטים', col_src: 'מקור', col_act: 'פעולות', open_ticket: 'לפנייה',
+      count_rev: '{n} מכירות · {r}',
+      b_title: 'מכירות — יומן בונוסים', b_sub: 'כל המכירות שהנציגים רשמו, מכל המותגים. נשמר במסד הנתונים של המערכת ומשוקף לגוגל שיט כל כמה דקות.',
+      b_sheet: 'פתח בגוגל שיט', b_refresh: 'רענון', b_defaults: 'ברירות מחדל שגיא טרם החליט (ערכי קונפיג, אפשר לשנות): חלון {h} שעות מהתשובה האחרונה · הזכות לנציג שרושם · נציג אחר שענה אחרון מסומן "לבדיקה".',
+      f_brand: 'מותג', f_agent: 'נציג', f_status: 'סטטוס', f_range: 'תקופה', f_all: 'הכל', f_month: 'החודש', f_prev: 'חודש שעבר', f_custom: 'טווח', f_from: 'מתאריך', f_to: 'עד תאריך',
+      src_agent: 'נציג', src_detected: 'זוהתה', approve: 'אשר', reject: 'דחה', undo: 'בטל החלטה', reject_note: 'סיבת הדחייה (לא חובה)', reject_go: 'אשרו דחייה',
+      conv: 'שיחה', conv_hide: 'הסתר שיחה', conv_loading: 'טוען את השיחה…', conv_frozen: 'העתק קפוא מ-{t}', conv_cut: '{n} הודעות ישנות יותר לא נשמרו (מקום)', who_customer: 'לקוח', who_us: 'נציג', who_automatic: 'אוטומטי',
+      decided: '{s} על ידי {u}', history: 'נרשמה קודם על {a} ונדחתה', none_rows: 'אין מכירות בסינון הזה.',
+      sum_head: 'בונוסים לפי נציג — מכירות מאומתות ומאושרות', sum_note: 'נספרות: מאומת או אושר. לבדיקה ללא החלטה — לא נספרת. נדחה — לא נספרת.', sum_review: 'לבדיקה', sum_rej: 'נדחו',
+      s_head: 'מכירות שלא נרשמו', s_sub: 'שיחות לפני רכישה שנציג ענה עליהן ונגמרו בהזמנה בחלון הזמן, ואף אחד לא רשם. לחיצה אחת זוקפת לנציג (מאושר על ידך).',
+      s_empty: 'אין כרגע מכירות שלא נרשמו.', s_scan: 'סרוק עכשיו', s_scan_done: 'הסריקה הסתיימה', s_credit: 'זקוף לנציג', s_dismiss: 'לא שלנו', s_pick: 'בחרו נציג', s_noagent: 'לא זוהה נציג',
+      s_scanned: 'נסרק לפני {m} דק׳', s_never: 'עוד לא נסרק', credited: 'נזקף', err_load: 'לא הצלחנו לטעון מכירות של {b}.'
+    },
+    en: {
+      btn: '💰 Sale', mine_btn: '💰 My sales', title: 'Log a sale', tab_log: 'Log a sale', tab_mine: 'My sales', close: 'Close', cancel: 'Cancel',
+      rules: 'The order is checked against Shopify. "Verified" = the same customer (phone or email), the order was not cancelled, it was created after the first agent reply in the chat and within {h} hours of the last reply before it. The sale is credited to the agent who logs it. Proof: the order itself + a frozen copy of the conversation from the moment you log it.',
+      loading: 'Loading the customer\'s orders…', pick: 'The customer\'s orders in Shopify', none: 'No orders found for this customer (the store shows the last 60 days). You can type an order number.',
+      err_lookup: 'Could not read the orders from the store. You can type an order number.', no_contact: 'The ticket has no email or phone, so orders cannot be found. You can type an order number (it will be logged "for review").',
+      or_type: 'Or another order number', note: 'Note (optional)', go: 'Log the sale', busy: 'Logging…',
+      after: 'after the chat', before: 'before the chat', cancelled: 'cancelled', held: 'already credited to {a}', mine_held: 'you already logged it',
+      done_verified: 'Sale logged and verified', done_review: 'Sale logged, waiting for the owner to review', done_why: 'Why it is for review', done_noop: 'You already logged this sale.',
+      st_verified: 'Verified', st_review: 'For review', st_approved: 'Approved', st_rejected: 'Rejected', st_all: 'All statuses',
+      r_order_cancelled: 'The order was cancelled', r_order_refunded: 'The order was refunded or the payment voided', r_no_contact: 'The ticket has no email or phone to compare',
+      r_contact_mismatch: 'The order\'s phone or email does not match the ticket\'s customer', r_no_agent_reply: 'No agent reply was found in the ticket',
+      r_before_reply: 'The order was created before the first agent reply', r_outside_window: 'The order was created more than {h} hours after the last reply',
+      r_other_agent: 'Another agent ({a}) replied last before the order', r_logger_not_in_chat: 'The agent who logged it did not reply in this chat',
+      mine_head: 'My sales', mine_empty: 'You have not logged a sale yet.', mine_month: 'This month', col_date: 'Order', col_order: 'Order #', col_amount: 'Amount', col_status: 'Status',
+      col_month: 'Month', col_sales: 'Sales', col_ticket: 'Ticket', col_brand: 'Brand', col_agent: 'Agent', col_customer: 'Customer', col_items: 'Items', col_src: 'Source', col_act: 'Actions', open_ticket: 'Open ticket',
+      count_rev: '{n} sales · {r}',
+      b_title: 'Sales — bonus log', b_sub: 'Every sale the agents logged, across brands. Stored in the system database and mirrored to a Google Sheet every few minutes.',
+      b_sheet: 'Open in Google Sheets', b_refresh: 'Refresh', b_defaults: 'Defaults the owner has not decided yet (config values): window {h} hours from the last reply · credit to the logging agent · another agent who replied last is flagged "for review".',
+      f_brand: 'Brand', f_agent: 'Agent', f_status: 'Status', f_range: 'Period', f_all: 'All', f_month: 'This month', f_prev: 'Last month', f_custom: 'Range', f_from: 'From', f_to: 'To',
+      src_agent: 'agent', src_detected: 'detected', approve: 'Approve', reject: 'Reject', undo: 'Undo decision', reject_note: 'Reason (optional)', reject_go: 'Confirm rejection',
+      conv: 'Conversation', conv_hide: 'Hide conversation', conv_loading: 'Loading the conversation…', conv_frozen: 'Frozen copy from {t}', conv_cut: '{n} older messages were not kept (size)', who_customer: 'Customer', who_us: 'Agent', who_automatic: 'Automatic',
+      decided: '{s} by {u}', history: 'Previously credited to {a} and rejected', none_rows: 'No sales match these filters.',
+      sum_head: 'Bonuses per agent — verified and approved sales', sum_note: 'Counted: verified or approved. "For review" with no decision is not counted. Rejected is not counted.', sum_review: 'for review', sum_rej: 'rejected',
+      s_head: 'Sales nobody logged', s_sub: 'Pre-sale chats an agent answered that ended in an order inside the window, and nobody logged it. One click credits the agent (approved by you).',
+      s_empty: 'No unlogged sales right now.', s_scan: 'Scan now', s_scan_done: 'Scan finished', s_credit: 'Credit the agent', s_dismiss: 'Not ours', s_pick: 'Choose an agent', s_noagent: 'No agent identified',
+      s_scanned: 'scanned {m} min ago', s_never: 'not scanned yet', credited: 'credited', err_load: 'Could not load the sales of {b}.'
+    }
+  };
+  function sl(k, vars) {
+    let s = (SL[LANG] && SL[LANG][k] !== undefined) ? SL[LANG][k] : (SL.he[k] !== undefined ? SL.he[k] : k);
+    if (vars) Object.keys(vars).forEach(function (a) { s = s.split('{' + a + '}').join(String(vars[a])); });
+    return s;
+  }
+  function slMoney(v, cur) {
+    const n = Number(v);
+    if (!isFinite(n)) return '—';
+    return n.toLocaleString(LANG === 'en' ? 'en-US' : 'he-IL', { maximumFractionDigits: 2 }) + ' ' + (cur === 'ILS' || !cur ? '₪' : cur);
+  }
+  function slRevenue(map) {
+    const keys = Object.keys(map || {});
+    return keys.length ? keys.map(function (c) { return slMoney(map[c], c); }).join(' + ') : slMoney(0, 'ILS');
+  }
+  /** One reason code ("other_agent:amit") as a sentence. */
+  function slReason(code, cfg) {
+    const i = String(code).indexOf(':');
+    const base = i < 0 ? code : code.slice(0, i);
+    const arg = i < 0 ? '' : code.slice(i + 1);
+    const k = 'r_' + base;
+    const s = sl(k, { h: (cfg && cfg.windowHours) || 72, a: arg });
+    return s === k ? code : s;
+  }
+  function slStatusChip(sale, big) {
+    const e = sale.effective || sale.status;
+    return h('span', { class: 'chip sale-st st-' + e + (big ? ' big' : ''), 'data-test': 'sale-status', 'data-status': e, text: sl('st_' + e) });
+  }
+  function slReasonList(sale, cfg) {
+    const r = (sale.reasons || []);
+    return r.length ? h('ul', { class: 'sale-reasons', 'data-test': 'sale-reasons' }, r.map(function (c) { return h('li', { 'data-code': c, text: slReason(c, cfg) }); })) : null;
+  }
+
+  const Sales = (function () {
+    const dlg = $('sale-dlg');
+    const MINE = {};            // brand -> { sales, summary, config } (this agent's, refreshed after each log)
+    let st = null;              // the open dialog: { tab, brand, x, cands, pick, typed, note, busy, result, err, mine }
+
+    async function loadMine(brand, force) {
+      if (MINE[brand] && !force && Date.now() - MINE[brand].at < 60000) return MINE[brand];
+      const r = await engine('apiSaleMine', {}, brand);
+      if (r && r.ok) MINE[brand] = { sales: r.sales || [], summary: r.summary || [], config: r.config || {}, at: Date.now() };
+      return MINE[brand] || null;
+    }
+    function ticketSales(brand, id) { return ((MINE[brand] && MINE[brand].sales) || []).filter(function (s) { return s.ticket === id; }); }
+
+    /** The bar in the ticket head: the button, and a chip for each sale this agent logged in this ticket. */
+    function bar(x) {
+      const brand = tkBrand(x);
+      const box = h('div', { class: 'sale-bar', id: 'sale-bar', 'data-test': 'sale-bar' });
+      paintBar(box, x, brand);
+      if (!MINE[brand]) loadMine(brand).then(function () { const el = document.getElementById('sale-bar'); if (el && S.tk && S.tk.id === x.id) paintBar(el, x, brand); });
+      return box;
+    }
+    function paintBar(box, x, brand) {
+      clear(box);
+      box.append(h('button', { class: 'btn small sale-btn', type: 'button', 'data-test': 'sale-btn', text: sl('btn'), onclick: function () { open(x); } }));
+      ticketSales(brand, x.id).forEach(function (s) {
+        box.append(h('button', { class: 'chip sale-chip st-' + s.effective, type: 'button', 'data-test': 'sale-chip', title: sl('st_' + s.effective),
+          onclick: function () { open(x, 'mine'); } }, h('bdi', { text: s.order_name }), ' · ', slMoney(s.amount, s.currency), ' · ', sl('st_' + s.effective)));
+      });
+    }
+
+    function open(x, tab) {
+      const brand = x ? tkBrand(x) : (S.brand || (S.me.brands[0] && S.me.brands[0].id));
+      st = { tab: tab || (x ? 'log' : 'mine'), brand: brand, x: x || null, cands: null, pick: '', typed: '', note: '', busy: false, result: null, err: null };
+      if (!dlg.open) dlg.showModal();
+      render();
+      if (x && st.tab === 'log') loadCands();
+      if (st.tab === 'mine') loadMineTab();
+    }
+    async function loadCands() {
+      const mine = st;
+      const r = await engine('apiSaleCandidates', { id: mine.x.id }, mine.brand);
+      if (st !== mine) return;
+      mine.cands = r.ok ? r : { ok: false, lookup: 'error', msg: r.msg, orders: [] };
+      // Agent's request via Owner, 2026-10-14 ("ממלא לך אוטומטית"): the button fills itself. An order after the chat, not cancelled, not credited to
+      // anyone (the same flags the list marks) is chosen for him — the newest when there are several — so "מכירה" is one more click to confirm.
+      // Never over his own choice made meanwhile. None: the typed-number field gets the focus.
+      const ok = (mine.cands.orders || []).filter(function (o) { return o && o.after_reply && !o.cancelled && !o.credited && typeof o.name === 'string'; })
+        .sort(function (a, b) { return (ms(b.createdAt) || 0) - (ms(a.createdAt) || 0); });
+      if (ok.length && !mine.pick && !mine.typed) { mine.pick = ok[0].name; mine.auto = true; }
+      render();
+      if (st === mine && !ok.length && !mine.result) { const ti = dlg.querySelector('[data-test=sale-typed]'); if (ti) ti.focus(); }
+    }
+    async function loadMineTab() {
+      const mine = st;
+      await loadMine(mine.brand, true);
+      if (st !== mine) return;
+      mine.mineLoaded = true;
+      render();
+    }
+    function render() {
+      if (!st) return;
+      clear(dlg);
+      const tabs = h('div', { class: 'seg', role: 'group' });
+      if (st.x) tabs.append(h('button', { class: 'btn small' + (st.tab === 'log' ? ' on' : ''), type: 'button', 'data-test': 'sale-tab-log', 'aria-pressed': st.tab === 'log' ? 'true' : 'false', text: sl('tab_log'),
+        onclick: function () { if (st.busy) return; st.tab = 'log'; if (!st.cands) loadCands(); render(); } }));
+      tabs.append(h('button', { class: 'btn small' + (st.tab === 'mine' ? ' on' : ''), type: 'button', 'data-test': 'sale-tab-mine', 'aria-pressed': st.tab === 'mine' ? 'true' : 'false', text: sl('tab_mine'),
+        onclick: function () { if (st.busy) return; st.tab = 'mine'; st.mineLoaded = false; loadMineTab(); render(); } }));
+      dlg.append(h('div', { class: 'in sale-dlg-in' }, h('h3', { text: st.tab === 'log' ? sl('title') : sl('mine_head') }), tabs, st.tab === 'log' ? logBody() : mineBody()));
+    }
+    function cfgHours() { return (st.cands && st.cands.window_hours) || (MINE[st.brand] && MINE[st.brand].config && MINE[st.brand].config.windowHours) || 72; }
+
+    function logBody() {
+      const wrap = h('div', { class: 'sale-log' });
+      const x = st.x;
+      wrap.append(h('div', { class: 'muted small sale-customer' }, h('bdi', { text: x.name || x.email || x.phone || '' })));
+      wrap.append(h('p', { class: 'muted small sale-rules', 'data-test': 'sale-rules', text: sl('rules', { h: cfgHours() }) }));
+      if (st.result) { wrap.append(doneBody()); return wrap; }
+      if (!st.cands) { wrap.append(h('div', { class: 'muted', 'data-test': 'sale-loading', text: sl('loading') })); wrap.append(btns(false)); return wrap; }
+      const c = st.cands;
+      const me = S.me.user.username;
+      if (c.lookup === 'error') wrap.append(h('div', { class: 'note-box warn', role: 'status', text: sl('err_lookup') }));
+      else if (c.lookup === 'no_contact') wrap.append(h('div', { class: 'note-box warn', role: 'status', text: sl('no_contact') }));
+      else if (!c.orders.length) wrap.append(h('div', { class: 'note-box', role: 'status', 'data-test': 'sale-none', text: sl('none') }));
+      if (c.orders.length) {
+        wrap.append(h('h4', { text: sl('pick') }));
+        const list = h('div', { class: 'sale-orders', role: 'radiogroup' });
+        c.orders.forEach(function (o) {
+          const held = o.credited ? (o.credited.agent === me ? sl('mine_held') : sl('held', { a: o.credited.agent })) : '';
+          const input = h('input', { type: 'radio', name: 'sale-order', value: o.name, disabled: held ? 'disabled' : null, checked: st.pick === o.name && !st.typed ? 'checked' : null });
+          input.addEventListener('change', function () { st.pick = o.name; st.typed = ''; const ti = dlg.querySelector('[data-test=sale-typed]'); if (ti) ti.value = ''; syncGo(); });
+          list.append(h('label', { class: 'sale-order' + (held ? ' held' : ''), 'data-test': 'sale-order', 'data-order': o.name },
+            input, h('span', { class: 'so-main' }, h('bdi', { class: 'so-name', text: o.name }), ' ', h('b', { text: slMoney(o.amount, o.currency) }), ' ',
+              h('span', { class: 'muted small', text: ago(o.createdAt) }), h('span', { class: 'muted small so-items', dir: 'auto', text: o.items })),
+            h('span', { class: 'so-chips' }, o.after_reply ? h('span', { class: 'chip ok', text: sl('after') }) : h('span', { class: 'chip outline', text: sl('before') }),
+              o.cancelled ? h('span', { class: 'chip bad', text: sl('cancelled') }) : null, held ? h('span', { class: 'chip bad', text: held }) : null)));
+        });
+        wrap.append(list);
+      }
+      const typed = h('input', { type: 'text', inputmode: 'numeric', maxlength: '12', dir: 'ltr', 'data-test': 'sale-typed', placeholder: '#1234', value: st.typed, 'aria-label': sl('or_type') });
+      typed.addEventListener('input', function () {
+        st.typed = typed.value; if (st.typed) { st.pick = ''; dlg.querySelectorAll('input[name=sale-order]').forEach(function (r) { r.checked = false; }); }
+        syncGo();
+      });
+      wrap.append(h('label', null, sl('or_type'), typed));
+      const note = h('textarea', { rows: '2', maxlength: '300', 'data-test': 'sale-note', 'aria-label': sl('note') });
+      note.value = st.note;
+      note.addEventListener('input', function () { st.note = note.value; });
+      wrap.append(h('label', null, sl('note'), note));
+      if (st.err) wrap.append(h('div', { class: 'err-box', role: 'alert', 'data-test': 'sale-err', text: st.err }));
+      wrap.append(btns(true));
+      return wrap;
+    }
+    function chosen() { return (st.typed || st.pick || '').trim(); }
+    function syncGo() { const b = dlg.querySelector('[data-test=sale-go]'); if (b) b.disabled = st.busy || !/^#?\d{3,9}$/.test(chosen()); }
+    function btns(canGo) {
+      const row = h('div', { class: 'row-btns' }, h('button', { class: 'btn ghost', type: 'button', 'data-test': 'sale-cancel', text: sl('cancel'), onclick: function () { if (!st.busy) dlg.close(); } }));
+      if (canGo) row.append(h('button', { class: 'btn primary', type: 'button', 'data-test': 'sale-go', text: st.busy ? sl('busy') : sl('go'), disabled: st.busy || !/^#?\d{3,9}$/.test(chosen()) ? 'disabled' : null, onclick: submit }));
+      return row;
+    }
+    async function submit() {
+      if (st.busy || !/^#?\d{3,9}$/.test(chosen())) return;
+      const mine = st;
+      mine.busy = true; mine.err = null; render();
+      const r = await engine('apiSaleLog', { id: mine.x.id, orderNo: chosen(), note: mine.note.trim() || undefined }, mine.brand);
+      mine.busy = false;
+      if (st !== mine) return;
+      if (!r.ok) { mine.err = r.msg || r.error || sl('err_lookup'); render(); return; }
+      mine.result = r;
+      delete MINE[mine.brand];
+      await loadMine(mine.brand, true);
+      const el = document.getElementById('sale-bar');
+      if (el && S.tk && S.tk.id === mine.x.id) paintBar(el, S.tk.ticket, mine.brand);
+      if (st === mine) render();
+    }
+    function doneBody() {
+      const r = st.result;
+      const s = r.sale;
+      const box = h('div', { class: 'sale-done', 'data-test': 'sale-done' });
+      box.append(h('div', { class: 'sale-done-head' }, slStatusChip(s, true), ' ', h('b', { text: r.noop ? sl('done_noop') : sl(s.status === 'verified' ? 'done_verified' : 'done_review') })));
+      box.append(h('div', null, h('bdi', { text: s.order_name }), ' · ', h('b', { text: slMoney(s.amount, s.currency) }), s.items ? h('span', { class: 'muted small', dir: 'auto', text: ' · ' + s.items }) : null));
+      if (s.reasons && s.reasons.length) box.append(h('h4', { text: sl('done_why') }), slReasonList(s, { windowHours: cfgHours() }));
+      box.append(h('div', { class: 'row-btns' }, h('button', { class: 'btn primary', type: 'button', 'data-test': 'sale-close', text: sl('close'), onclick: function () { dlg.close(); } })));
+      return box;
+    }
+
+    function mineBody() {
+      const wrap = h('div', { class: 'sale-mine', 'data-test': 'sale-mine' });
+      const m = MINE[st.brand];
+      if (!st.mineLoaded || !m) { wrap.append(h('div', { class: 'muted', text: sl('loading') })); return wrap; }
+      const month = ilDay(Date.now()).slice(0, 7);
+      const cur = m.summary.filter(function (s) { return s.month === month; })[0];
+      wrap.append(h('div', { class: 'sale-sum', 'data-test': 'sale-mine-sum' }, h('b', { text: sl('mine_month') + ': ' }), cur ? sl('count_rev', { n: cur.count, r: slRevenue(cur.revenue) }) : sl('count_rev', { n: 0, r: slMoney(0, 'ILS') }),
+        cur && cur.review ? h('span', { class: 'muted small', text: ' · ' + cur.review + ' ' + sl('sum_review') }) : null));
+      if (!m.sales.length) { wrap.append(h('div', { class: 'muted', 'data-test': 'sale-mine-empty', text: sl('mine_empty') })); wrap.append(h('div', { class: 'row-btns' }, h('button', { class: 'btn ghost', type: 'button', text: sl('close'), onclick: function () { dlg.close(); } }))); return wrap; }
+      const tb = h('table', { class: 'dash-table sale-table' }, h('thead', null, h('tr', null, [sl('col_date'), sl('col_order'), sl('col_amount'), sl('col_status'), sl('col_ticket')].map(function (c) { return h('th', { text: c }); }))));
+      const body = h('tbody');
+      m.sales.forEach(function (s) {
+        body.append(h('tr', { 'data-test': 'sale-mine-row', 'data-status': s.effective },
+          h('td', { text: fmtDate(s.order_created_at, true) }), h('td', null, orderLink(s.brand || st.brand, s.order_name, s.order_id)), h('td', { text: slMoney(s.amount, s.currency) }),
+          h('td', null, slStatusChip(s), slReasonList(s, m.config)), h('td', null, h('a', { href: '#/b/' + encodeURIComponent(s.brand || st.brand) + '/t/' + encodeURIComponent(s.ticket), text: sl('open_ticket'), onclick: function () { dlg.close(); } }))));
+      });
+      tb.append(body);
+      wrap.append(h('div', { class: 'table-wrap' }, tb), h('div', { class: 'row-btns' }, h('button', { class: 'btn ghost', type: 'button', text: sl('close'), onclick: function () { dlg.close(); } })));
+      return wrap;
+    }
+    dlg.addEventListener('close', function () { st = null; });
+    return { bar: bar, open: open, openMine: function () { open(null, 'mine'); } };
+  })();
+
+  /** The managers' board table (#/dash, admins): every sale, the proof, approve / reject, per-agent bonus summary, and the sales nobody logged. */
+  const SalesBoard = (function () {
+    const F = { brand: 'all', agent: 'all', status: 'all', range: 'month', from: '', to: '' };
+    const D = { sales: [], summary: [], cfg: {}, errs: [], sug: [], agents: [], scan: {}, loaded: false, busy: false, open: {}, proof: {}, rej: '', msg: '' };
+    let root = null;
+
+    async function load() {
+      if (D.busy) return;
+      D.busy = true; D.errs = [];
+      const brands = S.me.brands.filter(function (b) { return b.connected; }).map(function (b) { return b.id; });
+      const res = await Promise.all(brands.map(function (b) {
+        return Promise.all([engine('apiSaleList', {}, b), engine('apiSaleSuggestions', {}, b)]).then(function (p) { return { b: b, list: p[0], sug: p[1] }; });
+      }));
+      D.sales = []; D.summary = []; D.sug = []; D.agents = []; D.scan = {};
+      res.forEach(function (x) {
+        if (!x.list.ok) { D.errs.push(x.b); return; }
+        D.cfg = x.list.config || D.cfg;
+        x.list.sales.forEach(function (s) { s._brand = x.b; D.sales.push(s); });
+        (x.list.summary || []).forEach(function (s) { D.summary.push(Object.assign({ _brand: x.b }, s)); });
+        if (x.sug.ok) {
+          (x.sug.items || []).forEach(function (s) { s._brand = x.b; D.sug.push(s); });
+          (x.sug.agents || []).forEach(function (a) { if (D.agents.indexOf(a) < 0) D.agents.push(a); });
+          D.scan[x.b] = x.sug.scan || {};
+        }
+      });
+      D.agents.sort();
+      D.loaded = true; D.busy = false;
+      paint();
+    }
+    function inRange(s) {
+      if (F.range === 'all') return true;
+      const month = ilDay(Date.now()).slice(0, 7);
+      if (F.range === 'month') return s.month === month;
+      if (F.range === 'prev') { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return s.month === ilDay(d.getTime()).slice(0, 7); }
+      const day = ilDay(Date.parse(s.order_created_at) || 0);
+      return (!F.from || day >= F.from) && (!F.to || day <= F.to);
+    }
+    function filtered() {
+      return D.sales.filter(function (s) {
+        return (F.brand === 'all' || s._brand === F.brand) && (F.agent === 'all' || s.agent === F.agent) && (F.status === 'all' || s.effective === F.status) && inRange(s);
+      }).sort(function (a, b) { return String(b.order_created_at).localeCompare(String(a.order_created_at)); });
+    }
+    function sel(label, key, opts, test) {
+      const s = h('select', { 'aria-label': label, 'data-test': test }, opts.map(function (o) { return h('option', { value: o[0], text: o[1], selected: F[key] === o[0] ? 'selected' : null }); }));
+      s.addEventListener('change', function () { F[key] = s.value; paint(); });
+      return h('label', { class: 'sf' }, h('span', { class: 'muted small', text: label }), s);
+    }
+    function paint() {
+      if (!root) return;
+      clear(root);
+      const sheet = S.me.sales_sheet_url;
+      root.append(h('div', { class: 'dash-head sales-head' }, h('h2', { 'data-test': 'sales-title', text: sl('b_title') }),
+        h('button', { class: 'btn small', type: 'button', 'data-test': 'sales-refresh', text: sl('b_refresh'), onclick: function () { load(); } }),
+        sheet ? h('a', { class: 'btn small ghost', href: sheet, target: '_blank', rel: 'noopener noreferrer', 'data-test': 'sales-sheet', text: '📄 ' + sl('b_sheet') }) : null));
+      root.append(h('p', { class: 'muted small', text: sl('b_sub') }), h('p', { class: 'muted small', 'data-test': 'sales-defaults', text: sl('b_defaults', { h: D.cfg.windowHours || 72 }) }));
+      if (!D.loaded) { root.append(h('div', { class: 'skeleton' })); return; }
+      D.errs.forEach(function (b) { root.append(h('div', { class: 'err-box', text: sl('err_load', { b: brandName(b) }) })); });
+      if (D.msg) root.append(h('div', { class: 'note-box', role: 'status', text: D.msg }));
+      root.append(suggestions());
+      const brands = [['all', sl('f_all')]].concat(S.me.brands.map(function (b) { return [b.id, brandName(b.id)]; }));
+      const agents = [['all', sl('f_all')]].concat(Array.from(new Set(D.sales.map(function (s) { return s.agent; }))).sort().map(function (a) { return [a, a]; }));
+      const fl = h('div', { class: 'sales-filters', 'data-test': 'sales-filters' },
+        sel(sl('f_brand'), 'brand', brands, 'f-brand'), sel(sl('f_agent'), 'agent', agents, 'f-agent'),
+        sel(sl('f_status'), 'status', [['all', sl('st_all')], ['verified', sl('st_verified')], ['review', sl('st_review')], ['approved', sl('st_approved')], ['rejected', sl('st_rejected')]], 'f-status'),
+        sel(sl('f_range'), 'range', [['month', sl('f_month')], ['prev', sl('f_prev')], ['all', sl('f_all')], ['custom', sl('f_custom')]], 'f-range'));
+      if (F.range === 'custom') {
+        [['from', 'f_from'], ['to', 'f_to']].forEach(function (p) {
+          const i = h('input', { type: 'date', value: F[p[0]], 'aria-label': sl(p[1]), 'data-test': 'f-' + p[0] });
+          i.addEventListener('change', function () { F[p[0]] = i.value; paint(); });
+          fl.append(h('label', { class: 'sf' }, h('span', { class: 'muted small', text: sl(p[1]) }), i));
+        });
+      }
+      root.append(fl, table(), summary());
+    }
+    function agentCell(s) { return h('td', null, h('bdi', { text: s.agent }), s.source === 'detected' ? h('div', { class: 'muted small', text: sl('src_detected') }) : null); }
+    function table() {
+      const rows = filtered();
+      const box = h('div', { class: 'table-wrap sales-wrap' });
+      if (!rows.length) { box.append(h('div', { class: 'muted', 'data-test': 'sales-empty', text: sl('none_rows') })); return box; }
+      const cols = ['col_date', 'col_brand', 'col_agent', 'col_order', 'col_amount', 'col_customer', 'col_status', 'col_ticket', 'col_act'];
+      const tb = h('table', { class: 'dash-table sale-table', 'data-test': 'sales-table' }, h('thead', null, h('tr', null, cols.map(function (c) { return h('th', { text: sl(c) }); }))));
+      const body = h('tbody');
+      rows.forEach(function (s) {
+        const decided = s.decision ? h('div', { class: 'muted small' }, sl('decided', { s: sl('st_' + s.decision), u: s.decided_by }), s.decision_note ? ' — ' + s.decision_note : '') : null;
+        const tr = h('tr', { 'data-test': 'sale-row', 'data-id': s.id, 'data-brand': s._brand, 'data-status': s.effective },
+          h('td', { text: fmtDate(s.order_created_at, true) }), h('td', null, h('bdi', { text: brandName(s._brand) })), agentCell(s),
+          h('td', null, orderLink(s._brand, s.order_name, s.order_id), s.items ? h('div', { class: 'muted small', dir: 'auto', text: s.items }) : null),
+          h('td', { text: slMoney(s.amount, s.currency) }),
+          h('td', null, h('bdi', { text: s.customer_name || '' }), h('div', { class: 'muted small', dir: 'ltr', text: s.customer_phone || s.customer_email || '' })),
+          h('td', null, slStatusChip(s), slReasonList(s, D.cfg), decided,
+            (s.history || []).length ? h('div', { class: 'muted small', text: sl('history', { a: s.history[s.history.length - 1].agent }) }) : null),
+          h('td', null, h('a', { href: '#/b/' + encodeURIComponent(s._brand) + '/t/' + encodeURIComponent(s.ticket), 'data-test': 'sale-ticket', text: sl('open_ticket') })),
+          h('td', { class: 'sale-acts' }, actions(s)));
+        body.append(tr);
+        if (D.open[s.id]) body.append(h('tr', { class: 'sale-proof-row', 'data-test': 'sale-proof-row' }, h('td', { colspan: String(cols.length) }, proofBox(s))));
+      });
+      tb.append(body);
+      box.append(tb);
+      return box;
+    }
+    function actions(s) {
+      const a = h('div', { class: 'row-btns start' });
+      if (s.decision !== 'approved') a.append(h('button', { class: 'btn small primary', type: 'button', 'data-test': 'sale-approve', text: sl('approve'), onclick: function () { decide(s, 'approved'); } }));
+      if (s.decision !== 'rejected') a.append(h('button', { class: 'btn small danger-outline', type: 'button', 'data-test': 'sale-reject', text: sl('reject'), onclick: function () { D.rej = D.rej === s.id ? '' : s.id; paint(); } }));
+      if (s.decision) a.append(h('button', { class: 'btn small ghost', type: 'button', 'data-test': 'sale-undo', text: sl('undo'), onclick: function () { decide(s, 'clear'); } }));
+      a.append(h('button', { class: 'btn small ghost', type: 'button', 'data-test': 'sale-conv', 'aria-expanded': D.open[s.id] ? 'true' : 'false', text: D.open[s.id] ? sl('conv_hide') : sl('conv'), onclick: function () { toggleProof(s); } }));
+      if (D.rej === s.id) {
+        const note = h('input', { type: 'text', maxlength: '300', 'data-test': 'sale-reject-note', placeholder: sl('reject_note'), 'aria-label': sl('reject_note') });
+        a.append(note, h('button', { class: 'btn small danger', type: 'button', 'data-test': 'sale-reject-go', text: sl('reject_go'), onclick: function () { decide(s, 'rejected', note.value.trim()); } }));
+      }
+      return a;
+    }
+    async function decide(s, decision, note) {
+      const r = await engine('apiSaleDecide', { id: s.id, decision: decision, note: note || undefined }, s._brand);
+      if (!r.ok) { D.msg = r.msg || r.error; paint(); return; }
+      D.msg = ''; D.rej = '';
+      Object.assign(s, r.sale, { _brand: s._brand });
+      paint();
+      load();      // the monthly summary is the engine's
+    }
+    async function toggleProof(s) {
+      if (D.open[s.id]) { delete D.open[s.id]; paint(); return; }
+      D.open[s.id] = true;
+      paint();
+      if (!D.proof[s.id]) {
+        const r = await engine('apiSaleProof', { id: s.id }, s._brand);
+        D.proof[s.id] = r.ok ? (r.proof || { messages: [] }) : { error: r.msg || r.error };
+        paint();
+      }
+    }
+    function proofBox(s) {
+      const p = D.proof[s.id];
+      const box = h('div', { class: 'sale-proof', 'data-test': 'sale-proof' });
+      if (!p) { box.append(h('div', { class: 'muted', text: sl('conv_loading') })); return box; }
+      if (p.error) { box.append(h('div', { class: 'err-box', text: p.error })); return box; }
+      box.append(h('div', { class: 'muted small', text: sl('conv_frozen', { t: fmtDate(p.frozen_at, true) }) + (p.cut ? ' · ' + sl('conv_cut', { n: p.cut }) : '') }));
+      (p.messages || []).forEach(function (m) {
+        box.append(h('div', { class: 'pm ' + (m.who === 'customer' ? 'cust' : 'us') }, h('div', { class: 'muted small' }, sl('who_' + (m.who === 'customer' ? 'customer' : m.who === 'automatic' ? 'automatic' : 'us')), ' · ', fmtDate(m.at, true)),
+          h('div', { class: 'pm-text', dir: 'auto', text: m.text })));
+      });
+      return box;
+    }
+    function summary() {
+      const box = h('div', { class: 'sales-sum', 'data-test': 'sales-summary' }, h('h3', { text: sl('sum_head') }), h('p', { class: 'muted small', text: sl('sum_note') }));
+      const by = {};
+      D.summary.forEach(function (s) {
+        if ((F.brand !== 'all' && s._brand !== F.brand) || (F.agent !== 'all' && s.agent !== F.agent)) return;
+        const k = s.agent + '|' + s.month;
+        const o = by[k] = by[k] || { agent: s.agent, month: s.month, count: 0, revenue: {}, review: 0, rejected: 0 };
+        o.count += s.count; o.review += s.review; o.rejected += s.rejected;
+        Object.keys(s.revenue || {}).forEach(function (c) { o.revenue[c] = Math.round(((o.revenue[c] || 0) + s.revenue[c]) * 100) / 100; });
+      });
+      const rows = Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return a.month < b.month ? 1 : a.month > b.month ? -1 : a.agent < b.agent ? -1 : 1; });
+      if (!rows.length) { box.append(h('div', { class: 'muted', text: sl('none_rows') })); return box; }
+      const tb = h('table', { class: 'dash-table', 'data-test': 'sales-sum-table' }, h('thead', null, h('tr', null,
+        [sl('col_agent'), sl('col_month'), sl('col_sales'), sl('col_amount'), sl('sum_review'), sl('sum_rej')].map(function (c) { return h('th', { text: c }); }))));
+      const body = h('tbody');
+      rows.forEach(function (r) {
+        body.append(h('tr', { 'data-test': 'sum-row', 'data-agent': r.agent, 'data-month': r.month }, h('td', null, h('bdi', { text: r.agent })), h('td', { text: r.month }), h('td', null, h('b', { text: String(r.count) })),
+          h('td', { text: slRevenue(r.revenue) }), h('td', { text: String(r.review) }), h('td', { text: String(r.rejected) })));
+      });
+      tb.append(body);
+      box.append(h('div', { class: 'table-wrap' }, tb));
+      return box;
+    }
+    function suggestions() {
+      const box = h('div', { class: 'sales-sug', 'data-test': 'sales-sug' });
+      const oldest = Object.keys(D.scan).map(function (b) { return D.scan[b] && D.scan[b].ageMin; }).filter(function (m) { return typeof m === 'number'; });
+      box.append(h('div', { class: 'dash-head' }, h('h3', { text: sl('s_head') + (D.sug.length ? ' (' + D.sug.length + ')' : '') }),
+        h('button', { class: 'btn small', type: 'button', 'data-test': 'sug-scan', text: sl('s_scan'), onclick: scanNow }),
+        h('span', { class: 'muted small', text: oldest.length ? sl('s_scanned', { m: Math.max.apply(null, oldest) }) : sl('s_never') })), h('p', { class: 'muted small', text: sl('s_sub') }));
+      if (!D.sug.length) { box.append(h('div', { class: 'muted', 'data-test': 'sug-empty', text: sl('s_empty') })); return box; }
+      const tb = h('table', { class: 'dash-table sale-table', 'data-test': 'sug-table' });
+      const body = h('tbody');
+      D.sug.forEach(function (s) {
+        let pick = null;
+        const agentCellEl = s.agent ? h('td', null, h('bdi', { text: s.agent })) : (function () {
+          pick = h('select', { 'aria-label': sl('s_pick'), 'data-test': 'sug-agent' }, h('option', { value: '', text: sl('s_pick') }), D.agents.map(function (a) { return h('option', { value: a, text: a }); }));
+          return h('td', null, pick);
+        })();
+        body.append(h('tr', { 'data-test': 'sug-row', 'data-id': s.id, 'data-brand': s._brand },
+          h('td', { text: fmtDate(s.order_created_at, true) }), h('td', null, h('bdi', { text: brandName(s._brand) })), agentCellEl,
+          h('td', null, orderLink(s._brand, s.order_name, s.order_id), s.items ? h('div', { class: 'muted small', dir: 'auto', text: s.items }) : null), h('td', { text: slMoney(s.amount, s.currency) }),
+          h('td', null, h('bdi', { text: s.customer_name || '' })),
+          h('td', null, s.reasons && s.reasons.length ? slReasonList(s, D.cfg) : null, h('a', { href: '#/b/' + encodeURIComponent(s._brand) + '/t/' + encodeURIComponent(s.ticket), text: sl('open_ticket') })),
+          h('td', { class: 'sale-acts' }, h('div', { class: 'row-btns start' },
+            h('button', { class: 'btn small primary', type: 'button', 'data-test': 'sug-credit', text: sl('s_credit'), onclick: function () { credit(s, pick ? pick.value : ''); } }),
+            h('button', { class: 'btn small ghost', type: 'button', 'data-test': 'sug-dismiss', text: sl('s_dismiss'), onclick: function () { dismiss(s); } })))));
+      });
+      tb.append(body);
+      box.append(h('div', { class: 'table-wrap' }, tb));
+      return box;
+    }
+    async function credit(s, agent) {
+      if (!s.agent && !agent) { D.msg = sl('s_noagent'); paint(); return; }
+      const r = await engine('apiSaleSuggestCredit', { id: s.id, agent: s.agent ? undefined : agent }, s._brand);
+      D.msg = r.ok ? sl('credited') + ' ' + s.order_name : (r.msg || r.error);
+      await load();
+    }
+    async function dismiss(s) { const r = await engine('apiSaleSuggestDismiss', { id: s.id }, s._brand); D.msg = r.ok ? '' : (r.msg || r.error); await load(); }
+    async function scanNow() {
+      D.msg = '';
+      for (const b of S.me.brands.filter(function (x) { return x.connected; }).map(function (x) { return x.id; })) { await engine('apiSaleScan', {}, b); }
+      D.msg = sl('s_scan_done');
+      await load();
+    }
+    function mount(el) { root = el; D.loaded = false; paint(); load(); }
+    return { mount: mount };
+  })();
+
   const Dash = (function () {
     const HE = {
       title: 'לוח מנהלים', day: 'יום', d7: '7 ימים', d30: '30 ימים', updated: 'עודכן', loading: 'טוען…',
@@ -4325,7 +5150,7 @@
       frt_email: 'מענה ראשון — מייל', frt_wa: 'מענה ראשון — וואטסאפ', aht: 'זמן טיפול לתשובה (AHT)', fcr: 'פתרון במענה אחד (קירוב)',
       reopen: 'נפתחו מחדש', occ: 'ניצולת (במסך ÷ זמן עבודה)', backlog: 'בקלוג', sla_wa: 'וואטסאפ נענה תוך שעה', sla_email: 'מייל נענה תוך 24 ש׳',
       csat: 'שביעות רצון (CSAT)', csat_missing: 'חסר — אין סקר שביעות רצון', bench: 'יעד', n_a: 'אין עדיין נתונים',
-      fcr_note: 'חלון 72 השעות עוד פתוח', agents: 'נציגים', agent: 'נציג', active: 'זמן עבודה', replies: 'תשובות', closes: 'סגירות',
+      fcr_note: 'חלון 72 השעות עוד פתוח', agents: 'נציגים', agent: 'נציג', active: 'זמן עבודה', replies: 'תשובות', closes: 'סגירות', snoozed: 'נדחות עכשיו',
       per_hour: 'תשובות לשעת עבודה', engine: 'במנוע', none: 'אין פעילות בטווח', by_brand: 'לפי מותג', by_channel: 'לפי ערוץ',
       heat: 'מתי עובדים בפועל', heat_all: 'כל הנציגים', heat_total: 'סה״כ לפי שעה', pies: 'חלוקה', pie_brand: 'זמן עבודה לפי מותג',
       pie_chan: 'לפי ערוץ', pie_cat: 'לפי נושא', pie_who: 'מי ענה', agents_w: 'נציגים', auto_w: 'מענה אוטומטי', email: 'מייל', whatsapp: 'וואטסאפ',
@@ -4348,7 +5173,7 @@
       frt_email: 'First reply — email', frt_wa: 'First reply — WhatsApp', aht: 'Handle time per reply (AHT)', fcr: 'First-contact resolution (proxy)',
       reopen: 'Reopened', occ: 'Occupancy (on screen ÷ work time)', backlog: 'Backlog', sla_wa: 'WhatsApp answered within 1h', sla_email: 'Email answered within 24h',
       csat: 'CSAT', csat_missing: 'Missing — no satisfaction survey', bench: 'Target', n_a: 'No data yet',
-      fcr_note: 'the 72h window is still open', agents: 'Agents', agent: 'Agent', active: 'Work time', replies: 'Replies', closes: 'Closed',
+      fcr_note: 'the 72h window is still open', agents: 'Agents', agent: 'Agent', active: 'Work time', replies: 'Replies', closes: 'Closed', snoozed: 'Snoozed now',
       per_hour: 'Replies per work hour', engine: 'engine', none: 'No activity in range', by_brand: 'By brand', by_channel: 'By channel',
       heat: 'When they actually work', heat_all: 'All agents', heat_total: 'Total per hour', pies: 'Split', pie_brand: 'Work time by brand',
       pie_chan: 'By channel', pie_cat: 'By topic', pie_who: 'Who answered', agents_w: 'Agents', auto_w: 'Auto-reply', email: 'Email', whatsapp: 'WhatsApp',
@@ -4591,13 +5416,13 @@
     }
     function agentsTable(all) {
       // the engine is the truth for replies/closes (the log only exists since it was deployed): the larger number leads
-      const list = all.filter(function (a) { return a.active_s || a.sends || a.closes || a.engine_sends || a.engine_closes || a.ds_answered; });
+      const list = all.filter(function (a) { return a.active_s || a.sends || a.closes || a.engine_sends || a.engine_closes || a.ds_answered || a.snoozed_now; });
       const idle = all.length - list.length;
       const wrap = h('div', { class: 'table-wrap' });
       if (idle) wrap.append(h('div', { class: 'muted small idle-note', text: d('idle_agents', { n: idle }) }));
       if (!list.length) { wrap.append(h('div', { class: 'muted', text: L.none })); return wrap; }
       const tb = h('table', { class: 'dash-table', 'data-test': 'dash-agents' });
-      tb.append(h('thead', null, h('tr', null, [L.agent, L.conv_answered, L.active, L.on_screen, L.replies, L.closes, L.per_hour, 'AHT', L.occ].map(function (x) { return h('th', { text: x }); }))));
+      tb.append(h('thead', null, h('tr', null, [L.agent, L.conv_answered, L.active, L.on_screen, L.replies, L.closes, L.per_hour, 'AHT', L.occ, L.snoozed].map(function (x) { return h('th', { text: x }); }))));
       const hm = function (sec) { return sec ? new Date(sec * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' }) : ''; };
       const shiftTxt = function (x) { return x && x.first ? hm(x.first) + '–' + hm(x.last) + (x.breaks_s ? ' · ' + d('breaks', { t: fmtS(x.breaks_s) }) : '') : ''; };
       const body = h('tbody');
@@ -4614,7 +5439,8 @@
             h('span', { class: 'muted small', text: ' (' + L.engine + ' ' + a.engine_closes + ' · ' + L.log_word + ' ' + a.closes + ')' })),
           h('td', { text: a.per_hour === null ? '—' : String(a.per_hour) }),
           h('td', { text: fmtS(a.aht_s) }),
-          h('td', { text: a.occupancy === null ? '—' : Math.round(a.occupancy * 100) + '%' }));
+          h('td', { text: a.occupancy === null ? '—' : Math.round(a.occupancy * 100) + '%' }),
+          h('td', { 'data-test': 'ag-snoozed', text: String(a.snoozed_now || 0) }));      // "לענות מאוחר יותר" (2026-10-14): hidden from HIS list now
         body.append(tr);
         const det = h('details', { class: 'ag-det' }, h('summary', { text: L.by_brand + ' · ' + L.by_channel + ' · ' + L.per_day }));
         const part = function (obj, kind) {
@@ -4712,9 +5538,9 @@
       if (!main) {
         clear(root);
         main = h('div', { id: 'dash-main' });
-        root.append(main, h('div', { id: 'dash-ai' }));
+        root.append(main, h('div', { id: 'dash-sales', class: 'dash-sales' }), h('div', { id: 'dash-ai' }));
       }
-      return { main: main, ai: document.getElementById('dash-ai') };
+      return { main: main, ai: document.getElementById('dash-ai'), sales: document.getElementById('dash-sales') };
     }
     function render() {
       const p = parts().main;
@@ -4780,6 +5606,7 @@
     function show() {
       $('dash-pane').hidden = false;
       render();
+      if (S.me.is_admin) SalesBoard.mount(parts().sales);   // sales log for bonuses (admin only; the proxy answers 403 to anyone else)
       if (S.me.is_admin) AiNotes.mount(parts().ai);       // admin only (the proxy answers 403 to anyone else)
       load();
       loadLive();
@@ -5316,6 +6143,7 @@
     }
     S.me = r;
     Outbox.boot();                                     // sends that were in flight when the page closed: ask, never resend
+    Snooze.load();                                     // his snoozed tickets (server-side: the same on every device)
     window.addEventListener('hashchange', route);
     route();
   }

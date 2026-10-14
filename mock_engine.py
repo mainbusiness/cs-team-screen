@@ -38,12 +38,15 @@ TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTick
          "apiNote": WORK, "apiKachingCancel": WORK, "apiKachingContract": WORK, "apiKachingAction": WORK, "apiKachingVariants": WORK,
          "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
-         "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK,
+         "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK, "apiRedraftOne": WORK,
          "apiResult": WORK, "apiTicketLite": WORK, "apiDayStats": ("admin", "user-manager"),
          "apiTemplates": WORK, "apiSendTemplate": WORK,
-         "apiAiNotes": ("admin",), "apiAiNoteAdd": ("admin",), "apiAiNoteDelete": ("admin",), "apiAttachPut": WORK}
-MOCK_WRITES = ("apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiWaTakeOver",
-               "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate", "apiAiNoteAdd", "apiAiNoteDelete")
+         "apiAiNotes": ("admin",), "apiAiNoteAdd": ("admin",), "apiAiNoteDelete": ("admin",), "apiAttachPut": WORK,
+         "apiSaleCandidates": WORK, "apiSaleLog": WORK, "apiSaleMine": WORK, "apiSaleProof": WORK, "apiSaleList": ("admin",), "apiSaleDecide": ("admin",),
+         "apiSaleSuggestions": ("admin",), "apiSaleSuggestCredit": ("admin",), "apiSaleSuggestDismiss": ("admin",), "apiSaleScan": ("admin",)}
+MOCK_WRITES = ("apiRedraftOne", "apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiWaTakeOver",
+               "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate", "apiAiNoteAdd", "apiAiNoteDelete",
+               "apiSaleLog", "apiSaleDecide", "apiSaleSuggestCredit", "apiSaleSuggestDismiss")
 # engine 2026-10-11: apiBoot.myshopify (the store's admin handle) and extras.mailbox (the support address an email ticket came to).
 # apexmen has no myshopify on purpose (order numbers stay plain text); t18f2a02 has no mailbox (an older ticket: the line is hidden).
 MYSHOPIFY = {"rozela": "achq3j-nj.myshopify.com", "celesta": "celesta-il.myshopify.com", "apexmen": "", "selera": "selera-tea.myshopify.com"}
@@ -204,6 +207,13 @@ def build_brand(brand, now):
              "draft_text": "היי רונית, לוקחים 2 כמוסות ביום, הכי נוח עם ארוחה ועם כוס מים.\nאם את לוקחת תרופות קבועות, שווה לשאול את הרופא לפני." + sig},
             _conv(now, ("customer", 5, "שלום, קיבלתי את החבילה. כמה כמוסות צריך לקחת ביום? ואפשר עם אוכל?")),
             [_order(now, "#4498", 9, [(product, 1)], shipped_days_ago=7, track_no="JY4498120033")])
+        # Sales log (2026-10-14): a pre-sale chat a person answered, closed 2 days ago (no open / today count moves). Its customer later ordered:
+        # MockEngines.SHOP_ORDERS below has #4601 (after the answer) and #4599 (before it).
+        add({"id": "t18f2s01", "status": "done", "category": "product", "name": "דנה שחר", "email": "dana.s@example.com", "phone": "+972501230045",
+             "channel": "email", "subject": "מה ההבדל בין החבילות?", "summary": "שאלה לפני רכישה: איזו חבילה מתאימה, ובכמה.", "created_at": h(40),
+             "handled_by": "agent-two", "handled_at": h(38), "language": "he"},
+            _conv(now, ("customer", 40, "שלום, מה ההבדל בין חבילת חודש לחבילת 3 חודשים? ויש הנחה?"),
+                  ("us", 38, "היי דנה, בחבילת 3 חודשים כל חודש יוצא זול יותר, ויש משלוח חינם. אם תרצי אשמח לעזור להזמין." + sig)))
         sub_cid = "9876543210123"
         add({"id": "t18f2a03", "status": "action", "category": "cancel_subscription", "name": "יוסי מזרחי", "siblings": 1,
              "email": "yossi.m@example.com", "phone": "+972544445566", "channel": "email", "subject": "Re: ההזמנה שלך נשלחה",
@@ -420,6 +430,7 @@ class MockEngines:
         self.attach = {b: {} for b in MOCK_BRANDS}
         self.wa_attach = set(x.strip() for x in os.environ.get("MOCK_WA_ATTACH", "").split(",") if x.strip())
         self.sent_files = []                          # (brand, ticket id, [names]) of every send with files, for the tests
+        self._init_sales()
 
     def transport(self, url, body):
         brand = url.split("mock://", 1)[1]
@@ -456,7 +467,8 @@ class MockEngines:
             self.wa_queued_at[brand].pop(tid, None)
             t = self._find(brand, tid)
             if t and t.get("wa_send") == "pending":
-                t.update({"wa_send": "sent:mock", "status": "sent"})
+                # engine 2026-10-14: a chat a person closed while its send was queued stays closed when the send is confirmed
+                t.update({"wa_send": "sent:mock", "status": "done" if t.get("status") == "done" else "sent"})
                 self.version[brand] += 1
                 self.touched[brand][tid] = self.version[brand]
 
@@ -611,6 +623,11 @@ class MockEngines:
             return moved
         if t["status"] in ("sent", "done") and not followup:
             return {"ok": False, "error": "already_sent" if t["channel"] == "whatsapp" else "already_handled"}
+        if "REFUSE-SEND" in text:                          # preview / test trigger: a refusal about the ticket (never retried)
+            return {"ok": False, "error": "thread_missing"}
+        if "BUSY-ONCE" in text and text not in getattr(self, "busy_once", set()):   # test trigger: the first try is "busy" (the outbox retries)
+            self.busy_once = getattr(self, "busy_once", set()) | {text}
+            return {"ok": False, "error": "busy"}
         if not text.strip():                               # engine 2026-10-06: only an EMPTY draft is refused; content
             return {"ok": False, "error": "draft_problem", "problem": "empty draft"}   # checks are an audit, never a block
         files, ferr = self._attach_resolve(brand, a.get("attachments"), t["channel"], c)
@@ -711,6 +728,60 @@ class MockEngines:
 
     apiMarkHandled = _close
     apiClose = _close
+
+    @staticmethod
+    def draft_fp(s):
+        """engine/AgentRedraft.gs redraft1Fp_: FNV-1a 32 over UTF-16 code units (the screen's draftFp)."""
+        h = 2166136261
+        b = str(s or "").encode("utf-16-le")
+        for i in range(0, len(b), 2):
+            h ^= b[i] | (b[i + 1] << 8)
+            h = (h * 16777619) & 0xFFFFFFFF
+        return "%08x" % h
+
+    def apiRedraftOne(self, brand, a, c):
+        """engine/AgentRedraft.gs: a different AI draft for one open ticket (5 / ticket / hour), undo = the replaced one back.
+        MOCK_REDRAFT_FAIL=1 makes every new answer come out blocked (no_new_draft)."""
+        t = self._find(brand, a.get("id"))
+        if not t:
+            return {"ok": False, "error": "not_found"}
+        if t["status"] not in OPEN:
+            return {"ok": False, "error": "not_open"}
+        if str(t.get("wa_send") or "").startswith(("pending", "claimed")):
+            return {"ok": False, "error": "wa_send_in_flight"}
+        moved = self._moved(t, a, c)
+        if moved:
+            return moved
+        if self.draft_fp(t.get("draft_text")) != a.get("base"):
+            return {"ok": False, "error": "changed_meanwhile", "reason": "draft", "by": "", "at": "", "status": t["status"]}
+        prev = getattr(self, "redraft_prev", {})
+        self.redraft_prev = prev
+        key = (brand, t["id"])
+        if a.get("undo") is True:
+            if key not in prev:
+                return {"ok": False, "error": "nothing_to_undo"}
+            old = prev[key]
+            prev[key] = t.get("draft_text") or ""
+            t["draft_text"] = old
+            return {"ok": True, "draft": old, "recommendation": t.get("recommendation") or "", "undone": True}
+        hint = a.get("hint") or ""
+        if not isinstance(hint, str) or len(hint) > 200:
+            return {"ok": False, "error": "bad_hint"}
+        calls = getattr(self, "redraft_calls", {})
+        self.redraft_calls = calls
+        now = time.time()
+        mine = [x for x in calls.get(key, []) if now - x < 3600]
+        if len(mine) >= 5:
+            return {"ok": False, "error": "rate_limited", "scope": "ticket", "retryAfterSeconds": int(3600 - (now - min(mine))) + 1}
+        calls[key] = mine + [now]
+        self.redraft_hints = getattr(self, "redraft_hints", []) + [hint]
+        if os.environ.get("MOCK_REDRAFT_FAIL") == "1":
+            return {"ok": False, "error": "no_new_draft"}
+        name = (t.get("name") or "").split(" ")[0]
+        draft = "היי %s, תשובה אחרת מספר %d%s.\n\nצוות %s" % (name, len(calls[key]), " (קצרה)" if "קצר" in hint else "", self._b(brand)["name"])
+        prev[key] = t.get("draft_text") or ""
+        t["draft_text"] = draft
+        return {"ok": True, "draft": draft, "recommendation": t.get("recommendation") or "", "left": 5 - len(calls[key])}
 
     def apiNote(self, brand, a, c):
         t = self._find(brand, a.get("id"))
@@ -1174,6 +1245,204 @@ class MockEngines:
         before = len(self.ai_notes[brand])
         self.ai_notes[brand] = [n for n in self.ai_notes[brand] if n["id"] != a["id"]]
         return {"ok": True} if len(self.ai_notes[brand]) < before else {"ok": True, "noop": True}
+
+    # ---------- sales log (engine Sales.gs, 2026-10-14) ----------
+    # The same contract and rules as the engine (verification codes, one order once, roles), over canned Shopify orders.
+    WINDOW_H = 72
+    SHOP_ORDERS = {"rozela": {"dana.s@example.com": [
+        {"id": "gid://shopify/Order/5004601", "name": "#4601", "age_h": 30, "total": "299.80", "items": [("Rozela x3 חבילה", 1)]},
+        {"id": "gid://shopify/Order/5004599", "name": "#4599", "age_h": 200, "total": "149.90", "items": [("Rozela", 1)]},
+        {"id": "gid://shopify/Order/5004602", "name": "#4602", "age_h": 29, "total": "149.90", "items": [("Rozela", 1)], "cancelled": True}],
+        "other.person@example.com": [{"id": "gid://shopify/Order/5004700", "name": "#4700", "age_h": 10, "total": "99.00", "items": [("Rozela", 1)]}]}}
+
+    def _init_sales(self):
+        now = datetime.now(timezone.utc)
+        self.sales = {b: [] for b in MOCK_BRANDS}
+        self.sug = {b: [] for b in MOCK_BRANDS}
+        h = lambda x: _iso(now - timedelta(hours=x))
+
+        def seed(brand, order, ticket, agent, amount, status, reasons=(), decision="", by="", hours=20, name="לקוחה לדוגמה"):
+            self.sales[brand].append({
+                "id": "o" + order[1:], "created_at": h(hours), "brand": brand, "ticket": ticket, "channel": "email", "agent": agent, "logged_by": agent, "source": "agent",
+                "order_id": "gid://shopify/Order/50" + order[1:], "order_name": order, "amount": amount, "currency": "ILS", "items": "Rozela", "order_created_at": h(hours + 2),
+                "customer_name": name, "customer_phone": "", "customer_email": "x@example.com", "status": status, "reasons": list(reasons),
+                "first_reply_at": h(hours + 8), "last_reply_at": h(hours + 6), "last_agent": agent, "decision": decision, "decided_by": by, "decided_at": h(1) if by else "",
+                "decision_note": "", "note": "", "month": datetime.now().strftime("%Y-%m"), "history": [],
+                "effective": decision or ("verified" if status == "verified" else "review"),
+                "_proof": {"frozen_at": h(hours), "channel": "email", "subject": "שאלה לפני רכישה", "customer": name, "cut": 0,
+                           "messages": [{"who": "customer", "at": h(hours + 9), "text": "שלום, כמה עולה חבילת 3 חודשים?"},
+                                        {"who": "us", "at": h(hours + 8), "text": "היי, 299.8 ש\"ח עם משלוח חינם."}]}})
+        seed("rozela", "#4590", "t18f2c03", "agent-two", 149.9, "verified")
+        seed("rozela", "#4591", "t18f2c01", "amit", 299.8, "review", ["other_agent:agent-two"], hours=30)
+        seed("celesta", "#3301", "t18f2c03", "agent-two", 199.0, "review", ["outside_window"], "approved", "guy", hours=50)
+        self.sug["rozela"].append({"id": "o4610", "ticket": "t18f2c02", "channel": "email", "agent": "agent-two", "order_id": "gid://shopify/Order/5004610", "order_name": "#4610",
+                                   "amount": 149.9, "currency": "ILS", "items": "Rozela", "order_created_at": h(12), "customer_name": "אילנה ג.", "first_reply_at": h(30),
+                                   "last_reply_at": h(26), "reasons": [], "found_at": h(2), "state": "open"})
+        self.sug["rozela"].append({"id": "o4611", "ticket": "t18f2c01", "channel": "whatsapp", "agent": "", "order_id": "gid://shopify/Order/5004611", "order_name": "#4611",
+                                   "amount": 299.8, "currency": "ILS", "items": "Rozela x2", "order_created_at": h(9), "customer_name": "מיכל לוי", "first_reply_at": h(20),
+                                   "last_reply_at": h(15), "reasons": [], "found_at": h(2), "state": "open"})
+        self.scan_at = {b: None for b in MOCK_BRANDS}
+
+    @staticmethod
+    def _sale_pub(r):
+        return {k: v for k, v in r.items() if not k.startswith("_")}
+
+    def _sale_summary(self, rows):
+        by = {}
+        for r in rows:
+            s = by.setdefault((r["agent"], r["month"]), {"agent": r["agent"], "month": r["month"], "count": 0, "revenue": {}, "review": 0, "rejected": 0})
+            e = r["effective"]
+            if e in ("approved", "verified"):
+                s["count"] += 1
+                s["revenue"][r["currency"]] = round(s["revenue"].get(r["currency"], 0) + r["amount"], 2)
+            elif e == "review":
+                s["review"] += 1
+            else:
+                s["rejected"] += 1
+        return sorted(by.values(), key=lambda x: (x["month"], x["agent"]), reverse=True)
+
+    def _sale_orders(self, brand, t):
+        return self.SHOP_ORDERS.get(brand, {}).get(str(t.get("email") or "").lower(), [])
+
+    def _sale_first_reply(self, brand, tid):
+        conv = self._b(brand)["snaps"].get(tid, {}).get("conversation", [])
+        us = [m["at"] for m in conv if m["who"] == "us"]
+        return min(us) if us else None
+
+    def apiSaleCandidates(self, brand, a, c):
+        t = self._find(brand, a.get("id"), archive=True)
+        if not t:
+            return {"ok": False, "error": "not_found"}
+        first = self._sale_first_reply(brand, t["id"])
+        if not (t.get("email") or t.get("phone")):
+            return {"ok": True, "ticket": t["id"], "window_hours": self.WINDOW_H, "credit": "logger", "first_reply_at": first or "", "orders": [], "lookup": "no_contact"}
+        now = datetime.now(timezone.utc)
+        held = {r["order_id"]: r for r in self.sales[brand] if r["decision"] != "rejected"}
+        out = []
+        for o in self._sale_orders(brand, t):
+            created = _iso(now - timedelta(hours=o["age_h"]))
+            h_ = held.get(o["id"])
+            out.append({"id": o["id"], "name": o["name"], "createdAt": created, "amount": float(o["total"]), "currency": "ILS", "cancelled": bool(o.get("cancelled")),
+                        "items": "; ".join(t_ for t_, _q in o["items"]), "financial": "PAID", "after_reply": bool(first) and created >= first,
+                        "credited": {"agent": h_["agent"], "effective": h_["effective"]} if h_ else None})
+        return {"ok": True, "ticket": t["id"], "window_hours": self.WINDOW_H, "credit": "logger", "first_reply_at": first or "", "orders": out,
+                "lookup": "ok" if out else "none"}
+
+    def apiSaleLog(self, brand, a, c):
+        t = self._find(brand, a.get("id"), archive=True)
+        if not isinstance(a.get("orderNo"), str) or not re.match(r"^#?\d{3,9}$", a["orderNo"].strip()):
+            return {"ok": False, "error": "bad_order"}
+        if not t:
+            return {"ok": False, "error": "not_found"}
+        name = "#" + a["orderNo"].strip().lstrip("#")
+        found = None
+        for email, lst in self.SHOP_ORDERS.get(brand, {}).items():
+            for o in lst:
+                if o["name"] == name:
+                    found = (email, o)
+        if not found:
+            return {"ok": False, "error": "order_not_found"}
+        email, o = found
+        key = "o" + o["id"].rsplit("/", 1)[1]
+        cur = next((r for r in self.sales[brand] if r["id"] == key), None)
+        if cur and cur["decision"] != "rejected":
+            if cur["agent"] == c["user"] and cur["ticket"] == t["id"]:
+                return {"ok": True, "noop": True, "sale": self._sale_pub(cur)}
+            return {"ok": False, "error": "order_already_credited", "by": cur["agent"], "at": cur["created_at"], "ticket": cur["ticket"]}
+        now = datetime.now(timezone.utc)
+        created = _iso(now - timedelta(hours=o["age_h"]))
+        first = self._sale_first_reply(brand, t["id"])
+        reasons = []
+        if o.get("cancelled"):
+            reasons.append("order_cancelled")
+        if email != str(t.get("email") or "").lower():
+            reasons.append("contact_mismatch")
+        if not first:
+            reasons.append("no_agent_reply")
+        elif created < first:
+            reasons.append("before_reply")
+        snap_us = [m for m in self._b(brand)["snaps"].get(t["id"], {}).get("conversation", []) if m["who"] == "us"]
+        if snap_us and t.get("handled_by") and t["handled_by"] != c["user"]:
+            reasons.append("other_agent:" + t["handled_by"])
+        conv = self._b(brand)["snaps"].get(t["id"], {}).get("conversation", [])
+        rec = {"id": key, "created_at": self._now(), "brand": brand, "ticket": t["id"], "channel": t.get("channel") or "email", "agent": c["user"], "logged_by": c["user"], "source": "agent",
+               "order_id": o["id"], "order_name": o["name"], "amount": float(o["total"]), "currency": "ILS", "items": "; ".join(x for x, _q in o["items"]), "order_created_at": created,
+               "customer_name": t.get("name") or "", "customer_phone": t.get("phone") or "", "customer_email": t.get("email") or "",
+               "status": "review" if reasons else "verified", "reasons": reasons, "first_reply_at": first or "", "last_reply_at": first or "", "last_agent": t.get("handled_by") or "",
+               "decision": "", "decided_by": "", "decided_at": "", "decision_note": "", "note": str(a.get("note") or ""), "month": datetime.now().strftime("%Y-%m"),
+               "history": [], "effective": "review" if reasons else "verified",
+               "_proof": {"frozen_at": self._now(), "channel": t.get("channel"), "subject": t.get("subject"), "customer": t.get("name"), "cut": 0,
+                          "messages": [{"who": m["who"], "at": m["at"], "text": m["text"]} for m in conv]}}
+        if cur:
+            rec["history"] = [{"agent": cur["agent"], "at": cur["created_at"], "decision": cur["decision"], "by": cur["decided_by"], "note": ""}]
+            self.sales[brand].remove(cur)
+        self.sales[brand].append(rec)
+        return {"ok": True, "sale": self._sale_pub(rec)}
+
+    def apiSaleMine(self, brand, a, c):
+        rows = sorted([r for r in self.sales[brand] if r["agent"] == c["user"]], key=lambda r: r["created_at"], reverse=True)
+        return {"ok": True, "user": c["user"], "config": {"windowHours": self.WINDOW_H, "credit": "logger"}, "sales": [self._sale_pub(r) for r in rows],
+                "summary": self._sale_summary(rows)}
+
+    def apiSaleProof(self, brand, a, c):
+        r = next((x for x in self.sales[brand] if x["id"] == a.get("id")), None)
+        if not r:
+            return {"ok": False, "error": "not_found"}
+        if c["role"] != "admin" and r["agent"] != c["user"]:
+            return {"ok": False, "error": "unauthorized"}
+        return {"ok": True, "id": r["id"], "proof": r["_proof"]}
+
+    def apiSaleList(self, brand, a, c):
+        rows = sorted(self.sales[brand], key=lambda r: r["created_at"], reverse=True)
+        return {"ok": True, "brand": brand, "shop": MYSHOPIFY.get(brand, ""), "config": {"windowHours": self.WINDOW_H, "credit": "logger", "suggestDays": 7},
+                "sales": [self._sale_pub(r) for r in rows], "summary": self._sale_summary(rows),
+                "suggestions": len([s for s in self.sug[brand] if s["state"] == "open"])}
+
+    def apiSaleDecide(self, brand, a, c):
+        r = next((x for x in self.sales[brand] if x["id"] == a.get("id")), None)
+        if a.get("decision") not in ("approved", "rejected", "clear"):
+            return {"ok": False, "error": "bad_decision"}
+        if not r:
+            return {"ok": False, "error": "not_found"}
+        clear = a["decision"] == "clear"
+        r.update({"decision": "" if clear else a["decision"], "decided_by": "" if clear else c["user"], "decided_at": "" if clear else self._now(),
+                  "decision_note": "" if clear else str(a.get("note") or "")})
+        r["effective"] = r["decision"] or ("verified" if r["status"] == "verified" else "review")
+        return {"ok": True, "sale": self._sale_pub(r)}
+
+    def apiSaleSuggestions(self, brand, a, c):
+        agents = sorted({r["agent"] for r in self.sales[brand]} | {"agent-two", "amit"})
+        return {"ok": True, "agents": agents, "items": [dict(s) for s in self.sug[brand] if s["state"] == "open"],
+                "scan": {"at": self.scan_at[brand] or "", "ageMin": None if not self.scan_at[brand] else 0}, "config": {"windowHours": self.WINDOW_H, "suggestDays": 7}}
+
+    def apiSaleSuggestCredit(self, brand, a, c):
+        s = next((x for x in self.sug[brand] if x["id"] == a.get("id") and x["state"] == "open"), None)
+        if not s:
+            return {"ok": False, "error": "not_found"}
+        agent = s["agent"] or str(a.get("agent") or "")
+        if not agent:
+            return {"ok": False, "error": "no_agent"}
+        now = self._now()
+        rec = {"id": s["id"], "created_at": now, "brand": brand, "ticket": s["ticket"], "channel": s["channel"], "agent": agent, "logged_by": c["user"], "source": "detected",
+               "order_id": s["order_id"], "order_name": s["order_name"], "amount": s["amount"], "currency": s["currency"], "items": s["items"], "order_created_at": s["order_created_at"],
+               "customer_name": s["customer_name"], "customer_phone": "", "customer_email": "", "status": "verified", "reasons": [], "first_reply_at": s["first_reply_at"],
+               "last_reply_at": s["last_reply_at"], "last_agent": agent, "decision": "approved", "decided_by": c["user"], "decided_at": now, "decision_note": "", "note": "",
+               "month": datetime.now().strftime("%Y-%m"), "history": [], "effective": "approved",
+               "_proof": {"frozen_at": now, "channel": s["channel"], "subject": "", "customer": s["customer_name"], "cut": 0, "messages": []}}
+        self.sales[brand].append(rec)
+        s["state"] = "credited"
+        return {"ok": True, "sale": self._sale_pub(rec)}
+
+    def apiSaleSuggestDismiss(self, brand, a, c):
+        s = next((x for x in self.sug[brand] if x["id"] == a.get("id")), None)
+        if not s:
+            return {"ok": False, "error": "not_found"}
+        s["state"] = "dismissed"
+        return {"ok": True}
+
+    def apiSaleScan(self, brand, a, c):
+        self.scan_at[brand] = self._now()
+        return {"ok": True, "result": {"candidates": 3, "checked": 3, "found": 0, "skipped": 0, "partial": False}}
 
     def apiResult(self, brand, a, c):
         hit = self.results[brand].get(a.get("rid"))

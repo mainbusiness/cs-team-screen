@@ -660,3 +660,22 @@ browser's type; the engine checks again. Limits: 10 MB a file, 18 MB an email, 1
 The 📎 row (`Attach` in static/app.js) shows only where `apiBoot.attach` allows it: email always on the core; WhatsApp only while the brand's
 `WA_ATTACH` is on and the 24 hours are open. Full design and limits: DECISIONS.md 2026-10-11 "files from the system to the customer".
 Tests: `tests/test_attach.py`, `tests/test_attach_browser.py`. Local preview with WhatsApp files on: `MOCK_WA_ATTACH=rozela`.
+
+
+## Send & close, the close button right after a send, a different answer, answer later (Owner, 2026-10-14)
+
+Full design, measurements and limits: DECISIONS.md 2026-10-14. Tests: `tests/test_send_close_redraft_snooze_browser.py` (both desks), `tests/test_snooze_redraft_server.py`.
+- **Close right after a send.** The close button is usable at once (measured live before: 3.7–4.1 s, the engine's whole answer). A close clicked while
+  the ticket's send is on its way is an Outbox item in state `queued` behind that send: it runs when the engine accepts the send, and is dropped (toast,
+  ticket stays flagged on top) when the send is refused / unsent / unknown. `Outbox.closeLocked()` decides the button, not `Outbox.blocks()`.
+- **"שליחה וסגירה"** (`data-test=send-close-btn`, armed; English desk `en-confirm-close` after the Hebrew preview): send + the queued close + next
+  ticket, at once. Not offered while "someone answered meanwhile" is on the ticket (read first, then "send anyway").
+- **"תשובה אחרת"** (`rd-hint`, `rd-btn`, `rd-undo`): `apiRedraftOne {id, hint, seen, last, base}` / `{…, undo: true}` — engine/AgentRedraft.gs. `base` =
+  `draftFp()` (FNV-1a) of the draft the screen shows; the engine refuses when the draft, the customer or the handler moved. The way back is kept per
+  ticket (`Regen.undo`), so the 5 s redraw of an idle ticket does not lose it. English desk: the new Hebrew draft comes back through `/translate`.
+- **"לענות מאוחר יותר"** (`snooze-btn` → `snooze-opt` 30m / 1h / 2h / eod; `snooze-chip`, `snooze-cancel`, strip `snooze-section`):
+  `GET /api/snooze`, `POST /api/<brand>/snooze {id, kind}` / `{id, cancel: true}` (snooze.py, the private disk, `SNOOZE_PATH` default
+  `<users dir>/snooze.json`). Hidden from HIS list and count only; back on top when the time is up or the customer wrote again; refused when nobody
+  else would see it. The board: `agents[].snoozed_now`. Re-read every 30 s and on tab focus; a timer brings a row back at its exact time.
+- Mock: `REFUSE-SEND` in a send's text = a refusal (`thread_missing`), `BUSY-ONCE` = one `busy` then ok, `MOCK_REDRAFT_FAIL=1` = every different
+  answer blocked. Live check after a deploy: `tools/live_ui_send.py <brand> --desk he --close-timing` / `--send-close` (cstest-* customers only).

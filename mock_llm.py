@@ -79,6 +79,11 @@ class MockClaude:
                 return _resp(json.dumps({"translations": out}, ensure_ascii=False))
             table = HE if "Task: translate-out" in sys_text else EN
             pref = "(HE) " if table is HE else "(EN) "
+            if table is EN:                    # mock_engine apiRedraftOne's drafts ("תשובה אחרת", 2026-10-14) read in English like any draft
+                for it in items:
+                    m = re.match(r"^היי [^,]*, תשובה אחרת מספר (\d+)( \(קצרה\))?\.\n\nצוות (\w+)$", it["text"])
+                    if m and it["text"] not in EN:
+                        EN[it["text"]] = "Hi, here is a different answer%s.\n\n%s Team" % (" (short)" if m.group(2) else "", m.group(3))   # no digit: the number check of the send translation stays honest
             out = [{"i": it["i"], "text": table.get(it["text"], "שלום, תודה על הפנייה. אנחנו בודקים ונעדכן בהקדם." if table is HE else pref + it["text"])} for it in items]
             return _resp(json.dumps({"translations": out}, ensure_ascii=False))
         he = "Answer in Hebrew" in sys_text

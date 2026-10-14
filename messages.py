@@ -16,6 +16,11 @@ PROXY = {
     "not_logged_in": ("צריך להתחבר מחדש.", "Please sign in again."),
     "csrf": ("הדף התיישן. רעננו את הדף ונסו שוב.", "This page is out of date. Refresh and try again."),
     "forbidden_brand": ("אין לך הרשאה למותג הזה.", "You do not have access to this brand."),
+    # "לענות מאוחר יותר" (snooze.py, 2026-10-14)
+    "snooze_too_late": ("כבר כמעט 17:00 — בחרו זמן אחר.", "It is almost 17:00: pick another time."),
+    "snooze_not_open": ("אפשר לדחות רק פנייה פתוחה. רעננו את הרשימה.", "Only an open ticket can be snoozed. Refresh the list."),
+    "snooze_everyone": ("אי אפשר לדחות: אף נציג אחר לא יראה את הפנייה. היא חייבת להישאר אצל מישהו.",
+                        "Cannot snooze: no other agent would see this ticket. It must stay with someone."),
     "forbidden_fn": ("הפעולה הזאת לא זמינה מהמסך.", "This action is not available from the screen."),
     "forbidden_role": ("לתפקיד שלך אין הרשאה לפעולה הזאת.", "Your role cannot do this."),
     "brand_not_connected": ("המותג הזה עוד לא מחובר למערכת.", "This brand is not connected yet."),
@@ -259,6 +264,23 @@ AI_NOTES = {
                      "The brand engine refused (maybe not updated for AI notes yet, or the session expired). Refresh."),
 }
 
+# Sales log for bonuses (engine Sales.gs, the owner 2026-10-14). An explicit set of fns, like the AI notes above.
+SALE_FNS = frozenset(("apiSaleCandidates", "apiSaleLog", "apiSaleMine", "apiSaleProof", "apiSaleList", "apiSaleDecide", "apiSaleSuggestions",
+                      "apiSaleSuggestCredit", "apiSaleSuggestDismiss", "apiSaleScan"))
+SALES = {
+    "bad_id": ("מזהה לא תקין. רעננו את הדף ונסו שוב.", "Invalid id. Refresh and try again."),
+    "bad_order": ("מספר הזמנה לא תקין (3 עד 9 ספרות, למשל 1234).", "Invalid order number (3 to 9 digits, e.g. 1234)."),
+    "bad_text": ("ההערה ארוכה מדי (עד 300 תווים).", "The note is too long (up to 300 characters)."),
+    "bad_decision": ("החלטה לא מוכרת.", "Unknown decision."),
+    "not_found": ("לא נמצא. רעננו את הרשימה.", "Not found. Refresh the list."),
+    "order_not_found": ("ההזמנה לא נמצאה בשופיפיי של המותג הזה. בדקו את המספר.", "That order was not found in this brand's Shopify. Check the number."),
+    "shopify_unavailable": ("אין חיבור לשופיפיי כרגע. נסו שוב בעוד רגע.", "Cannot reach Shopify right now. Try again in a moment."),
+    "order_already_credited": ("ההזמנה הזאת כבר רשומה על {by}. הזמנה נזקפת פעם אחת בלבד.", "This order is already credited to {by}. An order is credited once."),
+    "no_agent": ("אין נציג מזוהה. בחרו נציג כדי לזקוף.", "No agent identified. Choose an agent to credit."),
+    "rate_limited": ("יותר מדי חיפושים בשופיפיי. נסו שוב בעוד {wait} שניות.", "Too many Shopify lookups. Try again in {wait} seconds."),
+    "unauthorized": ("אין הרשאה לפעולה הזאת (או שהמנוע של המותג עוד לא עודכן ליומן המכירות).", "Not allowed (or the brand engine does not have the sales log yet)."),
+}
+
 SETTINGS = {
     "bad_action": ("פעולה לא מוכרת.", "Unknown action."),
     "bad_key": ("מתג לא מוכר.", "Unknown switch."),
@@ -310,15 +332,43 @@ def kaching_msg(message, lang="he"):
     return ("תשובה מהמנוי: {0}" if lang != "en" else "Gate answer: {0}").format(message or "—")
 
 
+# "תשובה אחרת" (engine/AgentRedraft.gs, 2026-10-14)
+REDRAFT = {
+    "rate_limited": ("כבר ביקשתם {n} תשובות אחרות לפנייה הזאת בשעה האחרונה. אפשר שוב בעוד {wait} דקות.",
+                     "You already asked for {n} other answers on this ticket in the last hour. Try again in {wait} minutes."),
+    "rate_limited_user": ("הגעתם למגבלת התשובות האחרות לשעה. אפשר שוב בעוד {wait} דקות.", "You reached the hourly limit of other answers. Try again in {wait} minutes."),
+    "changed_meanwhile": ("הפנייה השתנתה בינתיים (הלקוח כתב, או שמישהו אחר ענה או ערך). הטיוטה לא הוחלפה — קראו שוב ונסו מחדש.",
+                          "The ticket changed meanwhile (the customer wrote, or someone else answered or edited). The draft was not replaced. Read it again and retry."),
+    "no_new_draft": ("לא נוצרה תשובה אחרת שעוברת את הבדיקות. הטיוטה הקיימת נשארה.", "No other answer passed the checks. The current draft stays."),
+    "same_draft": ("יצאה אותה תשובה. נסו עם בקשה קצרה (למשל \"יותר קצר\").", "The same answer came out. Try with a short wish (e.g. \"shorter\")."),
+    "ai_failed": ("הכתיבה האוטומטית לא הצליחה הפעם. הטיוטה הקיימת נשארה.", "The AI could not write an answer this time. The current draft stays."),
+    "ai_unavailable": ("שירות הכתיבה האוטומטית לא זמין כרגע. נסו שוב בעוד דקה.", "The AI service is not available right now. Try again in a minute."),
+    "cannot_redraft": ("אי אפשר לכתוב תשובה אחרת לפנייה הזאת (אין שיחה שמורה).", "No other answer can be written for this ticket (no stored conversation)."),
+    "nothing_to_undo": ("אין טיוטה קודמת לחזור אליה.", "There is no previous draft to go back to."),
+    "not_open": ("הפנייה כבר לא פתוחה.", "The ticket is no longer open."),
+    "wa_send_in_flight": ("הודעה בדרך ללקוח — אי אפשר להחליף טיוטה עכשיו.", "A message is on its way to the customer: the draft cannot be replaced now."),
+    "auto_pending": ("פעולה אוטומטית ממתינה על הפנייה. נסו שוב אחריה.", "An automatic action is pending on this ticket. Try again after it."),
+    "bad_hint": ("הבקשה ארוכה מדי (עד 200 תווים).", "The wish is too long (up to 200 characters)."),
+}
+
+
 def engine_error_msg(resp, fn, lang="he"):
     """Localized line for an engine {ok:false} answer."""
+    if fn == "apiRedraftOne":
+        code = str(resp.get("error") or "")
+        if code == "rate_limited" and resp.get("scope") == "user":
+            code = "rate_limited_user"
+        if code in REDRAFT:
+            wait = max(1, (int(resp.get("retryAfterSeconds") or 60) + 59) // 60)
+            return REDRAFT[code][_idx(lang)].format(n=5, wait=wait)
     if fn in ("apiKachingCancel", "apiKachingAction") and resp.get("message"):
         return kaching_msg(resp.get("message"), lang)
     code = str(resp.get("error") or "")
-    table = AUTO if fn in AUTO_FNS else SETTINGS if fn == "apiSettings" else AI_NOTES if fn in AI_NOTE_FNS else None
+    table = AUTO if fn in AUTO_FNS else SETTINGS if fn == "apiSettings" else AI_NOTES if fn in AI_NOTE_FNS else SALES if fn in SALE_FNS else None
     if table and code in table:
         allowed = resp.get("allowed")
-        kw = {"state": iso(resp.get("state") or "?"), "reason": iso(resp.get("reason") or "?"),
+        kw = {"state": iso(resp.get("state") or "?"), "reason": iso(resp.get("reason") or "?"), "by": iso(resp.get("by") or "?"),
+              "wait": str(resp.get("retryAfterSeconds") or 60),
               "problem": draft_problem_msg(resp.get("problem"), lang) if resp.get("problem") else "?",
               "allowed": iso(", ".join(map(str, allowed)) if isinstance(allowed, list) else str(allowed or "?"))}
         return table[code][_idx(lang)].format(**kw)

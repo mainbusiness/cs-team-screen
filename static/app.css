@@ -319,7 +319,7 @@ bdi.ltr, bdi.raw { direction: ltr; }
 .tabs:empty { display: none; }
 
 /* ---------- performance layer ---------- */
-.sync-row:has(#tk-sync[hidden]):has(#tk-check[hidden]):has(#tk-presence[hidden]) { display: none; }
+.sync-row:has(#tk-sync[hidden]):has(#tk-check[hidden]):has(#tk-presence[hidden]):has(#tk-snooze[hidden]) { display: none; }
 .sync-row { margin-top: 4px; }
 .chip.sync { gap: 6px; }
 .chip.sync .more-btn { padding: 0; font-size: 12px; }
@@ -684,3 +684,57 @@ html[dir=rtl] .draft textarea:placeholder-shown { direction: rtl; }
 .ship-steps li.now { background: var(--accent); color: #fff; font-weight: 600; }
 .ship-text { font-weight: 600; }
 .ship-note { margin-top: 2px; }
+
+/* ---- sales log for bonuses (2026-10-14) ---- */
+.sale-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
+.sale-btn { border-color: #b7e0c0; background: #effaf1; color: #14532d; }
+.sale-chip { cursor: pointer; border: 1px solid var(--line); background: var(--card); }
+.chip.st-verified, .chip.st-approved { background: #dcfce7; color: #14532d; }
+.chip.st-review { background: var(--warn-bg); color: var(--warn-ink); }
+.chip.st-rejected { background: var(--danger-bg); color: var(--danger); }
+.top .sales-link { background: transparent; cursor: pointer; font: inherit; font-weight: 600; }
+.sale-dlg-in { max-height: 88vh; overflow-y: auto; }
+.sale-orders { display: grid; gap: 6px; }
+.sale-order { display: flex; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; cursor: pointer; font-weight: 400; flex-wrap: wrap; }
+.sale-order.held { opacity: .6; cursor: not-allowed; }
+.sale-order input { width: 18px; height: 18px; }
+.sale-order .so-main { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; flex: 1 1 220px; }
+.sale-order .so-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.sale-reasons { margin: 4px 0 0; padding-inline-start: 18px; font-size: 13px; color: var(--warn-ink); white-space: normal; }
+.sale-done-head { display: flex; align-items: center; gap: 8px; font-size: 16px; }
+.sale-sum { font-size: 15px; margin: 4px 0; }
+.sale-table td { vertical-align: top; }
+.sale-table td:nth-child(7) { white-space: normal; min-width: 180px; }
+.sale-acts .row-btns { flex-wrap: wrap; }
+.sale-acts input { padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; min-width: 140px; }
+.sales-filters { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0; align-items: end; }
+.sales-filters .sf { display: grid; gap: 2px; font-size: 13px; }
+.sales-filters select, .sales-filters input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.sales-head { margin-top: 18px; }
+.dash-sales { margin-top: 26px; padding-top: 6px; border-top: 2px solid var(--line); }
+.sales-sug { margin: 12px 0 18px; padding: 10px 12px; background: #fffaf0; border: 1px solid #f3dca8; border-radius: var(--radius); }
+.sale-proof-row td { white-space: normal; background: #fafafa; }
+.sale-proof { display: grid; gap: 6px; max-width: 760px; }
+.sale-proof .pm { border-radius: 10px; padding: 6px 10px; max-width: 90%; white-space: pre-wrap; }
+.sale-proof .pm.cust { background: #eef2f7; justify-self: start; }
+.sale-proof .pm.us { background: #e6f5e9; justify-self: end; }
+.sale-proof .pm-text { white-space: pre-wrap; }
+
+/* ---------- 2026-10-14 (CS team): send & close, a different answer, answer later ---------- */
+.btn.primary.send-close { background: #1e40af; border-color: #1e40af; }
+.btn.primary.send-close.arm { background: #172f7a; border-color: #172f7a; }
+.btn.primary.send-close.wa { background: var(--wa-ink, #075e54); border-color: var(--wa-ink, #075e54); }
+.rd { margin: 6px 0 2px; }
+.rd-line { display: flex; gap: 6px; align-items: center; }
+.rd-hint { flex: 1; min-width: 0; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); font-size: 14px; }
+html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty dir=auto input is LTR: the Hebrew hint would read backwards */
+.rd-msg { margin-top: 4px; color: var(--muted); }
+.rd-msg.bad { color: var(--danger); }
+.tk-snooze { position: relative; display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.snz-menu { position: absolute; z-index: 15; top: 100%; inset-inline-start: 0; margin-top: 4px; display: flex; flex-direction: column; gap: 4px;
+  padding: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); min-width: 160px; }
+.snz-menu .btn { justify-content: flex-start; text-align: start; }
+.chip.snz-back { background: var(--warn-bg); color: var(--warn-ink); }
+.snz-row { border-bottom: 1px dashed var(--line); padding-bottom: 6px; margin-bottom: 6px; }
+.snz-row .row { border-bottom: 0; }
+.snz-act { display: flex; gap: 6px; align-items: center; padding-inline: 12px; }
