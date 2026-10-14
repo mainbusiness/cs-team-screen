@@ -1497,7 +1497,7 @@
       return;
     }
     const work = OPEN.indexOf(S.tab) >= 0 || S.tab === 'bot';
-    if (work) rows = rows.filter(function (x) { return !Outbox.hidesRow(S.brand, x.id); });              // closed in the background
+    if (work) rows = rows.filter(function (x) { return !Outbox.hidesRow(S.brand, x.id, x); });           // closed in the background (on its way)
     rows = rows.filter(function (x) { return Outbox.flagged(S.brand, x.id); }).concat(rows.filter(function (x) { return !Outbox.flagged(S.brand, x.id); }));   // needs a fix -> top
     const fresh = work ? rows.filter(function (x) { return !isOld(x); }) : rows;
     const old = work ? rows.filter(isOld) : [];
@@ -1666,7 +1666,7 @@
     if (!canWork() || brand !== S.brand) return;
     const tab = ['ready', 'action', 'failed', 'wa24', 'health', 'delay', 'bot'].indexOf(S.tab) >= 0 ? S.tab : null;
     if (!tab) return;
-    const rows = (rowsFor(tab) || []).filter(function (x) { return !isOld(x) && !Outbox.hidesRow(brand, x.id); });
+    const rows = (rowsFor(tab) || []).filter(function (x) { return !isOld(x) && !Outbox.hidesRow(brand, x.id, x); });
     const pos = rows.map(function (x) { return x.id; }).indexOf(id);
     const ids = rows.slice(pos + 1, pos + 6).map(function (x) { return x.id; }).filter(function (x) { return x !== id; });
     if (!ids.length) return;
@@ -3546,9 +3546,16 @@
       const it = forTicket(brand, id);
       return !!it && (it.state === 'flight' || it.state === 'checking' || it.state === 'retry' || it.state === 'unknown' || it.state === 'delivery_issue');
     }
-    function hidesRow(brand, id) {                      // a close / handled in flight or done takes the row off the list
+    // Owner, 2026-10-14 ("some devices / users don't see all the open chats"): this device's own close used to hide the row for 24 h, so a
+    // chat the customer reopened stayed invisible to the agent who closed it (live: 132 of 170 open chats were handled < 24 h earlier).
+    // The server's list is the truth: a close hides its row only while it is on its way, plus a short grace for the next poll to catch up.
+    const HIDE_OK_MS = 2 * 60000;
+    function hidesRow(brand, id, row) {
       const it = forTicket(brand, id);
-      return !!it && it.fn !== 'apiSend' && (it.state === 'flight' || it.state === 'checking' || it.state === 'retry' || it.state === 'ok');
+      if (!it || it.fn === 'apiSend') return false;
+      if (row && (ms(row.waiting_since) || 0) > it.at) return false;           // the customer wrote after the click: an open chat again
+      if (it.state === 'flight' || it.state === 'checking') return true;
+      return it.state === 'ok' && typeof it.ok_at === 'number' && Date.now() - it.ok_at < HIDE_OK_MS;
     }
     function flagged(brand, id) {
       const it = forTicket(brand, id);
@@ -3583,7 +3590,7 @@
     }
     function settle(it, r) {
       if (r && r.ok) {
-        it.state = 'ok'; it.reply = { queued: !!r.queued, already: !!r.already }; it.msg = null; delete it.delivery_state;
+        it.state = 'ok'; it.ok_at = Date.now(); it.reply = { queued: !!r.queued, already: !!r.already }; it.msg = null; delete it.delivery_state;
         patchRow(it);
         if (it.fn === 'apiSend') {
           // the device copy goes only if it still IS what was sent: the agent may already be writing the next message (2026-10-11)
@@ -3797,7 +3804,7 @@
   function goNext(brand, fromId) {
     if (brand !== S.brand) return;
     const tab = ['ready', 'action', 'failed', 'wa24', 'health', 'delay', 'bot'].indexOf(S.tab) >= 0 ? S.tab : null;
-    const rows = tab ? (rowsFor(tab) || []).filter(function (x) { return !isOld(x) && !Outbox.blocks(brand, x.id) && !Outbox.hidesRow(brand, x.id); }) : [];
+    const rows = tab ? (rowsFor(tab) || []).filter(function (x) { return !isOld(x) && !Outbox.blocks(brand, x.id) && !Outbox.hidesRow(brand, x.id, x); }) : [];
     const all = tab ? (rowsFor(tab) || []).filter(function (x) { return !isOld(x); }) : [];
     const pos = all.map(function (x) { return x.id; }).indexOf(fromId);
     const after = rows.filter(function (x) { return all.map(function (y) { return y.id; }).indexOf(x.id) > pos && x.id !== fromId; });
