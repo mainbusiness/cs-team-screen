@@ -17,7 +17,8 @@ Render disk and in each engine's `audit` sheet.
 | `app.py` | Flask factory: login, sessions, CSRF, pages, `/api/<brand>/<fn>` proxy, user manager API |
 | `engine_proxy.py` | fn allowlist + roles (mirror of `engine/Api.gs apiTable_`), argument allowlist, token mint, HTTP forward |
 | `security.py` | PBKDF2 hashing, login rate limiter, engine token minting |
-| `users_store.py` | users JSON on the disk (flock + temp + fsync + rename, 0600) and the JSON-lines audit log |
+| `users_store.py` | users + audit log: Postgres in production (`PgUserStore`), a JSON file (flock + temp + fsync + rename, 0600) for local tests |
+| `pgstore.py` | the core-Postgres backend (2026-10-16, no disk): pool, `screen_*` schema, one-time disk backup + import, translate cache |
 | `messages.py` | every Hebrew/English message, incl. Kaching gate + `draftProblem` + auto-cancel/settings error codes |
 | `mock_engine.py` | fake engines for local preview (verifies the real token with a port of `verifyToken_`) |
 | `manage.py` | CLI: `add-user`, `reset-password`, `disable`, `enable`, `list`, `seed-team` |
@@ -39,17 +40,17 @@ Render disk and in each engine's `audit` sheet.
 | `ENGINES_JSON` | yes | `{"rozela":"https://script.google.com/macros/s/<id>/exec", "celesta": "...", "apexmen": "..."}`. Only Apps Script `/exec` URLs are accepted (Workspace `/a/macros/<domain>/s/...` too); anything else is dropped and the brand shows "not connected". |
 | `SECRET_KEY` | yes | 32+ random chars, Flask session signing. Render-only; never shared with the engines. The app refuses to start without it. |
 | `ADMIN_BOOTSTRAP` | first boot only | `username:password` (password 10+ chars). Creates the first admin (admin + user-manager, all brands, must change password) **only if the users file is empty**. **Remove it from the Render environment right after the first boot.** The app ignores it once users exist, logs a warning, and shows admins a red banner while it is still set. |
-| `USERS_PATH` | no | default `/var/data/users.json` (the persistent disk). The audit log goes next to it (`users-audit.jsonl`), or to `AUDIT_PATH`. |
+| `CORE_DB_URL` | production | internal URL of the core Postgres: users, audit, activity, snapshots, snoozes, translate cache (`screen_*` tables). Without it the file backends below are used (local tests). |
+| `USERS_PATH` | no | file backend only (default `/var/data/users.json`; with `CORE_DB_URL` it is just the one-time import source, skipped when the folder is gone). The audit log goes next to it (`users-audit.jsonl`), or to `AUDIT_PATH`. |
 | `ANTHROPIC_API_KEY` | phase 5 | Knowledge assistant (`claude-opus-5-5`) and English-mode translation (`claude-sonnet-5-5`). Without it the assistant answers "off" and English mode cannot translate. Render-only. |
-| `TICKET_CACHE_DIR` | no | default `/var/data/ticket-cache` (0700, files 0600). In-memory first; the disk copy only makes restarts warm. |
+| `TICKET_CACHE_DIR` | no | default `/tmp/cs-cache/ticket-cache` with `CORE_DB_URL` (ephemeral, 0700, files 0600). In-memory first; the disk copy only makes restarts warm. |
 | `TRANSLATE_CACHE_DIR` | no | default `/var/data/translate-cache` (next to the users file). Translations cached by content hash, 30 days. |
 | `ASSISTANT_MODEL`, `TRANSLATE_MODEL` | no | override the two model ids. |
 | `TRUSTED_PROXY_HOPS` | no | default `1` (Render's proxy). Used for the client IP in the login rate limit. |
 | `EXTRA_BRANDS` | no | comma list of extra brand ids the user manager may assign before they have an engine (for example a future brand). |
 | `MOCK_ENGINE`, `COOKIE_SECURE`, `MOCK_LATENCY_MS` | local only | preview mode. `MOCK_ENGINE=1` refuses to start if `ENGINES_JSON` is set; `COOKIE_SECURE=0` is refused outside mock mode. |
 
-`render.yaml` declares the four secrets with `sync: false` (no values in the repo), a 1 GB disk at
-`/var/data`, health check `/healthz`, and **one** gunicorn worker with 16 threads. One worker is
+`render.yaml` declares the secrets with `sync: false` (no values in the repo), NO disk (state is in the core Postgres: `CORE_DB_URL`; caches in `/tmp/cs-cache`), health check `/healthz`, and **one** gunicorn worker with 16 threads. One worker is
 deliberate: the login rate limiter lives in process memory, and a disk-backed service runs one
 instance anyway.
 
@@ -471,7 +472,7 @@ Engine @35/36 (round 2, same day):
 `#/dash` is shown only to **admin + user-manager**. Agents don't see the tab, and `GET /api/dash` answers them 403.
 It makes **no engine calls of its own**: it reads the activity log and the server's cached ticket lists.
 
-**Activity log.** Stored in `ACTIVITY_DIR` (default `<disk>/activity`, mode 0700), one append-only
+**Activity log.** Stored in Postgres (`screen_activity`; `ACTIVITY_DIR` is only the ephemeral dayStats cache folder there; the file backend writes it to `ACTIVITY_DIR`, mode 0700), one append-only
 `act-YYYY-MM-DD.jsonl` file per Israel day.
 - **Fields:** user, brand, ticket id, channel, kind, category, ts. Never customer text.
 - **Kinds:**
