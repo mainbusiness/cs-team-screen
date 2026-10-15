@@ -16,6 +16,7 @@ def delivery_page():
         pg.fill("input[name=username]", "lyra-test")
         pg.fill("input[name=password]", pwd)
         pg.click("button[type=submit]")
+        pg.wait_for_load_state("networkidle")   # 2026-10-15: without it the login redirect could land AFTER the test's own goto and leave the page on the list
         yield pg, base
         browser.close()
     proc.terminate()

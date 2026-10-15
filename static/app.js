@@ -1043,7 +1043,10 @@
       S.view = 'list';
       S.tab = r.tab || 'ready';
       setTimeout(function () { prefetchTab(S.brand); }, 0);
-      if (window.matchMedia('(max-width: 999px)').matches) { S.ticketId = null; S.tk = null; }
+      if (window.matchMedia('(max-width: 999px)').matches) {
+        if (S.ticketId) { S.lastOpenId = S.ticketId; S.restoreScroll = true; }   // back on the list: where he was (2026-10-15)
+        S.ticketId = null; S.tk = null;
+      }
     }
     document.body.className = S.view === 'ticket' ? 'view-ticket' : 'view-list';
     renderTop(); renderBanners(); renderTabs(); renderList(true);
@@ -1502,6 +1505,7 @@
     }
     if (S.tab === 'auto') { AutoCancel.render(lp, force); return; }
     if (S.tab === 'autoreply') { AutoReply.render(lp); return; }
+    const keepTop = lp.scrollTop;                      // Owner, 2026-10-15: a re-render never throws the list back to the top
     clear(lp);
     if (err) { lp.append(h('div', { class: 'err-box', text: err })); return; }
     if (rows === null) { for (let i = 0; i < 5; i++) lp.append(h('div', { class: 'skeleton' })); return; }
@@ -1523,13 +1527,10 @@
       return;
     }
     const work = OPEN.indexOf(S.tab) >= 0 || S.tab === 'bot';
-    if (work) rows = rows.filter(function (x) { return !Outbox.hidesRow(S.brand, x.id, x); });           // closed in the background (on its way)
-    rows = rows.filter(function (x) { return Outbox.flagged(S.brand, x.id); }).concat(rows.filter(function (x) { return !Outbox.flagged(S.brand, x.id); }));   // needs a fix -> top
-    if (work) {      // back from snooze (time is up, or the customer wrote again) -> top, right after the ones that need a fix (2026-10-14)
-      const isBack = function (x) { return !Outbox.flagged(S.brand, x.id) && Snooze.back(S.brand, x); };
-      const fl = rows.filter(function (x) { return Outbox.flagged(S.brand, x.id); });
-      rows = fl.concat(rows.filter(isBack), rows.filter(function (x) { return !Outbox.flagged(S.brand, x.id) && !isBack(x); }));
-    }
+    rows = shownRows(S.tab) || [];                     // the one order of the list (goNext reads the same one)
+    const shown = { brand: S.brand, tab: S.tab, chan: S.chan || 'all', ids: rows.map(function (x) { return x.id; }) };
+    if (S.listShown && S.listShown.brand === shown.brand && S.listShown.tab === shown.tab) S.listShownPrev = S.listShown;
+    S.listShown = shown;
     const fresh = work ? rows.filter(function (x) { return !isOld(x); }) : rows;
     const old = work ? rows.filter(isOld) : [];
     fresh.forEach(function (x) { lp.append(rowEl(x)); });
@@ -1554,7 +1555,40 @@
       });
       lp.append(det2);
     }
+    lp.scrollTop = keepTop;
+    keepRowInView(lp, S.ticketId);
+    if (S.restoreScroll && S.view === 'list') {       // phone: back from a ticket -> the list where he was, on the ticket he was on
+      S.restoreScroll = false;
+      const el = S.lastOpenId && lp.querySelector('a.row[data-id="' + CSS.escape(String(S.lastOpenId)) + '"]');
+      if (el) el.scrollIntoView({ block: 'center' });
+    }
     translateRows(rows);
+  }
+  /** Wide screen: the open ticket's row stays visible in the list pane (only the pane scrolls, never the page). */
+  function keepRowInView(lp, id) {
+    if (!id || window.matchMedia('(max-width: 999px)').matches) return;
+    const el = lp.querySelector('a.row[data-id="' + CSS.escape(String(id)) + '"]');
+    if (!el) return;
+    const a = el.getBoundingClientRect(), q = lp.getBoundingClientRect();
+    if (a.top < q.top) lp.scrollTop -= q.top - a.top + 8;
+    else if (a.bottom > q.bottom) lp.scrollTop += a.bottom - q.bottom + 8;
+  }
+  /** The rows of a tab in the order the list SHOWS them: the ones that need a fix, back from snooze, the rest, then the 30+ day section.
+   *  keepId: that ticket stays in although the outbox / a snooze already hides it — goNext needs its place at the moment of the click. */
+  function shownRows(tab, keepId) {
+    const work = OPEN.indexOf(tab) >= 0 || tab === 'bot';
+    let rows = Snooze.WORK_TABS.indexOf(tab) >= 0
+      ? (function () { const r = byChannel(rowsForRaw(tab)); return r ? r.filter(function (x) { return x.id === keepId || !Snooze.hides(S.brand, x); }) : r; })()
+      : rowsFor(tab);
+    if (!rows) return null;
+    if (work) rows = rows.filter(function (x) { return x.id === keepId || !Outbox.hidesRow(S.brand, x.id, x); });   // closed in the background (on its way)
+    rows = rows.filter(function (x) { return Outbox.flagged(S.brand, x.id); }).concat(rows.filter(function (x) { return !Outbox.flagged(S.brand, x.id); }));   // needs a fix -> top
+    if (!work) return rows;
+    // back from snooze (time is up, or the customer wrote again) -> top, right after the ones that need a fix (2026-10-14)
+    const isBack = function (x) { return !Outbox.flagged(S.brand, x.id) && Snooze.back(S.brand, x); };
+    const fl = rows.filter(function (x) { return Outbox.flagged(S.brand, x.id); });
+    rows = fl.concat(rows.filter(isBack), rows.filter(function (x) { return !Outbox.flagged(S.brand, x.id) && !isBack(x); }));
+    return rows.filter(function (x) { return !isOld(x); }).concat(rows.filter(isOld));
   }
 
   async function runSearch(q) {
@@ -1593,6 +1627,7 @@
     lp.querySelectorAll('a.row.selected').forEach(function (a) { a.classList.remove('selected'); });
     const el = lp.querySelector('a.row[data-id="' + CSS.escape(String(id)) + '"]');
     if (el) el.classList.add('selected');
+    keepRowInView(lp, id);
   }
   function tkSig(tk, ex) { return JSON.stringify([tk || null, ex || null]); }
   function userBusyInTicket() {
@@ -4154,12 +4189,22 @@
   function goNext(brand, fromId) {
     if (brand !== S.brand) return;
     const tab = ['ready', 'action', 'failed', 'wa24', 'health', 'delay', 'bot'].indexOf(S.tab) >= 0 ? S.tab : null;
-    const rows = tab ? (rowsFor(tab) || []).filter(function (x) { return !isOld(x) && !Outbox.blocks(brand, x.id) && !Outbox.hidesRow(brand, x.id, x); }) : [];
-    const all = tab ? (rowsFor(tab) || []).filter(function (x) { return !isOld(x); }) : [];
-    const pos = all.map(function (x) { return x.id; }).indexOf(fromId);
-    const after = rows.filter(function (x) { return all.map(function (y) { return y.id; }).indexOf(x.id) > pos && x.id !== fromId; });
-    const next = after[0] || rows.filter(function (x) { return x.id !== fromId; })[0];
-    if (next) { go(ticketHash(next.id)); return; }
+    // Owner, 2026-10-15 ("like Dondy"): the ticket directly ABOVE in the list he is looking at (tab, channel filter, order, the 30+ day section too),
+    // so the old ones at the bottom are answered one after another. Before: the next one BELOW among the fresh ones only — from the 30+ day
+    // section that was "the first of the list", the top. The place is the one at the click: this ticket is kept in the order although it is
+    // already hidden; when it left the data meanwhile, the list as he last saw it. A neighbour gone meanwhile -> further up; nothing above -> below.
+    let ids = tab ? (shownRows(tab, fromId) || []).map(function (x) { return x.id; }) : [];
+    if (ids.indexOf(fromId) < 0) {
+      [S.listShown, S.listShownPrev].some(function (o) { if (o && o.brand === brand && o.tab === tab && o.ids.indexOf(fromId) >= 0) { ids = o.ids; return true; } return false; });
+    }
+    const avail = {};
+    (tab ? shownRows(tab) || [] : []).forEach(function (x) { if (x.id !== fromId && !Outbox.blocks(brand, x.id)) avail[x.id] = true; });
+    const i = ids.indexOf(fromId);
+    let next = null;
+    for (let j = i - 1; i >= 0 && j >= 0 && !next; j--) if (avail[ids[j]]) next = ids[j];
+    for (let j = i + 1; i >= 0 && j < ids.length && !next; j++) if (avail[ids[j]]) next = ids[j];
+    if (!next) next = Object.keys(avail).length ? (shownRows(tab) || []).filter(function (x) { return avail[x.id]; }).map(function (x) { return x.id; })[0] : null;
+    if (next) { go(ticketHash(next)); return; }
     // review 2026-10-11 #3: on a wide screen the list keeps the ticket pane, and its send button lit up again once the reply
     // landed. The handed-off ticket leaves the screen with it.
     if (S.ticketId === fromId) { Draft.detach(); S.ticketId = null; S.tk = null; }
