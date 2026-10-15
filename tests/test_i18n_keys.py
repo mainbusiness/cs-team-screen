@@ -17,6 +17,6 @@ def _dicts():
 
 def test_no_duplicate_keys_in_either_language():
     for lang, block in _dicts().items():
-        keys = re.findall(r"(?:^|[\s,{])([A-Za-z_][A-Za-z0-9_]*):\s*['\"`(]", block)
+        keys = re.findall(r"(?:^|[,{])\s*([A-Za-z_][A-Za-z0-9_]*):\s*['\"`(]", block, re.M)    # a key follows , { or a line start - not 'will happen:' inside a string
         dup = sorted({k for k in keys if keys.count(k) > 1})
         assert not dup, "%s dictionary repeats keys: %s" % (lang, dup)

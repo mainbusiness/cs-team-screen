@@ -6,7 +6,7 @@ import pytest
 
 import assistant
 import llm
-from conftest import ENGINES, TOKEN_SECRET, add_user, call, client_for, logged_in, store_of, valid_reply
+from conftest import ENGINES, TOKEN_SECRET, add_user, audit_text, call, client_for, logged_in, store_of, valid_reply
 from test_proxy import gas_verify_token, payload_of
 
 KNOW = {"ok": True, "brand": "rozela", "brandName": "Rozela", "knowledge": "## Rozela\n- 60 capsules, 2 a day.",
@@ -167,7 +167,7 @@ def test_tools_hit_only_the_open_brand_and_are_audited(app5, pw_hash, fake_llm, 
     second = fake_llm.payloads[1]["messages"][-1]["content"]
     assert second[0]["type"] == "tool_result" and second[0]["tool_use_id"] == "tu1" and "#1001" in second[0]["content"]
     assert "secret-thread" not in fake_llm.payloads[2]["messages"][-1]["content"][0]["content"]
-    audit = (tmp_path / "audit.jsonl").read_text()
+    audit = audit_text(app5)
     lines = [json.loads(x) for x in audit.splitlines() if "assistant_tool" in x]
     assert [l["detail"]["tool"] for l in lines] == ["search_customer", "get_ticket"]
     assert lines[0]["detail"]["q_len"] == len("dana@example.com") and lines[0]["actor"] == "noa"
@@ -378,7 +378,7 @@ def test_live_jargon_keeps_the_useful_part(app5, pw_hash, fake_llm, tmp_path):
     c, tok = logged_in(app5, pw_hash, "eve", ["agent"], ["rozela"], lang="en")
     reply = ask(c, tok).get_json()["reply"]
     assert "full refund within 90 days" in reply and "Tell the customer the refund is on its way." in reply
-    line = [json.loads(x) for x in (tmp_path / "audit.jsonl").read_text().splitlines() if "assistant_sanitized" in x][-1]
+    line = [json.loads(x) for x in audit_text(app5).splitlines() if "assistant_sanitized" in x][-1]
     assert line["detail"]["jargon"] >= 1 and "refund" not in json.dumps(line)            # counts only, no text
 
 

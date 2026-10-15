@@ -34,7 +34,7 @@ HANDLE_MAX_S = 2 * 3600     # an open more than 2 h before a send is not that re
 DEDUPE_S = {"open": 60, "edit": 60}   # one "open"/"edit" per user+ticket per minute (retries, autosave, typing heartbeats)
 KINDS = ("open", "edit", "send", "resend", "close", "cancel", "autocancel", "note", "takeover", "review")
 REPLY_KINDS = ("send", "resend")
-FN_KIND = {"apiSend": "send", "apiMarkHandled": "close", "apiClose": "close", "apiKachingCancel": "cancel",
+FN_KIND = {"apiSend": "send", "apiMarkHandled": "close", "apiClose": "close", "apiKachingCancel": "cancel", "apiSubCancel": "cancel",
            "apiAutoCancelApprove": "autocancel", "apiAutoCancelReject": "autocancel", "apiNote": "note",
            "apiWaTakeOver": "takeover", "apiSaveDraft": "edit", "apiAutoReplyReview": "review",
            "apiSendTemplate": "template"}      # an approved WhatsApp template (costs money at Meta): logged per agent
@@ -132,6 +132,9 @@ class ActivityLog:
     def _path(self, prefix, day):
         return os.path.join(self.root, "%s-%s.jsonl" % (prefix, day))
 
+    def _put(self, prefix, day, obj):
+        self._append(self._path(prefix, day), obj)
+
     def _append(self, path, obj):
         new = not os.path.exists(path)
         with open(path, "a", encoding="utf-8") as f:
@@ -152,8 +155,8 @@ class ActivityLog:
             if len(self.last) > 50000:
                 for k, _ in sorted(self.last.items(), key=lambda kv: kv[1])[:25000]:
                     self.last.pop(k, None)
-            self._append(self._path("act", il_day(ts)), {"ts": round(ts, 3), "u": user, "b": brand, "t": tid,
-                                                         "ch": channel or "", "k": kind, "cat": category or ""})
+            self._put("act", il_day(ts), {"ts": round(ts, 3), "u": user, "b": brand, "t": tid,
+                                          "ch": channel or "", "k": kind, "cat": category or ""})
         return True
 
     def touch(self, user, ts=None):
@@ -169,7 +172,7 @@ class ActivityLog:
             if len(self.present) > 2000:
                 for k in sorted(self.present)[:1000]:
                     self.present.pop(k, None)
-            self._append(self._path("pres", day), {"u": user, "m": minute})
+            self._put("pres", day, {"u": user, "m": minute})
 
     def _read(self, prefix, day):
         out = []
@@ -215,6 +218,34 @@ class ActivityLog:
             json.dump(obj, f, ensure_ascii=False)
         os.chmod(tmp, 0o600)
         os.replace(tmp, self.snap_path(day))
+
+
+class PgActivityLog(ActivityLog):
+    """The same log in the core Postgres (pgstore.py). `root` is only an EPHEMERAL cache dir now (the ds-*.json dayStats
+    files are regenerable from the engines); the history itself — events, presence, midnight snapshots — is in the tables."""
+
+    def __init__(self, db, root, clock=time.time):
+        super().__init__(root, clock)
+        self.db = db
+
+    def _put(self, prefix, day, obj):
+        from psycopg.types.json import Jsonb
+        self.db.x("insert into screen_activity(prefix, day, obj) values (%s,%s,%s)", (prefix, day, Jsonb(obj)))
+
+    def _read(self, prefix, day):
+        return [r[0] for r in self.db.q("select obj from screen_activity where prefix=%s and day=%s order by id", (prefix, day))]
+
+    def first_day(self):
+        r = self.db.q("select min(day) from screen_activity where prefix='act'")
+        return r[0][0] if r and r[0][0] else None
+
+    def read_snap(self, day):
+        r = self.db.q("select obj from screen_snap where day=%s", (day,))
+        return r[0][0] if r else None
+
+    def write_snap(self, day, obj):
+        from psycopg.types.json import Jsonb
+        self.db.x("insert into screen_snap(day, obj) values (%s,%s) on conflict (day) do update set obj=excluded.obj", (day, Jsonb(obj)))
 
 
 # ---------- pure calculations (unit-tested) ----------

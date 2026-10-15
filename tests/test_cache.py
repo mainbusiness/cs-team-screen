@@ -122,6 +122,7 @@ def test_fallback_is_parallel_not_sequential(make_app, pw_hash, transport):
 
 # ---------- brand isolation ----------
 
+@pytest.mark.skipif(bool(__import__('os').environ.get('CS_TEST_PG')), reason='ticket-cache path is the file layout')
 def test_cache_never_crosses_brands(app, pw_hash, transport, tmp_path):
     transport.reply = make_reply()
     c, tok = logged_in(app, pw_hash, "manager", ["admin"], ["rozela", "celesta"])

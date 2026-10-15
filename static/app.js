@@ -88,6 +88,18 @@
       every_day: 'כל יום', every_week: 'כל שבוע', every_month: 'כל חודש', every_year: 'כל שנה', every_n: 'כל {n} {u}',
       unit_day: 'ימים', unit_week: 'שבועות', unit_month: 'חודשים', unit_year: 'שנים',
       cancel_sub: 'ביטול מנוי', cancelled_here: 'בוטל דרך המערכת',
+      oe_btn: 'עריכת הזמנה', oe_title: 'עריכת הזמנה בשופיפיי', oe_loading: 'טוען את ההזמנה משופיפיי…', oe_err_load: 'לא הצלחנו לטעון את ההזמנה.',
+      oe_off: 'עריכת הזמנות כבויה כרגע — גיא צריך להדליק אותה.', oe_off_cred: 'עריכת הזמנות עוד לא מחוברת לשופיפיי — מחכה לאישור של גיא.', oe_off_frozen: 'עריכת הזמנות מוקפאת כרגע.',
+      oe_tab_items: 'פריטים', oe_tab_address: 'כתובת ופרטי משלוח', oe_total: 'סכום ההזמנה', oe_qty: 'כמות', oe_zero: '0 = להסיר את הפריט מההזמנה.', oe_add: 'הוספת מוצר', oe_pick: 'בחרו מוצר…',
+      oe_variants_loading: 'טוען מוצרים…', oe_next_items: 'בדיקת מחיר', oe_next_address: 'המשך לאישור', oe_back: 'חזרה', oe_nochange: 'לא שונה כלום.', oe_bad_qty: 'כמות: מספר שלם בין 0 ל-20 (להוספה: 1 עד 20).',
+      oe_f_firstName: 'שם פרטי', oe_f_lastName: 'שם משפחה', oe_f_address1: 'רחוב ומספר', oe_f_address2: 'דירה / קומה / הערה', oe_f_city: 'עיר', oe_f_zip: 'מיקוד', oe_f_phone: 'טלפון',
+      oe_confirm: 'מה יקרה:', oe_delta_up: 'סכום ההזמנה יעלה ב-{d}', oe_delta_down: 'סכום ההזמנה ירד ב-{d}', oe_delta_zero: 'סכום ההזמנה לא ישתנה', oe_total_line: 'מ-{a} ל-{b}',
+      oe_settle_up: 'הלקוח לא יחויב אוטומטית. את ההפרש גובים בשופיפיי.', oe_settle_down: 'הלקוח לא יזוכה אוטומטית. את ההחזר מסדרים בשופיפיי.',
+      oe_money_note: 'המערכת לא גובה, לא מחזירה כסף ולא שולחת הודעה ללקוח. הפרש מחיר — גבייה או החזר — מסדרים בשופיפיי.',
+      oe_ln_change: '{p}: מ-{a} ל-{b}', oe_ln_add: '{p}: נוסף × {q}', oe_ln_remove: '{p}: יוסר מההזמנה', oe_addr_change: '{f}: מ-{a} ל-{b}',
+      oe_needs_admin: 'העלאת סכום ההזמנה דורשת אדמין. אפשר להוריד כמות, להסיר פריט או להוסיף מוצר בחינם.',
+      oe_type: 'הקלידו את מספר ההזמנה ({n}) כדי לאשר', oe_reason: 'סיבה (לא חובה)', oe_go: 'בצעו את השינוי בשופיפיי', oe_working: 'מבצע…', oe_done: 'ההזמנה עודכנה בשופיפיי ✓',
+      oe_unverified: 'שופיפיי קיבל את הבקשה, אבל השינוי עוד לא מופיע. לבדוק בשופיפיי — לא לחזור על הפעולה.', oe_close: 'סגירה', oe_cannot: 'אי אפשר לערוך את ההזמנה כאן: {why}',
       manage_sub: 'ניהול מנוי', mg_title: 'ניהול מנוי', mg_loading: 'טוען את המנוי מקצ׳ינג…', mg_err_load: 'לא הצלחנו לטעון את המנוי.',
       mg_pause: 'השהיית מנוי', mg_resume: 'חידוש מנוי', mg_reactivate: 'הפעלה מחדש', mg_cancel: 'ביטול מנוי',
       mg_cycles: 'משלוחים וחיובים הבאים', mg_no_cycles: 'אין משלוחים עתידיים.', mg_cycle_n: 'משלוח {n}', mg_skipped: 'מדולג',
@@ -115,6 +127,14 @@
       afs_sub_refused: 'המנוי לא בוטל: מערכת המנויים דחתה את הביטול. לבטל ידנית.',
       afs_order_cancel: 'לפי שופיפיי ההזמנה עדיין לא בוטלה. לבטל אותה בשופיפיי.', afs_newer_message: 'הלקוח כתב הודעה נוספת לפני שהתשובה נשלחה. לקרוא אותה ולוודא שהתשובה עונה גם עליה.',
       afs_order_refund: 'לפי שופיפיי עדיין לא בוצע החזר. לבצע את ההחזר בשופיפיי.',
+      // "לבטל את המנוי" in the send area (the owner's CS team, 2026-10-16)
+      sx_btn: 'לבטל את המנוי', sx_off_token: 'אין חיבור לקאצ\'ינג במותג הזה — לבטל ידנית ב-Kaching.',
+      sx_off_frozen: 'ביטולים מוקפאים כרגע במערכת — לבטל ידנית ב-Kaching.', sx_off_writes: 'ביטולים כבויים במערכת — לבטל ידנית ב-Kaching.',
+      sx_checking: 'בודק בקאצ\'ינג את המנויים של {name}…', sx_q_one: 'לבטל את המנוי של {name}?', sx_q_many: 'ל{name} יש {n} מנויים פעילים. איזה לבטל?',
+      sx_none: 'ל{name} אין מנוי פעיל בקאצ\'ינג — אין מה לבטל.', sx_go: 'כן, לבטל את המנוי', sx_back: 'חזרה', sx_working: 'מבטל ובודק בקאצ\'ינג…',
+      sx_note: 'אחרי הביטול המערכת קוראת את המנוי שוב מקאצ\'ינג ומאשרת שהוא באמת מבוטל.',
+      sx_ok: '✅ המנוי בוטל — אומת בקאצ\'ינג {t}', sx_ok_old: '✅ המנוי בוטל דרך המערכת', sx_fail: '❌ המנוי לא בוטל',
+      sx_manual: 'לבטל ידנית ב-Kaching.', sx_unknown: 'לא ידוע אם המנוי בוטל. לבדוק ב-Kaching לפני ניסיון נוסף.',
       afs_order_unknown: 'ההודעה מדברת על ביטול הזמנה או החזר, ולא הצלחנו לבדוק את זה בשופיפיי. לבדוק ידנית.',
       dlg_title: 'ביטול מנוי', dlg_type: 'כדי לאשר, הקלידו את 4 הספרות האחרונות של מספר המנוי',
       dlg_reason: 'סיבה', dlg_reason_opt: '(אופציונלי — הלקוח ביקש ביטול)', dlg_reason_req: '(חובה — הלקוח לא ביקש ביטול בפנייה: 10 תווים, שתי מילים)',
@@ -289,6 +309,18 @@
       every_day: 'Every day', every_week: 'Every week', every_month: 'Every month', every_year: 'Every year', every_n: 'Every {n} {u}',
       unit_day: 'days', unit_week: 'weeks', unit_month: 'months', unit_year: 'years',
       cancel_sub: 'Cancel subscription', cancelled_here: 'Cancelled from this screen',
+      oe_btn: 'Edit order', oe_title: 'Edit the order in Shopify', oe_loading: 'Loading the order from Shopify…', oe_err_load: 'Could not load the order.',
+      oe_off: 'Order editing is switched off — the owner has to turn it on.', oe_off_cred: 'Order editing is not connected to Shopify yet — waiting for Guy\'s approval.', oe_off_frozen: 'Order editing is frozen right now.',
+      oe_tab_items: 'Items', oe_tab_address: 'Address and shipping details', oe_total: 'Order total', oe_qty: 'Quantity', oe_zero: '0 = remove the item from the order.', oe_add: 'Add a product', oe_pick: 'Choose a product…',
+      oe_variants_loading: 'Loading products…', oe_next_items: 'Check the price', oe_next_address: 'Continue', oe_back: 'Back', oe_nochange: 'Nothing was changed.', oe_bad_qty: 'Quantity: a whole number from 0 to 20 (to add: 1 to 20).',
+      oe_f_firstName: 'First name', oe_f_lastName: 'Last name', oe_f_address1: 'Street and number', oe_f_address2: 'Apartment / floor / note', oe_f_city: 'City', oe_f_zip: 'Zip code', oe_f_phone: 'Phone',
+      oe_confirm: 'What will happen:', oe_delta_up: 'The order total goes up by {d}', oe_delta_down: 'The order total goes down by {d}', oe_delta_zero: 'The order total does not change', oe_total_line: 'from {a} to {b}',
+      oe_settle_up: 'The customer is not charged automatically. Collect the difference in Shopify.', oe_settle_down: 'The customer is not refunded automatically. Do the refund in Shopify.',
+      oe_money_note: 'This screen does not charge, refund or message the customer. A price difference — a charge or a refund — is settled in Shopify.',
+      oe_ln_change: '{p}: from {a} to {b}', oe_ln_add: '{p}: added × {q}', oe_ln_remove: '{p}: removed from the order', oe_addr_change: '{f}: from {a} to {b}',
+      oe_needs_admin: 'Raising the order total needs an admin. You can lower a quantity, remove an item or add a free product.',
+      oe_type: 'Type the order number ({n}) to confirm', oe_reason: 'Reason (optional)', oe_go: 'Make the change in Shopify', oe_working: 'Working…', oe_done: 'The order was updated in Shopify ✓',
+      oe_unverified: 'Shopify accepted it but the change is not visible yet. Check in Shopify — do not repeat it.', oe_close: 'Close', oe_cannot: 'This order cannot be edited here: {why}',
       manage_sub: 'Manage subscription', mg_title: 'Manage subscription', mg_loading: 'Loading the subscription from Kaching…', mg_err_load: 'Could not load the subscription.',
       mg_pause: 'Pause', mg_resume: 'Resume', mg_reactivate: 'Reactivate', mg_cancel: 'Cancel subscription',
       mg_cycles: 'Upcoming deliveries and charges', mg_no_cycles: 'No upcoming deliveries.', mg_cycle_n: 'Delivery {n}', mg_skipped: 'Skipped',
@@ -316,6 +348,13 @@
       afs_sub_refused: 'The subscription was NOT cancelled: the subscriptions system refused. Cancel it manually.',
       afs_newer_message: 'The customer wrote again before your reply went out. Read it and make sure the reply covers it too.', afs_order_cancel: 'Shopify still shows the order as not cancelled. Cancel it in Shopify.',
       afs_order_refund: 'Shopify shows no refund yet. Make the refund in Shopify.',
+      sx_btn: 'Cancel the subscription', sx_off_token: 'This brand has no Kaching connection — cancel it manually in Kaching.',
+      sx_off_frozen: 'Cancellations are frozen right now — cancel it manually in Kaching.', sx_off_writes: 'Cancellations are switched off — cancel it manually in Kaching.',
+      sx_checking: "Checking {name}'s subscriptions in Kaching…", sx_q_one: "Cancel {name}'s subscription?", sx_q_many: '{name} has {n} active subscriptions. Which one to cancel?',
+      sx_none: '{name} has no active subscription in Kaching — nothing to cancel.', sx_go: 'Yes, cancel the subscription', sx_back: 'Back', sx_working: 'Cancelling and checking in Kaching…',
+      sx_note: 'After the cancel the system reads the subscription again from Kaching and confirms it really is cancelled.',
+      sx_ok: '✅ Subscription cancelled — verified in Kaching {t}', sx_ok_old: '✅ Subscription cancelled from this screen', sx_fail: '❌ The subscription was NOT cancelled',
+      sx_manual: 'Cancel it manually in Kaching.', sx_unknown: 'Unknown whether it was cancelled. Check in Kaching before trying again.',
       afs_order_unknown: 'The message mentions an order cancellation or a refund and it could not be checked in Shopify. Check manually.',
       dlg_title: 'Cancel subscription', dlg_type: 'To confirm, type the last 4 digits of the contract number',
       dlg_reason: 'Reason', dlg_reason_opt: '(optional — the customer asked to cancel)', dlg_reason_req: '(required — the customer did not ask: 10+ characters, two words)',
@@ -1284,7 +1323,7 @@
     const b = S.boots[brand];
     if (!b || !sw || typeof sw !== 'object') return;
     let changed = false;
-    ['dryRun', 'cancelEnabled', 'cancelFrozen', 'subscriptions'].forEach(function (k) {
+    ['dryRun', 'cancelEnabled', 'cancelFrozen', 'subscriptions', 'orderEdits'].forEach(function (k) {
       if (k in sw && sw[k] !== b[k]) { b[k] = sw[k]; changed = true; }
     });
     if (!changed || brand !== S.brand) return;
@@ -2018,8 +2057,9 @@
       const h3 = dcard.querySelector('h3');
       h3.after(h('div', { class: 'todo-chip', 'data-test': 'what-to-do-chip' }, h('b', { text: t('what_to_do') + ': ' }), h('span', { class: 'tk-reco2', dir: 'auto', text: x.recommendation })));
     }
-    if (dcard) body.append(dcard);
-    body.append(ordersCard(ex, x));
+    const subx = SubCancel.slot();                 // "לבטל את המנוי" (2026-10-16): bottom of the send area, both desks
+    if (dcard) { dcard.append(subx); dcard.addEventListener('input', function () { SubCancel.paint(); }); body.append(dcard); } else body.append(subx);
+    body.append(h('div', { id: 'orders-card' }, ordersCard(ex, x)));
     // Rendered only once apiBoot says the brand HAS subscriptions; a deep link can arrive first (paintSubs fills it later).
     const subsHidden = !!(ex.notes && ex.notes.subscriptions === 'brand_none');
     body.append(h('div', { id: 'subs-card' }, S.boots[k.brand] && !noSubs(k.brand) && !subsHidden ? subsCard(ex, x) : null));
@@ -2040,6 +2080,7 @@
       if (k.trHe && k.trHe.ok && k.trHe.sig === k.sig) HeTranslate.paint(k); else HeTranslate.load(k);
     }
     paintSync();
+    SubCancel.paint();
   }
 
   /** The failed-send box at the top of the ticket. "שלח שוב" only for a plain failure (failed: open / chat / compose) —
@@ -3072,6 +3113,7 @@
     if (!slot || !S.tk || !S.tk.ticket || S.tk.brand !== brand || !S.boots[brand]) return;
     if (noSubs(brand) || (S.tk.extras && S.tk.extras.notes && S.tk.extras.notes.subscriptions === 'brand_none')) { clear(slot); return; }
     if (!slot.firstChild) slot.append(subsCard(S.tk.extras || {}, S.tk.ticket));
+    SubCancel.paint();                               // the brand's Kaching state arrived with apiBoot
   }
 
   async function afterAction() {
@@ -3160,7 +3202,8 @@
           h('dt', { text: t('ordered') }), h('dd', { text: fmtDate(o.createdAt) + ' (' + ago(o.createdAt) + ')' }),
           shipped ? h('dt', { text: t('shipped_on') }) : null, shipped ? h('dd', { text: fmtDate(shipped) }) : null,
           tracks.length ? h('dt', { text: t('track') }) : null, tracks.length ? h('dd', null, tracks) : null),
-        h('ul', null, (o.items || []).map(function (it) { return h('li', { dir: 'auto', text: (it.quantity > 1 ? it.quantity + ' × ' : '') + it.title }); }))));
+        h('ul', null, (o.items || []).map(function (it) { return h('li', { dir: 'auto', text: (it.quantity > 1 ? it.quantity + ' × ' : '') + it.title }); })),
+        OrderEdit.row(x, o, S.tk ? S.tk.brand : S.brand)));
     });
     c.append(list);
     return c;
@@ -3217,6 +3260,146 @@
     c.append(list);
     return c;
   }
+
+  // ---- "לבטל את המנוי" in the send area (the owner's CS team, 2026-10-16: "כפתור במערכת שמאשר שבאמת יבוטל המנוי").
+  // One click + ONE confirm step that names the customer and the product; several subscriptions = the agent picks (never a guess). No typed
+  // digits: the engine runs the full cancel gate and then reads the contract back from Kaching. The verdict is kept on the ticket
+  // (`cancelled` + extras.subCancel), so every agent and device sees "✅ ... אומת בקאצ'ינג HH:MM" or the red failure.
+  const SubCancel = (function () {
+    // A light mirror of Safety.gs draftClaimsCancel_: it only decides whether the button SHOWS. The engine decides whether it may run.
+    const CLAIM_RE = /(?<!לא\s)(?:ביטל|הפסק)(?:תי|נו)\s+(?:לך\s+|עבורך\s+)?(?:כבר\s+)?(?:את\s+)?(?:ה)?מי?נוי|(?:ה)?מי?נוי\s+(?:שלך\s+)?(?:כבר\s+)?(?:בוטל|מבוטל|הופסק)|\b(?:I|we)(?:'ve|\s+have)?\s+(?:already\s+|successfully\s+)?cancel(?:l)?ed\b[^.!?\n]{0,50}\b(?:subscription|membership)|\bsubscription\s+(?:has\s+been|was|is\s+now|is)\s+(?:already\s+)?cancel(?:l)?ed/i;
+    let busy = false;
+    function slot() { return h('div', { id: 'tk-subcancel', class: 'subx', 'data-test': 'subx' }); }
+    function liveDraft() {
+      const s = document.getElementById('tk-subcancel');
+      const card = s && s.closest('.card');
+      const ta = card && card.querySelector('textarea');
+      return ta ? ta.value : '';
+    }
+    function asked(x, draft) {
+      return /^cancel:/i.test(String(x.action || '')) || String(x.category || '') === 'cancel_subscription'
+        || CLAIM_RE.test(String(x.draft_text || '')) || CLAIM_RE.test(String(draft || ''));
+    }
+    function itemsText(items) { return (items || []).map(function (l) { return (l.quantity > 1 ? l.quantity + ' × ' : '') + l.title; }).join(', '); }
+    function failBox(msg, raw) {
+      return h('div', { class: 'err-box', role: 'alert', 'data-test': 'subx-fail' }, h('b', { text: t('sx_fail') }),
+        msg ? h('div', { text: msg }) : null, raw && raw !== msg ? h('bdi', { class: 'raw', text: raw }) : null, h('div', { text: t('sx_manual') }));
+    }
+    function paint() {
+      const el = document.getElementById('tk-subcancel');
+      if (!el || !S.tk || !S.tk.ticket) return;
+      const x = S.tk.ticket, ex = S.tk.extras || {}, brand = S.tk.brand || S.brand;
+      const b = S.boots[brand];
+      clear(el);
+      if (!b || noSubs(brand)) return;                          // not known yet, or a brand without subscriptions (selera): nothing at all
+      const done = String(x.cancelled || '').split(',').filter(Boolean);
+      const rec = ex.subCancel && typeof ex.subCancel === 'object' ? ex.subCancel : null;
+      if (rec && rec.state === 'cancelled' && done.indexOf(rec.contractId) >= 0) {
+        el.append(h('div', { class: 'ok-box', role: 'status', 'data-test': 'subx-ok' }, h('b', { text: t('sx_ok', { t: whenShort(rec.at) }) }),
+          rec.items && rec.items.length ? h('div', { class: 'small', dir: 'auto', text: itemsText(rec.items) }) : null));
+        return;
+      }
+      if (done.length) { el.append(h('div', { class: 'ok-box', role: 'status', 'data-test': 'subx-ok' }, h('b', { text: t('sx_ok_old') }))); return; }
+      if (rec && rec.state === 'failed') el.append(failBox(rec.reasonMsg || '', rec.reason));
+      if (!canWork() || !asked(x, liveDraft())) return;
+      const why = b.kachingReady === false ? t('sx_off_token') : b.cancelFrozen ? t('sx_off_frozen') : b.cancelEnabled === false ? t('sx_off_writes') : '';
+      el.append(h('div', { class: 'actions subx-row' },
+        h('button', { class: 'btn danger-outline', type: 'button', 'data-test': 'subx-btn', text: t('sx_btn'), disabled: !!why || busy, onclick: open }),
+        why ? h('span', { class: 'muted small', 'data-test': 'subx-why', text: why }) : null));
+    }
+    function dlgEl() {
+      let d = document.getElementById('subx-dlg');
+      if (!d) {
+        d = h('dialog', { id: 'subx-dlg', class: 'dlg', 'data-test': 'subx-dlg' });
+        d.addEventListener('cancel', function (e) { if (busy) e.preventDefault(); });
+        document.body.append(d);
+      }
+      return d;
+    }
+    function contractLine(c, email) {
+      return h('div', { class: 'subx-c' }, h('b', { dir: 'auto', text: itemsText(c.items) || '—' }), ' ', h('span', { class: 'chip', text: t('ss_' + c.status) }),
+        h('div', { class: 'small muted' }, t('sub_id') + ': ', h('bdi', { class: 'ltr', text: contractNum(c.id) }), c.every ? ' · ' + everyText(c.every) : '',
+          email ? ' · ' : '', email ? h('bdi', { class: 'ltr', text: email }) : null));
+    }
+    /** Keeps the verdict on this page's copy of the ticket (the engine kept it on the ticket itself). */
+    function keep(id, rec, cid) {
+      if (!S.tk || S.tk.id !== id) return;
+      if (rec) S.tk.extras = Object.assign({}, S.tk.extras || {}, { subCancel: rec });
+      if (cid) {
+        const done = String(S.tk.ticket.cancelled || '').split(',').filter(Boolean);
+        if (done.indexOf(cid) < 0) done.push(cid);
+        S.tk.ticket.cancelled = done.join(',');
+      }
+      paint();
+    }
+    async function refresh(brand, id) {                         // the subscriptions panel shows the new status too; the draft is untouched
+      const fr = await fetchTicket(brand, id, true);
+      if (!S.tk || S.tk.id !== id || !fr.ok) return;
+      const mine = (S.tk.extras || {}).subCancel;
+      S.tk.ticket.cancelled = fr.ticket.cancelled;
+      S.tk.extras = Object.assign({}, fr.extras || {});
+      if (!S.tk.extras.subCancel && mine) S.tk.extras.subCancel = mine;
+      const sc = document.getElementById('subs-card');
+      if (sc) { clear(sc); sc.append(subsCard(S.tk.extras, S.tk.ticket)); }
+      paint();
+    }
+    async function open() {
+      if (busy || !S.tk || !S.tk.ticket) return;
+      const x = S.tk.ticket, brand = S.tk.brand || S.brand, id = x.id;
+      const name = x.name || x.email || x.phone || t('no_name');
+      const draft = liveDraft();
+      const dlg = dlgEl();
+      clear(dlg);
+      const box = h('div', { class: 'in' });
+      const back = h('button', { class: 'btn ghost', type: 'button', text: t('sx_back'), onclick: function () { if (!busy) dlg.close(); } });
+      box.append(h('h3', { text: t('sx_btn') }),
+        h('div', { class: 'muted', 'data-test': 'subx-loading' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' ', t('sx_checking', { name: name })),
+        h('div', { class: 'row-btns' }, back));
+      dlg.append(box);
+      dlg.showModal();
+      const pv = await engine('apiSubCancelPreview', { id: id, draft: draft }, brand);
+      if (!dlg.open || !S.tk || S.tk.id !== id) return;
+      clear(box);
+      box.append(h('h3', { text: t('sx_btn') }));
+      if (!pv.ok) { box.append(h('div', { class: 'err-box', role: 'alert', 'data-test': 'subx-dlg-err', text: pv.msg || pv.error }), h('div', { class: 'row-btns' }, back)); return; }
+      const list = Array.isArray(pv.contracts) ? pv.contracts : [];
+      if (!list.length) { box.append(h('div', { 'data-test': 'subx-none', text: t('sx_none', { name: name }) }), h('div', { class: 'row-btns' }, back)); return; }
+      let pick = list.length === 1 ? list[0].id : null;          // one = that one; several = the agent picks
+      const go = h('button', { class: 'btn danger', type: 'button', 'data-test': 'subx-go', text: t('sx_go'), disabled: !pick });
+      const result = h('div', { 'aria-live': 'assertive' });
+      box.append(h('div', { 'data-test': 'subx-q' }, h('b', { text: list.length === 1 ? t('sx_q_one', { name: name }) : t('sx_q_many', { name: name, n: list.length }) })));
+      if (list.length === 1) box.append(contractLine(list[0], pv.email));
+      else {
+        const opts = h('div', { class: 'subx-opts', role: 'radiogroup' });
+        list.forEach(function (c) {
+          const r = h('input', { type: 'radio', name: 'subx-pick', value: c.id });
+          r.addEventListener('change', function () { if (r.checked) { pick = c.id; go.disabled = busy; } });
+          opts.append(h('label', { class: 'subx-opt', 'data-test': 'subx-opt' }, r, contractLine(c, '')));
+        });
+        box.append(opts, pv.email ? h('div', { class: 'small muted' }, h('bdi', { class: 'ltr', text: pv.email })) : null);
+      }
+      box.append(h('div', { class: 'small muted', text: t('sx_note') }), result, h('div', { class: 'row-btns' }, back, go));
+      go.addEventListener('click', async function () {
+        if (busy || !pick) return;
+        busy = true; go.disabled = true; back.disabled = true; go.textContent = t('sx_working');
+        clear(result); paint();
+        const r = await engine('apiSubCancel', { id: id, contractId: pick, draft: draft }, brand);
+        busy = false; back.disabled = false; go.textContent = t('sx_go');
+        const rec = r && r.record && typeof r.record === 'object' ? Object.assign({}, r.record) : null;
+        if (rec && !r.verified) rec.reasonMsg = r.msg || '';
+        keep(id, rec, r && r.verified === true ? pick : null);
+        if (r && r.verified === true) {
+          dlg.close();
+          toast(t('sx_ok', { t: whenShort(r.at) }));
+          refresh(brand, id);
+          return;
+        }
+        go.hidden = true;                                       // a failure is read, not clicked again on reflex
+        result.append(failBox(r && r.error === 'write_unknown' ? t('sx_unknown') : (r && (r.msg || r.error)) || '', r && r.message));
+      });
+    }
+    return { slot: slot, paint: paint };
+  })();
 
   const Cancel = (function () {
     const dlg = $('cancel-dlg');
@@ -3290,6 +3473,259 @@
     return { open: open };
   })();
 
+
+  // ---- order edit in Shopify (Owner, 2026-10-16: "שיהיה אפשר לערוך את ההזמנה דרך המערכת"). The engine gate (OrderEdit.gs) re-checks everything; this is the form.
+  // Two edits only: the shipping address / name / phone, or the items (quantity, remove, add). Never a payment, a refund or a message to the customer.
+  const OrderEdit = (function () {
+    const dlg = $('order-dlg');
+    const ADDR = ['firstName', 'lastName', 'address1', 'address2', 'city', 'zip', 'phone'];
+    let st = null;
+    function money(v, cur) {
+      if (v === null || v === undefined || v === '' || !isFinite(Number(v))) return '—';
+      return Number(v).toFixed(2).replace(/\.00$/, '') + ' ' + (cur === 'ILS' || !cur ? '₪' : cur);
+    }
+    function varName(v) { return (v.product || '—') + (v.title ? ' · ' + v.title : '') + (v.price ? ' (' + money(v.price) + ')' : ''); }
+    function lineName(l) { return (l.title || '—') + (l.variantTitle ? ' · ' + l.variantTitle : ''); }
+    /** One line saying why the button is off ('' = on). Comes from apiBoot.orderEdits, kept fresh by the feed. */
+    function why(brand) {
+      const b = S.boots[brand];
+      const s = b && b.orderEdits;
+      return s === 'on' ? '' : s === 'no_credential' ? t('oe_off_cred') : s === 'frozen' ? t('oe_off_frozen') : t('oe_off');
+    }
+    /** The button (+ the reason when off) at the bottom of an order that can still change. */
+    function row(x, o, brand) {
+      if (!canWork() || !o || !o.id || o.cancelledAt || o.fulfillmentStatus !== 'UNFULFILLED') return null;
+      const w = why(brand);
+      return h('div', { class: 'actions oe-row', 'data-test': 'oe-row' },
+        h('button', { class: 'btn small', type: 'button', text: t('oe_btn'), disabled: !!w, 'data-test': 'oe-btn', onclick: function () { open(x, o); } }),
+        w ? h('span', { class: 'muted small', 'data-test': 'oe-why', text: w }) : null);
+    }
+    function refreshOrdersCard(x, order) {
+      (async function () {
+        if (!(S.tk && S.tk.id === x.id)) return;
+        const ex = S.tk.extras || (S.tk.extras = {});
+        const mine = (ex.orders || []).filter(function (o) { return o && o.id === order.id; })[0];
+        if (mine) mine.items = (order.lines || []).map(function (l) { return { title: l.title, quantity: l.quantity }; });
+        const slot = $('orders-card');
+        if (slot) { clear(slot); slot.append(ordersCard(ex, S.tk.ticket)); }
+        const fr = await fetchTicket(st ? st.brand : S.brand, x.id, true);
+        if (S.tk && S.tk.id === x.id && fr.ok) {
+          S.tk.extras = fr.extras || S.tk.extras;
+          const s2 = $('orders-card');
+          if (s2) { clear(s2); s2.append(ordersCard(S.tk.extras || {}, S.tk.ticket)); }
+        }
+      })();
+    }
+    function errBox(r) {
+      return h('div', { class: 'err-box', role: 'alert', 'data-test': 'oe-err' }, h('div', { text: r.msg || r.error || t('err_bad_engine') }), r.message ? h('bdi', { class: 'raw', text: r.message }) : null);
+    }
+    async function open(x, o) {
+      if (st && st.busy) return;
+      st = { x: x, o: o, brand: tkBrand(x), s: null, tab: 'items', step: 'edit', busy: false, variants: null, qty: {}, addId: '', addQty: '1', form: {}, preview: null, pending: null, note: null, err: null };
+      clear(dlg);
+      dlg.append(h('div', { class: 'in' }, h('h3', { text: t('oe_title') }), h('div', { class: 'muted', text: t('oe_loading') })));
+      if (!dlg.open) dlg.showModal();
+      const mine = st;
+      const r = await engine('apiOrderEditState', { id: x.id, orderId: o.id }, st.brand);
+      if (st !== mine) return;
+      if (!r.ok) {
+        clear(dlg);
+        dlg.append(h('div', { class: 'in' }, h('h3', { text: t('oe_title') }), errBox(r.msg ? r : { msg: t('oe_err_load'), error: r.error }),
+          h('div', { class: 'row-btns' }, h('button', { class: 'btn ghost', type: 'button', text: t('oe_close'), onclick: function () { dlg.close(); } }))));
+        return;
+      }
+      st.s = r;
+      st.tab = !st.s.order.can.items ? 'items' : 'address';
+      resetForm();
+      render();
+    }
+    function resetForm() {
+      const a = st.s.order.address || {};
+      st.form = {};
+      ADDR.forEach(function (k) { st.form[k] = a[k] || ''; });
+      st.qty = {};
+      (st.s.order.lines || []).forEach(function (l) { st.qty[l.id] = String(l.quantity); });
+      st.addId = ''; st.addQty = '1';
+    }
+    async function loadVariants() {
+      if (st.variants) return;
+      const mine = st;
+      const r = await engine('apiKachingVariants', {}, st.brand);
+      if (st !== mine) return;
+      st.variants = r.ok && Array.isArray(r.variants) ? r.variants : [];
+      if (!st.busy && st.step === 'edit' && st.tab === 'items') render();
+    }
+    function snapshotInputs() {      // what the agent typed survives a repaint (build-rules §1ב)
+      if (!st || st.step !== 'edit') return;
+      dlg.querySelectorAll('[data-oe-line]').forEach(function (i) { st.qty[i.getAttribute('data-oe-line')] = i.value; });
+      dlg.querySelectorAll('[data-oe-field]').forEach(function (i) { st.form[i.getAttribute('data-oe-field')] = i.value; });
+      const sel = dlg.querySelector('[data-test=oe-add-sel]'), aq = dlg.querySelector('[data-test=oe-add-qty]');
+      if (sel) st.addId = sel.value;
+      if (aq) st.addQty = aq.value;
+    }
+    function btn(text, onclick, cls, test) { return h('button', { class: 'btn small ' + (cls || ''), type: 'button', text: text, disabled: st.busy, 'data-test': test || null, onclick: onclick }); }
+
+    async function preview(kind, payload) {
+      st.busy = true; st.err = null; render();
+      const args = { id: st.x.id, orderId: st.o.id, kind: kind, mode: 'preview' };
+      args[kind === 'items' ? 'ops' : 'address'] = JSON.stringify(payload);
+      const mine = st;
+      const r = await engine('apiOrderEdit', args, st.brand);
+      if (st !== mine) return;
+      st.busy = false;
+      if (r.ok && r.mode === 'preview') { st.preview = r; st.pending = { kind: kind, payload: payload }; st.step = 'confirm'; } else st.err = r;
+      render();
+    }
+    function nextItems() {
+      snapshotInputs();
+      const ops = [];
+      for (const l of st.s.order.lines) {
+        const v = String(st.qty[l.id] === undefined ? l.quantity : st.qty[l.id]).trim();
+        if (!/^\d{1,2}$/.test(v) || Number(v) > 20) { st.err = { msg: t('oe_bad_qty') }; render(); return; }
+        if (Number(v) !== l.quantity) ops.push({ type: 'qty', lineId: l.id, quantity: Number(v) });
+      }
+      if (st.addId) {
+        if (!/^\d{1,2}$/.test(String(st.addQty).trim()) || Number(st.addQty) < 1 || Number(st.addQty) > 20) { st.err = { msg: t('oe_bad_qty') }; render(); return; }
+        ops.push({ type: 'add', variantId: st.addId, quantity: Number(st.addQty) });
+      }
+      if (!ops.length) { st.err = { msg: t('oe_nochange') }; render(); return; }
+      preview('items', ops);
+    }
+    function nextAddress() {
+      snapshotInputs();
+      const cur = st.s.order.address || {};
+      const diff = {};
+      ADDR.forEach(function (k) { const v = String(st.form[k] || '').trim(); if (v !== String(cur[k] || '').trim()) diff[k] = v; });
+      if (!Object.keys(diff).length) { st.err = { msg: t('oe_nochange') }; render(); return; }
+      preview('address', diff);
+    }
+    function itemsDiff(p) {
+      const key = function (l) { return l.title + '|' + (l.variantTitle || ''); };
+      const before = {}, after = {};
+      (p.before.lines || []).forEach(function (l) { before[key(l)] = l; });
+      (p.after.lines || []).forEach(function (l) { after[key(l)] = l; });
+      const out = [];
+      Object.keys(before).forEach(function (k) {
+        const b = before[k], a = after[k];
+        if (!a) out.push(tx('oe_ln_remove', { p: lineName(b) }));
+        else if (a.quantity !== b.quantity) out.push(tx('oe_ln_change', { p: lineName(b), a: b.quantity, b: a.quantity }));
+      });
+      Object.keys(after).forEach(function (k) { if (!before[k]) out.push(tx('oe_ln_add', { p: lineName(after[k]), q: after[k].quantity })); });
+      return out;
+    }
+    function confirmView() {
+      const p = st.preview, o = st.s.order, wrap = h('div', { class: 'mg-work', 'data-test': 'oe-confirm' });
+      const digits = String(o.name).replace(/\D/g, '');
+      const list = h('ul', { class: 'oe-diff', 'data-test': 'oe-summary' });
+      let delta = null;
+      if (st.pending.kind === 'items') {
+        itemsDiff(p).forEach(function (n) { list.append(h('li', { dir: 'auto' }, n)); });
+        const d = Number(p.delta);
+        delta = h('div', { class: 'oe-delta ' + (d > 0 ? 'up' : d < 0 ? 'down' : ''), 'data-test': 'oe-delta' },
+          h('b', null, d > 0 ? tx('oe_delta_up', { d: money(Math.abs(d), p.currency) }) : d < 0 ? tx('oe_delta_down', { d: money(Math.abs(d), p.currency) }) : t('oe_delta_zero')),
+          ' · ', tx('oe_total_line', { a: money(p.before.total, p.currency), b: money(p.after.total, p.currency) }),
+          d !== 0 ? h('div', { class: 'small muted', text: d > 0 ? t('oe_settle_up') : t('oe_settle_down') }) : null);
+      } else {
+        (p.changed || []).forEach(function (k) {
+          list.append(h('li', { dir: 'auto' }, tx('oe_addr_change', { f: t('oe_f_' + k), a: (p.before && p.before[k]) || '—', b: (p.after && p.after[k]) || '—' })));
+        });
+      }
+      const code = h('input', { class: 'code', inputmode: 'numeric', maxlength: '9', autocomplete: 'off', 'aria-label': t('oe_type', { n: digits }), 'data-test': 'oe-code' });
+      const reason = h('textarea', { rows: '2', dir: 'auto', maxlength: '500', 'data-test': 'oe-reason' });
+      const result = h('div', { 'aria-live': 'assertive' });
+      const blocked = p.needsAdmin === true;
+      const go = h('button', { class: 'btn primary', type: 'button', text: t('oe_go'), disabled: true, 'data-test': 'oe-go' });
+      const back = btn(t('oe_back'), function () { st.step = 'edit'; st.preview = null; st.err = null; render(); }, 'ghost', 'oe-back');
+      code.addEventListener('input', function () {
+        code.value = code.value.replace(/\D/g, '').slice(0, 9);
+        go.disabled = st.busy || blocked || code.value !== digits;
+      });
+      go.addEventListener('click', async function () {
+        if (st.busy || blocked || code.value !== digits) return;
+        st.busy = true; go.disabled = true; back.disabled = true; go.textContent = t('oe_working'); clear(result);
+        const args = { id: st.x.id, orderId: st.o.id, kind: st.pending.kind, mode: 'apply', confirm: code.value, reason: reason.value.trim() };
+        args[st.pending.kind === 'items' ? 'ops' : 'address'] = JSON.stringify(st.pending.payload);
+        if (st.pending.kind === 'items') args.expectDelta = p.delta;
+        const mine = st;
+        const r = await engine('apiOrderEdit', args, st.brand);
+        if (st !== mine) return;
+        st.busy = false; back.disabled = false; go.textContent = t('oe_go');
+        if (r.ok) {
+          if (r.order && r.order.id === st.o.id) { st.s.order = r.order; refreshOrdersCard(st.x, r.order); }
+          st.note = r.verified ? t('oe_done') : (r.msg || t('oe_unverified'));
+          st.verified = !!r.verified;
+          toast(r.verified ? t('oe_done') : (r.msg || t('oe_unverified')));
+          st.step = 'edit'; st.preview = null; st.pending = null; st.err = null;
+          resetForm(); render();
+          return;
+        }
+        go.disabled = code.value !== digits;
+        result.append(errBox(r));
+      });
+      add(wrap, [h('div', { class: 'mg-summary' }, h('b', { text: t('oe_confirm') })), list, delta,
+        h('div', { class: 'small muted', 'data-test': 'oe-money-note', text: t('oe_money_note') }),
+        blocked ? h('div', { class: 'problem', role: 'alert', 'data-test': 'oe-admin', text: t('oe_needs_admin') }) : null,
+        h('label', null, t('oe_type', { n: digits }), code), h('label', null, t('oe_reason'), reason), result, h('div', { class: 'row-btns' }, back, go)]);   // add() skips null; native append would print "null"
+      setTimeout(function () { code.focus(); }, 0);
+      return wrap;
+    }
+    function itemsTab() {
+      const o = st.s.order;
+      const wrap = h('div', { class: 'mg-work', 'data-test': 'oe-items' });
+      o.lines.forEach(function (l) {
+        const inp = h('input', { type: 'number', min: '0', max: '20', step: '1', inputmode: 'numeric', class: 'oe-qty', value: st.qty[l.id] === undefined ? String(l.quantity) : st.qty[l.id],
+          'data-oe-line': l.id, 'data-test': 'oe-line-qty', 'aria-label': t('oe_qty') + ' ' + lineName(l) });
+        wrap.append(h('div', { class: 'mg-row', 'data-test': 'oe-line' }, h('span', null, h('b', { dir: 'auto', text: lineName(l) }), ' · ', money(l.unit, o.currency)), h('label', { class: 'oe-qty-l' }, t('oe_qty'), inp)));
+      });
+      wrap.append(h('div', { class: 'small muted', text: t('oe_zero') }));
+      const sel = h('select', { 'aria-label': t('oe_add'), 'data-test': 'oe-add-sel' }, h('option', { value: '', text: st.variants === null ? t('oe_variants_loading') : t('oe_pick') }),
+        (st.variants || []).map(function (v) { return h('option', { value: v.id, text: varName(v) }); }));
+      sel.value = st.addId;
+      const aq = h('input', { type: 'number', min: '1', max: '20', step: '1', inputmode: 'numeric', class: 'oe-qty', value: st.addQty, 'data-test': 'oe-add-qty', 'aria-label': t('oe_qty') });
+      wrap.append(h('div', { class: 'mg-sec' }, h('h4', { text: t('oe_add') }), h('div', { class: 'mg-row' }, sel, aq)));
+      wrap.append(h('div', { class: 'row-btns' }, btn(t('oe_next_items'), nextItems, 'primary', 'oe-next')));
+      return wrap;
+    }
+    function addressTab() {
+      const wrap = h('div', { class: 'mg-work', 'data-test': 'oe-address' });
+      ADDR.forEach(function (k) {
+        const inp = h('input', { type: 'text', dir: k === 'phone' || k === 'zip' ? 'ltr' : 'auto', maxlength: '100', value: st.form[k] || '', 'data-oe-field': k, 'data-test': 'oe-f-' + k });
+        wrap.append(h('label', null, t('oe_f_' + k), inp));
+      });
+      wrap.append(h('div', { class: 'row-btns' }, btn(t('oe_next_address'), nextAddress, 'primary', 'oe-next')));
+      return wrap;
+    }
+    function render() {
+      if (!st || !st.s) return;
+      const o = st.s.order, can = o.can || {}, canMsg = o.canMsg || {};
+      const tabs = h('div', { class: 'row-btns start oe-tabs' });
+      ['items', 'address'].forEach(function (k) {
+        const off = !!can[k];
+        const b = h('button', { class: 'btn small ' + (st.tab === k ? 'primary' : 'ghost'), type: 'button', text: t('oe_tab_' + k), disabled: st.busy || st.step !== 'edit' || off, 'aria-pressed': st.tab === k ? 'true' : 'false',
+          'data-test': 'oe-tab-' + k, onclick: function () { snapshotInputs(); st.tab = k; st.err = null; render(); } });
+        tabs.append(b);
+      });
+      const offMsg = can.items && can.address ? (canMsg.items || can.items) : null;
+      if (st.step === 'edit' && st.tab === 'items') loadVariants();
+      clear(dlg);
+      dlg.append(h('div', { class: 'in' },
+        h('h3', { text: t('oe_title') }),
+        h('div', null, h('b', { class: 'ltr' }, o.name), ' ', o.financial ? h('span', { class: 'chip ' + (/PAID/.test(o.financial) && !/REFUND/.test(o.financial) ? 'ok' : ''), text: t('fin_' + o.financial) }) : null,
+          ' ', o.fulfillment ? h('span', { class: 'chip outline', text: t('ful_' + o.fulfillment) }) : null),
+        h('div', { class: 'small muted' }, t('oe_total') + ': ', h('b', { text: money(o.total, o.currency) }), st.s.status !== 'on' ? [' · ', why(st.brand)] : null),
+        st.note ? h('div', { class: st.verified ? 'ok-box' : 'problem', role: 'status', 'data-test': 'oe-note', text: st.note }) : null,
+        offMsg ? h('div', { class: 'problem', role: 'alert', 'data-test': 'oe-cannot', text: t('oe_cannot', { why: offMsg }) }) : null,
+        st.s.status !== 'on' ? h('div', { class: 'problem', role: 'alert', 'data-test': 'oe-switch', text: why(st.brand) }) : null,
+        offMsg ? null : tabs,
+        st.err ? errBox(st.err) : null,
+        offMsg ? null : st.step === 'confirm' ? confirmView() : (st.tab === 'items' ? itemsTab() : addressTab()),
+        st.step === 'edit' ? h('div', { class: 'small muted', text: t('oe_money_note') }) : null,
+        st.step === 'edit' ? h('div', { class: 'row-btns' }, h('button', { class: 'btn ghost', type: 'button', text: t('oe_close'), disabled: st.busy, 'data-test': 'oe-close', onclick: function () { dlg.close(); } })) : null));
+    }
+    dlg.addEventListener('cancel', function (e) { if (st && st.busy) e.preventDefault(); });
+    dlg.addEventListener('close', function () { if (st && !st.busy) st = null; });
+    return { open: open, row: row, why: why };
+  })();
 
   // ---- manage subscription: every Kaching action (Owner, 2026-10-14). The engine gate re-checks everything; this is the form.
   const Manage = (function () {

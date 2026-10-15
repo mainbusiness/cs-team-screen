@@ -35,7 +35,8 @@ TICKET_COLS = ['id', 'status', 'category', 'name', 'email', 'phone', 'channel', 
 WORK = ("agent", "admin")
 TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTicketExtras": WORK, "apiTickets": WORK,
          "apiSearch": WORK, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
-         "apiNote": WORK, "apiKachingCancel": WORK, "apiKachingContract": WORK, "apiKachingAction": WORK, "apiKachingVariants": WORK,
+         "apiNote": WORK, "apiKachingCancel": WORK, "apiKachingContract": WORK, "apiKachingAction": WORK, "apiKachingVariants": WORK, "apiOrderEditState": WORK, "apiOrderEdit": WORK,
+         "apiSubCancelPreview": WORK, "apiSubCancel": WORK,
          "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
          "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK, "apiRedraftOne": WORK,
@@ -44,7 +45,7 @@ TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTick
          "apiAiNotes": ("admin",), "apiAiNoteAdd": ("admin",), "apiAiNoteDelete": ("admin",), "apiAttachPut": WORK,
          "apiSaleCandidates": ("admin",), "apiSaleLog": ("admin",), "apiSaleMine": ("admin",), "apiSaleProof": ("admin",), "apiSaleList": ("admin",), "apiSaleDecide": ("admin",),
          "apiSaleSuggestions": ("admin",), "apiSaleSuggestCredit": ("admin",), "apiSaleSuggestDismiss": ("admin",), "apiSaleScan": ("admin",)}
-MOCK_WRITES = ("apiRedraftOne", "apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiWaTakeOver",
+MOCK_WRITES = ("apiRedraftOne", "apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiSubCancel", "apiOrderEdit", "apiWaTakeOver",
                "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate", "apiAiNoteAdd", "apiAiNoteDelete",
                "apiSaleLog", "apiSaleDecide", "apiSaleSuggestCredit", "apiSaleSuggestDismiss")
 # engine 2026-10-11: apiBoot.myshopify (the store's admin handle) and extras.mailbox (the support address an email ticket came to).
@@ -451,7 +452,10 @@ class MockEngines:
                 self.results[brand][rid] = (fn, "", dict(out))
             if isinstance(out, dict) and rid:
                 out = dict(out, fn=fn, rid=rid)                            # the live engine echoes both
-            if out.get("ok") and body.get("fn") in ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiSendTemplate"):
+            if out.get("ok") is not None and body.get("fn") == "apiSubCancel" and "verified" in out:      # kept on the ticket either way
+                self.version[brand] += 1
+                self.touched[brand][(body.get("args") or {}).get("id")] = self.version[brand]
+            elif out.get("ok") and body.get("fn") in ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiSendTemplate"):
                 self.version[brand] += 1
                 self.touched[brand][(body.get("args") or {}).get("id")] = self.version[brand]
             return out
@@ -520,9 +524,10 @@ class MockEngines:
         return {"ok": True, "brand": brand, "brandName": b["name"], "user": c["user"], "role": c["role"], "lang": c["lang"],
                 "counts": counts, "tickets": [self._row(brand, t) for t in b["tickets"]],
                 "serverTime": self._now(),
-                "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]),
+                "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]), "orderEdits": sw.get("oe", "on"),
                 "subscriptions": "none" if brand == "selera" else "kaching", "version": self.version[brand],
-                "myshopify": MYSHOPIFY.get(brand, ""), "attach": self._attach_info(brand)}
+                "myshopify": MYSHOPIFY.get(brand, ""), "attach": self._attach_info(brand),
+                "kachingReady": brand != "selera"}
 
     def apiStatus(self, brand, a, c):
         sw = self.switches[brand]
@@ -834,6 +839,58 @@ class MockEngines:
         t["cancelled"] = ",".join(done)
         return res(True, "cancelled", "CANCELLED")
 
+    # ---------- "לבטל את המנוי" in the send area (engine Api.gs apiSubCancelPreview / apiSubCancel, 2026-10-16) ----------
+    SUB_CLAIM_RE = re.compile(r"(?<!לא )(?:ביטל|הפסק)(?:תי|נו)\s+(?:לך\s+)?(?:כבר\s+)?(?:את\s+)?(?:ה)?מנוי|(?:ה)?מנוי\s+(?:שלך\s+)?(?:כבר\s+)?(?:בוטל|מבוטל)"
+                              r"|\b(?:I|we)(?:'ve|\s+have)?\s+(?:already\s+)?cancel(?:l)?ed\b[^.!?\n]{0,50}\bsubscription", re.I)
+
+    def _sub_pre(self, brand, a):
+        if brand == "selera":
+            return None, {"ok": False, "error": "no_subscriptions"}
+        t = self._find(brand, a.get("id"))
+        if not t:
+            return None, {"ok": False, "error": "not_found"}
+        draft = a.get("draft") if isinstance(a.get("draft"), str) else ""
+        asked = (str(t.get("action", "")).startswith("cancel:") or t.get("category") == "cancel_subscription"
+                 or bool(self.SUB_CLAIM_RE.search(t.get("draft_text") or "")) or bool(self.SUB_CLAIM_RE.search(draft)))
+        if not asked:
+            return None, {"ok": False, "error": "not_cancel_request"}
+        if not t.get("email"):
+            return None, {"ok": False, "error": "no_email", "why": "none"}
+        return t, None
+
+    def apiSubCancelPreview(self, brand, a, c):
+        t, err = self._sub_pre(brand, a)
+        if err:
+            return err
+        subs = self._b(brand)["snaps"].get(t["id"], {}).get("subscriptions", [])
+        live = [{"id": s["id"], "status": s["status"], "every": s.get("every", ""),
+                 "items": [{"title": l.get("title", ""), "quantity": l.get("quantity", 1)} for l in s.get("lines", [])]}
+                for s in subs if s["status"] in ("ACTIVE", "PAUSED", "FAILED")]
+        sw = self.switches[brand]
+        return {"ok": True, "id": t["id"], "name": t.get("name", ""), "email": t["email"], "emailFrom": "ticket", "contracts": live,
+                "cancelledHere": [x for x in str(t.get("cancelled", "")).split(",") if x], "writes": sw["writes"], "frozen": bool(sw["frozen"])}
+
+    def apiSubCancel(self, brand, a, c):
+        t, err = self._sub_pre(brand, a)
+        if err:
+            return err
+        cid = a.get("contractId")
+        if not isinstance(cid, str) or not cid.startswith(CONTRACT_RE_PREFIX) or not cid[len(CONTRACT_RE_PREFIX):].isdigit():
+            return {"ok": False, "error": "bad_contract"}
+        r = self.apiKachingCancel(brand, dict(a, confirm=cid[-4:], reason="the agent pressed the cancel button"), c)   # the same gate
+        snap = self._b(brand)["snaps"].setdefault(t["id"], {})
+        back = next((s for s in snap.get("subscriptions", []) if s["id"] == cid), None)       # read back
+        verified = bool(back and back["status"] == "CANCELLED")
+        rec = {"state": "cancelled" if verified else "failed", "contractId": cid, "status": back["status"] if back else (r.get("status") or ""),
+               "items": [{"title": l.get("title", ""), "quantity": l.get("quantity", 1)} for l in (back or {}).get("lines", [])],
+               "at": self._now(), "by": c["user"], "reason": "" if verified else str(r.get("message") or "not cancelled")[:200]}
+        snap["subCancel"] = rec
+        out = {"ok": verified, "verified": verified, "state": rec["state"], "status": rec["status"], "contractId": cid, "at": rec["at"],
+               "message": str(r.get("message") or ""), "record": rec}
+        if not verified:
+            out["error"] = "not_cancelled"
+        return out
+
     # ---------- Kaching contract actions (engine Kaching.gs kachingContractAction, 2026-10-14) ----------
     MOCK_VARIANTS = [{"id": "gid://shopify/ProductVariant/48134100517122", "product": "פורמולת הסלק", "title": "", "price": "189.00"},
                      {"id": "gid://shopify/ProductVariant/48134100517123", "product": "פורמולת הסלק", "title": "זוג", "price": "329.00"},
@@ -876,6 +933,140 @@ class MockEngines:
 
     def apiKachingVariants(self, brand, a, c):
         return {"ok": True, "variants": list(self.MOCK_VARIANTS)}
+
+    # ---------- order edits in Shopify (engine OrderEdit.gs, 2026-10-16) ----------
+    OE_PRICE = 100.0
+
+    def _oe_order(self, brand, t, order_id):
+        """The ticket customer's order as the edit gate sees it (lines with ids / variants / prices built once from the snapshot)."""
+        o = next((x for x in self._b(brand)["snaps"].get(t["id"], {}).get("orders", []) if x["id"] == order_id), None)
+        if not o:
+            return None
+        if "oe" not in o:
+            lines = []
+            for i, it in enumerate(o["items"]):
+                v = next((m for m in self.MOCK_VARIANTS if m["product"] == it["title"]), self.MOCK_VARIANTS[2])
+                lines.append({"id": "gid://shopify/LineItem/%s%d" % (o["id"][-4:], i + 1), "title": it["title"], "variantTitle": "", "quantity": it["quantity"],
+                              "variantId": v["id"], "unit": float(v["price"])})
+            o["oe"] = {"lines": lines, "address": {"firstName": t.get("name", ""), "lastName": "", "address1": "הרצל 10", "address2": "", "city": "תל אביב", "zip": "6100000",
+                                                  "phone": t.get("phone", ""), "provinceCode": "", "countryCode": "IL", "company": ""}}
+        return o
+
+    @staticmethod
+    def _oe_total(lines):
+        return round(sum(l["quantity"] * l["unit"] for l in lines), 2)
+
+    def _oe_public(self, o, status):
+        lines = [{"id": l["id"], "title": l["title"], "variantTitle": l["variantTitle"], "quantity": l["quantity"], "unit": "%.2f" % l["unit"]} for l in o["oe"]["lines"]]
+        un = o["fulfillmentStatus"] == "UNFULFILLED"
+        return {"id": o["id"], "name": o["name"], "currency": "ILS", "financial": o["financialStatus"], "fulfillment": o["fulfillmentStatus"],
+                "total": "%.2f" % self._oe_total(o["oe"]["lines"]), "outstanding": "0.00", "address": dict(o["oe"]["address"]), "lines": lines,
+                "can": {"address": "" if un else "the order is not unfulfilled (%s)" % o["fulfillmentStatus"],
+                        "items": "" if un else "the order is not unfulfilled (%s)" % o["fulfillmentStatus"]}, "status": status}
+
+    def apiOrderEditState(self, brand, a, c):
+        t = self._find(brand, a.get("id"))
+        if not t:
+            return {"ok": False, "error": "not_found"}
+        if not t.get("email") and not t.get("phone"):
+            return {"ok": False, "error": "no_customer"}
+        o = self._oe_order(brand, t, a.get("orderId"))
+        if not o:
+            return {"ok": False, "error": "not_customers_order"}
+        st = self.switches[brand].get("oe", "on")
+        return {"ok": True, "id": t["id"], "status": st, "order": self._oe_public(o, st), "admin": c["role"] == "admin"}
+
+    def apiOrderEdit(self, brand, a, c):
+        """Mirrors OrderEdit.gs orderEditGate's checks, order and sentences (the common ones)."""
+        t = self._find(brand, a.get("id"))
+        if not t:
+            return {"ok": False, "error": "not_found"}
+        kind, mode = a.get("kind"), a.get("mode")
+        if kind not in ("address", "items") or mode not in ("preview", "apply"):
+            return {"ok": False, "error": "bad_request"}
+        res = lambda ok, msg, **kw: dict({"ok": ok, "kind": kind, "message": msg}, **kw)
+        st = self.switches[brand].get("oe", "on")
+        if st == "off":
+            return res(False, "order edits are switched off")
+        if st == "no_credential":
+            return res(False, "order edits have no write credential")
+        if c["role"] not in ("admin", "agent"):
+            return res(False, 'role "%s" may not edit orders' % c["role"])
+        o = self._oe_order(brand, t, a.get("orderId"))
+        if not o:
+            return res(False, "this order does not belong to the ticket's customer")
+        if o["fulfillmentStatus"] != "UNFULFILLED":
+            return res(False, "the order is not unfulfilled (%s)" % o["fulfillmentStatus"])
+        digits = "".join(ch for ch in o["name"] if ch.isdigit())
+        if mode == "apply" and str(a.get("confirm", "")).strip() != digits:
+            return res(False, "confirmation code does not match the order")
+        try:
+            payload = json.loads(a.get("address") or "null") if kind == "address" else json.loads(a.get("ops") or "null")
+        except ValueError:
+            return {"ok": False, "error": "bad_request"}
+        od = o["oe"]
+        if kind == "address":
+            if not isinstance(payload, dict) or not payload:
+                return res(False, "the new address is missing")
+            allowed = ("firstName", "lastName", "address1", "address2", "city", "zip", "phone")
+            for k, v in payload.items():
+                if k not in allowed:
+                    return res(False, "field not allowed: " + k)
+                if k in ("city", "address1", "firstName") and not str(v).strip():
+                    return res(False, "bad value for " + k)
+            changed = [k for k, v in payload.items() if str(od["address"].get(k, "")).strip().lower() != str(v).strip().lower()]
+            if not changed:
+                return res(False, "nothing to change")
+            after = dict(od["address"], **{k: str(payload[k]).strip() for k in changed})
+            if mode == "preview":
+                return res(True, "", mode="preview", orderId=o["id"], orderName=o["name"], currency="ILS", needsAdmin=False, changed=changed, before=dict(od["address"]), after=after)
+            od["address"] = after
+            return res(True, "done", verified=True, orderId=o["id"], orderName=o["name"], order=self._oe_public(o, st))
+        if not isinstance(payload, list) or not payload:
+            return res(False, "no item change was given")
+        lines = [dict(l) for l in od["lines"]]
+        for op in payload:
+            q = str(op.get("quantity", "")).strip()
+            if not q.isdigit() or int(q) > 20:
+                return res(False, "quantity must be a whole number up to 20")
+            q = int(q)
+            if op.get("type") == "qty":
+                l = next((x for x in lines if x["id"] == op.get("lineId")), None)
+                if not l:
+                    return res(False, "this item is not on the order")
+                if q == l["quantity"]:
+                    return res(False, "the quantity is already %d" % q)
+                l["quantity"] = q
+            elif op.get("type") == "add":
+                v = next((m for m in self.MOCK_VARIANTS if m["id"] == op.get("variantId")), None)
+                if not v:
+                    return res(False, "a valid product is required")
+                if q < 1:
+                    return res(False, "quantity must be at least 1")
+                if any(x["variantId"] == v["id"] for x in lines):
+                    return res(False, "this product is already on the order — change its quantity instead")
+                lines.append({"id": "gid://shopify/LineItem/9%d" % len(lines), "title": v["product"], "variantTitle": v["title"], "quantity": q, "variantId": v["id"], "unit": float(v["price"])})
+            else:
+                return res(False, "unknown change")
+        live = [l for l in lines if l["quantity"] > 0]
+        if not live:
+            return res(False, "an order cannot be left without items — cancel it in Shopify")
+        before_t, after_t = self._oe_total(od["lines"]), self._oe_total(live)
+        delta = round(after_t - before_t, 2)
+        needs_admin = delta > 0 and c["role"] != "admin"
+        pub = lambda ls: [{"id": l["id"], "title": l["title"], "variantTitle": l["variantTitle"], "quantity": l["quantity"], "unit": "%.2f" % l["unit"]} for l in ls]
+        if mode == "preview":
+            return res(True, "", mode="preview", orderId=o["id"], orderName=o["name"], currency="ILS", needsAdmin=needs_admin, delta="%.2f" % delta,
+                       before={"total": "%.2f" % before_t, "outstanding": "0.00", "lines": pub(od["lines"])},
+                       after={"total": "%.2f" % after_t, "outstanding": "%.2f" % max(delta, 0), "lines": pub(live)})
+        if needs_admin:
+            return res(False, "an increase of %.2f needs an admin" % delta)
+        if str(a.get("expectDelta", "")).strip() != "%.2f" % delta:
+            return res(False, "the price changed since the preview — review it again", delta="%.2f" % delta)
+        od["lines"] = live
+        o["items"] = [{"title": l["title"], "quantity": l["quantity"]} for l in live]
+        self.order_edits = getattr(self, "order_edits", []) + [{"order": o["id"], "kind": "items", "delta": "%.2f" % delta}]
+        return res(True, "done", verified=True, orderId=o["id"], orderName=o["name"], order=self._oe_public(o, st))
 
     def apiKachingAction(self, brand, a, c):
         """Mirrors Kaching.gs kachingContractAction's checks, order and sentences (the common ones)."""
@@ -1130,7 +1321,7 @@ class MockEngines:
                 for t in self._b(brand)["tickets"] if t["id"] in ids]
         sw = self.switches[brand]                    # engine @35/36: the switches ride along with every feed reply
         return {"ok": True, "version": self.version[brand], "tickets": rows, "removed": [], "serverMs": 40, "serverTime": self._now(),
-                "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]),
+                "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]), "orderEdits": sw.get("oe", "on"),
                 "subscriptions": "none" if brand == "selera" else "kaching"}
 
     def apiDayStats(self, brand, a, c):

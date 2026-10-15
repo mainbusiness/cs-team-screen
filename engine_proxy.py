@@ -56,6 +56,14 @@ FN_TABLE = {
     "apiKachingContract": (WORK_ROLES, ("id", "contractId")),
     "apiKachingAction": (WORK_ROLES, ("id", "contractId", "action", "confirm", "reason") + KACHING_ACTION_FIELDS),
     "apiKachingVariants": (WORK_ROLES, ()),
+    # Order edits in Shopify (Owner, 2026-10-16; engine/OrderEdit.gs). State = the live order; apiOrderEdit = preview | apply of ONE edit
+    # (address fields / item changes, both JSON strings the engine parses and range-checks). The gate re-checks everything.
+    "apiOrderEditState": (WORK_ROLES, ("id", "orderId")),
+    "apiOrderEdit": (WORK_ROLES, ("id", "orderId", "kind", "mode", "address", "ops", "expectDelta", "confirm", "reason")),
+    # "לבטל את המנוי" in the send area (2026-10-16): the confirm step's live list, then one click. No typed digits; the engine's
+    # cancel gate re-checks everything and reads the contract back. draft = the reply on the agent's screen (does it say "cancelled"?).
+    "apiSubCancelPreview": (WORK_ROLES, ("id", "draft")),
+    "apiSubCancel": (WORK_ROLES, ("id", "contractId", "draft")),
     # Auto-cancel queue (Owner, 2026-10-05: the CS team decides). Shapes come from the engine builder later.
     "apiAutoCancelList": (WORK_ROLES, ()),
     "apiAutoCancelApprove": (WORK_ROLES, ("id", "replyText")),
@@ -153,7 +161,7 @@ log = logging.getLogger("cs_screen.engine")
 READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "apiTicketExtras", "apiTickets", "apiSearch",
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
                       "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates", "apiAiNotes", "apiWaPhotoGet",
-                      "apiKachingContract", "apiKachingVariants", "apiSaleCandidates", "apiSaleMine", "apiSaleProof", "apiSaleList",
+                      "apiKachingContract", "apiKachingVariants", "apiOrderEditState", "apiSubCancelPreview", "apiSaleCandidates", "apiSaleMine", "apiSaleProof", "apiSaleList",
                       "apiSaleSuggestions"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
@@ -416,9 +424,19 @@ def clean_args(fn, args, table=None):
                 raise ProxyError("bad_request", 400)
         if len(out.get("reason", "")) > 500:
             raise ProxyError("bad_request", 400)
+    if fn in ("apiOrderEdit", "apiOrderEditState"):
+        if not re.match(r"^gid://shopify/Order/[0-9]{1,20}$", out.get("orderId", "")):
+            raise ProxyError("bad_request", 400)
+    if fn == "apiOrderEdit":
+        if (out.get("kind") not in ("address", "items") or out.get("mode") not in ("preview", "apply") or len(out.get("address", "")) > 1500
+                or len(out.get("ops", "")) > 2500 or len(out.get("expectDelta", "")) > 12 or len(out.get("confirm", "")) > 12
+                or len(out.get("reason", "")) > 500):
+            raise ProxyError("bad_request", 400)
     if fn == "apiRedraftOne" and (not re.match(r"^[0-9a-f]{8}$", str(out.get("base", ""))) or len(out.get("hint", "")) > 200):
         raise ProxyError("bad_request", 400)
     if fn == "apiKachingContract" and len(out.get("contractId", "")) > 200:
+        raise ProxyError("bad_request", 400)
+    if fn in ("apiSubCancelPreview", "apiSubCancel") and (len(out.get("contractId", "")) > 200 or len(out.get("draft", "")) > 8000):
         raise ProxyError("bad_request", 400)
     if fn in SALE_WRITE_FNS:
         # Sales log (Sales.gs): short fields only; the engine validates the shapes again
@@ -508,6 +526,11 @@ SCHEMAS = {
     "apiKachingAction": lambda r, a: "message" in r and r.get("action") == a.get("action"),
     "apiKachingContract": lambda r, a: isinstance(r.get("contract"), dict) and r["contract"].get("id") == a.get("contractId"),
     "apiKachingVariants": lambda r, a: isinstance(r.get("variants"), list),
+    "apiOrderEditState": lambda r, a: isinstance(r.get("order"), dict) and r["order"].get("id") == a.get("orderId"),
+    "apiOrderEdit": lambda r, a: r.get("kind") == a.get("kind") and ("message" in r or r.get("mode") == "preview"),
+    "apiSubCancelPreview": lambda r, a: isinstance(r.get("contracts"), list) and r.get("id") == a.get("id"),
+    # never "cancelled" without the read-back verdict for THIS contract
+    "apiSubCancel": lambda r, a: isinstance(r.get("verified"), bool) and r.get("contractId") == a.get("contractId"),
     "apiAutoCancelApprove": lambda r, a: r.get("id") == a.get("id") or "state" in r,
     "apiAutoCancelReject": lambda r, a: r.get("id") == a.get("id"),
     "apiWaTakeOver": lambda r, a: r.get("id") == a.get("id") or "status" in r,
@@ -553,7 +576,7 @@ def reply_problem(fn, args, rid, r, brand=None):
     if r.get("ok") is not True:
         if r.get("ok") is False and isinstance(r.get("error"), str) and r["error"]:
             return None
-        if fn in ("apiKachingCancel", "apiKachingAction") and r.get("ok") is False and isinstance(r.get("message"), str):
+        if fn in ("apiKachingCancel", "apiKachingAction", "apiSubCancel", "apiOrderEdit") and r.get("ok") is False and isinstance(r.get("message"), str):
             return None                             # the gate's refusal: {ok:false, status, message}
         return "refusal without an error code"
     check = SCHEMAS.get(fn)
@@ -680,7 +703,11 @@ def resolve_write(engines, transport, secret, user, brand, fn, clean, lang, rid,
 def localize(fn, resp, lang):
     """Adds `msg` (and `problem_msg`) in the user's language; never removes the engine's own fields."""
     out = dict(resp)
-    if fn in ("apiKachingCancel", "apiKachingAction") and resp.get("message"):
+    if fn == "apiOrderEditState" and isinstance(resp.get("order"), dict) and isinstance(resp["order"].get("can"), dict):
+        out["order"] = dict(resp["order"], canMsg={k: messages.order_edit_msg(v, lang) for k, v in resp["order"]["can"].items() if v})
+    if fn == "apiOrderEdit" and resp.get("message"):
+        out["msg"] = messages.order_edit_msg(resp.get("message"), lang)
+    elif fn in ("apiKachingCancel", "apiKachingAction", "apiSubCancel") and resp.get("message"):
         out["msg"] = messages.kaching_msg(resp.get("message"), lang)
     elif not resp.get("ok"):
         out["msg"] = messages.engine_error_msg(resp, fn, lang)

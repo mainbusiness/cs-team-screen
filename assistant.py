@@ -491,7 +491,7 @@ def register(app, d):
     bg_limit = d.get("translate_bg_limiter") or WindowLimiter(600, 600)
     out_limit = d.get("translate_out_limiter") or WindowLimiter(120, 600)
     kcache = d.get("knowledge_cache") or KnowledgeCache()
-    tcache = DiskCache(d["cache_dir"])
+    tcache = d.get("translate_cache") or DiskCache(d["cache_dir"])
     store = d["store"]
     app.extensions["cs_assistant"] = {"knowledge": kcache, "assist_limiter": assist_limit, "translate_cache": tcache}
 

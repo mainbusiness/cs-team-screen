@@ -101,6 +101,16 @@ ENGINE = {
     "no_subscriptions": ("למותג הזה אין מערכת מנויים מחוברת.", "This brand has no subscription system connected."),
     "no_email": ("לפנייה אין מייל לקוח — אי אפשר למצוא את המנוי שלו.", "The ticket has no customer email, so the subscription cannot be found."),
     "not_customers_contract": ("המנוי הזה לא שייך ללקוח של הפנייה.", "This subscription does not belong to the ticket's customer."),
+    # order edits in Shopify (engine/OrderEdit.gs, 2026-10-16)
+    "no_customer": ("לפנייה אין מייל או טלפון של לקוח — אי אפשר לאמת שההזמנה שלו.", "The ticket has no customer email or phone, so the order cannot be matched to the customer."),
+    "not_customers_order": ("ההזמנה הזאת לא שייכת ללקוח של הפנייה.", "This order does not belong to the ticket's customer."),
+    # "לבטל את המנוי" (2026-10-16)
+    "no_kaching": ("למותג הזה אין חיבור לקאצ'ינג (אין טוקן), אז אי אפשר לבטל מכאן. לבטל ידנית ב-Kaching.",
+                   "This brand has no Kaching connection (no token), so it cannot be cancelled here. Cancel it manually in Kaching."),
+    "not_cancel_request": ("הפנייה הזאת לא מבקשת ביטול מנוי. ביטול בלי בקשה — דרך \"ביטול מנוי\" בפאנל המנויים, עם סיבה.",
+                           "This ticket does not ask to cancel a subscription. To cancel anyway, use \"Cancel subscription\" in the subscriptions panel, with a reason."),
+    "bad_contract": ("צריך לבחור מנוי אחד לביטול.", "Choose one subscription to cancel."),
+    "not_cancelled": ("המנוי לא בוטל. לבטל ידנית ב-Kaching.", "The subscription was NOT cancelled. Cancel it manually in Kaching."),
     "kaching_unavailable": ("אין חיבור למערכת המנויים (קצ'ינג) כרגע. נסו שוב בעוד רגע.", "Cannot reach the subscription system (Kaching). Try again shortly."),
     "shopify_unavailable": ("אין חיבור לחנות כרגע (רשימת המוצרים). נסו שוב בעוד רגע.", "Cannot reach the store right now (product list). Try again shortly."),
     "unauthorized": ("המנוע סירב להרשאה (פג תוקף, תפקיד או מותג לא תואם). רעננו את הדף.",
@@ -332,6 +342,67 @@ def kaching_msg(message, lang="he"):
     return ("תשובה מהמנוי: {0}" if lang != "en" else "Gate answer: {0}").format(message or "—")
 
 
+# OrderEdit.gs orderEditGate() refusals and plan errors (Owner, 2026-10-16). Same mechanism as KACHING: the engine's exact English sentence -> a Hebrew / English line.
+ORDER_EDIT = [
+    (r"^unknown (mode|edit)$", "בקשת עריכה לא מוכרת.", "Unknown edit request."),
+    (r"^order edits are switched off$", "עריכת הזמנות כבויה כרגע במערכת. רק גיא מדליק אותה.", "Order edits are switched off."),
+    (r"^order edits have no write credential$", "עריכת הזמנות עוד לא מחוברת לשופיפיי (חסר מפתח כתיבה). גיא צריך לאשר אותו.", "Order edits are not connected to Shopify yet (no write credential)."),
+    (r"^order edits are frozen: (.*)$", "עריכת הזמנות מוקפאת ({0}). רק אדמין יכול לשחרר את ההקפאה.", "Order edits are frozen ({0}). Only an admin can lift it."),
+    (r"^role \"(.*)\" may not edit orders$", "לתפקיד \"{0}\" אין הרשאה לערוך הזמנות.", "Role \"{0}\" may not edit orders."),
+    (r"^exactly one valid order id is required$", "צריך לבחור הזמנה אחת.", "Choose exactly one order."),
+    (r"^ticket has no customer email or phone$", "לפנייה אין מייל או טלפון של לקוח — אי אפשר לאמת שההזמנה שלו.", "The ticket has no customer email or phone."),
+    (r"^another order edit is running, try again$", "עריכה אחרת של הזמנה רצה ברגע זה. נסו שוב בעוד כמה שניות.", "Another order edit is running. Try again in a few seconds."),
+    (r"^limit: (\S+) order edits per hour per user$", "הגעת למגבלה: {0} עריכות הזמנה בשעה למשתמש. גיא קיבל התראה.", "Limit reached: {0} order edits per hour per user."),
+    (r"^the order was not found.*$", "ההזמנה לא נמצאה (הזמנות מעל 60 יום לא נראות). לערוך בשופיפיי.", "The order was not found (orders older than 60 days are not visible). Edit it in Shopify."),
+    (r"^this order does not belong to the ticket's customer$", "ההזמנה הזאת לא שייכת ללקוח של הפנייה.", "This order does not belong to the ticket's customer."),
+    (r"^the order is cancelled$", "ההזמנה בוטלה — אי אפשר לערוך אותה.", "The order is cancelled and cannot be edited."),
+    (r"^the order is not unfulfilled \((.*)\)$", "ההזמנה כבר טופלה במשלוח ({0}) — אי אפשר לערוך אותה כאן.", "The order is already being fulfilled ({0}) and cannot be edited here."),
+    (r"^the order has no shipping address$", "להזמנה אין כתובת משלוח.", "The order has no shipping address."),
+    (r"^Shopify does not allow editing this order(.*)$", "שופיפיי לא מאפשר לערוך את ההזמנה הזאת{0}.", "Shopify does not allow editing this order{0}."),
+    (r"^payment status (\S+) does not allow item changes$", "סטטוס התשלום ({0}) לא מאפשר לשנות פריטים. לערוך בשופיפיי.", "Payment status {0} does not allow item changes. Edit it in Shopify."),
+    (r"^the order is closed$", "ההזמנה סגורה — אי אפשר לערוך אותה.", "The order is closed."),
+    (r"^confirmation code does not match the order$", "מספר ההזמנה שהוקלד לא תואם.", "The typed order number does not match."),
+    (r"^the new address is missing$", "חסרה הכתובת החדשה.", "The new address is missing."),
+    (r"^field not allowed: (.*)$", "אי אפשר לשנות את השדה הזה ({0}).", "This field cannot be changed ({0})."),
+    (r"^bad value for (\S+)$", "ערך לא תקין בשדה {0}.", "Invalid value in {0}."),
+    (r"^the zip code is not valid$", "המיקוד לא תקין.", "The zip code is not valid."),
+    (r"^the phone number is not valid$", "מספר הטלפון לא תקין.", "The phone number is not valid."),
+    (r"^nothing to change$", "לא שונה כלום.", "Nothing was changed."),
+    (r"^the address would be incomplete$", "הכתובת תהיה חסרה (רחוב / עיר).", "The address would be incomplete."),
+    (r"^no item change was given$", "לא נבחר שינוי בפריטים.", "No item change was chosen."),
+    (r"^too many changes at once$", "יותר מדי שינויים בבת אחת.", "Too many changes at once."),
+    (r"^bad change$", "שינוי לא תקין.", "Invalid change."),
+    (r"^unknown change$", "שינוי לא מוכר.", "Unknown change."),
+    (r"^quantity must be a whole number up to (\S+)$", "כמות: מספר שלם עד {0}.", "Quantity: a whole number up to {0}."),
+    (r"^quantity must be at least 1$", "הכמות חייבת להיות 1 לפחות.", "Quantity must be at least 1."),
+    (r"^this item is not on the order$", "הפריט הזה כבר לא בהזמנה. רעננו.", "This item is no longer on the order. Refresh."),
+    (r"^the same item twice$", "אותו פריט פעמיים.", "The same item twice."),
+    (r"^the same product twice$", "אותו מוצר פעמיים.", "The same product twice."),
+    (r"^the quantity is already (\S+)$", "הכמות כבר {0}.", "The quantity is already {0}."),
+    (r"^a valid product is required$", "צריך לבחור מוצר.", "Choose a product."),
+    (r"^this product is already on the order.*$", "המוצר הזה כבר בהזמנה — משנים את הכמות שלו.", "This product is already on the order — change its quantity instead."),
+    (r"^an order cannot be left without items.*$", "אי אפשר להשאיר הזמנה בלי פריטים. אם צריך, מבטלים אותה בשופיפיי.", "An order cannot be left without items — cancel it in Shopify."),
+    (r"^this item cannot be matched safely.*$", "אי אפשר לשנות את הפריט הזה בבטחה מכאן. לשנות בשופיפיי.", "This item cannot be changed safely from here. Change it in Shopify."),
+    (r"^Shopify refused the change: (.*?)\.? Not retried\.$", "שופיפיי סירב לשינוי: {0}. לא נוסה שוב.", "Shopify refused the change: {0}. Not retried."),
+    (r"^Shopify refused the change: (.*)$", "שופיפיי סירב לשינוי: {0}", "Shopify refused the change: {0}"),
+    (r"^the price change is larger than (\S+) .*$", "שינוי המחיר גדול מ-{0}. לבצע בשופיפיי.", "The price change is larger than {0}. Do it in Shopify."),
+    (r"^an increase of (\S+) needs an admin$", "העלאת מחיר ההזמנה ב-{0} דורשת אדמין. אפשר להוריד מחיר או להוסיף פריט חינם.", "An increase of {0} needs an admin. A reduction or a free item is fine."),
+    (r"^the price shown to the agent is missing$", "המחיר לא נשלח. חזרו לשלב הקודם.", "The price was not sent. Go back a step."),
+    (r"^the price changed since the preview.*$", "המחיר השתנה מאז התצוגה המקדימה. בדקו את המחיר החדש ואשרו שוב.", "The price changed since the preview. Review the new price and confirm again."),
+    (r"^request accepted but the change is not visible yet.*$", "שופיפיי קיבל את הבקשה, אבל השינוי עוד לא מופיע. בדקו בשופיפיי — לא לחזור על הפעולה.", "Shopify accepted it but the change is not visible yet. Check in Shopify — do not repeat it."),
+    (r"^request sent but the outcome is unknown.*$", "הבקשה נשלחה אבל התוצאה לא ידועה. בדקו בשופיפיי ואל תנסו שוב.", "Sent, but the outcome is unknown. Check Shopify; do not retry."),
+    (r"^error: (.*)$", "שגיאה בעריכת ההזמנה: {0}", "Error while editing the order: {0}"),
+    (r"^done$", "בוצע.", "Done."),
+]
+
+
+def order_edit_msg(message, lang="he"):
+    t = _match(ORDER_EDIT, message, lang)
+    if t:
+        return t
+    return ("עריכת ההזמנה לא הושלמה: {0}" if lang != "en" else "The order edit did not complete: {0}").format(iso(message or "—"))
+
+
 # "תשובה אחרת" (engine/AgentRedraft.gs, 2026-10-14)
 REDRAFT = {
     "rate_limited": ("כבר ביקשתם {n} תשובות אחרות לפנייה הזאת בשעה האחרונה. אפשר שוב בעוד {wait} דקות.",
@@ -361,8 +432,10 @@ def engine_error_msg(resp, fn, lang="he"):
         if code in REDRAFT:
             wait = max(1, (int(resp.get("retryAfterSeconds") or 60) + 59) // 60)
             return REDRAFT[code][_idx(lang)].format(n=5, wait=wait)
-    if fn in ("apiKachingCancel", "apiKachingAction") and resp.get("message"):
+    if fn in ("apiKachingCancel", "apiKachingAction", "apiSubCancel") and resp.get("message"):
         return kaching_msg(resp.get("message"), lang)
+    if fn == "apiOrderEdit" and resp.get("message"):
+        return order_edit_msg(resp.get("message"), lang)
     code = str(resp.get("error") or "")
     table = AUTO if fn in AUTO_FNS else SETTINGS if fn == "apiSettings" else AI_NOTES if fn in AI_NOTE_FNS else SALES if fn in SALE_FNS else None
     if table and code in table:

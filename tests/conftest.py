@@ -83,6 +83,12 @@ def make_app(tmp_path, transport):
             "USERS_PATH": str(tmp_path / "users.json"), "AUDIT_PATH": str(tmp_path / "audit.jsonl"),
             "TRANSPORT": transport, "TRUSTED_PROXY_HOPS": 0, "ADMIN_BOOTSTRAP": "",
         }
+        pg = os.environ.get("CS_TEST_PG")               # the whole suite can run on Postgres: CS_TEST_PG=<url of the local test db>
+        if pg and "DB_URL" not in over and "USERS_PATH" not in over:
+            import pgstore
+            if not apps:                                 # one empty database per TEST: a second make_app() in it is a restart and must see the data
+                pgstore.reset_all(pg)
+            cfg.update({"DB_URL": pg, "IMPORT_DIR": "", "CACHE_BASE": str(tmp_path / "cache")})
         cfg.update(over)
         app = create_app(cfg)
         app.testing = True
@@ -101,6 +107,12 @@ def make_app(tmp_path, transport):
 @pytest.fixture
 def app(make_app):
     return make_app()
+
+
+def audit_text(app, tmp_path=None):
+    """The user-manager audit log as JSON lines, oldest first - from the file backend or from Postgres alike."""
+    import json
+    return "\n".join(json.dumps(x, ensure_ascii=False) for x in reversed(store_of(app).audit_tail(100000)))
 
 
 def store_of(app):

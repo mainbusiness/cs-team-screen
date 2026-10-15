@@ -160,6 +160,38 @@ class SnoozeStore:
         return out
 
 
+class PgSnoozeStore(SnoozeStore):
+    """Same contract in the core Postgres: a transaction under an advisory lock, then only the changed keys are written."""
+
+    def __init__(self, db, clock=time.time):
+        self.db, self.clock = db, clock
+        self.path = "postgres:screen_snooze"
+
+    def _read(self):
+        return {k: d for k, d in self.db.q("select key, data from screen_snooze")}
+
+    def _mutate(self, fn):
+        import copy
+        import pgstore
+        from psycopg.types.json import Jsonb
+
+        def go(c):
+            c.execute("select pg_advisory_xact_lock(%s)", (pgstore.LOCK_SNOOZE,))
+            d = {k: v for k, v in c.execute("select key, data from screen_snooze").fetchall()}
+            orig = copy.deepcopy(d)
+            now = self.clock()
+            for k in [k for k, r in d.items() if float((r or {}).get("until") or 0) < now - KEEP_ENDED_S]:
+                del d[k]
+            out = fn(d, now)
+            for k in set(orig) - set(d):
+                c.execute("delete from screen_snooze where key=%s", (k,))
+            for k, v in d.items():
+                if orig.get(k) != v:
+                    c.execute("insert into screen_snooze(key, data) values (%s,%s) on conflict (key) do update set data=excluded.data", (k, Jsonb(v)))
+            return out
+        return self.db.run(go, tx=True)
+
+
 def public(rec):
     return {k: rec.get(k) for k in ("b", "id", "until", "at", "n", "wl", "ws")} | {"brand": rec.get("b")}
 

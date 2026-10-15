@@ -39,6 +39,12 @@ def valid_brands():
 
 
 def store_from(args):
+    if not args.users and os.environ.get("CORE_DB_URL"):          # production: the core Postgres (no disk any more)
+        import pgstore
+        from users_store import PgUserStore
+        db = pgstore.DB(os.environ["CORE_DB_URL"], size=2)
+        pgstore.init(db)
+        return PgUserStore(db)
     path = args.users or os.environ.get("USERS_PATH", "/var/data/users.json")
     audit = os.environ.get("AUDIT_PATH", os.path.join(os.path.dirname(path), "users-audit.jsonl"))
     return UserStore(path, audit)
@@ -60,7 +66,7 @@ def add_user(store, username, name, roles, brands, lang):
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--users", help="path to users.json (default: $USERS_PATH or /var/data/users.json)")
+    p.add_argument("--users", help="path to users.json (default: Postgres via $CORE_DB_URL, else $USERS_PATH)")
     sub = p.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("add-user")
     a.add_argument("username")

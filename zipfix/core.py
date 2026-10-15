@@ -126,7 +126,7 @@ class BoundedCache:
 
 _c = None
 _c_lock = threading.Lock()
-def cache_dir(): return os.environ.get('ZIPFIX_CACHE_DIR', '/var/data/zipfix-cache')
+def cache_dir(): return os.environ.get('ZIPFIX_CACHE_DIR', os.path.join(__import__('tempfile').gettempdir(), 'cs-cache', 'zipfix-cache'))
 def cache():
     global _c
     if _c is None:

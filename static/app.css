@@ -738,3 +738,21 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 .snz-row { border-bottom: 1px dashed var(--line); padding-bottom: 6px; margin-bottom: 6px; }
 .snz-row .row { border-bottom: 0; }
 .snz-act { display: flex; gap: 6px; align-items: center; padding-inline: 12px; }
+/* "לבטל את המנוי" in the send area (2026-10-16) */
+.subx:empty { display: none; }
+.subx { margin-top: 10px; display: grid; gap: 8px; }
+.subx-row { align-items: center; flex-wrap: wrap; }
+.subx-opts { display: grid; gap: 8px; }
+.subx-opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line, #e5e7eb); border-radius: var(--radius); padding: 8px 10px; cursor: pointer; }
+.subx-opt input { margin-top: 4px; }
+
+/* order edit dialog (Owner, 2026-10-16) */
+.oe-row { align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.oe-qty { width: 76px; text-align: center; direction: ltr; }
+.oe-qty-l { display: flex; align-items: center; gap: 8px; }
+.oe-diff { margin: 0; padding-inline-start: 18px; display: grid; gap: 4px; }
+.oe-delta { font-size: 15px; }
+.oe-delta .small { margin-top: 2px; }
+.oe-delta.up b { color: #b45309; }
+.oe-delta.down b { color: #15803d; }
+.oe-tabs { margin: 0; }

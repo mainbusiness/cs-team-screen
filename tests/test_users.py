@@ -2,7 +2,7 @@
 import json
 
 import manage
-from conftest import PASSWORD, add_user, client_for, login, logged_in, spa_csrf, store_of
+from conftest import PASSWORD, add_user, audit_text, client_for, login, logged_in, spa_csrf, store_of
 
 
 def post(c, tok, path, body):
@@ -96,11 +96,11 @@ def test_every_change_is_audited_without_secrets(app, pw_hash, tmp_path):
     post(c, tok, "/api/manage/users/ron", {"lang": "en"})
     post(c, tok, "/api/manage/users/ron/reset", {})
     post(c, tok, "/api/manage/users/ron", {"disabled": True})
-    lines = [json.loads(x) for x in (tmp_path / "audit.jsonl").read_text().splitlines()]
+    lines = [json.loads(x) for x in audit_text(app).splitlines()]
     acts = [(x["actor"], x["action"], x["target"]) for x in lines if x["target"] == "ron"]
     assert ("manager", "user_created", "ron") in acts and ("manager", "password_reset", "ron") in acts
     assert sum(1 for a in acts if a[1] == "user_updated") == 2
-    raw = (tmp_path / "audit.jsonl").read_text()
+    raw = audit_text(app)
     assert j["temp_password"] not in raw and "pbkdf2" not in raw
     audit = c.get("/api/manage/audit").get_json()["lines"]
     assert audit[0]["target"] == "ron"

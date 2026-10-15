@@ -24,6 +24,7 @@ import logging
 import os
 import secrets
 import re
+import tempfile
 import time
 from urllib.parse import urlparse
 
@@ -40,7 +41,7 @@ import dashboard
 import security
 import snooze
 from zipfix import routes as zipfix_routes
-from users_store import ROLES, UserStore, UserStoreError, public_user
+from users_store import ROLES, PgUserStore, UserStore, UserStoreError, public_user
 
 SESSION_MAX_S = 12 * 3600
 MANAGER_ROLES = ("admin", "user-manager")
@@ -81,6 +82,20 @@ def create_app(overrides=None):
 
     users_path = o.get("USERS_PATH", os.environ.get("USERS_PATH", "/var/data/users.json"))
     audit_path = o.get("AUDIT_PATH", os.environ.get("AUDIT_PATH", os.path.join(os.path.dirname(users_path), "users-audit.jsonl")))
+    # 2026-10-16: durable state lives in the core Postgres (no persistent disk -> zero-downtime deploys). Without a DB url
+    # (local tests / preview) the file backends below are used exactly as before.
+    db_url = o.get("DB_URL", os.environ.get("CORE_DB_URL", ""))
+    pgdb = None
+    if db_url:
+        import pgstore
+        pgdb = pgstore.DB(db_url)
+        pgstore.init(pgdb)
+        # one-time: whole-disk backup row + import of users / audit / activity / snapshots / snoozes (idempotent)
+        pgstore.backup_and_import(pgdb, o.get("IMPORT_DIR", os.environ.get("IMPORT_DIR", os.path.dirname(users_path))), users_path)
+        # regenerable caches (ticket cache, dayStats files, zip fill) live in an ephemeral dir: gone on deploy, rebuilt in seconds
+        cache_base = o.get("CACHE_BASE", os.environ.get("CACHE_BASE", os.path.join(tempfile.gettempdir(), "cs-cache")))
+    else:
+        cache_base = os.path.dirname(users_path)
 
     app.config.update(
         SECRET_KEY=secret_key,
@@ -128,7 +143,7 @@ def create_app(overrides=None):
     else:
         llm_call = llm.anthropic_transport(api_key)
 
-    store = UserStore(users_path, audit_path)
+    store = PgUserStore(pgdb) if pgdb else UserStore(users_path, audit_path)
     limiter = o.get("LIMITER") or security.LoginLimiter()
     app.extensions["cs"] = {"store": store, "limiter": limiter, "engines": engines, "valid_brands": valid_brands}
 
@@ -615,17 +630,17 @@ def create_app(overrides=None):
         return jsonify({"ok": True, "user": public_user(rec), "temp_password": temp})
 
     tcache = o.get("TICKET_CACHE") or ticket_cache.TicketCache(
-        o.get("TICKET_CACHE_DIR", os.environ.get("TICKET_CACHE_DIR", os.path.join(os.path.dirname(users_path), "ticket-cache"))),
+        o.get("TICKET_CACHE_DIR", os.environ.get("TICKET_CACHE_DIR", os.path.join(cache_base, "ticket-cache"))),
         engines, transport, lambda: app.config["TOKEN_SECRET"])
     app.extensions["cs"]["ticket_cache"] = tcache
     ticket_cache.register(app, {"api_user": api_user, "json_error": json_error, "engines": engines, "cache": tcache, "ui_lang": ui_lang})
 
     # managers' dashboard (Owner, 2026-10-06): activity log on the private disk, real work time per agent
-    act_log = o.get("ACTIVITY_LOG") or dashboard.ActivityLog(
-        o.get("ACTIVITY_DIR", os.environ.get("ACTIVITY_DIR", os.path.join(os.path.dirname(users_path), "activity"))))
+    _act_dir = o.get("ACTIVITY_DIR", os.environ.get("ACTIVITY_DIR", os.path.join(cache_base, "activity")))
+    act_log = o.get("ACTIVITY_LOG") or (dashboard.PgActivityLog(pgdb, _act_dir) if pgdb else dashboard.ActivityLog(_act_dir))
     # "לענות מאוחר יותר" (2026-10-14): per agent, on the private disk next to the users file
-    snooze_store = o.get("SNOOZE_STORE") or snooze.SnoozeStore(
-        o.get("SNOOZE_PATH", os.environ.get("SNOOZE_PATH", os.path.join(os.path.dirname(users_path), "snooze.json"))))
+    snooze_store = o.get("SNOOZE_STORE") or (snooze.PgSnoozeStore(pgdb) if pgdb else snooze.SnoozeStore(
+        o.get("SNOOZE_PATH", os.environ.get("SNOOZE_PATH", os.path.join(cache_base, "snooze.json")))))
     dashboard.register(app, {"api_user": api_user, "json_error": json_error, "is_manager": is_manager, "store": store,
                              "cache": tcache, "engines": engines, "log": act_log, "ui_lang": ui_lang, "snooze": snooze_store,
                              "start_thread": bool(o.get("DASH_SNAPSHOT_THREAD"))})
@@ -634,12 +649,13 @@ def create_app(overrides=None):
         "ticket_cache": tcache, "ui_lang": ui_lang,
         "api_user": api_user, "json_error": json_error, "engines": engines, "transport": transport, "store": store,
         "llm_call": llm_call,
-        "cache_dir": o.get("TRANSLATE_CACHE_DIR", os.environ.get("TRANSLATE_CACHE_DIR", os.path.join(os.path.dirname(users_path), "translate-cache"))),
+        "cache_dir": o.get("TRANSLATE_CACHE_DIR", os.environ.get("TRANSLATE_CACHE_DIR", os.path.join(cache_base, "translate-cache"))),
+        "translate_cache": pgstore.PgTranslateCache(pgdb) if pgdb else None,
         "assist_limiter": o.get("ASSIST_LIMITER"), "translate_limiter": o.get("TRANSLATE_LIMITER"),
         "knowledge_cache": o.get("KNOWLEDGE_CACHE"),
     })
 
-    zipfix_routes.register(app, {"store": store, "api_user": api_user, "ui_lang": ui_lang, "users_path": users_path, "overrides": o, "mock": mock})
+    zipfix_routes.register(app, {"store": store, "api_user": api_user, "ui_lang": ui_lang, "users_path": os.path.join(cache_base, "users.json"), "overrides": o, "mock": mock})
     attach.register(app, {"engines": engines, "transport": transport, "api_user": api_user, "ui_lang": ui_lang, "store": store})
     snooze.register(app, {"api_user": api_user, "json_error": json_error, "ui_lang": ui_lang, "store": store, "cache": tcache,
                           "snooze": snooze_store, "is_test_user": dashboard.is_test_user})

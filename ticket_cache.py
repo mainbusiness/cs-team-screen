@@ -987,13 +987,13 @@ class TicketCache:
             self._background(("t", brand, tid), lambda: self._refresh(user, brand, tid))
 
 
-WRITE_FNS = ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel",
+WRITE_FNS = ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiSubCancel", "apiOrderEdit",
              "apiAutoCancelApprove", "apiAutoCancelReject", "apiAutoReplyReview", "apiWaTakeOver", "apiSendTemplate", "apiRedraftOne")
 # Who else has a ticket on screen (Owner, 2026-10-11: two agents answered the same ticket). Fed by every /watch tick (every 5 s while the ticket is
 # on screen) and every open; "editing" = the agent typed in it lately. In memory: one gunicorn worker (render.yaml). Names only, never text.
 PRESENCE_SEEN_S = 15.0
 PRESENCE_EDIT_S = 12.0     # "editing" lasts until the writer's next tick says otherwise (ticks every 5 s)
-SWITCH_KEYS = ("dryRun", "cancelEnabled", "cancelFrozen", "subscriptions")
+SWITCH_KEYS = ("dryRun", "cancelEnabled", "cancelFrozen", "subscriptions", "orderEdits")
 SWITCH_MAX_AGE_S = 15      # how stale DRY_RUN & co may be on a client (live E2E 2026-10-05: send stayed disabled)
 LIST_STARVE_S = 60         # QA round 5: a list older than this is refreshed at interactive priority, breaker or not
 TICKET_WAIT_S = 15         # an agent waits at most this long for a ticket; the fetch goes on and lands in the cache

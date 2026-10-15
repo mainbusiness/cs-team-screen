@@ -7,7 +7,7 @@ import time
 import pytest
 
 import security
-from conftest import PASSWORD, add_user, call, client_for, csrf_from, logged_in, login, spa_csrf, store_of
+from conftest import PASSWORD, add_user, audit_text, call, client_for, csrf_from, logged_in, login, spa_csrf, store_of
 
 
 # ---------- hashing ----------
@@ -223,6 +223,7 @@ def test_admin_sees_bootstrap_warning(make_app):
 
 # ---------- storage + config ----------
 
+@pytest.mark.skipif(bool(os.environ.get("CS_TEST_PG")), reason="file backend only")
 def test_users_file_is_atomic_private_and_clean(app, pw_hash, tmp_path):
     add_user(app, pw_hash, "noa", ["agent"], ["rozela"])
     add_user(app, pw_hash, "ron", ["agent"], ["celesta"])
@@ -231,7 +232,7 @@ def test_users_file_is_atomic_private_and_clean(app, pw_hash, tmp_path):
     assert not [f for f in os.listdir(tmp_path) if f.endswith(".tmp")]
     data = json.loads(p.read_text())
     assert set(data["users"]) == {"noa", "ron"}
-    audit = (tmp_path / "audit.jsonl").read_text()
+    audit = audit_text(app)
     assert "pbkdf2" not in audit and PASSWORD not in audit
 
 

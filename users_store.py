@@ -230,6 +230,88 @@ class UserStore:
             self.update(username, username, m, None)
 
 
+class PgUserStore(UserStore):
+    """Same contract as UserStore, on the core Postgres (pgstore.py). Every change holds a transaction-scoped advisory
+    lock, so two instances running side by side during a deploy cannot lose each other's change."""
+
+    def __init__(self, db):
+        import pgstore
+        self.db, self._pg = db, pgstore
+        self.path = self.audit_path = "postgres:screen_users"
+
+    def _load(self, c):
+        return {u: d for u, d in c.execute("select username, data from screen_users").fetchall()}
+
+    def audit(self, actor, action, target="", detail=None):
+        from psycopg.types.json import Jsonb
+        line = {"time": now_iso(), "actor": actor, "action": action, "target": target}
+        if detail:
+            line["detail"] = detail
+        self.db.x("insert into screen_audit(line) values (%s)", (Jsonb(line),))
+
+    def audit_tail(self, n=100):
+        return [r[0] for r in self.db.q("select line from screen_audit order by id desc limit %s", (int(n),))]
+
+    def count(self):
+        return self.db.q("select count(*) from screen_users")[0][0]
+
+    def get(self, username):
+        if not isinstance(username, str):
+            return None
+        rows = self.db.q("select data from screen_users where username=%s", (username.lower(),))
+        return rows[0][0] if rows else None
+
+    def all(self):
+        return [r[1] for r in sorted(self.db.q("select username, data from screen_users"), key=lambda r: r[0])]
+
+    def create(self, actor, username, password_hash, fields, valid_brands, must_change=True):
+        from psycopg.types.json import Jsonb
+        if not isinstance(username, str) or not USERNAME_RE.match(username):
+            raise UserStoreError("bad_username")
+        clean = self.clean_fields(fields, valid_brands, partial=False)
+        rec = {
+            "username": username, "pw": password_hash, "must_change": bool(must_change),
+            "disabled": False, "sv": 1, "created_at": now_iso(), "created_by": actor,
+            "updated_at": now_iso(), "last_login": None,
+        }
+        rec.update(clean)
+
+        def go(c):
+            c.execute("select pg_advisory_xact_lock(%s)", (self._pg.LOCK_USERS,))
+            if c.execute("select 1 from screen_users where username=%s", (username,)).fetchone():
+                raise UserStoreError("user_exists")
+            c.execute("insert into screen_users(username, data) values (%s,%s)", (username, Jsonb(rec)))
+        self.db.run(go, tx=True)
+        self.audit(actor, "user_created", username, {k: clean[k] for k in ("roles", "brands", "lang")})
+        return copy.deepcopy(rec)
+
+    def update(self, actor, username, mutate, audit_action, audit_detail=None, bump_sv=False):
+        from psycopg.types.json import Jsonb
+
+        def go(c):
+            c.execute("select pg_advisory_xact_lock(%s)", (self._pg.LOCK_USERS,))
+            users = self._load(c)
+            orig = copy.deepcopy(users)
+            rec = users.get(username)
+            if not rec:
+                raise UserStoreError("not_found")
+            before = copy.deepcopy(rec)
+            mutate(rec, users)
+            if rec == before:
+                return copy.deepcopy(rec), False
+            if bump_sv:
+                rec["sv"] = int(rec.get("sv", 1)) + 1
+            rec["updated_at"] = now_iso()
+            for name, r in users.items():
+                if r != orig.get(name):
+                    c.execute("update screen_users set data=%s where username=%s", (Jsonb(r), name))
+            return copy.deepcopy(rec), True
+        rec, changed = self.db.run(go, tx=True)
+        if changed and audit_action:
+            self.audit(actor, audit_action, username, audit_detail)
+        return rec, changed
+
+
 def public_user(u):
     """The shape the browser sees. No hash, no session version."""
     return {
