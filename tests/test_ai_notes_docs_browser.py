@@ -63,6 +63,10 @@ def test_claim_note_without_file_asks_for_it_then_upload_puts_it_in_and_checks(s
         r = n.locator("[data-test=ai-note-reply]")
         assert until(lambda: r.get_attribute("data-state") == "needs_file")
         assert "צריך גם את הקובץ של האישור" in r.inner_text()
+        # the system's reading comes back right away, before the file, so the manager sees he was understood
+        assert until(lambda: r.locator("[data-test=ai-note-understood]").count() == 1)
+        assert "איך הבנתי:" in r.inner_text() and "הבנתי: הבוט יגיד ללקוחות" in r.inner_text()
+        assert r.locator("[data-test=ai-note-wrong]").count() == 1
         # upload right there, under the note
         r.locator("[data-test=ai-note-file-input]").set_input_files(PDF)
         assert until(lambda: r.get_attribute("data-state") == "checked", 12000), r.get_attribute("data-state")
@@ -107,4 +111,26 @@ def test_a_check_the_bot_fails_is_reported_never_checked(server):
         assert until(lambda: r.count() == 1 and r.get_attribute("data-state") == "not_following", 12000)
         assert "הבוט עוד לא ענה לפי ההערה" in r.inner_text()
         assert r.locator("[data-test=ai-note-recheck]").count() == 1
+        browser.close()
+
+
+def test_not_what_i_meant_puts_the_text_back_and_the_new_note_replaces_the_old(server):
+    base, pwd = server
+    with pw.sync_playwright() as p:
+        browser, pg = open_card(p, base, pwd)
+        old = "יש לנו אישור משרד הבריאות ואישור FDA"
+        pg.fill("[data-test=ai-note-text]", old)
+        pg.select_option("[data-test=ai-note-scope]", "apexmen")
+        pg.click("[data-test=ai-note-add]")
+        n = note(pg, "apexmen", old)
+        assert until(lambda: n.count() == 1 and n.locator("[data-test=ai-note-wrong]").count() == 1)
+        oid = n.get_attribute("data-id")
+        n.locator("[data-test=ai-note-wrong]").click()
+        assert pg.input_value("[data-test=ai-note-text]") == old
+        assert pg.input_value("[data-test=ai-note-scope]") == "apexmen"
+        assert "ההערה הקודמת תימחק" in pg.locator("[data-test=ai-note-status]").inner_text()
+        pg.fill("[data-test=ai-note-text]", "יש לנו אישור FDA. אין אישור משרד הבריאות.")
+        pg.click("[data-test=ai-note-add]")
+        assert until(lambda: pg.locator("[data-test=ai-note][data-id=\"%s\"]" % oid).count() == 0), "the old note is gone"
+        assert until(lambda: note(pg, "apexmen", "אין אישור משרד הבריאות").count() == 1)
         browser.close()

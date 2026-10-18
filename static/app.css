@@ -766,3 +766,4 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 .ain-r-line.warn { color: #7a5200; font-weight: 600; }
 .ain-r-line.bad { color: var(--danger); font-weight: 600; }
 .ain-r-qa { overflow-wrap: anywhere; white-space: pre-wrap; }
+.ain-r-understood { font-size: 13px; overflow-wrap: anywhere; white-space: pre-wrap; padding-bottom: 4px; }

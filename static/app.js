@@ -233,6 +233,8 @@
       ain_r_ok: '✅ נכנס למערכת ונבדק ({d}).', ain_r_ok_n: '✅ נכנס למערכת ונבדק ב-{n} מותגים ({d}).', ain_r_q: 'שאלתי את הבוט:', ain_r_a: 'הבוט ענה:',
       ain_r_no: '⚠ נכנס למערכת, אבל בבדיקה ב-{b} הבוט עוד לא ענה לפי ההערה: {why}', ain_r_err: 'נכנס למערכת. הבדיקה האוטומטית לא הצליחה לרוץ עכשיו ({b}).',
       ain_r_recheck: 'לבדוק שוב', ain_r_reply: 'תשובת המערכת', ain_r_file: '📄 {n}',
+      ain_r_understood: '🧠 איך הבנתי:', ain_r_reading: '⏳ כותב איך הבנתי את ההערה…', ain_r_wrong: '✏️ לא הבנת נכון — לערוך',
+      ain_edit_hint: 'ערכו את ההערה ולחצו "הוספת הערה". ההערה הקודמת תימחק ותוחלף בחדשה.', ain_replaced: 'ההערה הקודמת הוחלפה',
       ain_jump: '🧠 שיפור ה-AI', ain_ph: 'מה ה-AI צריך לעשות אחרת? למשל: "לא לכתוב \'מצטערים על אי הנוחות\' — לפתוח ישר בתשובה."',
       ain_scope: 'למי ההערה', ain_all: 'כל המותגים', ain_add: 'הוספת הערה', ain_adding: 'שומר…', ain_count: '{n}/600',
       ain_general: 'כללי — כל המותגים', ain_brand: 'רק {b}', ain_empty: 'אין עדיין הערות. הערה שתוסיפו תיכנס לטיוטות הבאות של ה-AI.',
@@ -461,6 +463,8 @@
       ain_r_ok: '✅ In the system and checked ({d}).', ain_r_ok_n: '✅ In the system and checked in {n} brands ({d}).', ain_r_q: 'I asked the bot:', ain_r_a: 'The bot answered:',
       ain_r_no: '⚠ In the system, but in the check on {b} the bot did not answer by the note yet: {why}', ain_r_err: 'In the system. The automatic check could not run now ({b}).',
       ain_r_recheck: 'Check again', ain_r_reply: 'System reply', ain_r_file: '📄 {n}',
+      ain_r_understood: '🧠 How I understood it:', ain_r_reading: '⏳ Writing how I understood the note…', ain_r_wrong: '✏️ Not what I meant — edit',
+      ain_edit_hint: 'Edit the note and click "Add note". The old note is deleted and replaced by the new one.', ain_replaced: 'The old note was replaced',
       ain_jump: '🧠 Improve the AI', ain_ph: 'What should the AI do differently? E.g. "Don\'t write \'sorry for the inconvenience\' — open with the answer."',
       ain_scope: 'Who is it for', ain_all: 'All brands', ain_add: 'Add note', ain_adding: 'Saving…', ain_count: '{n}/600',
       ain_general: 'General — all brands', ain_brand: '{b} only', ain_empty: 'No notes yet. A note you add goes into the AI\'s next drafts.',
@@ -1586,6 +1590,9 @@
     const shown = { brand: S.brand, tab: S.tab, chan: S.chan || 'all', ids: rows.map(function (x) { return x.id; }) };
     if (S.listShown && S.listShown.brand === shown.brand && S.listShown.tab === shown.tab) S.listShownPrev = S.listShown;
     S.listShown = shown;
+    // Owner, 2026-10-18: a template / a send that stays on the ticket takes it out of the tab while he is still on it, and the next
+    // re-renders no longer hold it. The last list that DID hold the open ticket is kept for goNext, however many re-renders follow.
+    if (S.ticketId && shown.ids.indexOf(S.ticketId) >= 0) S.listOfOpen = { id: S.ticketId, brand: shown.brand, tab: shown.tab, ids: shown.ids };
     const fresh = work ? rows.filter(function (x) { return !isOld(x); }) : rows;
     const old = work ? rows.filter(isOld) : [];
     fresh.forEach(function (x) { lp.append(rowEl(x)); });
@@ -4647,7 +4654,7 @@
     // already hidden; when it left the data meanwhile, the list as he last saw it. A neighbour gone meanwhile -> further up; nothing above -> below.
     let ids = tab ? (shownRows(tab, fromId) || []).map(function (x) { return x.id; }) : [];
     if (ids.indexOf(fromId) < 0) {
-      [S.listShown, S.listShownPrev].some(function (o) { if (o && o.brand === brand && o.tab === tab && o.ids.indexOf(fromId) >= 0) { ids = o.ids; return true; } return false; });
+      [S.listShown, S.listShownPrev, S.listOfOpen].some(function (o) { if (o && o.brand === brand && o.tab === tab && o.ids.indexOf(fromId) >= 0) { ids = o.ids; return true; } return false; });
     }
     const avail = {};
     (tab ? shownRows(tab) || [] : []).forEach(function (x) { if (x.id !== fromId && !Outbox.blocks(brand, x.id)) avail[x.id] = true; });
@@ -4978,7 +4985,7 @@
    *  The card is built once; only its list and status repaint, so the textarea is never rebuilt under the manager's fingers. */
   const AiNotes = (function () {
     const MAX = 600;
-    const st = { lists: {}, errs: {}, loaded: false, seq: 0, busy: false, pending: null, status: null, checking: {}, tried: {}, uploading: {}, upErr: {}, file: null };
+    const st = { lists: {}, errs: {}, loaded: false, seq: 0, busy: false, pending: null, status: null, checking: {}, tried: {}, uploading: {}, upErr: {}, file: null, replace: null };
     // Mirror of the engine's AI_NOTE_DOC_RE (AiNotes.gs): only for the hint under the text box. The engine's answer (note.status) decides.
     const DOC_RE = /(^|[^A-Za-z])(FDA|MHRA|EMA|CE|ISO|GMP|HACCP|USDA|NSF)([^A-Za-z]|$)|משרד ה?בריאות|מכון ה?תקנים|תו[ -]?ה?תקן|כשרות|בהשגחת|תעוד[הת]|מאושר(?:ת|ים|ות)?\s+(?:ע["״]?י|על[ -]ידי|מטעם|ב)|אישור\s+(?:של\s+|מ|מטעם\s+|ה)?(?:רשות|משרד|מכון|ה?-?FDA)|רישיון\s+יצרן|מוכח(?:ת|ים)?\s+קלינית|נבדק(?:ה|ו)?\s+קלינית|מחקר(?:ים)?\s+קליני|certif|approved\s+by|registered\s+with|clinically\s+(?:proven|tested)/i;
     const FILE_MAX = 10 * 1024 * 1024;
@@ -5023,7 +5030,7 @@
     function autoCheck() {
       Object.keys(st.lists).forEach(function (b) {
         st.lists[b].forEach(function (n) {
-          if (n.status === 'active' && !n.check && !st.tried[key(b, n.id)]) { st.tried[key(b, n.id)] = true; check(b, n.id); }
+          if (!n.check && !st.tried[key(b, n.id)]) { st.tried[key(b, n.id)] = true; check(b, n.id); }   // a note waiting for its file gets the reading
         });
       });
     }
@@ -5061,6 +5068,19 @@
       }));
       await load();
     }
+    /** "Not what I meant": the note's text back in the composer, same scope; the next add replaces it (the old note is deleted after the new one is saved). */
+    function edit(n, bs) {
+      if (!el) return;
+      const ta = el.querySelector('[data-test=ai-note-text]');
+      const sel = el.querySelector('[data-test=ai-note-scope]');
+      ta.value = n.text;
+      sel.value = n.scope === 'all' ? 'all' : bs[0];
+      st.replace = { id: n.id, brands: bs.slice() };
+      ta.dispatchEvent(new Event('input'));
+      setStatus('ok', t('ain_edit_hint'));
+      ta.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      ta.focus();
+    }
     function filePicker(onPick, label) {
       const inp = h('input', { type: 'file', accept: FILE_ACCEPT, hidden: true, 'data-test': 'ai-note-file-input' });
       inp.addEventListener('change', function () { const f = inp.files && inp.files[0]; inp.value = ''; if (f) onPick(f); });
@@ -5078,6 +5098,12 @@
         box.append(h('div', { class: 'ain-r-line', text: t('ain_r_uploading') }));
         return box;
       }
+      // the system's reading of the note, first: the manager checks he was understood (Owner, 2026-10-18)
+      const rd = bs.map(function (b) { return per[b].check && per[b].check.understood; }).filter(Boolean)[0];
+      const busy = bs.some(function (b) { return st.checking[key(b, id)] || (!per[b].check && !st.tried[key(b, id)]); });
+      const wrong = h('button', { type: 'button', class: 'btn small ghost', 'data-test': 'ai-note-wrong', text: t('ain_r_wrong'), onclick: function () { edit(per[bs[0]], bs); } });
+      if (rd) box.append(h('div', { class: 'ain-r-understood', 'data-test': 'ai-note-understood' }, h('b', { text: t('ain_r_understood') + ' ' }), h('span', { dir: 'auto', text: rd })), wrong);
+      else if (busy) box.append(h('div', { class: 'ain-r-line', 'data-test': 'ai-note-reading', text: t('ain_r_reading') }));
       const needs = bs.filter(function (b) { return per[b].status === 'needs_file'; });
       if (needs.length) {
         box.setAttribute('data-state', 'needs_file');
@@ -5085,7 +5111,7 @@
         return box;
       }
       // checking = running now, or about to run (autoCheck); a check whose answer was lost shows as "could not run" with "check again"
-      if (bs.some(function (b) { return st.checking[key(b, id)] || (!per[b].check && !st.tried[key(b, id)]); })) {
+      if (busy) {
         box.setAttribute('data-state', 'checking');
         box.append(h('div', { class: 'ain-r-line', text: t('ain_r_checking') }));
         return box;
@@ -5093,7 +5119,7 @@
       const recheck = h('button', { type: 'button', class: 'btn small ghost', 'data-test': 'ai-note-recheck', text: t('ain_r_recheck'),
         onclick: function (e) { e.currentTarget.disabled = true; bs.forEach(function (b) { check(b, id); }); } });
       const no = bs.filter(function (b) { return per[b].check && per[b].check.follows === false; });
-      const err = bs.filter(function (b) { return !per[b].check || per[b].check.err; });
+      const err = bs.filter(function (b) { return !per[b].check || per[b].check.err || !('follows' in per[b].check); });
       if (no.length) {
         box.setAttribute('data-state', 'not_following');
         no.forEach(function (b) { box.append(h('div', { class: 'ain-r-line bad', text: t('ain_r_no', { b: brandName(b), why: per[b].check.why || '—' }) })); });
@@ -5249,6 +5275,12 @@
         finally { st.busy = false; }
         report(r, targets.length, scope === 'all' ? null : scope);
         const file = st.file;
+        const rep = st.replace;
+        if (r.ok.length && rep && rep.id !== id) {     // "not what I meant": the old note goes once the new one is saved
+          st.replace = null;
+          const d = await fan(rep.brands, 'apiAiNoteDelete', { id: rep.id });
+          if (!d.bad.length) setStatus('ok', t('ain_replaced'));
+        }
         if (r.ok.length) { st.pending = null; ta.value = ''; st.file = null; paintFile(); }     // saved somewhere: it is in the list now (a part-save offers "complete" there)
         paintBtn();
         if (r.ok.length && file) await attachFile(r.ok, id, file);    // the document goes with the note; its state shows under the note

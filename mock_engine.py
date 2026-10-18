@@ -1441,10 +1441,12 @@ class MockEngines:
             return {"ok": False, "error": "bad_id"}
         for n in self.ai_notes[brand]:
             if n["id"] == a["id"]:
-                if self._note_out(n)["status"] != "active":
-                    return {"ok": False, "error": "needs_file"}
+                reading = "הבנתי: הבוט יגיד ללקוחות: " + n["text"][:80]
+                if self._note_out(n)["status"] != "active":       # waiting for its file: the reading only
+                    n["check"] = {"at": self._now(), "understood": reading}
+                    return {"ok": True, "note": self._note_out(n)}
                 fail = "MOCK-NOFOLLOW" in n["text"]
-                n["check"] = {"at": self._now(), "q": "שאלה לדוגמה של לקוח", "a": "תשובה לדוגמה של הבוט", "follows": not fail,
+                n["check"] = {"at": self._now(), "understood": reading, "q": "שאלה לדוגמה של לקוח", "a": "תשובה לדוגמה של הבוט", "follows": not fail,
                               "why": "הבוט לא יישם את ההערה" if fail else "הבוט ענה לפי ההערה"}
                 return {"ok": True, "note": self._note_out(n)}
         return {"ok": False, "error": "not_found"}
