@@ -76,3 +76,27 @@ def test_mock_engine_matches_the_deployed_contract():
         ex = e.apiTicketFull("rozela", {"id": t["id"]}, admin)["extras"]
         assert ("mailbox" in ex) is (t["channel"] != "whatsapp"), t["id"]          # WhatsApp: no mailbox key at all
     assert e.dispatch is not None and "apiAiNotes" in mock_engine.TABLE and mock_engine.TABLE["apiAiNotes"] == ("admin",)
+
+
+# 2026-10-18: the note's document and its live check — admin only, the file must be an upload id, and the answer must be about THAT note.
+def test_attach_and_check_admin_only_clean_args_and_bound_replies(app, pw_hash, transport):
+    def rep(url, body):
+        a = body.get("args") or {}
+        if body["fn"] == "apiAiNoteAttach":
+            return {"ok": True, "note": {"id": a["id"], "file": {"id": a["file"]}, "status": "active"}}
+        if body["fn"] == "apiAiNoteCheck":
+            return {"ok": True, "note": {"id": a["id"], "check": {"follows": True}}}
+        return {"ok": True}
+    transport.reply = rep
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    for fn, args in (("apiAiNoteAttach", {"id": "abcdef123456", "file": "a" + "0" * 24}), ("apiAiNoteCheck", {"id": "abcdef123456"})):
+        assert call(c, tok, "rozela", fn, args).status_code == 403
+    assert transport.calls == []
+    c, tok = logged_in(app, pw_hash, "guy", ["admin"], ["rozela"])
+    for bad in ({"id": "abcdef123456", "file": "../etc"}, {"id": "abcdef123456"}, {"id": "BAD", "file": "a" + "0" * 24}):
+        assert call(c, tok, "rozela", "apiAiNoteAttach", bad).status_code == 400, bad
+    assert transport.calls == []
+    r = call(c, tok, "rozela", "apiAiNoteAttach", {"id": "abcdef123456", "file": "a" + "1" * 24, "extra": "x"})
+    assert r.status_code == 200 and r.get_json()["note"]["file"]["id"] == "a" + "1" * 24
+    assert [b for _, b in transport.calls if b["fn"] == "apiAiNoteAttach"][-1]["args"] == {"id": "abcdef123456", "file": "a" + "1" * 24, "brand": "rozela"}
+    assert call(c, tok, "rozela", "apiAiNoteCheck", {"id": "abcdef123456"}).get_json()["note"]["check"]["follows"] is True

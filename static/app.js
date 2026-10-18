@@ -224,7 +224,15 @@
       draft_new_avail: 'המנוע כתב טיוטה חדשה — הטיוטה שלך לא נגעה.', use_new_draft: 'החלף לטיוטה החדשה', draft_updated: 'הטיוטה עודכנה לפי ההודעה החדשה.',
       orders_err: 'בדיקת ההזמנות נכשלה: {m}', subs_err: 'בדיקת המנויים נכשלה: {m}',
       mailbox_at: 'התקבל בתיבה:', order_open: 'פתיחת ההזמנה בשופיפיי (בלשונית חדשה)',
-      ain_title: 'שיפור ה-AI — הערות למנהלים', ain_help: 'ההערות נכנסות לכל טיוטה שה-AI כותב, מהטיוטה הבאה. הן לא גוברות על כללי המדיניות.',
+      ain_title: 'שיפור ה-AI — הערות למנהלים', ain_help: 'ההערות של המנהלים מחייבות את ה-AI ונכנסות לכל טיוטה, מהטיוטה הבאה. על כל הערה המערכת עונה כאן ומעדכנת כשהיא נכנסה ונבדקה.',
+      ain_file_btn: '📎 צירוף קובץ (אישור / תעודה)', ain_file_clear: 'הסרת הקובץ', ain_file_big: 'הקובץ גדול מדי (עד 10MB).',
+      ain_doc_hint: 'ההערה מדברת על אישור או תעודה: צרפו גם את הקובץ, וההערה תיכנס למערכת מיד.',
+      ain_r_needs: '📎 קיבלתי. כדי שהבוט יגיד את זה ללקוחות צריך גם את הקובץ של האישור. העלו אותו כאן, וברגע שהוא עולה ההערה נכנסת למערכת ואעדכן כאן.',
+      ain_r_attach: '📎 העלאת הקובץ', ain_r_uploading: 'מעלה את הקובץ…', ain_r_up_fail: 'הקובץ לא עלה ל-{b}: {m}',
+      ain_r_checking: '⏳ נכנס למערכת. בודק עכשיו שהבוט באמת עונה לפי ההערה (עד דקה)…',
+      ain_r_ok: '✅ נכנס למערכת ונבדק ({d}).', ain_r_ok_n: '✅ נכנס למערכת ונבדק ב-{n} מותגים ({d}).', ain_r_q: 'שאלתי את הבוט:', ain_r_a: 'הבוט ענה:',
+      ain_r_no: '⚠ נכנס למערכת, אבל בבדיקה ב-{b} הבוט עוד לא ענה לפי ההערה: {why}', ain_r_err: 'נכנס למערכת. הבדיקה האוטומטית לא הצליחה לרוץ עכשיו ({b}).',
+      ain_r_recheck: 'לבדוק שוב', ain_r_reply: 'תשובת המערכת', ain_r_file: '📄 {n}',
       ain_jump: '🧠 שיפור ה-AI', ain_ph: 'מה ה-AI צריך לעשות אחרת? למשל: "לא לכתוב \'מצטערים על אי הנוחות\' — לפתוח ישר בתשובה."',
       ain_scope: 'למי ההערה', ain_all: 'כל המותגים', ain_add: 'הוספת הערה', ain_adding: 'שומר…', ain_count: '{n}/600',
       ain_general: 'כללי — כל המותגים', ain_brand: 'רק {b}', ain_empty: 'אין עדיין הערות. הערה שתוסיפו תיכנס לטיוטות הבאות של ה-AI.',
@@ -444,7 +452,15 @@
       draft_new_avail: 'The engine wrote a new draft — yours is untouched.', use_new_draft: 'Use the new draft', draft_updated: 'The draft was updated for the new message.',
       orders_err: 'Order lookup failed: {m}', subs_err: 'Subscription lookup failed: {m}',
       mailbox_at: 'Received at:', order_open: 'Open the order in Shopify (new tab)',
-      ain_title: 'Improve the AI — managers\' notes', ain_help: 'Notes go into every draft the AI writes, from the next draft on. They never override the policy rules.',
+      ain_title: 'Improve the AI — managers\' notes', ain_help: 'Managers\' notes bind the AI and go into every draft, from the next draft on. The system answers every note here and updates when it is in and checked.',
+      ain_file_btn: '📎 Attach a file (approval / certificate)', ain_file_clear: 'Remove the file', ain_file_big: 'The file is too big (up to 10MB).',
+      ain_doc_hint: 'This note is about an approval or a certificate: attach the file too, and the note goes in at once.',
+      ain_r_needs: '📎 Got it. For the bot to tell customers this, the approval document is needed too. Upload it here: as soon as it is up the note goes in and I will update here.',
+      ain_r_attach: '📎 Upload the file', ain_r_uploading: 'Uploading the file…', ain_r_up_fail: 'The file was not uploaded to {b}: {m}',
+      ain_r_checking: '⏳ In the system. Checking now that the bot really answers by the note (up to a minute)…',
+      ain_r_ok: '✅ In the system and checked ({d}).', ain_r_ok_n: '✅ In the system and checked in {n} brands ({d}).', ain_r_q: 'I asked the bot:', ain_r_a: 'The bot answered:',
+      ain_r_no: '⚠ In the system, but in the check on {b} the bot did not answer by the note yet: {why}', ain_r_err: 'In the system. The automatic check could not run now ({b}).',
+      ain_r_recheck: 'Check again', ain_r_reply: 'System reply', ain_r_file: '📄 {n}',
       ain_jump: '🧠 Improve the AI', ain_ph: 'What should the AI do differently? E.g. "Don\'t write \'sorry for the inconvenience\' — open with the answer."',
       ain_scope: 'Who is it for', ain_all: 'All brands', ain_add: 'Add note', ain_adding: 'Saving…', ain_count: '{n}/600',
       ain_general: 'General — all brands', ain_brand: '{b} only', ain_empty: 'No notes yet. A note you add goes into the AI\'s next drafts.',
@@ -4962,7 +4978,11 @@
    *  The card is built once; only its list and status repaint, so the textarea is never rebuilt under the manager's fingers. */
   const AiNotes = (function () {
     const MAX = 600;
-    const st = { lists: {}, errs: {}, loaded: false, seq: 0, busy: false, pending: null, status: null };
+    const st = { lists: {}, errs: {}, loaded: false, seq: 0, busy: false, pending: null, status: null, checking: {}, tried: {}, uploading: {}, upErr: {}, file: null };
+    // Mirror of the engine's AI_NOTE_DOC_RE (AiNotes.gs): only for the hint under the text box. The engine's answer (note.status) decides.
+    const DOC_RE = /(^|[^A-Za-z])(FDA|MHRA|EMA|CE|ISO|GMP|HACCP|USDA|NSF)([^A-Za-z]|$)|משרד ה?בריאות|מכון ה?תקנים|תו[ -]?ה?תקן|כשרות|בהשגחת|תעוד[הת]|מאושר(?:ת|ים|ות)?\s+(?:ע["״]?י|על[ -]ידי|מטעם|ב)|אישור\s+(?:של\s+|מ|מטעם\s+|ה)?(?:רשות|משרד|מכון|ה?-?FDA)|רישיון\s+יצרן|מוכח(?:ת|ים)?\s+קלינית|נבדק(?:ה|ו)?\s+קלינית|מחקר(?:ים)?\s+קליני|certif|approved\s+by|registered\s+with|clinically\s+(?:proven|tested)/i;
+    const FILE_MAX = 10 * 1024 * 1024;
+    const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.doc,.docx';
     let el = null;
     function brands() { return S.me.brands.filter(function (b) { return b.connected; }).map(function (b) { return b.id; }); }
     function newId() {
@@ -4995,6 +5015,103 @@
       });
       st.loaded = true;
       paintList();
+      autoCheck();
+    }
+    function key(b, id) { return b + '|' + id; }
+    function noteOf(b, id) { return (st.lists[b] || []).filter(function (n) { return n.id === id; })[0] || null; }
+    /** Every active note without a check is checked once per page load (a new note, a new file, an old note from before the checks). */
+    function autoCheck() {
+      Object.keys(st.lists).forEach(function (b) {
+        st.lists[b].forEach(function (n) {
+          if (n.status === 'active' && !n.check && !st.tried[key(b, n.id)]) { st.tried[key(b, n.id)] = true; check(b, n.id); }
+        });
+      });
+    }
+    /** The live check of one note in one brand (the engine: a question -> the real draft -> a judge). The note in the list is replaced by the answer. */
+    async function check(b, id) {
+      st.checking[key(b, id)] = true;
+      paintList();
+      const r = await call(b, 'apiAiNoteCheck', { id: id }).catch(function () { return null; });
+      delete st.checking[key(b, id)];
+      if (r && r.ok && r.note) {
+        const l = st.lists[b] || [];
+        for (let i = 0; i < l.length; i++) if (l[i].id === id) l[i] = r.note;
+        paintList();
+      } else await load();      // an unclear answer: what the engine stored is the truth
+    }
+    /** Uploads the document to every brand that holds the note, then attaches it there. Per brand: a failure is shown under the note. */
+    async function attachFile(targets, id, file) {
+      if (file.size > FILE_MAX) { targets.forEach(function (b) { st.upErr[key(b, id)] = t('ain_file_big'); }); paintList(); return; }
+      targets.forEach(function (b) { st.uploading[key(b, id)] = true; delete st.upErr[key(b, id)]; });
+      paintList();
+      await Promise.all(targets.map(async function (b) {
+        let r = null;
+        try {
+          const fd = new FormData();
+          fd.append('file', file, file.name);
+          fd.append('channel', 'email');
+          const res = await fetch('/api/' + encodeURIComponent(b) + '/attach', { method: 'POST', credentials: 'same-origin', body: fd,
+            headers: { 'X-CSRF-Token': CSRF, Accept: 'application/json', 'X-UI-Lang': LANG } });
+          r = await res.json().catch(function () { return { ok: false, msg: t('err_bad_engine') }; });
+          if (r && r.ok === true && /^a[0-9a-f]{24}$/.test(String(r.id || ''))) r = await call(b, 'apiAiNoteAttach', { id: id, file: r.id }).catch(function () { return null; });
+        } catch (e) { r = { ok: false, msg: t('err_network') }; }
+        delete st.uploading[key(b, id)];
+        if (!(r && r.ok)) st.upErr[key(b, id)] = (r && (r.msg || r.error)) || t('err_bad_engine');
+        else delete st.tried[key(b, id)];        // a new document: checked again
+      }));
+      await load();
+    }
+    function filePicker(onPick, label) {
+      const inp = h('input', { type: 'file', accept: FILE_ACCEPT, hidden: true, 'data-test': 'ai-note-file-input' });
+      inp.addEventListener('change', function () { const f = inp.files && inp.files[0]; inp.value = ''; if (f) onPick(f); });
+      const btn = h('button', { type: 'button', class: 'btn small', 'data-test': 'ai-note-file-btn', text: label, onclick: function () { inp.click(); } });
+      return h('span', { class: 'ain-file-pick' }, btn, inp);
+    }
+    /** The system's answer under a note: what it needs, that it is checking, or what the check found. per = {brand: note}. */
+    function reply(per, id) {
+      const bs = Object.keys(per);
+      const box = h('div', { class: 'ain-reply', role: 'status', 'data-test': 'ai-note-reply' });
+      const errs = bs.filter(function (b) { return st.upErr[key(b, id)]; });
+      errs.forEach(function (b) { box.append(h('div', { class: 'ain-r-line bad', 'data-test': 'ai-note-upload-err', text: t('ain_r_up_fail', { b: brandName(b), m: st.upErr[key(b, id)] }) })); });
+      if (bs.some(function (b) { return st.uploading[key(b, id)]; })) {
+        box.setAttribute('data-state', 'uploading');
+        box.append(h('div', { class: 'ain-r-line', text: t('ain_r_uploading') }));
+        return box;
+      }
+      const needs = bs.filter(function (b) { return per[b].status === 'needs_file'; });
+      if (needs.length) {
+        box.setAttribute('data-state', 'needs_file');
+        box.append(h('div', { class: 'ain-r-line warn', text: t('ain_r_needs') }), filePicker(function (f) { attachFile(needs, id, f); }, t('ain_r_attach')));
+        return box;
+      }
+      // checking = running now, or about to run (autoCheck); a check whose answer was lost shows as "could not run" with "check again"
+      if (bs.some(function (b) { return st.checking[key(b, id)] || (!per[b].check && !st.tried[key(b, id)]); })) {
+        box.setAttribute('data-state', 'checking');
+        box.append(h('div', { class: 'ain-r-line', text: t('ain_r_checking') }));
+        return box;
+      }
+      const recheck = h('button', { type: 'button', class: 'btn small ghost', 'data-test': 'ai-note-recheck', text: t('ain_r_recheck'),
+        onclick: function (e) { e.currentTarget.disabled = true; bs.forEach(function (b) { check(b, id); }); } });
+      const no = bs.filter(function (b) { return per[b].check && per[b].check.follows === false; });
+      const err = bs.filter(function (b) { return !per[b].check || per[b].check.err; });
+      if (no.length) {
+        box.setAttribute('data-state', 'not_following');
+        no.forEach(function (b) { box.append(h('div', { class: 'ain-r-line bad', text: t('ain_r_no', { b: brandName(b), why: per[b].check.why || '—' }) })); });
+        box.append(recheck);
+        return box;
+      }
+      if (err.length) {
+        box.setAttribute('data-state', 'check_error');
+        box.append(h('div', { class: 'ain-r-line warn', text: t('ain_r_err', { b: err.map(brandName).join(', ') }) }), recheck);
+        return box;
+      }
+      const c = per[bs[0]].check;
+      box.setAttribute('data-state', 'checked');
+      box.append(h('div', { class: 'ain-r-line ok', text: bs.length > 1 ? t('ain_r_ok_n', { n: bs.length, d: fmtDate(c.at, true) }) : t('ain_r_ok', { d: fmtDate(c.at, true) }) }));
+      if (c.q) box.append(h('div', { class: 'ain-r-qa small' }, h('b', { text: t('ain_r_q') + ' ' }), h('span', { dir: 'auto', text: c.q })));
+      if (c.a) box.append(h('div', { class: 'ain-r-qa small', 'data-test': 'ai-note-answer' }, h('b', { text: t('ain_r_a') + ' ' }), h('span', { dir: 'auto', text: c.a })));
+      box.append(recheck);
+      return box;
     }
     /** {general: [{note, have: [brands]}], brand: {b: [notes]}} — newest first; a general note is listed once, by id. */
     function grouped() {
@@ -5002,8 +5119,9 @@
       Object.keys(st.lists).forEach(function (b) {
         st.lists[b].forEach(function (n) {
           if (n.scope === 'all') {
-            if (!gen[n.id]) { gen[n.id] = { note: n, have: [] }; order.push(n.id); }
+            if (!gen[n.id]) { gen[n.id] = { note: n, have: [], per: {} }; order.push(n.id); }
             gen[n.id].have.push(b);
+            gen[n.id].per[b] = n;
           } else (per[b] = per[b] || []).push(n);
         });
       });
@@ -5018,9 +5136,10 @@
       b.setAttribute('aria-label', t('ain_del_title'));
       return b;
     }
-    function item(n, scopeBrands, extra) {
+    function item(n, scopeBrands, extra, per) {
       const li = h('li', { class: 'ain-item', 'data-test': 'ai-note', 'data-id': n.id, 'data-scope': n.scope },
         h('div', { class: 'ain-text', dir: 'auto', text: n.text }),
+        n.file ? h('div', { class: 'ain-file small', 'data-test': 'ai-note-file', text: t('ain_r_file', { n: n.file.name }) }) : null,
         h('div', { class: 'ain-meta muted small' }, h('span', null, tx('ain_by', { u: n.by || '—', d: fmtDate(n.at, true) })), extra || null,
           delBtn(async function (btn) {
             btn.disabled = true;
@@ -5029,7 +5148,8 @@
             else if (r.ok.length) setStatus('bad', t('ain_del_part', { ok: r.ok.length, n: scopeBrands.length, bad: badNames(r.bad) }));
             else setStatus('bad', t('ain_del_fail', { m: r.bad[0][1] }));
             await load();
-          })));
+          })),
+        reply(per, n.id));
       return li;
     }
     function paintList() {
@@ -5058,7 +5178,7 @@
               report(r, missing.length, null);
               await load();
             } })) : null;
-          ul.append(item(x.note, all, extra));
+          ul.append(item(x.note, all, extra, x.per));
         });
         list.append(h('section', { class: 'ain-group', 'data-test': 'ai-group-all' }, h('h4', { text: t('ain_general') }), ul));
       }
@@ -5067,7 +5187,7 @@
         if (!ns || !ns.length) return;
         any = true;
         const ul = h('ul', { class: 'ain-list' });
-        ns.forEach(function (n) { ul.append(item(n, [b])); });
+        ns.forEach(function (n) { const per = {}; per[b] = n; ul.append(item(n, [b], null, per)); });
         list.append(h('section', { class: 'ain-group', 'data-test': 'ai-group-brand', 'data-brand': b }, h('h4', null, tx('ain_brand', { b: brandName(b) })), ul));
       });
       if (!any && !Object.keys(st.errs).length) list.append(h('div', { class: 'muted small', 'data-test': 'ai-note-empty', text: t('ain_empty') }));
@@ -5092,8 +5212,22 @@
       sel.append(h('option', { value: 'all', text: t('ain_all') }));
       brands().forEach(function (b) { sel.append(h('option', { value: b, text: brandName(b) })); });
       const btn = h('button', { type: 'button', class: 'btn primary', 'data-test': 'ai-note-add', text: t('ain_add') });
+      const fileChip = h('span', { class: 'ain-file-chosen small', 'data-test': 'ai-note-file-chosen', hidden: true });
+      const hint = h('div', { class: 'ain-doc-hint small', 'data-test': 'ai-note-doc-hint', hidden: true, text: t('ain_doc_hint') });
+      const paintFile = function () {
+        clear(fileChip);
+        fileChip.hidden = !st.file;
+        if (st.file) fileChip.append(h('span', { text: t('ain_r_file', { n: st.file.name }) }), ' ',
+          h('button', { type: 'button', class: 'btn small ghost', 'data-test': 'ai-note-file-clear', text: '✕', title: t('ain_file_clear'), 'aria-label': t('ain_file_clear'),
+            onclick: function () { st.file = null; paintFile(); paintBtn(); } }));
+      };
+      const pick = filePicker(function (f) {
+        if (f.size > FILE_MAX) { setStatus('bad', t('ain_file_big')); return; }
+        st.file = f; paintFile(); paintBtn();
+      }, t('ain_file_btn'));
       const paintBtn = function () {
         const n = ta.value.trim().length;
+        hint.hidden = !(DOC_RE.test(ta.value) && !st.file);
         count.textContent = t('ain_count', { n: ta.value.length });
         btn.disabled = st.busy || !n || n > MAX || !brands().length;
         btn.textContent = st.busy ? t('ain_adding') : t('ain_add');
@@ -5114,16 +5248,19 @@
         try { r = await fan(targets, 'apiAiNoteAdd', { id: id, scope: scope === 'all' ? 'all' : 'brand', text: text }); }
         finally { st.busy = false; }
         report(r, targets.length, scope === 'all' ? null : scope);
-        if (r.ok.length) { st.pending = null; ta.value = ''; }     // saved somewhere: it is in the list now (a part-save offers "complete" there)
+        const file = st.file;
+        if (r.ok.length) { st.pending = null; ta.value = ''; st.file = null; paintFile(); }     // saved somewhere: it is in the list now (a part-save offers "complete" there)
         paintBtn();
-        await load();
+        if (r.ok.length && file) await attachFile(r.ok, id, file);    // the document goes with the note; its state shows under the note
+        else await load();
       });
       const nc = S.me.brands.filter(function (b) { return !b.connected; }).map(function (b) { return brandName(b.id); });
       el = h('div', { class: 'dash-card ain-card', id: 'ai-notes', 'data-test': 'ai-notes' },
         h('h3', { text: t('ain_title') }),
         h('p', { class: 'muted small ain-help', 'data-test': 'ai-notes-help', text: t('ain_help') }),
         ta,
-        h('div', { class: 'ain-row' }, h('label', { class: 'small' }, t('ain_scope') + ' ', sel), count, btn),
+        hint,
+        h('div', { class: 'ain-row' }, h('label', { class: 'small' }, t('ain_scope') + ' ', sel), pick, fileChip, count, btn),
         nc.length ? h('div', { class: 'muted small', 'data-test': 'ai-note-not-conn', text: t('ain_not_conn', { b: nc.join(', ') }) }) : null,
         h('div', { class: 'ain-status small', role: 'status', 'aria-live': 'polite', 'data-test': 'ai-note-status', hidden: true }),
         h('div', { class: 'ain-lists', 'data-test': 'ai-note-list' }));

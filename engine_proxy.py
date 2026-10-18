@@ -99,6 +99,9 @@ FN_TABLE = {
     "apiAiNotes": (ADMIN_ONLY, ()),
     "apiAiNoteAdd": (ADMIN_ONLY, ("id", "scope", "text")),
     "apiAiNoteDelete": (ADMIN_ONLY, ("id",)),
+    # 2026-10-18: a note's document (an upload id from POST /api/<brand>/attach), and the live check of a note (3 model calls in the engine).
+    "apiAiNoteAttach": (ADMIN_ONLY, ("id", "file")),
+    "apiAiNoteCheck": (ADMIN_ONLY, ("id",)),
 }
 
 # Server-internal only (phase 5 assistant): never reachable from the browser route, only via call(internal=True).
@@ -406,8 +409,10 @@ def clean_args(fn, args, table=None):
             out = {"action": "set", "key": key, "value": val}
         else:
             raise ProxyError("bad_request", 400)
-    if fn in ("apiAiNoteAdd", "apiAiNoteDelete"):
+    if fn in ("apiAiNoteAdd", "apiAiNoteDelete", "apiAiNoteAttach", "apiAiNoteCheck"):
         if not AI_NOTE_ID_RE.match(out.get("id", "")):
+            raise ProxyError("bad_request", 400)
+        if fn == "apiAiNoteAttach" and not ATTACH_ID_RE.match(out.get("file", "")):
             raise ProxyError("bad_request", 400)
         if fn == "apiAiNoteAdd":
             text = out.get("text", "").strip()
@@ -538,6 +543,8 @@ SCHEMAS = {
     "apiSendTemplate": lambda r, a: r.get("queued") is True and r.get("template") == a.get("template"),
     "apiAiNotes": lambda r, a: isinstance(r.get("notes"), list),
     "apiAiNoteAdd": lambda r, a: isinstance(r.get("note"), dict) and r["note"].get("id") == a.get("id"),
+    "apiAiNoteAttach": lambda r, a: isinstance(r.get("note"), dict) and r["note"].get("id") == a.get("id") and (r["note"].get("file") or {}).get("id") == a.get("file"),
+    "apiAiNoteCheck": lambda r, a: isinstance(r.get("note"), dict) and r["note"].get("id") == a.get("id") and isinstance(r["note"].get("check"), dict),
     # sales log (2026-10-14): a bare {ok:true} (the doGet answer) must never look like "your sale was logged"
     "apiSaleCandidates": lambda r, a: isinstance(r.get("orders"), list) and r.get("ticket") == a.get("id"),
     "apiSaleLog": lambda r, a: isinstance(r.get("sale"), dict) and r["sale"].get("ticket") == a.get("id"),

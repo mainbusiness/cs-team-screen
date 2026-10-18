@@ -42,7 +42,7 @@ TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTick
          "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK, "apiRedraftOne": WORK,
          "apiResult": WORK, "apiTicketLite": WORK, "apiDayStats": ("admin", "user-manager"),
          "apiTemplates": WORK, "apiSendTemplate": WORK,
-         "apiAiNotes": ("admin",), "apiAiNoteAdd": ("admin",), "apiAiNoteDelete": ("admin",), "apiAttachPut": WORK,
+         "apiAiNotes": ("admin",), "apiAiNoteAdd": ("admin",), "apiAiNoteDelete": ("admin",), "apiAiNoteAttach": ("admin",), "apiAiNoteCheck": ("admin",), "apiAttachPut": WORK,
          "apiSaleCandidates": ("admin",), "apiSaleLog": ("admin",), "apiSaleMine": ("admin",), "apiSaleProof": ("admin",), "apiSaleList": ("admin",), "apiSaleDecide": ("admin",),
          "apiSaleSuggestions": ("admin",), "apiSaleSuggestCredit": ("admin",), "apiSaleSuggestDismiss": ("admin",), "apiSaleScan": ("admin",)}
 MOCK_WRITES = ("apiRedraftOne", "apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiSubCancel", "apiOrderEdit", "apiWaTakeOver",
@@ -1410,8 +1410,44 @@ class MockEngines:
         return {"ok": True, "id": t["id"], "status": "action"}
 
     # ---------- managers' notes to the AI (engine AiNotes.gs, 2026-10-11) ----------
+    # 2026-10-18: a claim note waits for its document (status needs_file), a document is attached, every active note gets a live check.
+    DOC_RE = re.compile(r"(^|[^A-Za-z])(FDA|ISO|GMP|CE)([^A-Za-z]|$)|משרד ה?בריאות|תו[ -]?ה?תקן|מאושר|certif|approved by", re.I)
+
+    def _note_out(self, n):
+        o = json.loads(json.dumps(n))
+        o["status"] = "needs_file" if self.DOC_RE.search(n["text"]) and not n.get("file") else "active"
+        return o
+
     def apiAiNotes(self, brand, a, c):
-        return {"ok": True, "notes": [dict(n) for n in reversed(self.ai_notes[brand])]}
+        return {"ok": True, "notes": [self._note_out(n) for n in reversed(self.ai_notes[brand])]}
+
+    def apiAiNoteAttach(self, brand, a, c):
+        if not isinstance(a.get("id"), str) or not AI_NOTE_ID_RE.match(a["id"]):
+            return {"ok": False, "error": "bad_id"}
+        if not isinstance(a.get("file"), str) or not re.match(r"^a[0-9a-f]{24}$", a["file"]):
+            return {"ok": False, "error": "bad_file"}
+        for n in self.ai_notes[brand]:
+            if n["id"] == a["id"]:
+                meta = self.attach[brand].get(a["file"])
+                if not meta or not meta.get("ready"):
+                    return {"ok": False, "error": "attach_missing"}
+                n["file"] = {"id": a["file"], "name": meta["name"], "mime": meta["mime"], "size": meta["size"], "by": str(c.get("user") or ""), "at": self._now()}
+                n.pop("check", None)
+                return {"ok": True, "note": self._note_out(n)}
+        return {"ok": False, "error": "not_found"}
+
+    def apiAiNoteCheck(self, brand, a, c):
+        if not isinstance(a.get("id"), str) or not AI_NOTE_ID_RE.match(a["id"]):
+            return {"ok": False, "error": "bad_id"}
+        for n in self.ai_notes[brand]:
+            if n["id"] == a["id"]:
+                if self._note_out(n)["status"] != "active":
+                    return {"ok": False, "error": "needs_file"}
+                fail = "MOCK-NOFOLLOW" in n["text"]
+                n["check"] = {"at": self._now(), "q": "שאלה לדוגמה של לקוח", "a": "תשובה לדוגמה של הבוט", "follows": not fail,
+                              "why": "הבוט לא יישם את ההערה" if fail else "הבוט ענה לפי ההערה"}
+                return {"ok": True, "note": self._note_out(n)}
+        return {"ok": False, "error": "not_found"}
 
     def apiAiNoteAdd(self, brand, a, c):
         if not isinstance(a.get("id"), str) or not AI_NOTE_ID_RE.match(a["id"]):
@@ -1423,12 +1459,12 @@ class MockEngines:
             return {"ok": False, "error": "bad_text"}
         for n in self.ai_notes[brand]:
             if n["id"] == a["id"]:
-                return {"ok": True, "note": dict(n), "noop": True}
+                return {"ok": True, "note": self._note_out(n), "noop": True}
         if len(self.ai_notes[brand]) >= 60:
             return {"ok": False, "error": "too_many", "max": 60}
         note = {"id": a["id"], "scope": a["scope"], "text": text, "by": str(c.get("user") or "")[:60], "at": self._now()}
         self.ai_notes[brand].append(note)
-        return {"ok": True, "note": dict(note)}
+        return {"ok": True, "note": self._note_out(note)}
 
     def apiAiNoteDelete(self, brand, a, c):
         if not isinstance(a.get("id"), str) or not AI_NOTE_ID_RE.match(a["id"]):

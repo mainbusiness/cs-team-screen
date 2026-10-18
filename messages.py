@@ -264,12 +264,18 @@ AUTO = {
     "bad_note": ("הערה של 2 עד 300 תווים.", "A note of 2 to 300 characters."),
 }
 # Managers' notes to the AI (engine AiNotes.gs, 2026-10-11). An explicit set: a future fn with a similar name must not borrow these texts.
-AI_NOTE_FNS = frozenset(("apiAiNotes", "apiAiNoteAdd", "apiAiNoteDelete"))
+AI_NOTE_FNS = frozenset(("apiAiNotes", "apiAiNoteAdd", "apiAiNoteDelete", "apiAiNoteAttach", "apiAiNoteCheck"))
 AI_NOTES = {
     "bad_id": ("מזהה ההערה לא תקין. רעננו את הדף ונסו שוב.", "Invalid note id. Refresh and try again."),
     "bad_scope": ("לא נבחר למי ההערה (כל המותגים או מותג אחד).", "Choose who the note is for (all brands or one brand)."),
     "bad_text": ("הערה ל-AI: בין 1 ל-600 תווים.", "A note to the AI: 1 to 600 characters."),
     "too_many": ("הגעתם ל-60 הערות — מחקו הערה ישנה כדי להוסיף", "You have reached 60 notes — delete an old note to add a new one"),
+    "bad_file": ("הקובץ לא הועלה כמו שצריך. בחרו אותו שוב.", "The file was not uploaded properly. Choose it again."),
+    "not_found": ("ההערה כבר לא קיימת (אולי נמחקה). רעננו את הרשימה.", "The note no longer exists (maybe deleted). Refresh the list."),
+    "needs_file": ("קודם צריך לצרף את הקובץ של האישור.", "Attach the approval document first."),
+    "attach_missing": ("הקובץ לא נמצא בשרת (ההעלאה לא הסתיימה). צרפו אותו שוב.", "The file is not on the server (the upload did not finish). Attach it again."),
+    "attach_type": ("לאישור אפשר לצרף PDF, תמונה (JPG/PNG/WEBP) או Word.", "An approval can be a PDF, an image (JPG/PNG/WEBP) or a Word file."),
+    "attach_unavailable": ("צירוף קבצים לא זמין למותג הזה.", "Attaching files is not available for this brand."),
     "unauthorized": ("המנוע של המותג סירב (אולי עוד לא עודכן להערות ל-AI, או שההרשאה פגה). רעננו את הדף.",
                      "The brand engine refused (maybe not updated for AI notes yet, or the session expired). Refresh."),
 }

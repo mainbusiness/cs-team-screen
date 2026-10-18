@@ -756,3 +756,13 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 .oe-delta.up b { color: #b45309; }
 .oe-delta.down b { color: #15803d; }
 .oe-tabs { margin: 0; }
+/* 2026-10-18: a note's document and the system's answer under every note (needs the file / checking / checked / not following). */
+.ain-file { margin-top: 4px; color: var(--muted, #666); }
+.ain-file-chosen { display: inline-flex; align-items: center; gap: 4px; }
+.ain-doc-hint { margin: 6px 0 0; padding: 6px 10px; border-radius: 8px; background: #fff7e0; color: #7a5200; }
+.ain-reply { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #f4f6fb; display: grid; gap: 4px; justify-items: start; }
+.ain-r-line { font-size: 13px; overflow-wrap: anywhere; }
+.ain-r-line.ok { color: var(--sent); font-weight: 600; }
+.ain-r-line.warn { color: #7a5200; font-weight: 600; }
+.ain-r-line.bad { color: var(--danger); font-weight: 600; }
+.ain-r-qa { overflow-wrap: anywhere; white-space: pre-wrap; }

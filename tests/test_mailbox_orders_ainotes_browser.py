@@ -165,7 +165,7 @@ def test_ai_notes_general_brand_partial_failure_and_delete(server):
         pg.wait_for_selector("[data-test=ai-notes]")
         card = pg.locator("[data-test=ai-notes]")
         assert card.locator("h3").inner_text() == "שיפור ה-AI — הערות למנהלים"
-        assert "ההערות נכנסות לכל טיוטה שה-AI כותב, מהטיוטה הבאה. הן לא גוברות על כללי המדיניות." in card.inner_text()
+        assert "ההערות של המנהלים מחייבות את ה-AI ונכנסות לכל טיוטה, מהטיוטה הבאה." in card.inner_text()
         opts = pg.locator("[data-test=ai-note-scope] option").evaluate_all("els => els.map(e => e.value)")
         assert opts == ["all"] + sorted(CONNECTED)
         assert "Velora" in pg.locator("[data-test=ai-note-not-conn]").inner_text()
