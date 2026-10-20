@@ -36,7 +36,7 @@ WORK = ("agent", "admin")
 TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTicketExtras": WORK, "apiTickets": WORK,
          "apiSearch": WORK, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
          "apiNote": WORK, "apiKachingCancel": WORK, "apiKachingContract": WORK, "apiKachingAction": WORK, "apiKachingVariants": WORK, "apiOrderEditState": WORK, "apiOrderEdit": WORK,
-         "apiSubCancelPreview": WORK, "apiSubCancel": WORK,
+         "apiSubCancelPreview": WORK, "apiSubCancel": WORK, "apiLinkCustomer": WORK,
          "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
          "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK, "apiRedraftOne": WORK,
@@ -817,7 +817,7 @@ class MockEngines:
             return res(False, "exactly one valid contract id is required")
         if str(a.get("confirm", "")) != cid[-4:]:
             return res(False, "confirmation code does not match the contract")
-        if not t.get("email"):
+        if not self._sub_email(brand, t):               # engine: ticketCustomerEmail_ (the agent's link first)
             return res(False, "ticket has no customer email")
         wants = str(t.get("action", "")).startswith("cancel:")
         reason = str(a.get("reason", "")).strip()
@@ -854,20 +854,65 @@ class MockEngines:
                  or bool(self.SUB_CLAIM_RE.search(t.get("draft_text") or "")) or bool(self.SUB_CLAIM_RE.search(draft)))
         if not asked:
             return None, {"ok": False, "error": "not_cancel_request"}
-        if not t.get("email"):
+        if not self._sub_email(brand, t):
             return None, {"ok": False, "error": "no_email", "why": "none"}
         return t, None
+
+    def _sub_email(self, brand, t):
+        """engine ticketCustomerEmail_: the agent's link first (apiLinkCustomer), then the ticket's own."""
+        l = self._b(brand)["snaps"].get(t["id"], {}).get("linked") or {}
+        return l.get("email") or t.get("email") or ""
+
+    def apiLinkCustomer(self, brand, a, c):
+        t = self._find(brand, a.get("id"))
+        if not t:
+            return {"ok": False, "error": "not_found"}
+        snaps = self._b(brand)["snaps"]
+        snap = snaps.setdefault(t["id"], {})
+        if a.get("unlink") is True:
+            le = (snap.get("linked") or {}).get("email", "")
+            if le and le != str(t.get("email") or "").lower():          # engine: what the link brought in leaves with it
+                names = set((snap.get("linked") or {}).get("orders", []))
+                snap["orders"] = [o for o in snap.get("orders", []) if o.get("name") not in names]
+                snap.pop("subscriptions", None)
+                snap["notes"] = {"orders": "not_checked", "subscriptions": "not_checked_no_email"}
+            snap.pop("linked", None)
+            return {"ok": True, "id": t["id"], "linked": None, "extras": copy.deepcopy(snap)}
+        q = str(a.get("q") or "").strip().lower()
+        num = "#" + q.lstrip("#").strip() if re.match(r"^#?\s?\d{3,9}$", q) else ""
+        if not (num or re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", q)):
+            return {"ok": False, "error": "bad_query"}
+        for other in self._b(brand)["tickets"]:      # the store: every order in the mock snapshots, with its ticket's email
+            s = snaps.get(other["id"], {})
+            hit = [o for o in s.get("orders", []) if (num and o.get("name") == num) or (not num and str(other.get("email", "")).lower() == q)]
+            if hit and other.get("email"):
+                rec = {"email": other["email"].lower(), "orders": [o["name"] for o in hit][:5], "kind": "order" if num else "email",
+                       "by": c["user"], "at": self._now()}
+                snap["linked"] = rec
+                snap["orders"] = copy.deepcopy(hit) + [o for o in snap.get("orders", []) if o.get("name") not in rec["orders"]]
+                snap["subscriptions"] = copy.deepcopy(s.get("subscriptions", []))
+                snap["notes"] = {"orders": "found", "subscriptions": "found" if snap["subscriptions"] else "none"}
+                if not t.get("order_no"):
+                    t["order_no"] = rec["orders"][0]
+                self.version[brand] += 1
+                self.touched[brand][t["id"]] = self.version[brand]
+                return {"ok": True, "id": t["id"], "linked": rec, "extras": copy.deepcopy(snap)}
+        return {"ok": False, "error": "no_order"}
 
     def apiSubCancelPreview(self, brand, a, c):
         t, err = self._sub_pre(brand, a)
         if err:
             return err
         subs = self._b(brand)["snaps"].get(t["id"], {}).get("subscriptions", [])
-        live = [{"id": s["id"], "status": s["status"], "every": s.get("every", ""),
-                 "items": [{"title": l.get("title", ""), "quantity": l.get("quantity", 1)} for l in s.get("lines", [])]}
-                for s in subs if s["status"] in ("ACTIVE", "PAUSED", "FAILED")]
+        def one(s):
+            return {"id": s["id"], "status": s["status"], "every": s.get("every", ""),
+                    "items": [{"title": l.get("title", ""), "quantity": l.get("quantity", 1)} for l in s.get("lines", [])]}
+        live = [one(s) for s in subs if s["status"] in ("ACTIVE", "PAUSED", "FAILED")]
+        ended = [one(s) for s in subs if s["status"] not in ("ACTIVE", "PAUSED", "FAILED")]
         sw = self.switches[brand]
-        return {"ok": True, "id": t["id"], "name": t.get("name", ""), "email": t["email"], "emailFrom": "ticket", "contracts": live,
+        linked = bool(self._b(brand)["snaps"].get(t["id"], {}).get("linked"))
+        return {"ok": True, "id": t["id"], "name": t.get("name", ""), "email": self._sub_email(brand, t), "emailFrom": "linked" if linked else "ticket",
+                "contracts": live, "ended": ended, "checkedAt": self._now(),
                 "cancelledHere": [x for x in str(t.get("cancelled", "")).split(",") if x], "writes": sw["writes"], "frozen": bool(sw["frozen"])}
 
     def apiSubCancel(self, brand, a, c):
@@ -1089,7 +1134,7 @@ class MockEngines:
             return res(False, "exactly one valid contract id is required")
         if str(a.get("confirm", "")) != cid[-4:]:
             return res(False, "confirmation code does not match the contract")
-        if not t.get("email"):
+        if not self._sub_email(brand, t):               # engine: ticketCustomerEmail_ (the agent's link first)
             return res(False, "ticket has no customer email")
         s, _ = self._contract(brand, t, cid)
         if not s:

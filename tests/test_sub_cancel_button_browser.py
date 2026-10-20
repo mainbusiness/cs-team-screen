@@ -178,3 +178,67 @@ def test_english_desk_has_the_same_button(srv):
         assert "verified in Kaching" in pg.inner_text("[data-test=subx-ok]")
         assert not errors, errors
         browser.close()
+
+
+# the owner's CS team, 2026-10-20 (order #12057): the subscription WAS cancelled and the dialog said "nothing to cancel", so the agent believed it
+# was not done. Already cancelled = a green, verified line naming the subscription; no cancel button.
+def test_already_cancelled_says_so_verified_never_nothing_to_cancel(srv):
+    base, pwd = srv
+
+    def only_ended(route):
+        r = route.fetch()
+        j = r.json()
+        if j.get("ok"):
+            j["ended"] = [dict(c, status="CANCELLED") for c in j["contracts"]] + j.get("ended", [])
+            j["contracts"] = []
+        route.fulfill(response=r, body=json.dumps(j))
+
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd)
+        pg.route("**/api/rozela/apiSubCancelPreview", only_ended)
+        pg.goto(base + YOSSI)
+        pg.click("[data-test=subx-btn]")
+        ok = pg.locator("#subx-dlg [data-test=subx-ended]")
+        ok.wait_for()
+        assert "כבר מבוטל בקאצ'ינג" in ok.inner_text() and "יוסי מזרחי" in ok.inner_text()
+        dlg = pg.inner_text("#subx-dlg")
+        assert "0123" in dlg and "אין מה לבטל שוב" in dlg
+        assert "אין מנוי פעיל" not in dlg
+        assert pg.locator("[data-test=subx-go]").count() == 0
+        assert not errors, errors
+        browser.close()
+
+
+# the owner's CS team, 2026-10-20: only a WhatsApp phone that is not the order's. The agent asks for the order number and links it in the dialog;
+# the dialog then finds the subscription, and the orders panel shows the link for every agent.
+def test_unidentified_customer_link_the_order_number_then_cancel(srv):
+    base, pwd = srv
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd)
+        pg.goto(base + "/cs#/b/rozela/t/w8ab77c1")
+        pg.locator("[data-test=lk-open] [data-test=lk-in]").wait_for()           # the orders panel offers the link at once
+        assert "מספר ההזמנה" in pg.inner_text("[data-test=lk-open]")
+        pg.locator("[data-test=draft-card] textarea").fill("היי עומר, ביטלתי לך את המנוי.")
+        pg.click("[data-test=subx-btn]")
+        pg.locator("#subx-dlg [data-test=subx-noemail]").wait_for()
+        assert "מספר ההזמנה או את המייל" in pg.inner_text("#subx-dlg [data-test=subx-noemail]")
+        pg.fill("#subx-dlg [data-test=lk-in]", "#9999")
+        pg.click("#subx-dlg [data-test=lk-go]")
+        pg.locator("#subx-dlg [data-test=lk-err]").wait_for()                   # none = refused with the reason, never a guess
+        assert "לא נמצאו הזמנה או מנוי" in pg.inner_text("#subx-dlg [data-test=lk-err]")
+        pg.fill("#subx-dlg [data-test=lk-in]", "#4530")
+        pg.keyboard.press("Enter")
+        pg.locator("#subx-dlg [data-test=subx-q]").wait_for()
+        assert "0123" in pg.inner_text("#subx-dlg")
+        assert "yossi.m@example.com" in pg.inner_text("#subx-dlg")
+        pg.click("[data-test=subx-go]")
+        pg.locator("[data-test=subx-ok]").wait_for()
+        box = pg.locator("#orders-card [data-test=lk-box]")
+        box.wait_for()
+        assert "yossi.m@example.com" in box.inner_text() and "#4530" in box.inner_text()
+        pg.reload()
+        pg.locator("#orders-card [data-test=lk-box]").wait_for()                 # kept on the ticket
+        pg.click("[data-test=lk-unlink]")
+        pg.locator("#orders-card [data-test=lk-open]").wait_for()
+        assert not errors, errors
+        browser.close()

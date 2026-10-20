@@ -767,3 +767,12 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 .ain-r-line.bad { color: var(--danger); font-weight: 600; }
 .ain-r-qa { overflow-wrap: anywhere; white-space: pre-wrap; }
 .ain-r-understood { font-size: 13px; overflow-wrap: anywhere; white-space: pre-wrap; padding-bottom: 4px; }
+
+/* "קישור לקוח" (2026-10-20): link the customer's order number / email to the ticket */
+.lk-box, .lk-open, .lk-more { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line, #e5e7eb); display: grid; gap: 6px; }
+.lk-box .btn { justify-self: start; }
+.lk-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.lk-in { flex: 1 1 200px; min-width: 0; }
+.lk-more summary { cursor: pointer; }
+.subx-ended-list { display: grid; gap: 6px; margin-top: 8px; }
+.warn-box { background: var(--warn-bg); color: var(--warn-ink); border-radius: var(--radius); padding: 10px 14px; }

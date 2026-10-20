@@ -77,6 +77,16 @@ PROXY = {
     "users_file_corrupt": ("קובץ המשתמשים פגום. לדווח לבעלים.", "The users file is damaged. Tell the owner."),
 }
 
+# apiLinkCustomer ("קישור לקוח", 2026-10-20): its own wording for the codes it shares with search
+LINK = {
+    "bad_query": ("לכתוב מספר הזמנה (למשל #12057), מייל או טלפון.", "Enter an order number (e.g. #12057), an email or a phone."),
+    "no_order": ("לא נמצאו הזמנה או מנוי לפרט הזה (הזמנות מלפני יותר מ-60 יום לא מופיעות). לבקש מהלקוח פרט אחר.",
+                 "No order or subscription for this detail (orders older than 60 days are not visible). Ask the customer for another detail."),
+    "several_emails": ("לפרט הזה יש הזמנות עם כמה כתובות מייל ({orders}). לבקש מהלקוח את מספר ההזמנה המדויק.",
+                       "This detail has orders with several emails ({orders}). Ask the customer for the exact order number."),
+    "store_unavailable": ("אין חיבור לחנות כרגע. נסו שוב בעוד רגע.", "Cannot reach the store right now. Try again shortly."),
+}
+
 # Api.gs error codes ({ok:false, error:<code>})
 ENGINE = {
     # files an agent attaches (attach.py + engine/Attach.gs, 2026-10-11)
@@ -99,7 +109,8 @@ ENGINE = {
     "bad_attach": ("תקלה בהעלאת הקובץ. לצרף אותו שוב.", "The upload failed. Attach the file again."),
     # Kaching contract panel (2026-10-14)
     "no_subscriptions": ("למותג הזה אין מערכת מנויים מחוברת.", "This brand has no subscription system connected."),
-    "no_email": ("לפנייה אין מייל לקוח — אי אפשר למצוא את המנוי שלו.", "The ticket has no customer email, so the subscription cannot be found."),
+    "no_email": ("לא מזוהה מייל של הזמנה ללקוח, אז אי אפשר למצוא את המנוי. לבקש מהלקוח מספר הזמנה או מייל ולקשר אותם לפנייה (בפאנל ההזמנות).",
+                 "The customer has no known order email, so the subscription cannot be found. Ask the customer for the order number or email and link it to the ticket (orders panel)."),
     "not_customers_contract": ("המנוי הזה לא שייך ללקוח של הפנייה.", "This subscription does not belong to the ticket's customer."),
     # order edits in Shopify (engine/OrderEdit.gs, 2026-10-16)
     "no_customer": ("לפנייה אין מייל או טלפון של לקוח — אי אפשר לאמת שההזמנה שלו.", "The ticket has no customer email or phone, so the order cannot be matched to the customer."),
@@ -443,6 +454,9 @@ def engine_error_msg(resp, fn, lang="he"):
     if fn == "apiOrderEdit" and resp.get("message"):
         return order_edit_msg(resp.get("message"), lang)
     code = str(resp.get("error") or "")
+    if fn == "apiLinkCustomer" and code in LINK:
+        orders = resp.get("orders")
+        return LINK[code][_idx(lang)].format(orders=iso(", ".join(map(str, orders)) if isinstance(orders, list) else "?"))
     table = AUTO if fn in AUTO_FNS else SETTINGS if fn == "apiSettings" else AI_NOTES if fn in AI_NOTE_FNS else SALES if fn in SALE_FNS else None
     if table and code in table:
         allowed = resp.get("allowed")

@@ -121,7 +121,7 @@
       mg_do_update_line: 'לשנות את «{p}»: {what}.', mg_do_remove_line: 'להסיר מהמנוי את «{p}».',
       mg_w_qty: 'כמות {q}', mg_w_swap: 'החלפה ל{p}', mg_w_price: 'מחיר {pr} ליחידה',
       afs_title: 'ההודעה ל{name} נשלחה. נשאר לטפל:', afs_open: 'פתח את הפנייה', afs_done: 'טיפלתי', afs_chip: 'נשאר לטפל', afs_cancelled: 'המנוי של {name} בוטל אוטומטית',
-      afs_sub_no_email: 'המנוי לא בוטל: אין בפנייה כתובת מייל של הלקוח, אז אי אפשר למצוא את המנוי. לבטל ידנית.',
+      afs_sub_no_email: 'המנוי לא בוטל: לא מזוהה מייל של הזמנה ללקוח, אז אי אפשר למצוא את המנוי. לבקש מהלקוח מספר הזמנה או מייל, לקשר בפאנל ההזמנות ולבטל.',
       afs_sub_unreachable: 'המנוי לא בוטל: לא הצלחנו להתחבר למערכת המנויים. לבטל ידנית.',
       afs_sub_several: 'המנוי לא בוטל: ללקוח יש כמה מנויים פעילים. לבחור איזה לבטל בפאנל המנויים.',
       afs_sub_refused: 'המנוי לא בוטל: מערכת המנויים דחתה את הביטול. לבטל ידנית.',
@@ -131,7 +131,13 @@
       sx_btn: 'לבטל את המנוי', sx_off_token: 'אין חיבור לקאצ\'ינג במותג הזה — לבטל ידנית ב-Kaching.',
       sx_off_frozen: 'ביטולים מוקפאים כרגע במערכת — לבטל ידנית ב-Kaching.', sx_off_writes: 'ביטולים כבויים במערכת — לבטל ידנית ב-Kaching.',
       sx_checking: 'בודק בקאצ\'ינג את המנויים של {name}…', sx_q_one: 'לבטל את המנוי של {name}?', sx_q_many: 'ל{name} יש {n} מנויים פעילים. איזה לבטל?',
-      sx_none: 'ל{name} אין מנוי פעיל בקאצ\'ינג — אין מה לבטל.', sx_go: 'כן, לבטל את המנוי', sx_back: 'חזרה', sx_working: 'מבטל ובודק בקאצ\'ינג…',
+      sx_none: 'לא נמצא בקאצ\'ינג מנוי למייל {email}. אם הלקוח הזמין עם מייל או טלפון אחר, לבקש ממנו את מספר ההזמנה או את המייל של ההזמנה ולקשר כאן:',
+      sx_ended: '✅ המנוי של {name} כבר מבוטל בקאצ\'ינג (נבדק עכשיו, {t}). אין מה לבטל שוב.',
+      sx_noemail: 'לא מזוהה מייל של הזמנה ללקוח הזה (למשל: בפנייה יש רק טלפון שלא תואם להזמנה), אז אי אפשר למצוא את המנוי. לבקש מהלקוח את מספר ההזמנה או את המייל שאיתו הזמין, ולקשר כאן:',
+      lk_ph: 'מספר הזמנה (#12057) או מייל שהלקוח מסר', lk_go: 'מצא וקשר', lk_working: 'מחפש בחנות…', lk_ok: '🔗 מקושר ללקוח {email}',
+      lk_orders: 'הזמנות: {o}', lk_by: 'קישר: {by}, {t}', lk_unlink: 'ביטול הקישור', lk_other: '🔗 לא הלקוח הנכון? קישור לפי מספר הזמנה או מייל',
+      lk_hint: 'הפרטים בפנייה לא מובילים להזמנה? לבקש מהלקוח את מספר ההזמנה או את המייל של ההזמנה, ולקשר כאן:', lk_done: 'הלקוח קושר לפנייה',
+      sx_go: 'כן, לבטל את המנוי', sx_back: 'חזרה', sx_working: 'מבטל ובודק בקאצ\'ינג…',
       sx_note: 'אחרי הביטול המערכת קוראת את המנוי שוב מקאצ\'ינג ומאשרת שהוא באמת מבוטל.',
       sx_ok: '✅ המנוי בוטל — אומת בקאצ\'ינג {t}', sx_ok_old: '✅ המנוי בוטל דרך המערכת', sx_fail: '❌ המנוי לא בוטל',
       sx_manual: 'לבטל ידנית ב-Kaching.', sx_unknown: 'לא ידוע אם המנוי בוטל. לבדוק ב-Kaching לפני ניסיון נוסף.',
@@ -352,7 +358,7 @@
       mg_do_update_line: 'Change “{p}”: {what}.', mg_do_remove_line: 'Remove “{p}” from the subscription.',
       mg_w_qty: 'quantity {q}', mg_w_swap: 'swap to {p}', mg_w_price: 'price {pr} each',
       afs_title: 'Your message to {name} was sent. Still to do:', afs_open: 'Open the ticket', afs_done: 'Done', afs_chip: 'Still to do', afs_cancelled: "{name}'s subscription was cancelled automatically",
-      afs_sub_no_email: 'The subscription was NOT cancelled: the ticket has no customer email, so the subscription cannot be found. Cancel it manually.',
+      afs_sub_no_email: 'The subscription was NOT cancelled: the customer has no known order email, so the subscription cannot be found. Ask for the order number or email, link it in the orders panel, then cancel.',
       afs_sub_unreachable: 'The subscription was NOT cancelled: the subscriptions system could not be reached. Cancel it manually.',
       afs_sub_several: 'The subscription was NOT cancelled: the customer has several active subscriptions. Choose which one to cancel in the subscriptions panel.',
       afs_sub_refused: 'The subscription was NOT cancelled: the subscriptions system refused. Cancel it manually.',
@@ -361,7 +367,13 @@
       sx_btn: 'Cancel the subscription', sx_off_token: 'This brand has no Kaching connection — cancel it manually in Kaching.',
       sx_off_frozen: 'Cancellations are frozen right now — cancel it manually in Kaching.', sx_off_writes: 'Cancellations are switched off — cancel it manually in Kaching.',
       sx_checking: "Checking {name}'s subscriptions in Kaching…", sx_q_one: "Cancel {name}'s subscription?", sx_q_many: '{name} has {n} active subscriptions. Which one to cancel?',
-      sx_none: '{name} has no active subscription in Kaching — nothing to cancel.', sx_go: 'Yes, cancel the subscription', sx_back: 'Back', sx_working: 'Cancelling and checking in Kaching…',
+      sx_none: 'No subscription in Kaching for {email}. If the customer ordered with another email or phone, ask them for the order number or the email of the order, and link it here:',
+      sx_ended: "✅ {name}'s subscription is already cancelled in Kaching (checked just now, {t}). Nothing to cancel again.",
+      sx_noemail: "This customer has no known order email (e.g. the ticket only has a phone that does not match an order), so the subscription cannot be found. Ask the customer for the order number or the email they ordered with, and link it here:",
+      lk_ph: 'Order number (#12057) or email the customer gave', lk_go: 'Find and link', lk_working: 'Searching the store…', lk_ok: '🔗 Linked to customer {email}',
+      lk_orders: 'Orders: {o}', lk_by: 'Linked by {by}, {t}', lk_unlink: 'Remove the link', lk_other: '🔗 Wrong customer? Link by order number or email',
+      lk_hint: "The ticket's details lead to no order? Ask the customer for the order number or the email of the order, and link it here:", lk_done: 'Customer linked to the ticket',
+      sx_go: 'Yes, cancel the subscription', sx_back: 'Back', sx_working: 'Cancelling and checking in Kaching…',
       sx_note: 'After the cancel the system reads the subscription again from Kaching and confirms it really is cancelled.',
       sx_ok: '✅ Subscription cancelled — verified in Kaching {t}', sx_ok_old: '✅ Subscription cancelled from this screen', sx_fail: '❌ The subscription was NOT cancelled',
       sx_manual: 'Cancel it manually in Kaching.', sx_unknown: 'Unknown whether it was cancelled. Check in Kaching before trying again.',
@@ -3178,6 +3190,12 @@
       h('div', { class: 'ship-note muted small', text: t('dlv_note') }));
   }
   function ordersCard(ex, x) {
+    const c = ordersCardBody(ex, x);
+    const lk = Link.row(ex, x);
+    if (lk) c.append(lk);
+    return c;
+  }
+  function ordersCardBody(ex, x) {
     const c = h('div', { class: 'card' }, h('h3', { text: t('orders') }));
     const orders = ex.orders || [];
     const sh = ex.shipping || null;
@@ -3284,6 +3302,73 @@
     return c;
   }
 
+  // ---- "קישור לקוח" (the owner's CS team, 2026-10-20): the details on the ticket (often only a WhatsApp phone) are not always the order's. The
+  // customer is asked for the order number or the email of the order; the agent enters it here and the engine links ONE order email to the
+  // ticket (apiLinkCustomer). The orders / subscriptions panels and the cancel button then use it. None / several = refused, never a guess.
+  const Link = (function () {
+    function repaint(brand) {
+      if (!S.tk || !S.tk.ticket) return;
+      const ex = S.tk.extras || {}, x = S.tk.ticket;
+      const oc = $('orders-card');
+      if (oc) { clear(oc); oc.append(ordersCard(ex, x)); }
+      const sc = document.getElementById('subs-card');
+      if (sc && S.boots[brand] && !noSubs(brand)) { clear(sc); sc.append(subsCard(ex, x)); }
+      SubCancel.paint();
+    }
+    function apply(id, brand, r) {
+      if (!S.tk || S.tk.id !== id) return;
+      S.tk.extras = Object.assign({}, S.tk.extras || {}, r.extras || {});
+      if (!r.linked) delete S.tk.extras.linked;
+      const ord = (r.linked && r.linked.orders || [])[0];
+      if (ord && !S.tk.ticket.order_no) S.tk.ticket.order_no = ord;
+      repaint(brand);
+    }
+    /** The input + button. done(r) runs after a successful link (the cancel dialog reopens its check). */
+    function form(x, brand, done) {
+      const inp = h('input', { type: 'text', dir: 'ltr', class: 'lk-in', maxlength: '100', autocomplete: 'off', placeholder: t('lk_ph'), 'aria-label': t('lk_ph'), 'data-test': 'lk-in' });
+      const go = h('button', { class: 'btn small', type: 'button', text: t('lk_go'), 'data-test': 'lk-go' });
+      const out = h('div', { 'aria-live': 'polite' });
+      let busy = false;
+      async function run() {
+        const q = inp.value.trim();
+        if (busy || q.length < 3) { inp.focus(); return; }
+        busy = true; go.disabled = true; go.textContent = t('lk_working');
+        clear(out);
+        const r = await engine('apiLinkCustomer', { id: x.id, q: q }, brand);
+        busy = false; go.disabled = false; go.textContent = t('lk_go');
+        if (!r.ok) { out.append(h('div', { class: 'err-box', role: 'alert', 'data-test': 'lk-err', text: r.msg || r.error })); return; }
+        toast(t('lk_done'));
+        apply(x.id, brand, r);
+        if (done) done(r);
+      }
+      go.addEventListener('click', run);
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+      return h('div', { class: 'lk-form', 'data-test': 'lk-form' }, h('div', { class: 'lk-row' }, inp, go), out);
+    }
+    /** The line at the bottom of the orders panel: the link that is set, or the way to set one. */
+    function row(ex, x) {
+      const brand = (S.tk && S.tk.brand) || S.brand;
+      const l = ex && ex.linked && typeof ex.linked === 'object' && ex.linked.email ? ex.linked : null;
+      if (l) {
+        const un = canWork() ? h('button', { class: 'btn ghost small', type: 'button', text: t('lk_unlink'), 'data-test': 'lk-unlink', onclick: async function () {
+          un.disabled = true;
+          const r = await engine('apiLinkCustomer', { id: x.id, unlink: true }, brand);
+          if (!r.ok) { un.disabled = false; toast(r.msg || r.error); return; }
+          apply(x.id, brand, r);
+        } }) : null;
+        return h('div', { class: 'lk-box', 'data-test': 'lk-box' }, h('b', null, t('lk_ok', { email: '' }), h('bdi', { class: 'ltr', text: l.email })),
+          l.orders && l.orders.length ? h('div', { class: 'small', text: t('lk_orders', { o: l.orders.join(', ') }) }) : null,
+          h('div', { class: 'small muted', text: t('lk_by', { by: l.by || '', t: whenShort(l.at) }) }), un);
+      }
+      if (!canWork()) return null;
+      const notes = (ex && ex.notes) || {};
+      const lost = !(ex && ex.orders && ex.orders.length) || notes.subscriptions === 'not_checked_no_email';
+      if (lost) return h('div', { class: 'lk-open', 'data-test': 'lk-open' }, h('div', { class: 'small muted', text: t('lk_hint') }), form(x, brand, null));
+      return h('details', { class: 'lk-more', 'data-test': 'lk-more' }, h('summary', { class: 'small', text: t('lk_other') }), form(x, brand, null));
+    }
+    return { form: form, row: row };
+  })();
+
   // ---- "לבטל את המנוי" in the send area (the owner's CS team, 2026-10-16: "כפתור במערכת שמאשר שבאמת יבוטל המנוי").
   // One click + ONE confirm step that names the customer and the product; several subscriptions = the agent picks (never a guess). No typed
   // digits: the engine runs the full cancel gate and then reads the contract back from Kaching. The verdict is kept on the ticket
@@ -3379,14 +3464,29 @@
         h('div', { class: 'muted', 'data-test': 'subx-loading' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' ', t('sx_checking', { name: name })),
         h('div', { class: 'row-btns' }, back));
       dlg.append(box);
-      dlg.showModal();
+      if (!dlg.open) dlg.showModal();                           // open again after a link: the dialog is already showing
       const pv = await engine('apiSubCancelPreview', { id: id, draft: draft }, brand);
       if (!dlg.open || !S.tk || S.tk.id !== id) return;
       clear(box);
       box.append(h('h3', { text: t('sx_btn') }));
+      // 2026-10-20 (order #12057): the customer is not identified -> ask for the order number / email and link it right here
+      if (!pv.ok && pv.error === 'no_email') {
+        box.append(h('div', { class: 'warn-box', role: 'note', 'data-test': 'subx-noemail', text: t('sx_noemail') }), Link.form(x, brand, open), h('div', { class: 'row-btns' }, back));
+        return;
+      }
       if (!pv.ok) { box.append(h('div', { class: 'err-box', role: 'alert', 'data-test': 'subx-dlg-err', text: pv.msg || pv.error }), h('div', { class: 'row-btns' }, back)); return; }
       const list = Array.isArray(pv.contracts) ? pv.contracts : [];
-      if (!list.length) { box.append(h('div', { 'data-test': 'subx-none', text: t('sx_none', { name: name }) }), h('div', { class: 'row-btns' }, back)); return; }
+      const ended = Array.isArray(pv.ended) ? pv.ended : [];
+      // Already cancelled (in Kaching itself, or earlier): say so, verified live now. Never "nothing to cancel", which reads as "not done".
+      if (!list.length && ended.length) {
+        box.append(h('div', { class: 'ok-box', role: 'status', 'data-test': 'subx-ended' }, h('b', { text: t('sx_ended', { name: name, t: whenShort(pv.checkedAt) }) })),
+          h('div', { class: 'subx-ended-list' }, ended.map(function (c) { return contractLine(c, pv.email); })), h('div', { class: 'row-btns' }, back));
+        return;
+      }
+      if (!list.length) {
+        box.append(h('div', { 'data-test': 'subx-none', text: t('sx_none', { name: name, email: pv.email || '' }) }), Link.form(x, brand, open), h('div', { class: 'row-btns' }, back));
+        return;
+      }
       let pick = list.length === 1 ? list[0].id : null;          // one = that one; several = the agent picks
       const go = h('button', { class: 'btn danger', type: 'button', 'data-test': 'subx-go', text: t('sx_go'), disabled: !pick });
       const result = h('div', { 'aria-live': 'assertive' });
