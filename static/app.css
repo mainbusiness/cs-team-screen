@@ -776,3 +776,20 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 .lk-more summary { cursor: pointer; }
 .subx-ended-list { display: grid; gap: 6px; margin-top: 8px; }
 .warn-box { background: var(--warn-bg); color: var(--warn-ink); border-radius: var(--radius); padding: 10px 14px; }
+
+/* 2026-10-22 — suggestions from the team's corrections, inside the AI-notes card (ain-s- prefix). Redraft lines under the status. */
+.ain-redraft { margin-top: 2px; font-weight: 600; }
+.ain-sugg { margin: 10px 0 12px; padding: 10px 12px; border: 1px solid #f0dca0; border-radius: 12px; background: #fffbef; }
+.ain-s-title { margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+.ain-s-title .n { font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #7a5200; color: #fff; }
+.ain-s-help { margin: 0 0 8px; }
+.ain-s-brand { margin: 8px 0; }
+.ain-s-brand h5 { margin: 0 0 6px; font-size: 13px; }
+.ain-s-item .ain-meta .chip { margin: 0; }
+.ain-s-ex { margin-top: 6px; }
+.ain-s-ex summary { cursor: pointer; color: var(--muted, #666); }
+.ain-s-exitem { margin-top: 6px; padding: 6px 8px; border-radius: 8px; background: #f4f6fb; display: grid; gap: 2px; font-size: 13px; }
+.ain-s-exrow { overflow-wrap: anywhere; white-space: pre-wrap; }
+.ain-s-ta { margin-top: 6px; }
+.ain-s-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.ain-s-empty, .ain-s-loaderr { margin: 2px 0; }

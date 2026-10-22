@@ -275,7 +275,8 @@ AUTO = {
     "bad_note": ("הערה של 2 עד 300 תווים.", "A note of 2 to 300 characters."),
 }
 # Managers' notes to the AI (engine AiNotes.gs, 2026-10-11). An explicit set: a future fn with a similar name must not borrow these texts.
-AI_NOTE_FNS = frozenset(("apiAiNotes", "apiAiNoteAdd", "apiAiNoteDelete", "apiAiNoteAttach", "apiAiNoteCheck"))
+AI_NOTE_FNS = frozenset(("apiAiNotes", "apiAiNoteAdd", "apiAiNoteDelete", "apiAiNoteAttach", "apiAiNoteCheck",
+                         "apiAiNoteSuggestions", "apiAiNoteSuggestDecide"))
 AI_NOTES = {
     "bad_id": ("מזהה ההערה לא תקין. רעננו את הדף ונסו שוב.", "Invalid note id. Refresh and try again."),
     "bad_scope": ("לא נבחר למי ההערה (כל המותגים או מותג אחד).", "Choose who the note is for (all brands or one brand)."),
@@ -290,6 +291,16 @@ AI_NOTES = {
     "unauthorized": ("המנוע של המותג סירב (אולי עוד לא עודכן להערות ל-AI, או שההרשאה פגה). רעננו את הדף.",
                      "The brand engine refused (maybe not updated for AI notes yet, or the session expired). Refresh."),
 }
+
+# 2026-10-22 (engine AiLearn.gs): a suggestion from the team's corrections. Its own texts where "the note" would be wrong; the rest
+# (too_many, needs_file, unauthorized) are the notes' texts, because an approval IS a note being added.
+AI_SUGG_FNS = frozenset(("apiAiNoteSuggestions", "apiAiNoteSuggestDecide"))
+AI_SUGG = dict(AI_NOTES, **{
+    "bad_id": ("מזהה ההצעה לא תקין. רעננו את הדף ונסו שוב.", "Invalid suggestion id. Refresh and try again."),
+    "bad_decision": ("החלטה לא מוכרת על ההצעה (רק להוסיף או לא רלוונטי).", "Unknown decision on the suggestion (only add or not relevant)."),
+    "bad_text": ("נוסח ההערה: בין 1 ל-600 תווים.", "The note text: 1 to 600 characters."),
+    "not_found": ("ההצעה כבר לא קיימת. רעננו את הרשימה.", "The suggestion no longer exists. Refresh the list."),
+})
 
 # Sales log for bonuses (engine Sales.gs, the owner 2026-10-14). An explicit set of fns, like the AI notes above.
 SALE_FNS = frozenset(("apiSaleCandidates", "apiSaleLog", "apiSaleMine", "apiSaleProof", "apiSaleList", "apiSaleDecide", "apiSaleSuggestions",
@@ -457,7 +468,7 @@ def engine_error_msg(resp, fn, lang="he"):
     if fn == "apiLinkCustomer" and code in LINK:
         orders = resp.get("orders")
         return LINK[code][_idx(lang)].format(orders=iso(", ".join(map(str, orders)) if isinstance(orders, list) else "?"))
-    table = AUTO if fn in AUTO_FNS else SETTINGS if fn == "apiSettings" else AI_NOTES if fn in AI_NOTE_FNS else SALES if fn in SALE_FNS else None
+    table = AUTO if fn in AUTO_FNS else SETTINGS if fn == "apiSettings" else AI_SUGG if fn in AI_SUGG_FNS else AI_NOTES if fn in AI_NOTE_FNS else SALES if fn in SALE_FNS else None
     if table and code in table:
         allowed = resp.get("allowed")
         kw = {"state": iso(resp.get("state") or "?"), "reason": iso(resp.get("reason") or "?"), "by": iso(resp.get("by") or "?"),

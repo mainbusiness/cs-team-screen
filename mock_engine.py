@@ -43,10 +43,11 @@ TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTick
          "apiResult": WORK, "apiTicketLite": WORK, "apiDayStats": ("admin", "user-manager"),
          "apiTemplates": WORK, "apiSendTemplate": WORK,
          "apiAiNotes": ("admin",), "apiAiNoteAdd": ("admin",), "apiAiNoteDelete": ("admin",), "apiAiNoteAttach": ("admin",), "apiAiNoteCheck": ("admin",), "apiAttachPut": WORK,
+         "apiAiNoteSuggestions": ("admin",), "apiAiNoteSuggestDecide": ("admin",),
          "apiSaleCandidates": ("admin",), "apiSaleLog": ("admin",), "apiSaleMine": ("admin",), "apiSaleProof": ("admin",), "apiSaleList": ("admin",), "apiSaleDecide": ("admin",),
          "apiSaleSuggestions": ("admin",), "apiSaleSuggestCredit": ("admin",), "apiSaleSuggestDismiss": ("admin",), "apiSaleScan": ("admin",)}
 MOCK_WRITES = ("apiRedraftOne", "apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiSubCancel", "apiOrderEdit", "apiWaTakeOver",
-               "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate", "apiAiNoteAdd", "apiAiNoteDelete",
+               "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate", "apiAiNoteAdd", "apiAiNoteDelete", "apiAiNoteSuggestDecide",
                "apiSaleLog", "apiSaleDecide", "apiSaleSuggestCredit", "apiSaleSuggestDismiss")
 # engine 2026-10-11: apiBoot.myshopify (the store's admin handle) and extras.mailbox (the support address an email ticket came to).
 # apexmen has no myshopify on purpose (order numbers stay plain text); t18f2a02 has no mailbox (an older ticket: the line is hidden).
@@ -400,6 +401,28 @@ def build_auto(brand, now):
     ]
 
 
+def build_ai_suggestions(brand, now):
+    """Pending suggestions the engine distilled from the team's edits of AI drafts (AiLearn.gs). rozela: two; celesta: one; others: none."""
+    def at(h):
+        return _iso(now - timedelta(hours=h))
+    seed = {
+        "rozela": [
+            {"id": "s0a1b2c3d4e5f6a7b", "text": "לא להציע החזר כספי אם הלקוח לא ביקש אותו — קודם לעזור עם השימוש במוצר.", "count": 6, "at": at(30),
+             "examples": [{"customer": "המוצר לא עוזר לי, מה עושים?", "ai": "היי, יש לך 60 יום החזר כספי מלא.", "sent": "היי, בואי ננסה יחד שבוע נוסף: 2 כמוסות עם ארוחת בוקר."},
+                          {"customer": "לא רואה תוצאות אחרי שבוע", "ai": "אפשר לקבל החזר מלא תוך 60 יום.", "sent": "היי, התוצאות מגיעות בדרך כלל אחרי 3-4 שבועות. כדאי להמשיך."}]},
+            {"id": "s1b2c3d4e5f6a7b8c", "text": "לפתוח בשם הלקוח ולא ב'שלום רב'.", "count": 3, "at": at(5),
+             "examples": [{"customer": "איפה ההזמנה שלי?", "ai": "שלום רב, ההזמנה בדרך.", "sent": "היי מיכל, ההזמנה בדרך."}]}],
+        "celesta": [
+            {"id": "s2c3d4e5f6a7b8c9d", "text": "Do not promise a delivery date; give the tracking link instead.", "count": 2, "at": at(12),
+             "examples": [{"customer": "When will it arrive?", "ai": "It will arrive on Monday.", "sent": "Here is your tracking link: https://t.17track.net/en"}]}],
+    }
+    out = []
+    for x in seed.get(brand, []):
+        out.append(dict(x, state="pending"))
+    out.sort(key=lambda x: x["at"])                  # stored oldest first, like the engine's tab; the read reverses it
+    return out
+
+
 class MockEngines:
     def __init__(self, secret, latency_ms=None):
         self.secret = secret
@@ -427,6 +450,8 @@ class MockEngines:
         self.wa_queued_at = {b: {} for b in MOCK_BRANDS}
         self.touched = {b: {} for b in MOCK_BRANDS}     # ticket id -> version of its last change
         self.ai_notes = {b: [] for b in MOCK_BRANDS}    # engine AiNotes.gs: [{id, scope, text, by, at}] in the order added
+        self.ai_sugg = {b: build_ai_suggestions(b, now) for b in MOCK_BRANDS}   # engine AiLearn.gs: [{id, text, count, at, state, examples}]
+        self.ai_corrections = {"rozela": 37, "celesta": 12, "apexmen": 4, "selera": 0, "velora": 0}
         # engine Attach.gs: files agents send. MOCK_WA_ATTACH="rozela" = WhatsApp files switched on for those brands (default: off, like live)
         self.attach = {b: {} for b in MOCK_BRANDS}
         self.wa_attach = set(x.strip() for x in os.environ.get("MOCK_WA_ATTACH", "").split(",") if x.strip())
@@ -1478,7 +1503,7 @@ class MockEngines:
                     return {"ok": False, "error": "attach_missing"}
                 n["file"] = {"id": a["file"], "name": meta["name"], "mime": meta["mime"], "size": meta["size"], "by": str(c.get("user") or ""), "at": self._now()}
                 n.pop("check", None)
-                return {"ok": True, "note": self._note_out(n)}
+                return {"ok": True, "note": self._note_out(n), "redraft": self._redraft(brand)}    # the note came into the prompt
         return {"ok": False, "error": "not_found"}
 
     def apiAiNoteCheck(self, brand, a, c):
@@ -1489,6 +1514,11 @@ class MockEngines:
                 reading = "הבנתי: הבוט יגיד ללקוחות: " + n["text"][:80]
                 if self._note_out(n)["status"] != "active":       # waiting for its file: the reading only
                     n["check"] = {"at": self._now(), "understood": reading}
+                    return {"ok": True, "note": self._note_out(n)}
+                if "MOCK-GATE" in n["text"]:      # engine 2026-10-22: the judge said yes, but a fixed rule stopped the production text
+                    gate = "קישור לאתר שאינו של המותג"
+                    n["check"] = {"at": self._now(), "understood": reading, "q": "שאלה לדוגמה של לקוח", "a": "תשובה לדוגמה של הבוט", "follows": False,
+                                  "gate": gate, "why": "כלל קבוע במערכת עצר או החליף את התשובה, ולכן ההערה לא מגיעה ללקוח: " + gate}
                     return {"ok": True, "note": self._note_out(n)}
                 fail = "MOCK-NOFOLLOW" in n["text"]
                 n["check"] = {"at": self._now(), "understood": reading, "q": "שאלה לדוגמה של לקוח", "a": "תשובה לדוגמה של הבוט", "follows": not fail,
@@ -1511,14 +1541,55 @@ class MockEngines:
             return {"ok": False, "error": "too_many", "max": 60}
         note = {"id": a["id"], "scope": a["scope"], "text": text, "by": str(c.get("user") or "")[:60], "at": self._now()}
         self.ai_notes[brand].append(note)
-        return {"ok": True, "note": self._note_out(note)}
+        out = {"ok": True, "note": self._note_out(note)}
+        if out["note"]["status"] == "active":      # engine 2026-10-22: a change that touched the prompt queues the open drafts' rewrite
+            out["redraft"] = self._redraft(brand)
+        return out
 
     def apiAiNoteDelete(self, brand, a, c):
         if not isinstance(a.get("id"), str) or not AI_NOTE_ID_RE.match(a["id"]):
             return {"ok": False, "error": "bad_id"}
-        before = len(self.ai_notes[brand])
+        gone = [n for n in self.ai_notes[brand] if n["id"] == a["id"]]
+        if not gone:
+            return {"ok": True, "noop": True}
         self.ai_notes[brand] = [n for n in self.ai_notes[brand] if n["id"] != a["id"]]
-        return {"ok": True} if len(self.ai_notes[brand]) < before else {"ok": True, "noop": True}
+        return {"ok": True, "redraft": self._redraft(brand)} if self._note_out(gone[0])["status"] == "active" else {"ok": True}
+
+    def _redraft(self, brand):
+        """How many open AI drafts the engine would write again (engine aiNotesRequeue_). MOCK_REDRAFT_NULL=1 = the queue failed (null)."""
+        if os.environ.get("MOCK_REDRAFT_NULL") == "1":
+            return None
+        return sum(1 for t in self.brands[brand]["tickets"] if t.get("status") in ("ready", "action", "delay", "health") and t.get("draft_text"))
+
+    # ---------- suggestions from the team's corrections (engine AiLearn.gs, 2026-10-22) ----------
+    def apiAiNoteSuggestions(self, brand, a, c):
+        pending = [json.loads(json.dumps(x)) for x in self.ai_sugg[brand] if x["state"] == "pending"]
+        return {"ok": True, "suggestions": list(reversed(pending)), "corrections": self.ai_corrections.get(brand, 0)}
+
+    def apiAiNoteSuggestDecide(self, brand, a, c):
+        if not isinstance(a.get("id"), str) or not re.match(r"^s[0-9a-f]{16}$", a["id"]):
+            return {"ok": False, "error": "bad_id"}
+        if a.get("decision") not in ("approve", "reject"):
+            return {"ok": False, "error": "bad_decision"}
+        hit = next((x for x in self.ai_sugg[brand] if x["id"] == a["id"]), None)
+        if not hit:
+            return {"ok": False, "error": "not_found"}
+        if hit["state"] != "pending":
+            return {"ok": True, "suggestion": json.loads(json.dumps(hit)), "noop": True}
+        out = {"ok": True}
+        if a["decision"] == "approve":
+            text = hit["text"] if a.get("text") is None else (a["text"].strip() if isinstance(a["text"], str) else "")
+            if not text or len(text) > 600:
+                return {"ok": False, "error": "bad_text"}
+            added = self.apiAiNoteAdd(brand, {"id": a["id"][1:], "scope": "brand", "text": text}, c)
+            if not added.get("ok"):
+                return added
+            out["note"] = added["note"]
+            if os.environ.get("MOCK_DECIDE_REDRAFT") == "1" and "redraft" in added:
+                out["redraft"] = added["redraft"]   # today's engine drops it on a decide; the screen shows it if one ever comes
+        hit.update({"state": "approved" if a["decision"] == "approve" else "rejected", "by": str(c.get("user") or "")[:60], "decidedAt": self._now()})
+        out["suggestion"] = json.loads(json.dumps(hit))
+        return out
 
     # ---------- sales log (engine Sales.gs, 2026-10-14) ----------
     # The same contract and rules as the engine (verification codes, one order once, roles), over canned Shopify orders.

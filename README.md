@@ -680,3 +680,18 @@ Full design, measurements and limits: DECISIONS.md 2026-10-14. Tests: `tests/tes
   else would see it. The board: `agents[].snoozed_now`. Re-read every 30 s and on tab focus; a timer brings a row back at its exact time.
 - Mock: `REFUSE-SEND` in a send's text = a refusal (`thread_missing`), `BUSY-ONCE` = one `busy` then ok, `MOCK_REDRAFT_FAIL=1` = every different
   answer blocked. Live check after a deploy: `tools/live_ui_send.py <brand> --desk he --close-timing` / `--send-close` (cstest-* customers only).
+
+## The team's corrections become suggested notes; a note rewrites the open drafts (2026-10-22)
+
+- Inside the AI-notes card (admin only, no new tab): section `💡 הצעות מהתיקונים של הצוות` (`data-test=ai-sugg-section`), per brand:
+  the suggestion, "נמצא ב-{n} תיקונים", 2 examples collapsed (customer / the AI wrote / the team sent), and ✅ add as a note · ✏️ edit and
+  add (inline editor; `text` is sent only when it differs) · ✕ not relevant (two clicks). A brand with none: one muted line with its corrections count.
+- Engine fns (AiLearn.gs): `apiAiNoteSuggestions {}` (read, retried like any read) and `apiAiNoteSuggestDecide {id: ^s[0-9a-f]{16}$, decision, text?}`
+  (write, rid-resolved). Flask rebuilds the args (reject drops `text`; text 1-600 after trim) and the reply schema binds the decision to THAT id; an
+  approval must carry the note (id = the suggestion id without `s`). An approved suggestion is an ordinary brand note: it shows in the list and gets
+  its reading + live check.
+- `redraft: n` on add / delete / attach (and on a decide, if the engine ever sends it) → "✍️ n טיוטות פתוחות ב-{brand} נכתבות מחדש…" under the
+  status (`data-test=ai-note-redraft`); 0 / null / absent → nothing. `check.gate` → a ⚠ line (`data-test=ai-note-gate`), never ✅, even with `follows:true`.
+- The section has its own container and repaint: a check result repainting the notes never rebuilds an editor; an open editor's text lives in state.
+- Mock: rozela has 2 suggestions, celesta 1; `MOCK-GATE` in a note = a gated check; `MOCK_REDRAFT_NULL=1` = `redraft: null`;
+  `MOCK_DECIDE_REDRAFT=1` = a decide that carries `redraft`. Tests: `tests/test_ai_notes_suggestions_browser.py`, `tests/test_ai_notes_proxy.py`.

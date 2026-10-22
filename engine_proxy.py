@@ -104,6 +104,10 @@ FN_TABLE = {
     # 2026-10-18: a note's document (an upload id from POST /api/<brand>/attach), and the live check of a note (3 model calls in the engine).
     "apiAiNoteAttach": (ADMIN_ONLY, ("id", "file")),
     "apiAiNoteCheck": (ADMIN_ONLY, ("id",)),
+    # 2026-10-22 (engine AiLearn.gs): the team's edits of AI drafts, distilled into proposed notes; a manager approves (as is or
+    # edited) or rejects one. Approve = a brand note made by the engine through apiAiNoteAdd (the same checks as a typed note).
+    "apiAiNoteSuggestions": (ADMIN_ONLY, ()),
+    "apiAiNoteSuggestDecide": (ADMIN_ONLY, ("id", "decision", "text")),
 }
 
 # Server-internal only (phase 5 assistant): never reachable from the browser route, only via call(internal=True).
@@ -167,7 +171,7 @@ READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "ap
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
                       "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates", "apiAiNotes", "apiWaPhotoGet",
                       "apiKachingContract", "apiKachingVariants", "apiOrderEditState", "apiSubCancelPreview", "apiSaleCandidates", "apiSaleMine", "apiSaleProof", "apiSaleList",
-                      "apiSaleSuggestions"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
+                      "apiSaleSuggestions", "apiAiNoteSuggestions"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
 # the time a server thread was held (70-110 s), the 16 threads ran out, Render's health check timed out and the
@@ -335,6 +339,7 @@ def parse_engines(raw, url_re=ENGINE_URL_RE):
 
 
 AI_NOTE_ID_RE = re.compile(r"^[a-z0-9]{8,40}$")
+AI_SUGG_ID_RE = re.compile(r"^s[0-9a-f]{16}$")
 ATTACH_ID_RE = re.compile(r"^a[0-9a-f]{24}$")
 ATTACH_MAX_FILES = 10
 # A write that is safe to repeat as it is (the same part again overwrites itself): a lost reply is retried by its caller, never resolved by apiResult.
@@ -420,6 +425,16 @@ def clean_args(fn, args, table=None):
             text = out.get("text", "").strip()
             if out.get("scope") not in ("all", "brand"):
                 raise ProxyError("bad_request", 400)
+            if not (1 <= len(text) <= AI_NOTE_MAX):
+                raise ProxyError("bad_ai_note", 400)
+            out["text"] = text
+    if fn == "apiAiNoteSuggestDecide":
+        if not AI_SUGG_ID_RE.match(out.get("id", "")) or out.get("decision") not in ("approve", "reject"):
+            raise ProxyError("bad_request", 400)
+        if out["decision"] == "reject":
+            out.pop("text", None)                   # a rejection carries no text
+        elif "text" in out:                         # approve with the manager's edit; absent = the suggestion as it is
+            text = out["text"].strip()
             if not (1 <= len(text) <= AI_NOTE_MAX):
                 raise ProxyError("bad_ai_note", 400)
             out["text"] = text
@@ -509,6 +524,24 @@ def _tid_ok(r, key, tid):
     return isinstance(t, dict) and t.get("id") == tid
 
 
+def _count_ok(v):
+    return isinstance(v, int) and not isinstance(v, bool) and v >= 0
+
+
+def _sugg_decided_ok(r, a):
+    """The decision on THIS suggestion; an approval that was not a no-op carries the note the engine made (id = the suggestion's
+    id without its 's'). A no-op (decided before, maybe the other way) only has to name the suggestion and its final state."""
+    s = r.get("suggestion")
+    if not isinstance(s, dict) or s.get("id") != a.get("id") or s.get("state") not in ("approved", "rejected"):
+        return False
+    if r.get("noop") is True:
+        return True
+    if a.get("decision") == "reject":
+        return s["state"] == "rejected"
+    n = r.get("note")
+    return s["state"] == "approved" and isinstance(n, dict) and n.get("id") == str(a.get("id", ""))[1:]
+
+
 SCHEMAS = {
     "apiBoot": lambda r, a: isinstance(r.get("tickets"), list) and isinstance(r.get("counts"), dict),
     "apiChanges": lambda r, a: isinstance(r.get("tickets"), list) and "version" in r,
@@ -550,6 +583,8 @@ SCHEMAS = {
     "apiAiNoteAdd": lambda r, a: isinstance(r.get("note"), dict) and r["note"].get("id") == a.get("id"),
     "apiAiNoteAttach": lambda r, a: isinstance(r.get("note"), dict) and r["note"].get("id") == a.get("id") and (r["note"].get("file") or {}).get("id") == a.get("file"),
     "apiAiNoteCheck": lambda r, a: isinstance(r.get("note"), dict) and r["note"].get("id") == a.get("id") and isinstance(r["note"].get("check"), dict),
+    "apiAiNoteSuggestions": lambda r, a: isinstance(r.get("suggestions"), list) and _count_ok(r.get("corrections")),
+    "apiAiNoteSuggestDecide": lambda r, a: _sugg_decided_ok(r, a),
     # sales log (2026-10-14): a bare {ok:true} (the doGet answer) must never look like "your sale was logged"
     "apiSaleCandidates": lambda r, a: isinstance(r.get("orders"), list) and r.get("ticket") == a.get("id"),
     "apiSaleLog": lambda r, a: isinstance(r.get("sale"), dict) and r["sale"].get("ticket") == a.get("id"),

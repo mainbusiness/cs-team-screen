@@ -230,7 +230,16 @@
       draft_new_avail: 'המנוע כתב טיוטה חדשה — הטיוטה שלך לא נגעה.', use_new_draft: 'החלף לטיוטה החדשה', draft_updated: 'הטיוטה עודכנה לפי ההודעה החדשה.',
       orders_err: 'בדיקת ההזמנות נכשלה: {m}', subs_err: 'בדיקת המנויים נכשלה: {m}',
       mailbox_at: 'התקבל בתיבה:', order_open: 'פתיחת ההזמנה בשופיפיי (בלשונית חדשה)',
-      ain_title: 'שיפור ה-AI — הערות למנהלים', ain_help: 'ההערות של המנהלים מחייבות את ה-AI ונכנסות לכל טיוטה, מהטיוטה הבאה. על כל הערה המערכת עונה כאן ומעדכנת כשהיא נכנסה ונבדקה.',
+      ain_title: 'שיפור ה-AI — הערות למנהלים', ain_help: 'ההערות של המנהלים מחייבות את ה-AI: הן נכנסות לכל טיוטה מהטיוטה הבאה, וגם הטיוטות הפתוחות בתור נכתבות מחדש לפיהן (טיוטה שנציג ערך ושמר לא נדרסת). על כל הערה המערכת עונה כאן ומעדכנת כשהיא נכנסה ונבדקה. תיקונים שהצוות עושה בטיוטות של ה-AI הופכים כאן להצעות להערות.',
+      ain_r_gate: '⚠ נכנס למערכת, אבל בבדיקה ב-{b} כלל קבוע במערכת עצר או החליף את התשובה, ולכן ההערה לא מגיעה ללקוח: {gate}',
+      ain_redraft: '✍️ {n} טיוטות פתוחות ב-{b} נכתבות מחדש לפי ההערה (תוך כמה דקות)', ain_redraft_1: '✍️ טיוטה פתוחה אחת ב-{b} נכתבת מחדש לפי ההערה (תוך כמה דקות)',
+      ain_redraft_del: '✍️ {n} טיוטות פתוחות ב-{b} נכתבות מחדש בלי ההערה (תוך כמה דקות)', ain_redraft_del_1: '✍️ טיוטה פתוחה אחת ב-{b} נכתבת מחדש בלי ההערה (תוך כמה דקות)',
+      ain_s_title: '💡 הצעות מהתיקונים של הצוות', ain_s_help: 'כשהצוות מתקן את אותו דבר בטיוטות של ה-AI שוב ושוב, המערכת מציעה כאן כלל. מה שמאשרים נכנס כהערה של המותג ועובר בדיקה כמו כל הערה.',
+      ain_s_count: 'נמצא ב-{n} תיקונים', ain_s_examples: 'דוגמאות ({n})', ain_s_ex_c: 'הלקוח:', ain_s_ex_ai: 'ה-AI כתב:', ain_s_ex_sent: 'הצוות שלח:',
+      ain_s_approve: '✅ להוסיף כהערה', ain_s_edit: '✏️ לערוך ולהוסיף', ain_s_reject: '✕ לא רלוונטי', ain_s_reject_arm: 'לא רלוונטי? לחצו שוב', ain_s_cancel: 'ביטול',
+      ain_s_saving: 'שומר…', ain_s_added: 'ההצעה נוספה כהערה ל-{b}. היא מופיעה ברשימת ההערות למטה ועוברת בדיקה.', ain_s_rejected: 'ההצעה סומנה כלא רלוונטית ({b})',
+      ain_s_noop: 'ההצעה הזאת כבר טופלה קודם ({b})', ain_s_fail: 'לא נשמר — {m}',
+      ain_s_empty: 'עדיין אין הצעות ב-{b} · {n} תיקונים נאספו', ain_s_load_err: 'ההצעות לא נטענו מ-{b}: {m}', ain_s_loading: 'טוען הצעות…',
       ain_file_btn: '📎 צירוף קובץ (אישור / תעודה)', ain_file_clear: 'הסרת הקובץ', ain_file_big: 'הקובץ גדול מדי (עד 10MB).',
       ain_doc_hint: 'ההערה מדברת על אישור או תעודה: צרפו גם את הקובץ, וההערה תיכנס למערכת מיד.',
       ain_r_needs: '📎 קיבלתי. כדי שהבוט יגיד את זה ללקוחות צריך גם את הקובץ של האישור. העלו אותו כאן, וברגע שהוא עולה ההערה נכנסת למערכת ואעדכן כאן.',
@@ -466,7 +475,16 @@
       draft_new_avail: 'The engine wrote a new draft — yours is untouched.', use_new_draft: 'Use the new draft', draft_updated: 'The draft was updated for the new message.',
       orders_err: 'Order lookup failed: {m}', subs_err: 'Subscription lookup failed: {m}',
       mailbox_at: 'Received at:', order_open: 'Open the order in Shopify (new tab)',
-      ain_title: 'Improve the AI — managers\' notes', ain_help: 'Managers\' notes bind the AI and go into every draft, from the next draft on. The system answers every note here and updates when it is in and checked.',
+      ain_title: 'Improve the AI — managers\' notes', ain_help: 'Managers\' notes bind the AI: they go into every draft from the next one on, and the open drafts in the queue are rewritten under them (a draft an agent edited and saved is never replaced). The system answers every note here and updates when it is in and checked. The corrections the team makes to the AI\'s drafts become suggested notes here.',
+      ain_r_gate: '⚠ In the system, but in the check on {b} a fixed system rule stopped or replaced the answer, so the note does not reach the customer: {gate}',
+      ain_redraft: '✍️ {n} open drafts in {b} are being rewritten under the note (within a few minutes)', ain_redraft_1: '✍️ 1 open draft in {b} is being rewritten under the note (within a few minutes)',
+      ain_redraft_del: '✍️ {n} open drafts in {b} are being rewritten without the note (within a few minutes)', ain_redraft_del_1: '✍️ 1 open draft in {b} is being rewritten without the note (within a few minutes)',
+      ain_s_title: '💡 Suggestions from the team\'s corrections', ain_s_help: 'When the team corrects the same thing in the AI\'s drafts again and again, the system suggests a rule here. What you approve goes in as a note of that brand and is checked like any note.',
+      ain_s_count: 'Found in {n} corrections', ain_s_examples: 'Examples ({n})', ain_s_ex_c: 'Customer:', ain_s_ex_ai: 'The AI wrote:', ain_s_ex_sent: 'The team sent:',
+      ain_s_approve: '✅ Add as a note', ain_s_edit: '✏️ Edit and add', ain_s_reject: '✕ Not relevant', ain_s_reject_arm: 'Not relevant? Click again', ain_s_cancel: 'Cancel',
+      ain_s_saving: 'Saving…', ain_s_added: 'The suggestion was added as a note for {b}. It is in the notes list below and is being checked.', ain_s_rejected: 'Marked not relevant ({b})',
+      ain_s_noop: 'This suggestion was already decided ({b})', ain_s_fail: 'Not saved — {m}',
+      ain_s_empty: '{b}: no suggestions yet · {n} corrections collected', ain_s_load_err: 'Suggestions not loaded from {b}: {m}', ain_s_loading: 'Loading suggestions…',
       ain_file_btn: '📎 Attach a file (approval / certificate)', ain_file_clear: 'Remove the file', ain_file_big: 'The file is too big (up to 10MB).',
       ain_doc_hint: 'This note is about an approval or a certificate: attach the file too, and the note goes in at once.',
       ain_r_needs: '📎 Got it. For the bot to tell customers this, the approval document is needed too. Upload it here: as soon as it is up the note goes in and I will update here.',
@@ -938,7 +956,7 @@
    *  - Our OWN JSON answers (also 502/504, e.g. engine_timeout) are real answers and pass straight through.
    */
   const READ_FNS = ['list', 'changes', 'watch', 'ticket', 'prefetch', 'result', 'related', 'queue', 'translate', 'translate-he', 'translate-rows', 'translate-autoreply', 'translate-out',
-    'assistant', 'apiBoot', 'apiStatus', 'apiTicket', 'apiTicketExtras', 'apiTickets', 'apiSearch', 'apiAutoReplyList', 'apiAutoCancelList', 'apiTemplates', 'apiAiNotes'];
+    'assistant', 'apiBoot', 'apiStatus', 'apiTicket', 'apiTicketExtras', 'apiTickets', 'apiSearch', 'apiAutoReplyList', 'apiAutoCancelList', 'apiTemplates', 'apiAiNotes', 'apiAiNoteSuggestions'];
   const RETRY_MS = [1000, 2000, 4000, 8000, 15000, 15000];
   function isRead(path, method, body) {
     if ((method || 'POST') === 'GET') return true;
@@ -5098,18 +5116,43 @@
       return Array.prototype.map.call(a, function (x) { return (x < 16 ? '0' : '') + x.toString(16); }).join('');
     }
     function call(brand, fn, args) { return api('/api/' + encodeURIComponent(brand) + '/' + fn, { args: args, lang: LANG }); }
-    /** Runs one call per brand in parallel -> {ok: [brands], bad: [[brand, msg]]}. "Not found" on a delete is a success. */
+    /** Runs one call per brand in parallel -> {ok: [brands], bad: [[brand, msg]], rep: {brand: reply}}. "Not found" on a delete is a success. */
     async function fan(targets, fn, args) {
       const res = await Promise.all(targets.map(function (b) { return call(b, fn, args).catch(function () { return null; }); }));
-      const out = { ok: [], bad: [] };
+      const out = { ok: [], bad: [], rep: {} };
       res.forEach(function (r, i) {
+        out.rep[targets[i]] = r;
         if (r && r.ok) out.ok.push(targets[i]);
         else out.bad.push([targets[i], (r && (r.msg || r.error)) || t('err_bad_engine')]);
       });
       return out;
     }
     function badNames(bad) { return bad.map(function (x) { return brandName(x[0]); }).join(', '); }
-    function setStatus(kind, text) { st.status = text ? { kind: kind, text: text } : null; paintStatus(); }
+    /** The engine's answer to a change that touched the prompt (2026-10-22): `redraft` = how many OPEN AI drafts of that brand are written
+     *  again under the change, in the background. A number > 0 is said; 0, null (the queue failed) or absent says nothing. -> {brand: n} */
+    function redraftOf(r) {
+      const o = {};
+      (r.ok || []).forEach(function (b) { const x = r.rep && r.rep[b]; if (x && typeof x.redraft === 'number' && x.redraft > 0) o[b] = x.redraft; });
+      return o;
+    }
+    function setStatus(kind, text, redraft, del) {
+      st.status = text || (redraft && Object.keys(redraft).length) ? { kind: kind, text: text || '', redraft: redraft || {}, del: !!del } : null;
+      paintStatus();
+    }
+    /** More drafts are rewritten by a later step of the same action (a document attached after the note): merged into the line shown, max per brand. */
+    function addRedraft(redraft) {
+      if (!Object.keys(redraft).length) return;
+      if (!st.status) st.status = { kind: 'ok', text: '', redraft: {}, del: false };
+      Object.keys(redraft).forEach(function (b) { st.status.redraft[b] = Math.max(st.status.redraft[b] || 0, redraft[b]); });
+      paintStatus();
+    }
+    function redraftLines(redraft, del) {
+      return Object.keys(redraft || {}).map(function (b) {
+        const n = redraft[b];
+        const k = (del ? 'ain_redraft_del' : 'ain_redraft') + (n === 1 ? '_1' : '');
+        return h('div', { class: 'ain-redraft', 'data-test': 'ai-note-redraft', 'data-brand': b, 'data-n': String(n) }, tx(k, { n: n, b: brandName(b) }));
+      });
+    }
     async function load() {
       const seq = ++st.seq;
       const bs = brands();
@@ -5151,6 +5194,7 @@
       if (file.size > FILE_MAX) { targets.forEach(function (b) { st.upErr[key(b, id)] = t('ain_file_big'); }); paintList(); return; }
       targets.forEach(function (b) { st.uploading[key(b, id)] = true; delete st.upErr[key(b, id)]; });
       paintList();
+      const rd = {};
       await Promise.all(targets.map(async function (b) {
         let r = null;
         try {
@@ -5164,8 +5208,12 @@
         } catch (e) { r = { ok: false, msg: t('err_network') }; }
         delete st.uploading[key(b, id)];
         if (!(r && r.ok)) st.upErr[key(b, id)] = (r && (r.msg || r.error)) || t('err_bad_engine');
-        else delete st.tried[key(b, id)];        // a new document: checked again
+        else {
+          delete st.tried[key(b, id)];        // a new document: checked again
+          if (typeof r.redraft === 'number' && r.redraft > 0) rd[b] = r.redraft;   // the document brought the note into the prompt
+        }
       }));
+      addRedraft(rd);
       await load();
     }
     /** "Not what I meant": the note's text back in the composer, same scope; the next add replaces it (the old note is deleted after the new one is saved). */
@@ -5218,11 +5266,17 @@
       }
       const recheck = h('button', { type: 'button', class: 'btn small ghost', 'data-test': 'ai-note-recheck', text: t('ain_r_recheck'),
         onclick: function (e) { e.currentTarget.disabled = true; bs.forEach(function (b) { check(b, id); }); } });
-      const no = bs.filter(function (b) { return per[b].check && per[b].check.follows === false; });
+      // 2026-10-22: the check judges the text the customer would get. `gate` = a fixed rule stopped or replaced it: never "checked", even if a judge said yes.
+      const no = bs.filter(function (b) { return per[b].check && (per[b].check.follows === false || per[b].check.gate); });
       const err = bs.filter(function (b) { return !per[b].check || per[b].check.err || !('follows' in per[b].check); });
       if (no.length) {
         box.setAttribute('data-state', 'not_following');
-        no.forEach(function (b) { box.append(h('div', { class: 'ain-r-line bad', text: t('ain_r_no', { b: brandName(b), why: per[b].check.why || '—' }) })); });
+        no.forEach(function (b) {
+          const c = per[b].check;
+          const gate = c.gate ? (typeof c.gate === 'string' && c.gate.trim() ? c.gate : (c.why || '—')) : '';
+          box.append(gate ? h('div', { class: 'ain-r-line bad', 'data-test': 'ai-note-gate', dir: 'auto' }, tx('ain_r_gate', { b: brandName(b), gate: gate }))
+            : h('div', { class: 'ain-r-line bad', text: t('ain_r_no', { b: brandName(b), why: c.why || '—' }) }));
+        });
         box.append(recheck);
         return box;
       }
@@ -5270,13 +5324,145 @@
           delBtn(async function (btn) {
             btn.disabled = true;
             const r = await fan(scopeBrands, 'apiAiNoteDelete', { id: n.id });
-            if (!r.bad.length) setStatus('ok', t('ain_deleted'));
-            else if (r.ok.length) setStatus('bad', t('ain_del_part', { ok: r.ok.length, n: scopeBrands.length, bad: badNames(r.bad) }));
+            if (!r.bad.length) setStatus('ok', t('ain_deleted'), redraftOf(r), true);
+            else if (r.ok.length) setStatus('bad', t('ain_del_part', { ok: r.ok.length, n: scopeBrands.length, bad: badNames(r.bad) }), redraftOf(r), true);
             else setStatus('bad', t('ain_del_fail', { m: r.bad[0][1] }));
             await load();
           })),
         reply(per, n.id));
       return li;
+    }
+    // ---------- suggestions from the team's corrections (Owner, 2026-10-22: "the notes don't improve the AI") ----------
+    /* The team edits AI drafts ~1,500 times in 12 days and wrote one note; the edits never reached the AI. The engine (AiLearn.gs) logs every
+     * edited AI draft at the send, distils repeated corrections into proposed rules, and here a manager approves (as is / edited) or rejects
+     * one. An approval IS a brand note (the engine adds it through apiAiNoteAdd), so it then shows in the list below with its reading and check.
+     * Its own container and its own repaint: a check result repainting the notes never rebuilds an editor a manager is typing in. */
+    const sg = { lists: {}, corr: {}, errs: {}, loaded: false, seq: 0, busy: {}, err: {}, edit: {}, open: {}, status: null };
+    const SUGG_ID_RE = /^s[0-9a-f]{16}$/;
+    async function loadSugg() {
+      const seq = ++sg.seq;
+      const bs = brands();
+      const res = await Promise.all(bs.map(function (b) { return api('/api/' + encodeURIComponent(b) + '/apiAiNoteSuggestions', { args: {} }, 'POST', { quiet: true }).catch(function () { return null; }); }));
+      if (seq !== sg.seq) return;
+      sg.lists = {}; sg.corr = {}; sg.errs = {};
+      res.forEach(function (r, i) {
+        const b = bs[i];
+        if (r && r.ok && Array.isArray(r.suggestions)) {
+          sg.lists[b] = r.suggestions.filter(function (x) { return x && SUGG_ID_RE.test(String(x.id || '')) && typeof x.text === 'string' && x.text.trim() && (!x.state || x.state === 'pending'); });
+          sg.corr[b] = typeof r.corrections === 'number' && r.corrections >= 0 ? r.corrections : 0;
+        } else sg.errs[b] = (r && (r.msg || r.error)) || t('err_bad_engine');
+      });
+      sg.loaded = true;
+      paintSugg();
+    }
+    /** approve (text = the manager's edit, sent only when it differs) or reject. The item leaves the list only on the engine's yes. */
+    async function decide(b, s, decision, text) {
+      const k = key(b, s.id);
+      if (sg.busy[k]) return;
+      const args = { id: s.id, decision: decision };
+      if (decision === 'approve' && typeof text === 'string') {
+        const v = text.trim();
+        if (!v || v.length > MAX) return;
+        if (v !== s.text.trim()) args.text = v;
+      }
+      sg.busy[k] = true; delete sg.err[k];
+      paintSugg();
+      const r = await call(b, 'apiAiNoteSuggestDecide', args).catch(function () { return null; });
+      delete sg.busy[k];
+      if (!(r && r.ok && r.suggestion)) { sg.err[k] = (r && (r.msg || r.error)) || t('err_bad_engine'); paintSugg(); return; }
+      sg.lists[b] = (sg.lists[b] || []).filter(function (x) { return x.id !== s.id; });
+      delete sg.edit[k]; delete sg.open[k];
+      const rd = {};
+      if (typeof r.redraft === 'number' && r.redraft > 0) rd[b] = r.redraft;
+      if (r.noop) sg.status = { text: t('ain_s_noop', { b: brandName(b) }), redraft: {} };
+      else if (r.suggestion.state === 'approved') sg.status = { text: t('ain_s_added', { b: brandName(b) }), redraft: rd };
+      else sg.status = { text: t('ain_s_rejected', { b: brandName(b) }), redraft: {} };
+      paintSugg();
+      if (r.note && typeof r.note.id === 'string') delete st.tried[key(b, r.note.id)];    // the new note gets its reading and check (autoCheck)
+      if (r.suggestion.state === 'approved') await load();
+    }
+    function suggExample(x) {
+      const row = function (label, v) { return h('div', { class: 'ain-s-exrow' }, h('b', { text: label + ' ' }), h('span', { dir: 'auto', text: String(v || '—') })); };
+      return h('div', { class: 'ain-s-exitem', 'data-test': 'ai-sugg-example' }, row(t('ain_s_ex_c'), x.customer), row(t('ain_s_ex_ai'), x.ai), row(t('ain_s_ex_sent'), x.sent));
+    }
+    function suggItem(b, s) {
+      const k = key(b, s.id);
+      const busy = !!sg.busy[k];
+      const li = h('li', { class: 'ain-item ain-s-item', 'data-test': 'ai-sugg', 'data-id': s.id, 'data-brand': b });
+      li.append(h('div', { class: 'ain-text', dir: 'auto', 'data-test': 'ai-sugg-text', text: s.text }));
+      const meta = h('div', { class: 'ain-meta muted small' });
+      if (typeof s.count === 'number' && s.count > 0) meta.append(h('span', { class: 'chip', 'data-test': 'ai-sugg-count', text: t('ain_s_count', { n: s.count }) }));
+      if (s.at) meta.append(h('span', { text: fmtDate(s.at, true) }));
+      li.append(meta);
+      const ex = (Array.isArray(s.examples) ? s.examples : []).filter(function (x) { return x && typeof x === 'object'; }).slice(0, 2);
+      if (ex.length) {
+        const det = h('details', { class: 'ain-s-ex', open: !!sg.open[k], 'data-test': 'ai-sugg-examples' }, h('summary', { class: 'small', text: t('ain_s_examples', { n: ex.length }) }));
+        det.addEventListener('toggle', function () { sg.open[k] = det.open; });
+        ex.forEach(function (x) { det.append(suggExample(x)); });
+        li.append(det);
+      }
+      const acts = h('div', { class: 'ain-s-actions' });
+      if (sg.edit[k] !== undefined) {
+        const ta = h('textarea', { class: 'ain-ta ain-s-ta', rows: 3, maxlength: String(MAX), dir: 'auto', 'data-k': k, 'aria-label': t('ain_s_edit'), 'data-test': 'ai-sugg-edit-text', value: sg.edit[k] });
+        const cnt = h('span', { class: 'muted small', text: t('ain_count', { n: sg.edit[k].length }) });
+        const save = h('button', { type: 'button', class: 'btn small primary', 'data-test': 'ai-sugg-edit-save', text: busy ? t('ain_s_saving') : t('ain_s_approve') });
+        const paintSave = function () { const v = ta.value.trim(); save.disabled = busy || !v || v.length > MAX; cnt.textContent = t('ain_count', { n: ta.value.length }); };
+        ta.addEventListener('input', function () { sg.edit[k] = ta.value; paintSave(); });
+        save.addEventListener('click', function () { decide(b, s, 'approve', ta.value); });
+        paintSave();
+        li.append(ta);
+        acts.append(save, h('button', { type: 'button', class: 'btn small ghost', 'data-test': 'ai-sugg-edit-cancel', text: t('ain_s_cancel'), disabled: busy,
+          onclick: function () { delete sg.edit[k]; paintSugg(); } }), cnt);
+      } else {
+        acts.append(
+          h('button', { type: 'button', class: 'btn small primary', 'data-test': 'ai-sugg-approve', text: busy ? t('ain_s_saving') : t('ain_s_approve'), disabled: busy,
+            onclick: function () { decide(b, s, 'approve'); } }),
+          h('button', { type: 'button', class: 'btn small', 'data-test': 'ai-sugg-edit', text: t('ain_s_edit'), disabled: busy,
+            onclick: function () {
+              sg.edit[k] = s.text; paintSugg();
+              const nt = el.querySelector('[data-test=ai-sugg-edit-text][data-k="' + k + '"]');
+              if (nt) { nt.focus(); nt.setSelectionRange(nt.value.length, nt.value.length); }
+            } }));
+        const rej = armed(t('ain_s_reject'), t('ain_s_reject_arm'), 'small ghost', function () { decide(b, s, 'reject'); });
+        rej.setAttribute('data-test', 'ai-sugg-reject');
+        rej.disabled = busy;
+        acts.append(rej);
+      }
+      li.append(acts);
+      if (sg.err[k]) li.append(h('div', { class: 'ain-r-line bad', role: 'alert', 'data-test': 'ai-sugg-err', text: t('ain_s_fail', { m: sg.err[k] }) }));
+      return li;
+    }
+    function paintSugg() {
+      if (!el) return;
+      const box = el.querySelector('[data-test=ai-sugg-section]');
+      // a repaint keeps the editor the manager is typing in: its text lives in sg.edit, its focus and caret are put back (build-rules §1ב)
+      const ae = document.activeElement;
+      const keep = ae && box.contains(ae) && ae.getAttribute('data-k') ? { k: ae.getAttribute('data-k'), a: ae.selectionStart, z: ae.selectionEnd } : null;
+      clear(box);
+      const total = Object.keys(sg.lists).reduce(function (n, b) { return n + sg.lists[b].length; }, 0);
+      box.append(h('h4', { class: 'ain-s-title' }, t('ain_s_title'), total ? h('span', { class: 'n', 'data-test': 'ai-sugg-total', text: String(total) }) : null),
+        h('p', { class: 'muted small ain-s-help', text: t('ain_s_help') }));
+      if (sg.status) box.append(h('div', { class: 'ain-status small ok', role: 'status', 'data-test': 'ai-sugg-status' }, h('div', { text: sg.status.text }), redraftLines(sg.status.redraft, false)));
+      if (!sg.loaded) { box.append(h('div', { class: 'muted small', text: t('ain_s_loading') })); return; }
+      Object.keys(sg.errs).forEach(function (b) {
+        box.append(h('div', { class: 'muted small ain-s-loaderr', 'data-test': 'ai-sugg-load-err', 'data-brand': b }, t('ain_s_load_err', { b: brandName(b), m: sg.errs[b] }), ' ',
+          h('button', { type: 'button', class: 'btn small ghost', text: t('ain_retry'), onclick: function () { loadSugg(); } })));
+      });
+      const empty = [];
+      brands().forEach(function (b) {
+        if (sg.errs[b] || !sg.lists[b]) return;
+        if (!sg.lists[b].length) { empty.push(b); return; }
+        const ul = h('ul', { class: 'ain-list' });
+        sg.lists[b].forEach(function (s) { ul.append(suggItem(b, s)); });
+        box.append(h('div', { class: 'ain-s-brand', 'data-test': 'ai-sugg-brand', 'data-brand': b }, h('h5', { text: brandName(b) }), ul));
+      });
+      empty.forEach(function (b) {
+        box.append(h('div', { class: 'muted small ain-s-empty', 'data-test': 'ai-sugg-empty', 'data-brand': b }, tx('ain_s_empty', { b: brandName(b), n: sg.corr[b] || 0 })));
+      });
+      if (keep) {
+        const nt = box.querySelector('[data-k="' + keep.k + '"]');
+        if (nt) { nt.focus(); try { nt.setSelectionRange(keep.a, keep.z); } catch (e) { /* not a text field */ } }
+      }
     }
     function paintList() {
       if (!el) return;
@@ -5321,14 +5507,18 @@
     function paintStatus() {
       if (!el) return;
       const s0 = el.querySelector('[data-test=ai-note-status]');
-      s0.textContent = st.status ? st.status.text : '';
+      clear(s0);
+      if (st.status) {
+        if (st.status.text) s0.append(h('div', { text: st.status.text }));
+        redraftLines(st.status.redraft, st.status.del).forEach(function (x) { s0.append(x); });   // Element.append(array) would print "[object …]"
+      }
       s0.className = 'ain-status small' + (st.status ? (st.status.kind === 'ok' ? ' ok' : ' bad') : '');
       s0.hidden = !st.status;
     }
     /** One line for an add: every brand, one brand, part of them, or none — never "saved" over a failure. */
     function report(r, n, oneBrand) {
-      if (!r.bad.length) setStatus('ok', oneBrand ? t('ain_saved_one', { b: brandName(oneBrand) }) : t('ain_saved_all', { n: n }));
-      else if (r.ok.length) setStatus('bad', t('ain_saved_part', { ok: r.ok.length, n: n, bad: badNames(r.bad) }));
+      if (!r.bad.length) setStatus('ok', oneBrand ? t('ain_saved_one', { b: brandName(oneBrand) }) : t('ain_saved_all', { n: n }), redraftOf(r));
+      else if (r.ok.length) setStatus('bad', t('ain_saved_part', { ok: r.ok.length, n: n, bad: badNames(r.bad) }), redraftOf(r));
       else setStatus('bad', t('ain_save_fail', { m: r.bad[0][1] }));
     }
     function build() {
@@ -5379,7 +5569,12 @@
         if (r.ok.length && rep && rep.id !== id) {     // "not what I meant": the old note goes once the new one is saved
           st.replace = null;
           const d = await fan(rep.brands, 'apiAiNoteDelete', { id: rep.id });
-          if (!d.bad.length) setStatus('ok', t('ain_replaced'));
+          if (!d.bad.length) {
+            const rd = redraftOf(r);
+            const rd2 = redraftOf(d);
+            Object.keys(rd2).forEach(function (b) { rd[b] = Math.max(rd[b] || 0, rd2[b]); });    // one rewrite of the open drafts, under the new note
+            setStatus('ok', t('ain_replaced'), rd);
+          }
         }
         if (r.ok.length) { st.pending = null; ta.value = ''; st.file = null; paintFile(); }     // saved somewhere: it is in the list now (a part-save offers "complete" there)
         paintBtn();
@@ -5395,15 +5590,18 @@
         h('div', { class: 'ain-row' }, h('label', { class: 'small' }, t('ain_scope') + ' ', sel), pick, fileChip, count, btn),
         nc.length ? h('div', { class: 'muted small', 'data-test': 'ai-note-not-conn', text: t('ain_not_conn', { b: nc.join(', ') }) }) : null,
         h('div', { class: 'ain-status small', role: 'status', 'aria-live': 'polite', 'data-test': 'ai-note-status', hidden: true }),
+        h('section', { class: 'ain-sugg', 'data-test': 'ai-sugg-section' }),
         h('div', { class: 'ain-lists', 'data-test': 'ai-note-list' }));
       paintBtn();
       paintStatus();
+      paintSugg();
       paintList();
     }
     function mount(slot) {
       if (!el) build();
       if (el.parentNode !== slot) { clear(slot); slot.append(el); }
       load();
+      loadSugg();
     }
     return { mount: mount, load: load };
   })();
