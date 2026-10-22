@@ -28,8 +28,8 @@ PROXY = {
     "bad_note": ("הערה של 2 עד 300 תווים.", "A note of 2 to 300 characters."),
     "bad_ai_note": ("הערה ל-AI: בין 1 ל-600 תווים.", "A note to the AI: 1 to 600 characters."),
     # phase 5: assistant + English mode
-    "assistant_off": ("העוזר כבוי (חסר מפתח Anthropic בשרת). לדווח לבעלים.", "The assistant is off (no Anthropic key on the server). Tell the owner."),
-    "assistant_misconfigured": ("מפתח ה-Anthropic בשרת לא תקין. לדווח לבעלים.", "The server's Anthropic key is invalid. Tell the owner."),
+    "assistant_off": ("העוזר כבוי (חסר מפתח Anthropic בשרת). לדווח למנהל.", "The assistant is off (no Anthropic key on the server). Tell Manager."),
+    "assistant_misconfigured": ("מפתח ה-Anthropic בשרת לא תקין. לדווח למנהל.", "The server's Anthropic key is invalid. Tell Manager."),
     "assistant_busy": ("שירות ה-AI עמוס כרגע. נסו שוב בעוד דקה.", "The AI service is busy. Try again in a minute."),
     "assistant_timeout": ("העוזר לא ענה בזמן. נסו שאלה קצרה יותר או שוב בעוד רגע.", "The assistant did not answer in time. Try a shorter question."),
     "assistant_unreachable": ("אין חיבור לשירות ה-AI. נסו שוב בעוד רגע.", "Cannot reach the AI service. Try again shortly."),
@@ -48,8 +48,8 @@ PROXY = {
     "engine_bad_response": ("המנוע החזיר תשובה לא תקינה. אם זה חוזר — לדווח למנהל.",
                             "The engine sent an invalid answer. If it repeats, tell Manager."),
     "server_error": ("תקלה זמנית בשרת. נסו שוב בעוד רגע.", "A temporary server error. Try again in a moment."),
-    "server_misconfigured": ("המערכת לא מוגדרת עד הסוף (חסר מפתח). לדווח לבעלים.",
-                             "The system is not fully configured (missing key). Tell the owner."),
+    "server_misconfigured": ("המערכת לא מוגדרת עד הסוף (חסר מפתח). לדווח למנהל.",
+                             "The system is not fully configured (missing key). Tell Manager."),
     "rate_limited": ("יותר מדי ניסיונות. נסו שוב בעוד {wait} דקות.", "Too many attempts. Try again in {wait} minutes."),
     "bad_login": ("שם משתמש או סיסמה שגויים.", "Wrong username or password."),
     "password_too_short": ("סיסמה של 10 תווים לפחות.", "At least 10 characters."),
@@ -74,7 +74,7 @@ PROXY = {
                                 "Only an admin can grant or remove admin, or edit an admin user."),
     "self_lockout": ("אי אפשר לנעול או להוריד הרשאות לעצמך.", "You cannot disable yourself or remove your own access."),
     "last_admin": ("חייב להישאר לפחות אדמין פעיל אחד.", "At least one active admin must remain."),
-    "users_file_corrupt": ("קובץ המשתמשים פגום. לדווח לבעלים.", "The users file is damaged. Tell the owner."),
+    "users_file_corrupt": ("קובץ המשתמשים פגום. לדווח למנהל.", "The users file is damaged. Tell Manager."),
 }
 
 # apiLinkCustomer ("קישור לקוח", 2026-10-20): its own wording for the codes it shares with search
