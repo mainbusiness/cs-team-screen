@@ -548,14 +548,21 @@ template / close) and from Gmail directly.
 table; a user-manager and an agent get 403 and never see it). A section right under the live strip on `#/dash`, built once and repainted only
 when the answer changed:
 - **This month vs the target**, per brand: the monthly Kaching cancel rate so far (`month.churn_pct`, "<month> עד היום" while `partial`), last
-  month's rate, and the target = last month × 0.5 (the owner's November goal: more than 50% below October). The card is green at or under the target,
-  red over it; the owner's scale (excellent < 8% · healthy < 12%) is a line of context, not the colour.
+  month's rate, and the target = last month × 0.5 (the owner's November goal: more than 50% below October). A month still running is judged by its
+  PACE (so far × days in the month ÷ days passed, "בקצב הזה: X% בסוף <month>"): the rate so far only grows, so against a full-month target it
+  would be green in every first week. Measured live 2026-10-23, day 23: rozela 10.4% so far = 14.0% at that pace (the owner quoted ~14% for
+  October), celesta 13.4% → 18.1%, apexmen 12.8% → 17.3%. The card is green when the pace is at or under the target, red over it; the owner's scale
+  (excellent < 8% · healthy < 12%, also on the pace) is a line of context, not the colour. Until the month ends, the target is half of the
+  previous full month (on 2026-10-23: half of September; from 2026-11-01 exactly the owner's goal, half of October).
 - **The chosen day** (the board's date, or a day clicked in the 14-day table): five numbers over the brands, each with the engine's one-line
   source — subscriptions the team cancelled (`subs_team`) · automatic cancellations (`subs_bot`) · orders cancelled · all cancellations by the
   team (= the first + orders) · all subscription cancels in Kaching from any source (`subs_all_kaching`, so cancels made outside the team show).
   Then the same per brand, and per agent (`subs_team_by`, the board's display names). QA / automation accounts (`TEST_USER_RE`) are taken OUT of
   `subs_team` too, so the agents add up to the team's number; a cancel with no agent name is its own line.
 - **The last 14 days**, all brands or one.
+- **Live check after a deploy:** `tools/live_ui_cancels.py [shots_dir]` (read-only: every write route is aborted in the browser).
+- `tests/test_no_native_append_junk.py`: a DOM `append()` of `null` / a ternary-null / an array prints "null" / "[object …]" — use
+  `add(el, [...])`. Two older sites are listed there as known (proposed to Owner, not changed).
 - **States:** a field the engine does not know is "—", never 0, and a total names the brands it is missing ("בלי ולורה"). `no_kaching`
   (velora) → "אין חיבור לקאצ׳ינג"; `no_subscriptions` (selera) → not shown; an engine without the fn (`unauthorized`) → "not available yet",
   and the rest of the board is unaffected.

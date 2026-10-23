@@ -131,7 +131,8 @@ def test_the_board_reads_in_the_background_then_shows_the_numbers_and_caches_the
     assert o["unnamed"] == 0                                                                         # qa-bot's 5 per brand are out of subs_team
     # churn vs the goal (half of last month)
     m = o["brands"]["rozela"]
-    assert (m["target"], m["verdict"], m["level"]) == (7.03, "bad", "excellent")
+    assert (m["target"], m["verdict"], m["level"]) == (7.03, "bad", "healthy")       # 7.5% by day 23 = 10.11% at this pace
+    assert (m["projected"], m["days_elapsed"], m["days_in_month"]) == (10.11, 23, 31)
     assert o["sources"]["subs_team"] == "יומן הביקורת של המנוע"
     n = len(calls)
     now[0] += D.CANCEL_TTL_S - 5
@@ -236,10 +237,24 @@ def test_the_day_follows_the_boards_date_and_an_old_day_moves_the_window(app, pw
 # ---------- pure ----------
 
 def test_churn_verdict_is_against_half_of_last_month():
-    assert D.churn_verdict({"churn_pct": 8.0}, {"churn_pct": 17.5}) == {"target": 8.75, "verdict": "good", "level": "healthy"}
+    assert D.churn_verdict({"churn_pct": 8.0}, {"churn_pct": 17.5})["target"] == 8.75
+    assert D.churn_verdict({"churn_pct": 8.0}, {"churn_pct": 17.5})["verdict"] == "good"
     assert D.churn_verdict({"churn_pct": 9.0}, {"churn_pct": 17.5})["verdict"] == "bad"
-    assert D.churn_verdict({"churn_pct": 13.0}, {"churn_pct": None}) == {"target": None, "verdict": None, "level": "high"}
-    assert D.churn_verdict(None, None) == {"target": None, "verdict": None, "level": None}
+    assert D.churn_verdict({"churn_pct": 13.0}, {"churn_pct": None})["verdict"] is None and D.churn_verdict({"churn_pct": 13.0}, None)["level"] == "high"
+    assert D.churn_verdict(None, None) == {"target": None, "verdict": None, "level": None, "projected": None, "days_elapsed": None, "days_in_month": None}
+
+
+def test_a_running_month_is_judged_by_its_pace_not_by_the_rate_so_far():
+    """Live 2026-10-23: rozela 10.4% by day 23 of October looked "healthy" and, in an early November, any rate so far is under a full-month
+    target. At this pace it is 14.0% — the ~14% the owner quoted for October."""
+    v = D.churn_verdict({"month": "2026-10", "churn_pct": 10.4, "partial": True}, {"churn_pct": 10.3}, "2026-10-23")
+    assert (v["projected"], v["days_elapsed"], v["days_in_month"], v["level"]) == (14.02, 23, 31, "high")
+    early = D.churn_verdict({"month": "2026-11", "churn_pct": 2.0, "partial": True}, {"churn_pct": 14.0}, "2026-11-05")
+    assert early["target"] == 7.0 and early["projected"] == 12.0 and early["verdict"] == "bad"       # 2% so far is NOT under a 7% target
+    done = D.churn_verdict({"month": "2026-10", "churn_pct": 14.0, "partial": False}, {"churn_pct": 10.0}, "2026-11-05")
+    assert done["projected"] is None and done["verdict"] == "bad"                                    # a finished month is its own rate
+    feb = D.churn_verdict({"month": "2028-02", "churn_pct": 1.0, "partial": True}, {"churn_pct": 9.0}, "2028-02-10")
+    assert feb["days_in_month"] == 29 and feb["projected"] == 2.9
 
 
 def test_cancel_norm_turns_every_non_count_into_unknown():

@@ -1764,11 +1764,13 @@ class MockEngines:
                          "subs_all_kaching": None if state != "ok" else sum(team_by.values()) + (hv >> 8) % 3 + (hv >> 12) % 4,
                          "orders_cancelled": None if state == "error" else (hv >> 16) % 5})
             d += timedelta(days=1)
-        mo = {"rozela": (56, 820, 6.83, 112, 795, 14.09), "celesta": (55, 500, 11.0, 86, 491, 17.52), "apexmen": (40, 380, 10.53, 64, 376, 17.02)}.get(brand)
+        # (cancelled so far, active at start, PACE for the whole month, last month: cancelled, active, rate). The rate so far = pace × day / days
+        mo = {"rozela": (40, 820, 6.5, 112, 795, 14.09), "celesta": (55, 500, 11.0, 86, 491, 17.52), "apexmen": (40, 380, 10.5, 64, 376, 17.02)}.get(brand)
         month = prev = {"month": None, "active_start": None, "cancelled": None, "churn_pct": None, "partial": False}
         if mo and state == "ok":
             pm = (d1.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
-            month = {"month": to[:7], "cancelled": mo[0], "active_start": mo[1], "churn_pct": mo[2], "partial": True}
+            dim = ((d1.replace(day=28) + timedelta(days=4)).replace(day=1) - d1.replace(day=1)).days
+            month = {"month": to[:7], "cancelled": mo[0], "active_start": mo[1], "churn_pct": round(mo[2] * d1.day / dim, 4), "partial": True}
             prev = {"month": pm, "cancelled": mo[3], "active_start": mo[4], "churn_pct": mo[5], "partial": False}
         return {"ok": True, "brand": brand, "tz": "Asia/Jerusalem", "kaching": state, "days": days, "month": month, "prev_month": prev,
                 "sources": {"subs_team": "ביטול מנוי מהמסך (כפתור, אחרי שליחה, תור הביטולים) — יומן הביקורת של המנוע",

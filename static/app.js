@@ -6206,11 +6206,12 @@
      *  the fn says "not available yet", a field the engine does not know is "—", never 0. */
     Object.assign(L, LANG === 'en' ? {
       cx_title: 'Cancellations — subscriptions and orders', cx_sub: 'managers only', cx_age: 'Kaching read {m} min ago',
-      cx_def: 'Monthly cancel rate = subscriptions cancelled in the month ÷ active subscriptions at the start of the month (Kaching). Target = half of last month\'s rate. Healthy below {h}% · excellent below {e}%.',
+      cx_def: 'Monthly cancel rate = subscriptions cancelled in the month ÷ active subscriptions at the start of the month (Kaching). Target = half of last month\'s rate. A month still running is judged by its pace: so far × days in the month ÷ days passed. Healthy below {h}% · excellent below {e}%.',
       cx_loading: 'Counting from Kaching…', cx_unavail: 'Cancellation numbers are not available yet — waiting for the engine update. The rest of the board is not affected.',
       cx_unavail_some: 'Not available yet (engine not updated): {b}', cx_counting: 'Still counting: {b}', cx_err: 'Kaching did not answer: {b}', cx_stale: 'Not refreshed, showing the last numbers: {b}',
       cx_month_h: 'Monthly cancel rate vs the target', cx_upto: '{m} so far', cx_prev: '{m}: {v}', cx_target: 'Target: {v} (half of {m})',
-      cx_good: '✓ Below the target', cx_bad: 'Above the target', cx_lv_excellent: 'Excellent (below {e}%)', cx_lv_healthy: 'Healthy (below {h}%)', cx_lv_high: 'High ({h}% and over)',
+      cx_good: '✓ Below the target', cx_bad: 'Above the target', cx_good_pace: '✓ At this pace: below the target', cx_bad_pace: 'At this pace: above the target',
+      cx_pace: 'At this pace: {v} at the end of {m} (day {e} of {n})', cx_lv_excellent: 'Excellent (below {e}%)', cx_lv_healthy: 'Healthy (below {h}%)', cx_lv_high: 'High ({h}% and over)',
       cx_of: '{c} cancelled of {a} active at the start of the month', cx_no_kaching: 'No Kaching connection', cx_no_target: 'No target: last month unknown',
       cx_day_h: 'Cancellations on {d}', cx_today: 'today', cx_without: 'without {b}',
       cx_subs_team: 'Subscriptions the team cancelled', cx_subs_bot: 'Automatic cancellations', cx_orders_cancelled: 'Orders cancelled',
@@ -6222,11 +6223,12 @@
       cx_days_h: 'Last {n} days', cx_day_col: 'Day', cx_pick_day: 'Show {d}', cx_unnamed: 'Without an agent\'s name: {n}'
     } : {
       cx_title: 'ביטולים — מנויים והזמנות', cx_sub: 'מנהלים בלבד', cx_age: 'נקרא מקאצ׳ינג לפני {m} דק׳',
-      cx_def: 'שיעור ביטול חודשי = מנויים שבוטלו בחודש ÷ מנויים פעילים בתחילת החודש (קאצ׳ינג). יעד = חצי מהשיעור של החודש הקודם. בריא מתחת ל-{h}% · מצוין מתחת ל-{e}%.',
+      cx_def: 'שיעור ביטול חודשי = מנויים שבוטלו בחודש ÷ מנויים פעילים בתחילת החודש (קאצ׳ינג). יעד = חצי מהשיעור של החודש הקודם. חודש שעוד לא נגמר נמדד לפי הקצב: עד היום × ימי החודש ÷ הימים שעברו. בריא מתחת ל-{h}% · מצוין מתחת ל-{e}%.',
       cx_loading: 'סופר מקאצ׳ינג…', cx_unavail: 'נתוני הביטולים עוד לא זמינים — מחכים לעדכון המנוע. שאר הלוח לא מושפע.',
       cx_unavail_some: 'עוד לא זמין (המנוע לא עודכן): {b}', cx_counting: 'עוד סופר: {b}', cx_err: 'קאצ׳ינג לא ענה: {b}', cx_stale: 'לא התעדכן, מוצגים המספרים האחרונים: {b}',
       cx_month_h: 'שיעור ביטול חודשי מול היעד', cx_upto: '{m} עד היום', cx_prev: '{m}: {v}', cx_target: 'יעד: {v} (חצי מ{m})',
-      cx_good: '✓ מתחת ליעד', cx_bad: 'מעל היעד', cx_lv_excellent: 'מצוין (מתחת ל-{e}%)', cx_lv_healthy: 'בריא (מתחת ל-{h}%)', cx_lv_high: 'גבוה ({h}% ומעלה)',
+      cx_good: '✓ מתחת ליעד', cx_bad: 'מעל היעד', cx_good_pace: '✓ בקצב הזה: מתחת ליעד', cx_bad_pace: 'בקצב הזה: מעל היעד',
+      cx_pace: 'בקצב הזה: {v} בסוף {m} (יום {e} מתוך {n})', cx_lv_excellent: 'מצוין (מתחת ל-{e}%)', cx_lv_healthy: 'בריא (מתחת ל-{h}%)', cx_lv_high: 'גבוה ({h}% ומעלה)',
       cx_of: 'בוטלו {c} מתוך {a} פעילים בתחילת החודש', cx_no_kaching: 'אין חיבור לקאצ׳ינג', cx_no_target: 'אין יעד: החודש הקודם לא ידוע',
       cx_day_h: 'ביטולים ב-{d}', cx_today: 'היום', cx_without: 'בלי {b}',
       cx_subs_team: 'מנויים שהצוות ביטל', cx_subs_bot: 'ביטולים אוטומטיים', cx_orders_cancelled: 'הזמנות שבוטלו',
@@ -6267,9 +6269,10 @@
       if (o.verdict) card.classList.add(o.verdict);
       add(card, [h('div', { class: 'v', 'data-test': 'cx-churn', text: cxPct(m.churn_pct) }),
         h('div', { class: 'small', text: m.partial ? d('cx_upto', { m: cxMonth(m.month) }) : cxMonth(m.month) }),
+        o.projected !== null && o.projected !== undefined ? h('div', { class: 'small cx-pace', 'data-test': 'cx-pace', text: d('cx_pace', { v: cxPct(o.projected), m: cxMonth(m.month), e: o.days_elapsed, n: o.days_in_month }) }) : null,
         h('div', { class: 'small', 'data-test': 'cx-prev', text: d('cx_prev', { m: cxMonth(pm.month), v: cxPct(pm.churn_pct) }) }),
         h('div', { class: 'small cx-target', 'data-test': 'cx-target', text: o.target === null ? L.cx_no_target : d('cx_target', { v: cxPct(o.target), m: cxMonth(pm.month) }) }),
-        o.verdict ? h('div', { class: 'chip ' + (o.verdict === 'good' ? 'ok' : 'bad'), 'data-test': 'cx-verdict', text: o.verdict === 'good' ? L.cx_good : L.cx_bad }) : null,
+        o.verdict ? h('div', { class: 'chip ' + (o.verdict === 'good' ? 'ok' : 'bad'), 'data-test': 'cx-verdict', text: L['cx_' + o.verdict + (o.projected !== null && o.projected !== undefined ? '_pace' : '')] }) : null,
         o.level ? h('div', { class: 'muted small', 'data-test': 'cx-level', text: d('cx_lv_' + o.level, { h: x.healthy_pct, e: x.excellent_pct }) }) : null,
         m.cancelled !== null && m.active_start !== null ? h('div', { class: 'muted small', text: d('cx_of', { c: m.cancelled, a: m.active_start }) }) : null]);   // add(), not append(): append(null) prints "null"
       return card;

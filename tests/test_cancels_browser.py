@@ -50,7 +50,7 @@ def no_junk(pg, sel):
     return txt
 
 
-@pytest.mark.parametrize("width,path", [(1280, "/cs"), (390, "/cs"), (1280, "/cs/en")])
+@pytest.mark.parametrize("width,path", [(1280, "/cs"), (390, "/cs"), (1280, "/cs/en"), (390, "/cs/en")])   # both desks at phone width
 def test_admin_sees_cancellations_per_day_agent_and_month(srv, width, path):
     base, pwd = srv
     with pw.sync_playwright() as p:
@@ -64,18 +64,19 @@ def test_admin_sees_cancellations_per_day_agent_and_month(srv, width, path):
         pg.wait_for_selector("[data-test=cx-month][data-brand=rozela] [data-test=cx-churn]", timeout=20000)
         pg.wait_for_selector("[data-test=cx-days]", timeout=20000)
         txt = no_junk(pg, "[data-test=cx]")
-        # month vs the target: rozela under (6.8% vs half of 14.1%), celesta over; selera (no subscriptions) is not shown
+        # month vs the target BY PACE: rozela on pace for 6.5% (half of 14.1% = 7.0%), celesta over; selera (no subscriptions) is not shown
         assert pg.locator("[data-test=cx-month][data-brand=selera]").count() == 0
         roz = pg.locator("[data-test=cx-month][data-brand=rozela]")
-        assert "good" in roz.get_attribute("class") and roz.locator("[data-test=cx-churn]").inner_text() == "6.8%"
+        assert "good" in roz.get_attribute("class") and "6.5%" in roz.locator("[data-test=cx-pace]").inner_text()
         assert "7.0%" in roz.locator("[data-test=cx-target]").inner_text() and "14.1%" in roz.locator("[data-test=cx-prev]").inner_text()
         cel = pg.locator("[data-test=cx-month][data-brand=celesta]")
         assert "bad" in cel.get_attribute("class") and "8.8%" in cel.locator("[data-test=cx-target]").inner_text()
         if path == "/cs":
-            assert "שיעור ביטול חודשי" in txt and "בריא מתחת ל-12%" in txt and "מצוין מתחת ל-8%" in txt and "מתחת ליעד" in roz.inner_text()
+            assert "שיעור ביטול חודשי" in txt and "בריא מתחת ל-12%" in txt and "מצוין מתחת ל-8%" in txt and "בקצב הזה: מתחת ליעד" in roz.inner_text()
+            assert "לפי הקצב" in txt and "בקצב הזה: 6.5% בסוף" in roz.inner_text()
             assert "אוקטובר" in roz.inner_text() or "נובמבר" in roz.inner_text() or re.search(r"[א-ת]+ עד היום", roz.inner_text())
         else:
-            assert "Monthly cancel rate" in txt and "Below the target" in roz.inner_text()
+            assert "Monthly cancel rate" in txt and "At this pace: below the target" in roz.inner_text()
         # the day: each total card = the sum of its column in the per-brand table; team total = team subs + orders
         rows = pg.locator("[data-test=cx-brand-table] tbody tr")
         assert rows.count() == 3

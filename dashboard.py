@@ -142,17 +142,28 @@ def cancel_norm(raw):
             "sources": {k: v.strip()[:300] for k, v in src.items() if isinstance(k, str) and isinstance(v, str) and v.strip()}}
 
 
-def churn_verdict(month, prev):
-    """The month's rate against the goal (half of last month's rate). good / bad / None (a number is missing); the level is the owner's scale."""
+def churn_verdict(month, prev, today=None):
+    """The month's rate against the goal (half of last month's rate). good / bad / None (a number is missing); the level is the owner's scale.
+    A month still running is judged by its PACE, not by the rate so far: so far × days in the month ÷ days elapsed. The rate so far only grows
+    through the month, so against a full-month target it is green in every first week (measured live 2026-10-23: rozela 10.4% on day 23 =
+    14.0% at that pace, which is the ~14% October the owner quoted; celesta 13.4% -> 18.1%, apexmen 12.8% -> 17.3%)."""
     cur = (month or {}).get("churn_pct")
     base = (prev or {}).get("churn_pct")
     target = round(base * CANCEL_TARGET_FACTOR, 2) if base is not None else None
-    verdict = None if cur is None or target is None else ("good" if cur <= target else "bad")
-    level = None if cur is None else ("excellent" if cur < CANCEL_EXCELLENT_PCT else "healthy" if cur < CANCEL_HEALTHY_PCT else "high")
-    return {"target": target, "verdict": verdict, "level": level}
+    projected = elapsed = dim = None
+    mo = (month or {}).get("month")
+    if cur is not None and (month or {}).get("partial") and today and mo == today[:7]:
+        y, m = int(mo[:4]), int(mo[5:7])
+        dim = (date(y + m // 12, m % 12 + 1, 1) - date(y, m, 1)).days
+        elapsed = int(today[8:10])
+        projected = round(cur * dim / elapsed, 2)
+    judged = projected if projected is not None else cur
+    verdict = None if judged is None or target is None else ("good" if judged <= target else "bad")
+    level = None if judged is None else ("excellent" if judged < CANCEL_EXCELLENT_PCT else "healthy" if judged < CANCEL_HEALTHY_PCT else "high")
+    return {"target": target, "verdict": verdict, "level": level, "projected": projected, "days_elapsed": elapsed, "days_in_month": dim}
 
 
-def cancel_view(per_brand, users, dates, day):
+def cancel_view(per_brand, users, dates, day, today=None):
     """per_brand: {brand: {"state": ok|no_kaching|no_subscriptions|error|not_deployed|pending, "data": cancel_norm(...)|None, ...}} ->
     what the managers' board draws. A brand with no subscriptions at all (selera) is left out; a brand whose engine has no apiCancelStats
     yet is listed in `unavailable`. Totals add the brands that know a field and name the ones that do not (`missing`)."""
@@ -172,7 +183,7 @@ def cancel_view(per_brand, users, dates, day):
              "month": (data or {}).get("month"), "prev_month": (data or {}).get("prev_month"), "sources": (data or {}).get("sources") or {}}
         if state == "no_kaching":            # no Kaching connection: nothing about subscriptions in Kaching is known
             o["month"] = o["prev_month"] = None
-        o.update(churn_verdict(o["month"], o["prev_month"]))
+        o.update(churn_verdict(o["month"], o["prev_month"], today))
         brands[b] = o
     with_data = [b for b, o in brands.items() if o["rows"]]
     total = {}
@@ -994,7 +1005,7 @@ def register(app, d):
         dates = cancel_window(sel, today)
         brands = [b for b in u.get("brands", []) if b in d["engines"]]
         per = cx_for(u, brands, dates[-1], dates[0], today, now, request.args.get("refresh") == "1")
-        out = cancel_view(per, d["store"].all(), dates, sel)
+        out = cancel_view(per, d["store"].all(), dates, sel, today)
         out["at"] = now
         return jsonify(out)
 
