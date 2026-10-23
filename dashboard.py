@@ -67,6 +67,17 @@ TEST_USER_RE = re.compile(r"^(qa-.*|claude-admin|guy-admin-cli|warmup)$", re.I)
 SERVICE_KEYS = ("received", "person", "auto", "closed", "unanswered")
 LIVE_REFRESH_S = 30         # the managers' live open-tickets strip re-reads /api/dash/open this often
 LIVE_SYNC_S = 30            # a brand copy older than this gets one shared feed read (agents' polls keep it ~4 s fresh)
+# Cancellations (Owner, 2026-10-23: "כמה מנויים הצוות מבטל כל יום וכמה ביטולים בכללי הוא עושה ללקוחות"; November goal: the monthly Kaching cancel
+# rate down by more than 50% vs October). The engine's apiCancelStats (admin read) per brand; the Kaching part is heavy, so it is read in the
+# background and kept CANCEL_TTL_S (a window that ends today) / CANCEL_FINAL_TTL_S (a past window). The board never waits for it.
+CANCEL_DAYS = 14
+CANCEL_TTL_S = 300
+CANCEL_FINAL_TTL_S = 6 * 3600
+CANCEL_ERR_TTL_S = 60       # a failed read is tried again after a minute (the next board refresh), never in a loop
+CANCEL_TARGET_FACTOR = 0.5  # the goal: this month's rate below HALF of last month's
+CANCEL_HEALTHY_PCT, CANCEL_EXCELLENT_PCT = 12.0, 8.0     # the owner's thresholds (context on the card, not the colour)
+CANCEL_FIELDS = ("subs_team", "subs_bot", "orders_cancelled", "team_total", "subs_all_kaching")
+CANCEL_NOT_DEPLOYED = ("unauthorized", "forbidden_fn", "unknown_fn", "bad_fn")   # an engine without the fn answers like any unknown fn
 
 
 def is_test_user(name):
@@ -85,6 +96,122 @@ def service_hours(ds):
     out["tickets"] = [{"id": t["id"], "ch": "whatsapp" if t.get("ch") == "whatsapp" else "email", "at": t.get("at")}
                       for t in (sh.get("unansweredTickets") or []) if isinstance(t, dict) and isinstance(t.get("id"), str) and ID_RE.match(t["id"])]
     return out
+
+
+# ---------- cancellations (2026-10-23) ----------
+
+def _nat(v):
+    """A count from the engine: an int >= 0, else None (shown as "—", never as 0)."""
+    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
+
+
+def _pct_num(v):
+    return round(float(v), 2) if isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0 else None
+
+
+def _month(m):
+    if not isinstance(m, dict):
+        return None
+    mo = m.get("month") if isinstance(m.get("month"), str) and re.match(r"^\d{4}-\d{2}$", m.get("month") or "") else None
+    return {"month": mo, "active_start": _nat(m.get("active_start")), "cancelled": _nat(m.get("cancelled")),
+            "churn_pct": _pct_num(m.get("churn_pct")), "partial": m.get("partial") is True}
+
+
+def cancel_norm(raw):
+    """One brand's apiCancelStats reply -> {state, days: {date: row}, month, prev_month, sources}. Every field that is not a count is None.
+    team_total = what the TEAM cancelled: subscriptions by a person + cancelled orders; unknown when either part is unknown."""
+    days = {}
+    for x in raw.get("days") or []:
+        if not isinstance(x, dict) or not isinstance(x.get("date"), str) or not DAY_RE.match(x["date"]):
+            continue
+        by, tests = {}, 0
+        for u, n in (x.get("subs_team_by") or {}).items() if isinstance(x.get("subs_team_by"), dict) else ():
+            if isinstance(u, str) and _nat(n):
+                if is_test_user(u):
+                    tests += n            # Owner, 2026-10-07: QA / automation accounts are not the team — they move no number on the board
+                else:
+                    by[u] = n
+        row = {k: _nat(x.get(k)) for k in ("subs_team", "subs_bot", "orders_cancelled", "subs_all_kaching")}
+        if row["subs_team"] is not None:
+            row["subs_team"] = max(0, row["subs_team"] - tests)
+        row["team_total"] = None if row["subs_team"] is None or row["orders_cancelled"] is None else row["subs_team"] + row["orders_cancelled"]
+        row["by"], row["test_excluded"] = by, tests
+        days[x["date"]] = row
+    src = raw.get("sources") if isinstance(raw.get("sources"), dict) else {}
+    return {"state": raw.get("kaching"), "days": days, "month": _month(raw.get("month")), "prev_month": _month(raw.get("prev_month")),
+            "sources": {k: v.strip()[:300] for k, v in src.items() if isinstance(k, str) and isinstance(v, str) and v.strip()}}
+
+
+def churn_verdict(month, prev):
+    """The month's rate against the goal (half of last month's rate). good / bad / None (a number is missing); the level is the owner's scale."""
+    cur = (month or {}).get("churn_pct")
+    base = (prev or {}).get("churn_pct")
+    target = round(base * CANCEL_TARGET_FACTOR, 2) if base is not None else None
+    verdict = None if cur is None or target is None else ("good" if cur <= target else "bad")
+    level = None if cur is None else ("excellent" if cur < CANCEL_EXCELLENT_PCT else "healthy" if cur < CANCEL_HEALTHY_PCT else "high")
+    return {"target": target, "verdict": verdict, "level": level}
+
+
+def cancel_view(per_brand, users, dates, day):
+    """per_brand: {brand: {"state": ok|no_kaching|no_subscriptions|error|not_deployed|pending, "data": cancel_norm(...)|None, ...}} ->
+    what the managers' board draws. A brand with no subscriptions at all (selera) is left out; a brand whose engine has no apiCancelStats
+    yet is listed in `unavailable`. Totals add the brands that know a field and name the ones that do not (`missing`)."""
+    names = {u["username"]: (u.get("display_name") or u["username"]) for u in users if isinstance(u, dict) and u.get("username")}
+    brands, unavailable, hidden = {}, [], []
+    for b, e in per_brand.items():
+        data = e.get("data")
+        state = (data or {}).get("state") or e.get("state") or "pending"
+        if state == "no_subscriptions":
+            hidden.append(b)
+            continue
+        if state == "not_deployed":
+            unavailable.append(b)
+        rows = (data or {}).get("days") or {}
+        o = {"state": state, "busy": bool(e.get("busy")), "at": e.get("at"), "error": e.get("error"),
+             "rows": {dd: {k: (rows.get(dd) or {}).get(k) for k in CANCEL_FIELDS} for dd in dates} if data else {},
+             "month": (data or {}).get("month"), "prev_month": (data or {}).get("prev_month"), "sources": (data or {}).get("sources") or {}}
+        if state == "no_kaching":            # no Kaching connection: nothing about subscriptions in Kaching is known
+            o["month"] = o["prev_month"] = None
+        o.update(churn_verdict(o["month"], o["prev_month"]))
+        brands[b] = o
+    with_data = [b for b, o in brands.items() if o["rows"]]
+    total = {}
+    for dd in dates:
+        t = {}
+        for k in CANCEL_FIELDS:
+            vals = [(b, brands[b]["rows"][dd][k]) for b in with_data]
+            known = [v for _, v in vals if v is not None]
+            t[k] = sum(known) if known else None
+            t[k + "_missing"] = sorted(b for b, v in vals if v is None) if known else []
+        total[dd] = t
+    agents = {}
+    for b in with_data:
+        row = (per_brand[b].get("data") or {}).get("days", {}).get(day) or {}
+        for u, n in (row.get("by") or {}).items():
+            if is_test_user(u):
+                continue
+            a = agents.setdefault(u, {"user": u, "name": names.get(u, u), "n": 0, "by_brand": {}})
+            a["n"] += n
+            a["by_brand"][b] = a["by_brand"].get(b, 0) + n
+    named = sum(a["n"] for a in agents.values())
+    team = (total.get(day) or {}).get("subs_team")
+    sources = {}
+    for b in sorted(brands):
+        for k, v in brands[b]["sources"].items():
+            sources.setdefault(k, [])
+            if v not in sources[k]:
+                sources[k].append(v)
+    return {"ok": True, "dates": dates, "day": day, "brands": brands, "total": total, "unavailable": sorted(unavailable), "hidden": sorted(hidden),
+            "agents": sorted(agents.values(), key=lambda a: (-a["n"], a["name"])),
+            "unnamed": max(0, team - named) if team is not None else None, "sources": {k: " · ".join(v) for k, v in sources.items()},
+            "target_factor": CANCEL_TARGET_FACTOR, "healthy_pct": CANCEL_HEALTHY_PCT, "excellent_pct": CANCEL_EXCELLENT_PCT,
+            "busy": any(o["busy"] for o in brands.values()), "refresh_s": CANCEL_TTL_S}
+
+
+def cancel_window(sel, today, n=CANCEL_DAYS):
+    """The days the cancellations block shows: the last n ending today while the chosen day is among them, else the n ending on that day."""
+    to = today if (date.fromisoformat(today) - date.fromisoformat(sel)).days < n else sel
+    return [(date.fromisoformat(to) - timedelta(days=i)).isoformat() for i in range(n)]      # newest first
 
 
 # ---------- time ----------
@@ -795,6 +922,83 @@ def register(app, d):
         out = dict(f.result() for f in [live_pool.submit(one, b) for b in brands])
         tot = {k: sum(o[k] for o in out.values() if o["known"]) for k in ("total", "whatsapp", "email")}
         return jsonify({"ok": True, "at": log.clock(), "brands": out, "total": tot, "refresh_s": LIVE_REFRESH_S})
+
+    cx_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="cs-cancels")
+    cx_cache, cx_busy, cx_lock, cx_futs = {}, set(), threading.Lock(), []
+
+    def cx_fetch(u, b, frm, to):
+        """One brand's apiCancelStats for [frm, to] (the engine reads Kaching: slow). Kept in memory; an engine without the fn = not_deployed."""
+        started = log.clock()
+        try:
+            try:
+                _, out = engine_proxy.call(d["engines"], cache.transport, cache.secret(), u, b, "apiCancelStats", {"from": frm, "to": to}, "he")
+            except Exception:                             # noqa: BLE001 — a failed read must never take the board down
+                app.logger.exception("cancel stats failed for %s", b)
+                out = {"ok": False, "error": "error"}
+            if out.get("ok"):
+                e = {"at": started, "data": cancel_norm(out), "state": out.get("kaching"), "error": None}
+            else:
+                err = out.get("error") or "error"
+                e = {"at": started, "data": None, "state": "not_deployed" if err in CANCEL_NOT_DEPLOYED else "error", "error": err}
+            with cx_lock:
+                prev = cx_cache.get((b, to))
+                if e["data"] is None and prev and prev.get("data"):
+                    e = dict(prev, error=e["error"], failed_at=started)      # keep the last good numbers; say the refresh failed
+                cx_cache[(b, to)] = e                     # every outcome is stamped: a failure waits CANCEL_ERR_TTL_S (Codex 2026-10-23)
+        finally:
+            with cx_lock:
+                cx_busy.discard((b, to))
+
+    def cx_for(u, brands, frm, to, today, now, force=False):
+        out = {}
+        for b in brands:
+            with cx_lock:
+                e = cx_cache.get((b, to)) or {}
+                ttl = CANCEL_ERR_TTL_S if (e.get("data") is None or e.get("failed_at")) else (CANCEL_TTL_S if to >= today else CANCEL_FINAL_TTL_S)
+                if e.get("state") == "not_deployed":
+                    ttl = CANCEL_TTL_S                    # the engine deploy is checked again every few minutes, not every refresh
+                stale = force or not e or now - float(e.get("failed_at") or e.get("at") or 0) > ttl
+                start = stale and (b, to) not in cx_busy
+                if start:
+                    cx_busy.add((b, to))
+                busy = (b, to) in cx_busy
+            if start:
+                cx_futs.append(cx_pool.submit(cx_fetch, u, b, frm, to))
+                del cx_futs[:-50]
+            out[b] = dict(e, busy=busy)
+        return out
+
+    def cx_drain(timeout=10):
+        for f in list(cx_futs):
+            f.result(timeout=timeout)
+
+    @app.get("/api/dash/cancels")
+    def dash_cancels():
+        """Owner, 2026-10-23: how many subscriptions the team cancels every day, how many cancellations it makes in all, and the monthly churn
+        against the November goal. Admins only (like the sales table): a user-manager and an agent get 403. Never waits for the engine."""
+        u, err = d["api_user"]()
+        if err:
+            return err
+        if "admin" not in u.get("roles", []):
+            return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
+        now = log.clock()
+        today = il_day(now)
+        sel = request.args.get("date") or today
+        if not DAY_RE.match(sel):
+            return d["json_error"]("bad_request", 400, d["ui_lang"](u))
+        try:
+            if date.fromisoformat(sel) > date.fromisoformat(today):
+                sel = today
+        except ValueError:
+            return d["json_error"]("bad_request", 400, d["ui_lang"](u))
+        dates = cancel_window(sel, today)
+        brands = [b for b in u.get("brands", []) if b in d["engines"]]
+        per = cx_for(u, brands, dates[-1], dates[0], today, now, request.args.get("refresh") == "1")
+        out = cancel_view(per, d["store"].all(), dates, sel)
+        out["at"] = now
+        return jsonify(out)
+
+    app.extensions["cs"]["cancels_drain"] = cx_drain
 
     @app.post("/api/<brand>/activity")
     def activity(brand):

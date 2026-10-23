@@ -108,6 +108,9 @@ FN_TABLE = {
     # edited) or rejects one. Approve = a brand note made by the engine through apiAiNoteAdd (the same checks as a typed note).
     "apiAiNoteSuggestions": (ADMIN_ONLY, ()),
     "apiAiNoteSuggestDecide": (ADMIN_ONLY, ("id", "decision", "text")),
+    # 2026-10-23 (Guy: "כמה מנויים הצוות מבטל כל יום וכמה ביטולים בכללי"): cancellations per day / agent + the monthly Kaching churn. A read,
+    # admin only (like the sales table). from / to = Israel days, YYYY-MM-DD, at most CANCEL_STATS_MAX_DAYS apart (checked in clean_args).
+    "apiCancelStats": (ADMIN_ONLY, ("from", "to")),
 }
 
 # Server-internal only (phase 5 assistant): never reachable from the browser route, only via call(internal=True).
@@ -171,7 +174,7 @@ READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "ap
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
                       "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates", "apiAiNotes", "apiWaPhotoGet",
                       "apiKachingContract", "apiKachingVariants", "apiOrderEditState", "apiSubCancelPreview", "apiSaleCandidates", "apiSaleMine", "apiSaleProof", "apiSaleList",
-                      "apiSaleSuggestions", "apiAiNoteSuggestions"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
+                      "apiSaleSuggestions", "apiAiNoteSuggestions", "apiCancelStats"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
 # the time a server thread was held (70-110 s), the 16 threads ran out, Render's health check timed out and the
@@ -362,6 +365,21 @@ def _clean_attach_put(args):
         raise ProxyError("bad_request", 400)
     return out
 AI_NOTE_MAX = 600
+CANCEL_STATS_MAX_DAYS = 62
+DAY_ARG_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+CANCEL_KACHING_STATES = ("ok", "no_kaching", "no_subscriptions", "error")
+
+
+def _clean_cancel_stats(out):
+    """apiCancelStats: both days required, real calendar days, from <= to, at most CANCEL_STATS_MAX_DAYS days inclusive."""
+    from datetime import date
+    try:
+        a, b = (date.fromisoformat(out[k]) for k in ("from", "to") if DAY_ARG_RE.match(out.get(k, "")))
+    except (ValueError, KeyError):
+        raise ProxyError("bad_request", 400)
+    if a > b or (b - a).days + 1 > CANCEL_STATS_MAX_DAYS:
+        raise ProxyError("bad_request", 400)
+    return {"from": out["from"], "to": out["to"]}
 SALE_WRITE_FNS = frozenset(("apiSaleLog", "apiSaleDecide", "apiSaleSuggestCredit", "apiSaleSuggestDismiss"))
 
 
@@ -467,6 +485,8 @@ def clean_args(fn, args, table=None):
         if (len(out.get("orderNo", "")) > 20 or len(out.get("note", "")) > 300 or len(out.get("agent", "")) > 60 or len(out.get("id", "")) > 80
                 or out.get("decision", "approved") not in ("approved", "rejected", "clear")):
             raise ProxyError("bad_request", 400)
+    if fn == "apiCancelStats":
+        out = _clean_cancel_stats(out)
     if fn == "apiAutoCancelReject" and not (2 <= len(out.get("note", "").strip()) <= 300):
         raise ProxyError("bad_note", 400)
     if fn == "apiAutoReplyReview":
@@ -542,6 +562,20 @@ def _sugg_decided_ok(r, a):
     return s["state"] == "approved" and isinstance(n, dict) and n.get("id") == str(a.get("id", ""))[1:]
 
 
+def _cancel_stats_ok(r, a):
+    """apiCancelStats (2026-10-23): the envelope must be THIS brand's answer for THIS range — a bare {ok:true} or another range must never draw
+    zeros on the board. The numbers inside are normalized by dashboard.cancel_norm (a field that is not an int becomes "—", never 0)."""
+    if r.get("kaching") not in CANCEL_KACHING_STATES or not isinstance(r.get("days"), list):
+        return False
+    if r.get("brand") is not None and r.get("brand") != a.get("brand"):
+        return False
+    for k in ("month", "prev_month"):
+        if r.get(k) is not None and not isinstance(r.get(k), dict):
+            return False
+    lo, hi = a.get("from", ""), a.get("to", "")
+    return all(isinstance(x, dict) and isinstance(x.get("date"), str) and DAY_ARG_RE.match(x["date"]) and lo <= x["date"] <= hi for x in r["days"])
+
+
 SCHEMAS = {
     "apiBoot": lambda r, a: isinstance(r.get("tickets"), list) and isinstance(r.get("counts"), dict),
     "apiChanges": lambda r, a: isinstance(r.get("tickets"), list) and "version" in r,
@@ -595,6 +629,7 @@ SCHEMAS = {
     "apiSaleSuggestions": lambda r, a: isinstance(r.get("items"), list),
     "apiSaleSuggestCredit": lambda r, a: isinstance(r.get("sale"), dict),
     "apiSaleScan": lambda r, a: isinstance(r.get("result"), dict),
+    "apiCancelStats": _cancel_stats_ok,
 }
 
 

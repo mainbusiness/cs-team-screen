@@ -6200,6 +6200,185 @@
       if (r && r.ok) { live.data = r; live.at = Date.now(); }
       if (S.view === 'dash') paintLive();
     }
+    /** Cancellations (Owner, 2026-10-23: "כמה מנויים הצוות מבטל כל יום וכמה ביטולים בכללי הוא עושה ללקוחות"; the November goal = the monthly Kaching
+     *  cancel rate below half of October's). Admins only, like the sales table. ONE element built once and repainted only when the answer changed
+     *  (the 30 s board refresh never rebuilds it). /api/dash/cancels never waits for the engine: a brand still counting says so, an engine without
+     *  the fn says "not available yet", a field the engine does not know is "—", never 0. */
+    Object.assign(L, LANG === 'en' ? {
+      cx_title: 'Cancellations — subscriptions and orders', cx_sub: 'managers only', cx_age: 'Kaching read {m} min ago',
+      cx_def: 'Monthly cancel rate = subscriptions cancelled in the month ÷ active subscriptions at the start of the month (Kaching). Target = half of last month\'s rate. Healthy below {h}% · excellent below {e}%.',
+      cx_loading: 'Counting from Kaching…', cx_unavail: 'Cancellation numbers are not available yet — waiting for the engine update. The rest of the board is not affected.',
+      cx_unavail_some: 'Not available yet (engine not updated): {b}', cx_counting: 'Still counting: {b}', cx_err: 'Kaching did not answer: {b}', cx_stale: 'Not refreshed, showing the last numbers: {b}',
+      cx_month_h: 'Monthly cancel rate vs the target', cx_upto: '{m} so far', cx_prev: '{m}: {v}', cx_target: 'Target: {v} (half of {m})',
+      cx_good: '✓ Below the target', cx_bad: 'Above the target', cx_lv_excellent: 'Excellent (below {e}%)', cx_lv_healthy: 'Healthy (below {h}%)', cx_lv_high: 'High ({h}% and over)',
+      cx_of: '{c} cancelled of {a} active at the start of the month', cx_no_kaching: 'No Kaching connection', cx_no_target: 'No target: last month unknown',
+      cx_day_h: 'Cancellations on {d}', cx_today: 'today', cx_without: 'without {b}',
+      cx_subs_team: 'Subscriptions the team cancelled', cx_subs_bot: 'Automatic cancellations', cx_orders_cancelled: 'Orders cancelled',
+      cx_team_total: 'All cancellations by the team', cx_subs_all_kaching: 'All subscription cancels in Kaching',
+      cx_src_team_total: '= subscriptions the team cancelled + orders cancelled',
+      cx_s_subs_team: 'Team', cx_s_subs_bot: 'Automatic', cx_s_orders_cancelled: 'Orders', cx_s_team_total: 'Team total', cx_s_subs_all_kaching: 'All Kaching',
+      cx_agents_h: 'Per agent on {d}', cx_agent_n: 'Subscriptions cancelled', cx_by_brand: 'By brand', cx_no_agents: 'No agent cancelled a subscription on this day.',
+      cx_agents_note: 'Only a cancel made in the system carries an agent\'s name; a cancel made directly in Kaching is counted in "All subscription cancels in Kaching", without a name.',
+      cx_days_h: 'Last {n} days', cx_day_col: 'Day', cx_pick_day: 'Show {d}', cx_unnamed: 'Without an agent\'s name: {n}'
+    } : {
+      cx_title: 'ביטולים — מנויים והזמנות', cx_sub: 'מנהלים בלבד', cx_age: 'נקרא מקאצ׳ינג לפני {m} דק׳',
+      cx_def: 'שיעור ביטול חודשי = מנויים שבוטלו בחודש ÷ מנויים פעילים בתחילת החודש (קאצ׳ינג). יעד = חצי מהשיעור של החודש הקודם. בריא מתחת ל-{h}% · מצוין מתחת ל-{e}%.',
+      cx_loading: 'סופר מקאצ׳ינג…', cx_unavail: 'נתוני הביטולים עוד לא זמינים — מחכים לעדכון המנוע. שאר הלוח לא מושפע.',
+      cx_unavail_some: 'עוד לא זמין (המנוע לא עודכן): {b}', cx_counting: 'עוד סופר: {b}', cx_err: 'קאצ׳ינג לא ענה: {b}', cx_stale: 'לא התעדכן, מוצגים המספרים האחרונים: {b}',
+      cx_month_h: 'שיעור ביטול חודשי מול היעד', cx_upto: '{m} עד היום', cx_prev: '{m}: {v}', cx_target: 'יעד: {v} (חצי מ{m})',
+      cx_good: '✓ מתחת ליעד', cx_bad: 'מעל היעד', cx_lv_excellent: 'מצוין (מתחת ל-{e}%)', cx_lv_healthy: 'בריא (מתחת ל-{h}%)', cx_lv_high: 'גבוה ({h}% ומעלה)',
+      cx_of: 'בוטלו {c} מתוך {a} פעילים בתחילת החודש', cx_no_kaching: 'אין חיבור לקאצ׳ינג', cx_no_target: 'אין יעד: החודש הקודם לא ידוע',
+      cx_day_h: 'ביטולים ב-{d}', cx_today: 'היום', cx_without: 'בלי {b}',
+      cx_subs_team: 'מנויים שהצוות ביטל', cx_subs_bot: 'ביטולים אוטומטיים', cx_orders_cancelled: 'הזמנות שבוטלו',
+      cx_team_total: 'סה״כ ביטולים שהצוות עשה', cx_subs_all_kaching: 'כל ביטולי המנויים בקאצ׳ינג',
+      cx_src_team_total: '= מנויים שהצוות ביטל + הזמנות שבוטלו',
+      cx_s_subs_team: 'הצוות', cx_s_subs_bot: 'אוטומטי', cx_s_orders_cancelled: 'הזמנות', cx_s_team_total: 'סה״כ צוות', cx_s_subs_all_kaching: 'כל קאצ׳ינג',
+      cx_agents_h: 'לפי נציג ב-{d}', cx_agent_n: 'מנויים שביטל', cx_by_brand: 'לפי מותג', cx_no_agents: 'אף נציג לא ביטל מנוי ביום הזה.',
+      cx_agents_note: 'רק ביטול שנעשה במערכת נושא שם נציג; ביטול ישירות בקאצ׳ינג נספר ב"כל ביטולי המנויים בקאצ׳ינג" בלי שם.',
+      cx_days_h: '{n} הימים האחרונים', cx_day_col: 'יום', cx_pick_day: 'להציג את {d}', cx_unnamed: 'בלי שם נציג: {n}'
+    });
+    const CX_FIELDS = ['subs_team', 'subs_bot', 'orders_cancelled', 'team_total', 'subs_all_kaching'];
+    const cx = { el: null, data: null, sig: '', pick: '', brand: 'all', busy: false, err: null, again: null };
+    function cxStrip() {
+      if (!cx.el) cx.el = h('section', { class: 'dash-cx', id: 'dash-cx', 'data-test': 'cx', 'aria-live': 'polite' });
+      paintCx();
+      return cx.el;
+    }
+    function cxN(v) { return v === null || v === undefined ? '—' : String(v); }
+    function cxPct(v) { return v === null || v === undefined ? '—' : Number(v).toFixed(1) + '%'; }
+    function cxMonth(ym) {
+      if (!ym || !/^\d{4}-\d{2}$/.test(ym)) return '—';
+      return new Intl.DateTimeFormat(LANG === 'en' ? 'en-GB' : 'he-IL', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1, 1)));
+    }
+    function cxDay(dd) {
+      const p = dd.split('-');
+      const wd = new Intl.DateTimeFormat(LANG === 'en' ? 'en-GB' : 'he-IL', { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])));
+      return wd + ' ' + (+p[2]) + '.' + (+p[1]);
+    }
+    function cxMonthCard(b, o, x) {
+      const card = h('div', { class: 'cx-mcard', 'data-test': 'cx-month', 'data-brand': b }, h('div', { class: 'l' }, h('bdi', { text: brandName(b) })));
+      if (o.state === 'no_kaching') { card.classList.add('na'); card.append(h('div', { class: 'cx-state', 'data-test': 'cx-month-state', text: L.cx_no_kaching })); return card; }
+      if (!o.month || (o.month.churn_pct === null && o.state !== 'ok')) {
+        card.classList.add('na');
+        card.append(h('div', { class: 'cx-state', 'data-test': 'cx-month-state', text: o.state === 'not_deployed' ? d('cx_unavail_some', { b: brandName(b) }) : o.state === 'error' ? d('cx_err', { b: brandName(b) }) : L.cx_loading }));
+        return card;
+      }
+      const m = o.month, pm = o.prev_month || {};
+      if (o.verdict) card.classList.add(o.verdict);
+      add(card, [h('div', { class: 'v', 'data-test': 'cx-churn', text: cxPct(m.churn_pct) }),
+        h('div', { class: 'small', text: m.partial ? d('cx_upto', { m: cxMonth(m.month) }) : cxMonth(m.month) }),
+        h('div', { class: 'small', 'data-test': 'cx-prev', text: d('cx_prev', { m: cxMonth(pm.month), v: cxPct(pm.churn_pct) }) }),
+        h('div', { class: 'small cx-target', 'data-test': 'cx-target', text: o.target === null ? L.cx_no_target : d('cx_target', { v: cxPct(o.target), m: cxMonth(pm.month) }) }),
+        o.verdict ? h('div', { class: 'chip ' + (o.verdict === 'good' ? 'ok' : 'bad'), 'data-test': 'cx-verdict', text: o.verdict === 'good' ? L.cx_good : L.cx_bad }) : null,
+        o.level ? h('div', { class: 'muted small', 'data-test': 'cx-level', text: d('cx_lv_' + o.level, { h: x.healthy_pct, e: x.excellent_pct }) }) : null,
+        m.cancelled !== null && m.active_start !== null ? h('div', { class: 'muted small', text: d('cx_of', { c: m.cancelled, a: m.active_start }) }) : null]);   // add(), not append(): append(null) prints "null"
+      return card;
+    }
+    function paintCx() {
+      if (!cx.el) return;
+      const x = cx.data;
+      const sig = JSON.stringify([x && Object.assign({}, x, { at: 0 }), cx.brand, cx.err]);
+      if (sig === cx.sig && cx.el.firstChild) return;
+      cx.sig = sig;
+      clear(cx.el);
+      const ages = x ? Object.keys(x.brands).map(function (b) { return x.brands[b].at; }).filter(function (v) { return typeof v === 'number'; }) : [];
+      cx.el.append(h('div', { class: 'live-head' }, h('h3', { text: '🚫 ' + L.cx_title }), h('span', { class: 'muted small', text: L.cx_sub }),
+        ages.length ? h('span', { class: 'muted small', 'data-test': 'cx-age', text: d('cx_age', { m: Math.max(0, Math.round((x.at - Math.min.apply(null, ages)) / 60)) }) }) : null));
+      cx.el.append(h('div', { class: 'muted small cx-def', 'data-test': 'cx-def', text: d('cx_def', { h: x ? x.healthy_pct : 12, e: x ? x.excellent_pct : 8 }) }));
+      if (cx.err) cx.el.append(h('div', { class: 'err-box', role: 'alert', 'data-test': 'cx-err', text: cx.err }));
+      if (!x) { cx.el.append(h('div', { class: 'muted small', text: L.cx_loading }), h('div', { class: 'skeleton' })); return; }
+      const all = Object.keys(x.brands);
+      if (!all.length && !x.unavailable.length) return;
+      if (all.length && all.every(function (b) { return x.brands[b].state === 'not_deployed'; })) {
+        cx.el.append(h('div', { class: 'note-box warn', role: 'status', 'data-test': 'cx-unavailable', text: L.cx_unavail }));
+        return;
+      }
+      const names = function (pred) { return all.filter(function (b) { return pred(x.brands[b]); }).map(brandName).join(', '); };
+      const notes = [['cx_unavail_some', function (o) { return o.state === 'not_deployed'; }, 'chip outline'],
+        ['cx_counting', function (o) { return o.busy && !Object.keys(o.rows || {}).length; }, 'chip outline'],
+        ['cx_err', function (o) { return o.state === 'error' && !Object.keys(o.rows || {}).length; }, 'chip warn-chip'],
+        ['cx_stale', function (o) { return o.error && Object.keys(o.rows || {}).length; }, 'chip warn-chip']];
+      notes.forEach(function (n) { const v = names(n[1]); if (v) cx.el.append(h('div', { class: n[2] + ' cx-note', 'data-test': 'cx-note', text: d(n[0], { b: v }) })); });
+      // A. this month vs the target, per brand
+      cx.el.append(h('h4', { text: L.cx_month_h }));
+      const mrow = h('div', { class: 'cx-months' });
+      all.forEach(function (b) { mrow.append(cxMonthCard(b, x.brands[b], x)); });
+      cx.el.append(mrow);
+      const churnSrc = x.sources.churn_pct || x.sources.churn || x.sources.month;
+      if (churnSrc) cx.el.append(h('div', { class: 'muted small cx-src', 'data-test': 'cx-src-churn', dir: 'auto', text: churnSrc }));
+      const withRows = all.filter(function (b) { return Object.keys(x.brands[b].rows || {}).length; });
+      if (!withRows.length) return;
+      // B. the chosen day: totals over the brands, per brand, per agent
+      const day = x.day, T = x.total[day] || {};
+      const dayName = cxDay(day) + (day === x.dates[0] ? ' (' + L.cx_today + ')' : '');
+      cx.el.append(h('h4', { 'data-test': 'cx-day-title', text: d('cx_day_h', { d: dayName }) }));
+      const cards = h('div', { class: 'cx-cards' });
+      CX_FIELDS.forEach(function (k) {
+        const miss = T[k + '_missing'] || [];
+        const src = k === 'team_total' ? L.cx_src_team_total : x.sources[k];
+        cards.append(h('div', { class: 'cx-card' + (k === 'team_total' ? ' total' : ''), 'data-test': 'cx-' + k },
+          h('div', { class: 'v', text: cxN(T[k]) }), h('div', { class: 'l', text: L['cx_' + k] }),
+          miss.length ? h('div', { class: 'small cx-miss', 'data-test': 'cx-miss', text: d('cx_without', { b: miss.map(brandName).join(', ') }) }) : null,
+          src ? h('div', { class: 'muted small cx-src', 'data-test': 'cx-src', dir: 'auto', text: src }) : null));     // the engine writes these in Hebrew
+      });
+      cx.el.append(cards);
+      if (withRows.length > 1) {
+        const tb = h('table', { class: 'dash-table', 'data-test': 'cx-brand-table' }, h('thead', null, h('tr', null,
+          [L.brand_col].concat(CX_FIELDS.map(function (k) { return L['cx_s_' + k]; })).map(function (c) { return h('th', { text: c }); }))));
+        const body = h('tbody');
+        withRows.forEach(function (b) {
+          const r = x.brands[b].rows[day] || {};
+          body.append(h('tr', { 'data-brand': b }, h('td', null, h('bdi', { text: brandName(b) })),
+            CX_FIELDS.map(function (k) { return h('td', { 'data-k': k }, k === 'team_total' ? h('b', { text: cxN(r[k]) }) : cxN(r[k])); })));
+        });
+        tb.append(body);
+        cx.el.append(h('div', { class: 'table-wrap' }, tb));
+      }
+      cx.el.append(h('h4', { 'data-test': 'cx-agents-title', text: d('cx_agents_h', { d: dayName }) }));
+      if (!x.agents.length) cx.el.append(h('div', { class: 'muted', 'data-test': 'cx-no-agents', text: L.cx_no_agents }));
+      else {
+        const tb = h('table', { class: 'dash-table', 'data-test': 'cx-agents' }, h('thead', null, h('tr', null, [L.agent, L.cx_agent_n, L.cx_by_brand].map(function (c) { return h('th', { text: c }); }))));
+        const body = h('tbody');
+        x.agents.forEach(function (a) {
+          body.append(h('tr', { 'data-test': 'cx-agent', 'data-user': a.user }, h('td', null, h('bdi', { text: a.name })), h('td', null, h('b', { 'data-test': 'cx-agent-n', text: String(a.n) })),
+            h('td', { class: 'muted small', text: Object.keys(a.by_brand).map(function (b) { return brandName(b) + ' ' + a.by_brand[b]; }).join(' · ') })));
+        });
+        tb.append(body);
+        cx.el.append(h('div', { class: 'table-wrap' }, tb));
+      }
+      if (x.unnamed) cx.el.append(h('div', { class: 'small', 'data-test': 'cx-unnamed', text: d('cx_unnamed', { n: x.unnamed }) }));
+      cx.el.append(h('div', { class: 'muted small cx-src', text: L.cx_agents_note }));
+      // C. the last 14 days (one brand or all); a day is a button that shows that day above
+      const sel = h('select', { 'aria-label': L.brand_col, 'data-test': 'cx-brand-sel' }, h('option', { value: 'all', text: L.all_brands }),
+        withRows.map(function (b) { return h('option', { value: b, text: brandName(b), selected: cx.brand === b ? 'selected' : null }); }));
+      sel.addEventListener('change', function () { cx.brand = sel.value; paintCx(); });
+      if (cx.brand !== 'all' && withRows.indexOf(cx.brand) < 0) cx.brand = 'all';
+      cx.el.append(h('div', { class: 'cx-days-head' }, h('h4', { text: d('cx_days_h', { n: x.dates.length }) }), sel));
+      const tb = h('table', { class: 'dash-table cx-days', 'data-test': 'cx-days' }, h('thead', null, h('tr', null,
+        [L.cx_day_col].concat(CX_FIELDS.map(function (k) { return L['cx_s_' + k]; })).map(function (c) { return h('th', { text: c }); }))));
+      const body = h('tbody');
+      x.dates.forEach(function (dd) {
+        const r = cx.brand === 'all' ? (x.total[dd] || {}) : ((x.brands[cx.brand] || {}).rows || {})[dd] || {};
+        body.append(h('tr', { class: dd === day ? 'on' : null, 'data-test': 'cx-day', 'data-day': dd },
+          h('td', null, h('button', { type: 'button', class: 'linkish', 'data-test': 'cx-day-btn', 'aria-label': d('cx_pick_day', { d: dd }), 'aria-pressed': dd === day ? 'true' : 'false',
+            text: cxDay(dd), onclick: function () { cx.pick = dd; loadCx(); } })),
+          CX_FIELDS.map(function (k) { return h('td', { 'data-k': k }, k === 'team_total' ? h('b', { text: cxN(r[k]) }) : cxN(r[k])); })));
+      });
+      tb.append(body);
+      cx.el.append(h('div', { class: 'table-wrap' }, tb));
+    }
+    async function loadCx() {
+      if (!S.me.is_admin) return;
+      const want = cx.pick || st.date || '';
+      cx.want = want;
+      let r;
+      try { r = await api('/api/dash/cancels' + (want ? '?date=' + encodeURIComponent(want) : ''), undefined, 'GET', { quiet: true }); } catch (e) { r = null; }
+      if (cx.want !== want) return;                     // another day was chosen meanwhile
+      if (r && r.ok) { cx.data = r; cx.err = null; } else cx.err = (r && (r.msg || r.error)) || L.cx_err.replace('{b}', '');
+      if (S.view === 'dash') paintCx();
+      clearTimeout(cx.again);
+      if (r && r.ok && r.busy) cx.again = setTimeout(function () { if (S.view === 'dash' && !document.hidden) loadCx(); }, 4000);   // a brand is still counting
+    }
     function fmtS(sec) {
       if (sec === null || sec === undefined) return '—';
       sec = Math.round(sec);
@@ -6500,13 +6679,14 @@
         rg.append(b);
       });
       const di = h('input', { type: 'date', value: st.date || st.shown || '', max: st.shown || null, 'aria-label': 'date', 'data-test': 'dash-date' });
-      di.addEventListener('change', function () { st.date = di.value; st.data = null; render(); load(); });
+      di.addEventListener('change', function () { st.date = di.value; st.data = null; cx.pick = ''; render(); load(); loadCx(); });
       head.append(rg, di);
       if (S.me.is_admin) head.append(h('button', { type: 'button', class: 'btn small ghost', 'data-test': 'ai-notes-jump', text: t('ain_jump'),
         onclick: function () { const c = document.getElementById('ai-notes'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }));
       if (st.data) head.append(h('b', { class: 'shown-day', 'data-test': 'dash-shown', text: st.data.days.length > 1 ? st.data.days[0] + ' – ' + st.data.end_day : st.data.end_day }));
       if (st.data) head.append(h('span', { class: 'muted small', 'data-test': 'dash-updated', text: L.updated + ' ' + new Date(st.data.generated_at * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL') }));
       p.append(head, liveStrip());
+      if (S.me.is_admin) p.append(cxStrip());          // cancellations (2026-10-23): admins only, like the sales table
       if (st.err) p.append(h('div', { class: 'err-box', text: st.err }));
       const x = st.data;
       if (!x) { p.append(h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); return; }
@@ -6557,8 +6737,9 @@
       if (S.me.is_admin) AiNotes.mount(parts().ai);       // admin only (the proxy answers 403 to anyone else)
       load();
       loadLive();
+      loadCx();
       if (!timer) timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) load(true); }, 30000);
-      if (!live.timer) live.timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) loadLive(); }, 30000);
+      if (!live.timer) live.timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) { loadLive(); loadCx(); } }, 30000);
     }
     return { show: show, load: load, loadLive: loadLive };
   })();

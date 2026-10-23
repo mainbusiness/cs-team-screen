@@ -793,3 +793,37 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 .ain-s-ta { margin-top: 6px; }
 .ain-s-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
 .ain-s-empty, .ain-s-loaderr { margin: 2px 0; }
+/* cancellations (Owner, 2026-10-23): per day / agent + the monthly churn vs the target (half of last month). Admins only. */
+.dash-cx { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 10px 12px; margin: 0 0 12px; border-inline-start: 4px solid var(--danger); }
+.dash-pane .dash-cx h3 { margin: 0; font-size: 16px; }
+.dash-cx .live-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.dash-pane .dash-cx h4 { margin: 12px 0 6px; color: var(--ink, inherit); font-size: 14px; }
+.cx-def { margin: 4px 0 6px; }
+.cx-note { display: inline-block; margin: 2px 4px 2px 0; }
+.cx-months { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 760px) { .cx-months { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); } }
+.cx-mcard { background: var(--bg); border-radius: 10px; padding: 8px 10px; min-width: 0; border-inline-start: 4px solid var(--line); }
+.cx-mcard .l { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-mcard .v { font-size: 28px; font-weight: 800; line-height: 1.15; }
+.cx-mcard.good { background: var(--ready-bg); border-inline-start-color: var(--ready); }
+.cx-mcard.good .v { color: var(--ready); }
+.cx-mcard.bad { background: var(--danger-bg); border-inline-start-color: var(--danger); }
+.cx-mcard.bad .v { color: var(--danger); }
+.cx-mcard.na .cx-state { color: var(--muted); font-size: 13px; margin-top: 6px; }
+.cx-mcard .chip { margin: 4px 0 2px; }
+.cx-target { font-weight: 700; }
+.cx-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 760px) { .cx-cards { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.cx-card { background: var(--bg); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+.cx-card .v { font-size: 26px; font-weight: 800; line-height: 1.1; }
+.cx-card .l { font-size: 13px; font-weight: 600; }
+.cx-card.total { background: var(--brand); color: #fff; }
+.cx-card.total .muted { color: rgba(255,255,255,.85); }
+.cx-miss { color: var(--warn-ink); }
+.cx-card.total .cx-miss { color: #fff; }
+.cx-src { margin-top: 2px; overflow-wrap: anywhere; }
+.cx-days-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cx-days-head select { padding: 4px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.cx-days tr.on td { background: var(--warn-bg); }
+.dash-cx .linkish { background: none; border: 0; padding: 4px 0; color: var(--brand); cursor: pointer; font: inherit; text-decoration: underline; }
+.dash-cx .table-wrap { margin-top: 6px; }

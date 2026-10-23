@@ -45,7 +45,12 @@ TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTick
          "apiAiNotes": ("admin",), "apiAiNoteAdd": ("admin",), "apiAiNoteDelete": ("admin",), "apiAiNoteAttach": ("admin",), "apiAiNoteCheck": ("admin",), "apiAttachPut": WORK,
          "apiAiNoteSuggestions": ("admin",), "apiAiNoteSuggestDecide": ("admin",),
          "apiSaleCandidates": ("admin",), "apiSaleLog": ("admin",), "apiSaleMine": ("admin",), "apiSaleProof": ("admin",), "apiSaleList": ("admin",), "apiSaleDecide": ("admin",),
-         "apiSaleSuggestions": ("admin",), "apiSaleSuggestCredit": ("admin",), "apiSaleSuggestDismiss": ("admin",), "apiSaleScan": ("admin",)}
+         "apiSaleSuggestions": ("admin",), "apiSaleSuggestCredit": ("admin",), "apiSaleSuggestDismiss": ("admin",), "apiSaleScan": ("admin",),
+         "apiCancelStats": ("admin",)}
+# apiCancelStats (2026-10-23). MOCK_CANCEL_STATS=absent -> the fn is unknown (an engine before the deploy); MOCK_CANCEL_STATE="apexmen:no_kaching,
+# celesta:error" overrides a brand's Kaching state (velora has no mock engine, so its "no_kaching" is shown through another brand).
+if os.environ.get("MOCK_CANCEL_STATS") == "absent":
+    TABLE.pop("apiCancelStats")
 MOCK_WRITES = ("apiRedraftOne", "apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiSubCancel", "apiOrderEdit", "apiWaTakeOver",
                "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate", "apiAiNoteAdd", "apiAiNoteDelete", "apiAiNoteSuggestDecide",
                "apiSaleLog", "apiSaleDecide", "apiSaleSuggestCredit", "apiSaleSuggestDismiss")
@@ -1736,6 +1741,41 @@ class MockEngines:
         if c["role"] != "admin" and r["agent"] != c["user"]:
             return {"ok": False, "error": "unauthorized"}
         return {"ok": True, "id": r["id"], "proof": r["_proof"]}
+
+    def apiCancelStats(self, brand, a, c):
+        """Engine contract (2026-10-23): {brand, tz, kaching, days[{date, subs_team, subs_team_by, subs_bot, subs_all_kaching, orders_cancelled}],
+        month, prev_month, sources}. Fixed numbers from a hash of brand + day, so a test can compute the expected totals."""
+        frm, to = a.get("from"), a.get("to")
+        try:
+            d0, d1 = datetime.strptime(frm, "%Y-%m-%d"), datetime.strptime(to, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            return {"ok": False, "error": "bad_date"}
+        if d0 > d1 or (d1 - d0).days >= 62:
+            return {"ok": False, "error": "bad_range"}
+        over = dict(x.split(":", 1) for x in os.environ.get("MOCK_CANCEL_STATE", "").split(",") if ":" in x)
+        state = over.get(brand) or ("no_subscriptions" if brand == "selera" else "ok")
+        days, d = [], d0
+        while d <= d1:
+            ds = d.strftime("%Y-%m-%d")
+            hv = int(hashlib.sha256((brand + ds).encode()).hexdigest()[:8], 16)
+            team_by = {"agent-two": hv % 4, "amit": (hv >> 4) % 3, "qa-check": 1} if state in ("ok", "no_kaching") else {}
+            team_by = {k: v for k, v in team_by.items() if v}
+            days.append({"date": ds, "subs_team": sum(team_by.values()), "subs_team_by": team_by, "subs_bot": (hv >> 8) % 3,
+                         "subs_all_kaching": None if state != "ok" else sum(team_by.values()) + (hv >> 8) % 3 + (hv >> 12) % 4,
+                         "orders_cancelled": None if state == "error" else (hv >> 16) % 5})
+            d += timedelta(days=1)
+        mo = {"rozela": (56, 820, 6.83, 112, 795, 14.09), "celesta": (55, 500, 11.0, 86, 491, 17.52), "apexmen": (40, 380, 10.53, 64, 376, 17.02)}.get(brand)
+        month = prev = {"month": None, "active_start": None, "cancelled": None, "churn_pct": None, "partial": False}
+        if mo and state == "ok":
+            pm = (d1.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+            month = {"month": to[:7], "cancelled": mo[0], "active_start": mo[1], "churn_pct": mo[2], "partial": True}
+            prev = {"month": pm, "cancelled": mo[3], "active_start": mo[4], "churn_pct": mo[5], "partial": False}
+        return {"ok": True, "brand": brand, "tz": "Asia/Jerusalem", "kaching": state, "days": days, "month": month, "prev_month": prev,
+                "sources": {"subs_team": "ביטול מנוי מהמסך (כפתור, אחרי שליחה, תור הביטולים) — יומן הביקורת של המנוע",
+                            "subs_bot": "ביטול אוטומטי של המנוע (auto-cancel) — יומן הביקורת",
+                            "orders_cancelled": "הזמנות שבוטלו בשופיפיי לפי cancelled_at",
+                            "subs_all_kaching": "כל החוזים שעברו ל-CANCELLED בקאצ׳ינג, מכל מקור",
+                            "churn_pct": "ביטולים בחודש ÷ מנויים פעילים בתחילת החודש (קאצ׳ינג)"}, "serverMs": 2400}
 
     def apiSaleList(self, brand, a, c):
         rows = sorted(self.sales[brand], key=lambda r: r["created_at"], reverse=True)

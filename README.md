@@ -544,6 +544,27 @@ template / close) and from Gmail directly.
 - **Banners:** a brand without dayStats is named in a "לא סופי" banner, and its list-based numbers stay out of the FRT
   KPIs. `VERIFY_NOTE` shows the coordinator's live reconciliation (rozela 2026-10-05: 15/15).
 
+**Cancellations (Owner, 2026-10-23: "כמה מנויים הצוות מבטל כל יום וכמה ביטולים בכללי הוא עושה ללקוחות").** Admins only (like the sales
+table; a user-manager and an agent get 403 and never see it). A section right under the live strip on `#/dash`, built once and repainted only
+when the answer changed:
+- **This month vs the target**, per brand: the monthly Kaching cancel rate so far (`month.churn_pct`, "<month> עד היום" while `partial`), last
+  month's rate, and the target = last month × 0.5 (the owner's November goal: more than 50% below October). The card is green at or under the target,
+  red over it; the owner's scale (excellent < 8% · healthy < 12%) is a line of context, not the colour.
+- **The chosen day** (the board's date, or a day clicked in the 14-day table): five numbers over the brands, each with the engine's one-line
+  source — subscriptions the team cancelled (`subs_team`) · automatic cancellations (`subs_bot`) · orders cancelled · all cancellations by the
+  team (= the first + orders) · all subscription cancels in Kaching from any source (`subs_all_kaching`, so cancels made outside the team show).
+  Then the same per brand, and per agent (`subs_team_by`, the board's display names). QA / automation accounts (`TEST_USER_RE`) are taken OUT of
+  `subs_team` too, so the agents add up to the team's number; a cancel with no agent name is its own line.
+- **The last 14 days**, all brands or one.
+- **States:** a field the engine does not know is "—", never 0, and a total names the brands it is missing ("בלי ולורה"). `no_kaching`
+  (velora) → "אין חיבור לקאצ׳ינג"; `no_subscriptions` (selera) → not shown; an engine without the fn (`unauthorized`) → "not available yet",
+  and the rest of the board is unaffected.
+- **Data:** engine `apiCancelStats {from, to}` (admin read, ≤ 62 days; the proxy rebuilds and checks the args and the reply: its `kaching`
+  state, `brand`, and every day inside the range asked for). `GET /api/dash/cancels?date=` never waits for it: per brand, read in the background
+  (2 workers), kept in memory 5 min for a window that ends today, 6 h for a past one, 60 s after a failure (a failed refresh keeps the last good
+  numbers and says so); an engine without the fn is asked again every 5 min. The window is the 14 days ending today while the chosen day is in
+  them, else the 14 ending on that day.
+
 ## Morning readiness (live QA, 2026-10-06)
 - **The web service never sleeps** (Render `starter` is a paid instance), and the driver keeps the engines warm every
   minute. What can be cold after a quiet night is the server's own copy of each ticket.

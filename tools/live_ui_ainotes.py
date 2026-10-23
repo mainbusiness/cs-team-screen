@@ -34,8 +34,20 @@ with pw.sync_playwright() as p:
     pg.goto(BASE + '/cs/login'); pg.fill('input[name=username]', rd.BOT); pg.fill('input[name=password]', rd.kc_get('screen/claude-admin'))
     pg.click('button[type=submit]'); pg.wait_for_load_state('load')
     pg.goto(BASE + '/cs#/dash'); pg.wait_for_selector('[data-test=ai-notes]', timeout=60000)
-    pg.wait_for_function("() => { const s = document.querySelector('[data-test=ai-sugg-section]'); return s && (s.querySelector('[data-test=ai-sugg-empty],[data-test=ai-sugg],[data-test=ai-sugg-load-err]')); }", timeout=90000)
+    # the page's CSP forbids eval, so no string wait_for_function: poll a locator
+    arrived = pg.locator('[data-test=ai-sugg-section] :is([data-test=ai-sugg-empty],[data-test=ai-sugg],[data-test=ai-sugg-load-err])')
+    for _ in range(180):
+        if arrived.count():
+            break
+        pg.wait_for_timeout(500)
     pg.wait_for_timeout(1500)
+    # the code that runs is the code that was pushed: sha of the app.js THIS page loaded vs the pushed mirror
+    import hashlib
+    src = pg.evaluate("() => Array.from(document.scripts).map(s => s.src).filter(s => /app\\.js/.test(s))[0] || ''")
+    body = pg.request.get(src).body() if src else b''
+    mirror = open(os.path.join(os.path.dirname(os.path.dirname(HERE)), 'deploy', 'render_repo', 'static', 'app.js'), 'rb').read()
+    say(bool(body) and hashlib.sha256(body).hexdigest() == hashlib.sha256(mirror).hexdigest(), 'the served app.js is the pushed one',
+        '%s sha %s' % (src.rsplit('/', 1)[-1], hashlib.sha256(body).hexdigest()[:12]))
     sec = pg.locator('[data-test=ai-sugg-section]')
     say('💡 הצעות מהתיקונים של הצוות' in sec.locator('h4').inner_text(), 'the suggestions section is in the AI-notes card')
     info = pg.evaluate("""() => ({
