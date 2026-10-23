@@ -1754,6 +1754,9 @@ class MockEngines:
             return {"ok": False, "error": "bad_range"}
         over = dict(x.split(":", 1) for x in os.environ.get("MOCK_CANCEL_STATE", "").split(",") if ":" in x)
         state = over.get(brand) or ("no_subscriptions" if brand == "selera" else "ok")
+        warming = state == "warming"
+        if warming:
+            state = "ok"
         days, d = [], d0
         while d <= d1:
             ds = d.strftime("%Y-%m-%d")
@@ -1761,18 +1764,22 @@ class MockEngines:
             team_by = {"agent-two": hv % 4, "amit": (hv >> 4) % 3, "qa-check": 1} if state in ("ok", "no_kaching") else {}
             team_by = {k: v for k, v in team_by.items() if v}
             days.append({"date": ds, "subs_team": sum(team_by.values()), "subs_team_by": team_by, "subs_bot": (hv >> 8) % 3,
-                         "subs_all_kaching": None if state != "ok" else sum(team_by.values()) + (hv >> 8) % 3 + (hv >> 12) % 4,
+                         "subs_all_kaching": None if state != "ok" or warming else sum(team_by.values()) + (hv >> 8) % 3 + (hv >> 12) % 4,
                          "orders_cancelled": None if state == "error" else (hv >> 16) % 5})
             d += timedelta(days=1)
         # (cancelled so far, active at start, PACE for the whole month, last month: cancelled, active, rate). The rate so far = pace × day / days
         mo = {"rozela": (40, 820, 6.5, 112, 795, 14.09), "celesta": (55, 500, 11.0, 86, 491, 17.52), "apexmen": (40, 380, 10.5, 64, 376, 17.02)}.get(brand)
         month = prev = {"month": None, "active_start": None, "cancelled": None, "churn_pct": None, "partial": False}
-        if mo and state == "ok":
+        if mo and state == "ok" and not warming:
             pm = (d1.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
-            dim = ((d1.replace(day=28) + timedelta(days=4)).replace(day=1) - d1.replace(day=1)).days
-            month = {"month": to[:7], "cancelled": mo[0], "active_start": mo[1], "churn_pct": round(mo[2] * d1.day / dim, 4), "partial": True}
+            el = d1.day - 0.3                                   # the engine counts fractional days
+            month = {"month": to[:7], "cancelled": mo[0], "active_start": mo[1], "churn_pct": round(mo[2] * el / 30, 1), "partial": True,
+                     "days_elapsed": el, "churn_30d_annualized_pct": mo[2]}
             prev = {"month": pm, "cancelled": mo[3], "active_start": mo[4], "churn_pct": mo[5], "partial": False}
-        return {"ok": True, "brand": brand, "tz": "Asia/Jerusalem", "kaching": state, "days": days, "month": month, "prev_month": prev,
+        kc = {"state": state if state in ("no_kaching", "no_subscriptions") else ("warming" if warming else "fresh"), "refreshing": warming,
+              "at": None if warming or state != "ok" else to + "T09:05:00.000Z", "contracts": None if warming or state != "ok" else 1700,
+              "dropped_rows": 0, "last_error": ""}
+        return {"ok": True, "brand": brand, "tz": "Asia/Jerusalem", "kaching": state, "days": days, "month": month, "prev_month": prev, "kaching_cache": kc,
                 "sources": {"subs_team": "ביטול מנוי מהמסך (כפתור, אחרי שליחה, תור הביטולים) — יומן הביקורת של המנוע",
                             "subs_bot": "ביטול אוטומטי של המנוע (auto-cancel) — יומן הביקורת",
                             "orders_cancelled": "הזמנות שבוטלו בשופיפיי לפי cancelled_at",

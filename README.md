@@ -549,10 +549,12 @@ table; a user-manager and an agent get 403 and never see it). A section right un
 when the answer changed:
 - **This month vs the target**, per brand: the monthly Kaching cancel rate so far (`month.churn_pct`, "<month> עד היום" while `partial`), last
   month's rate, and the target = last month × 0.5 (the owner's November goal: more than 50% below October). A month still running is judged by its
-  PACE (so far × days in the month ÷ days passed, "בקצב הזה: X% בסוף <month>"): the rate so far only grows, so against a full-month target it
-  would be green in every first week. Measured live 2026-10-23, day 23: rozela 10.4% so far = 14.0% at that pace (the owner quoted ~14% for
-  October), celesta 13.4% → 18.1%, apexmen 12.8% → 17.3%. The card is green when the pace is at or under the target, red over it; the owner's scale
-  (excellent < 8% · healthy < 12%, also on the pace) is a line of context, not the colour. Until the month ends, the target is half of the
+  PACE: the engine's `churn_30d_annualized_pct` (so far × 30 ÷ days passed — "the number the owner quotes", contract
+  `deliverables/cancel_stats_contract.md`), or the same formula on the screen for an engine that does not send it. The rate so far only grows,
+  so against a full-month target it would be green in every first week. Live 2026-10-23: rozela 10.4% so far = 13.8% at that pace (Guy
+  quoted ~14%), celesta 13.4% → 17.7%, apexmen 12.8% → 16.9%. The card is green when the pace is at or under the target, red over it; the owner's
+  scale (excellent < 8% · healthy < 12%, also on the pace) is a line of context, not the colour. Each card shows the time of the engine's
+  Kaching copy (refreshed every 6 h); a copy still being built ("warming" / "empty") says "קאצ׳ינג מתכונן" instead of numbers. Until the month ends, the target is half of the
   previous full month (on 2026-10-23: half of September; from 2026-11-01 exactly the owner's goal, half of October).
 - **The chosen day** (the board's date, or a day clicked in the 14-day table): five numbers over the brands, each with the engine's one-line
   source — subscriptions the team cancelled (`subs_team`) · automatic cancellations (`subs_bot`) · orders cancelled · all cancellations by the

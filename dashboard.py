@@ -114,7 +114,21 @@ def _month(m):
         return None
     mo = m.get("month") if isinstance(m.get("month"), str) and re.match(r"^\d{4}-\d{2}$", m.get("month") or "") else None
     return {"month": mo, "active_start": _nat(m.get("active_start")), "cancelled": _nat(m.get("cancelled")),
-            "churn_pct": _pct_num(m.get("churn_pct")), "partial": m.get("partial") is True}
+            "churn_pct": _pct_num(m.get("churn_pct")), "partial": m.get("partial") is True,
+            # contract (deliverables/cancel_stats_contract.md, 2026-10-23): only on a partial month — the month projected to 30 days, "the number the owner quotes"
+            "days_elapsed": _pct_num(m.get("days_elapsed")), "churn_30d": _pct_num(m.get("churn_30d_annualized_pct"))}
+
+
+CACHE_STATES = ("fresh", "stale", "warming", "empty", "no_kaching", "no_subscriptions")
+
+
+def _kcache(c):
+    """kaching_cache (contract, additive): the engine's copy of every Kaching contract, walked every 5 min and served when complete (6 h)."""
+    if not isinstance(c, dict):
+        return None
+    st = c.get("state") if c.get("state") in CACHE_STATES else None
+    at = c.get("at") if isinstance(c.get("at"), str) and len(c.get("at")) <= 40 else None
+    return {"state": st, "refreshing": c.get("refreshing") is True, "at": at, "contracts": _nat(c.get("contracts"))}
 
 
 def cancel_norm(raw):
@@ -139,28 +153,31 @@ def cancel_norm(raw):
         days[x["date"]] = row
     src = raw.get("sources") if isinstance(raw.get("sources"), dict) else {}
     return {"state": raw.get("kaching"), "days": days, "month": _month(raw.get("month")), "prev_month": _month(raw.get("prev_month")),
+            "kaching_cache": _kcache(raw.get("kaching_cache")),
             "sources": {k: v.strip()[:300] for k, v in src.items() if isinstance(k, str) and isinstance(v, str) and v.strip()}}
 
 
 def churn_verdict(month, prev, today=None):
     """The month's rate against the goal (half of last month's rate). good / bad / None (a number is missing); the level is the owner's scale.
-    A month still running is judged by its PACE, not by the rate so far: so far × days in the month ÷ days elapsed. The rate so far only grows
-    through the month, so against a full-month target it is green in every first week (measured live 2026-10-23: rozela 10.4% on day 23 =
-    14.0% at that pace, which is the ~14% October the owner quoted; celesta 13.4% -> 18.1%, apexmen 12.8% -> 17.3%)."""
+    A month still running is judged by its PACE, not by the rate so far: the engine's churn_30d_annualized_pct (so far × 30 ÷ days elapsed,
+    "the number the owner quotes"), or the same formula here when an engine does not send it. The rate so far only grows through the month, so
+    against a full-month target it is green in every first week (live 2026-10-23: rozela 10.4% so far = 13.8% at that pace, the owner quoted ~14%;
+    celesta 13.4% -> 17.7%, apexmen 12.8% -> 16.9%)."""
     cur = (month or {}).get("churn_pct")
     base = (prev or {}).get("churn_pct")
     target = round(base * CANCEL_TARGET_FACTOR, 2) if base is not None else None
-    projected = elapsed = dim = None
+    projected = elapsed = pace_from = None
     mo = (month or {}).get("month")
-    if cur is not None and (month or {}).get("partial") and today and mo == today[:7]:
-        y, m = int(mo[:4]), int(mo[5:7])
-        dim = (date(y + m // 12, m % 12 + 1, 1) - date(y, m, 1)).days
-        elapsed = int(today[8:10])
-        projected = round(cur * dim / elapsed, 2)
+    if cur is not None and (month or {}).get("partial"):
+        if (month or {}).get("churn_30d") is not None:
+            projected, elapsed, pace_from = month["churn_30d"], month.get("days_elapsed"), "engine"
+        elif today and mo == today[:7]:
+            elapsed = int(today[8:10])
+            projected, pace_from = round(cur * 30 / elapsed, 1), "screen"
     judged = projected if projected is not None else cur
     verdict = None if judged is None or target is None else ("good" if judged <= target else "bad")
     level = None if judged is None else ("excellent" if judged < CANCEL_EXCELLENT_PCT else "healthy" if judged < CANCEL_HEALTHY_PCT else "high")
-    return {"target": target, "verdict": verdict, "level": level, "projected": projected, "days_elapsed": elapsed, "days_in_month": dim}
+    return {"target": target, "verdict": verdict, "level": level, "projected": projected, "days_elapsed": elapsed, "pace_from": pace_from}
 
 
 def cancel_view(per_brand, users, dates, day, today=None):
@@ -180,7 +197,8 @@ def cancel_view(per_brand, users, dates, day, today=None):
         rows = (data or {}).get("days") or {}
         o = {"state": state, "busy": bool(e.get("busy")), "at": e.get("at"), "error": e.get("error"),
              "rows": {dd: {k: (rows.get(dd) or {}).get(k) for k in CANCEL_FIELDS} for dd in dates} if data else {},
-             "month": (data or {}).get("month"), "prev_month": (data or {}).get("prev_month"), "sources": (data or {}).get("sources") or {}}
+             "month": (data or {}).get("month"), "prev_month": (data or {}).get("prev_month"), "sources": (data or {}).get("sources") or {},
+             "kaching_cache": (data or {}).get("kaching_cache")}
         if state == "no_kaching":            # no Kaching connection: nothing about subscriptions in Kaching is known
             o["month"] = o["prev_month"] = None
         o.update(churn_verdict(o["month"], o["prev_month"], today))

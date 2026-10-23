@@ -64,7 +64,7 @@ def test_admin_sees_cancellations_per_day_agent_and_month(srv, width, path):
         pg.wait_for_selector("[data-test=cx-month][data-brand=rozela] [data-test=cx-churn]", timeout=20000)
         pg.wait_for_selector("[data-test=cx-days]", timeout=20000)
         txt = no_junk(pg, "[data-test=cx]")
-        # month vs the target BY PACE: rozela on pace for 6.5% (half of 14.1% = 7.0%), celesta over; selera (no subscriptions) is not shown
+        # month vs the target BY PACE (the engine's 30-day number): rozela 6.5% (half of 14.1% = 7.0%), celesta over; selera is not shown
         assert pg.locator("[data-test=cx-month][data-brand=selera]").count() == 0
         roz = pg.locator("[data-test=cx-month][data-brand=rozela]")
         assert "good" in roz.get_attribute("class") and "6.5%" in roz.locator("[data-test=cx-pace]").inner_text()
@@ -73,7 +73,8 @@ def test_admin_sees_cancellations_per_day_agent_and_month(srv, width, path):
         assert "bad" in cel.get_attribute("class") and "8.8%" in cel.locator("[data-test=cx-target]").inner_text()
         if path == "/cs":
             assert "שיעור ביטול חודשי" in txt and "בריא מתחת ל-12%" in txt and "מצוין מתחת ל-8%" in txt and "בקצב הזה: מתחת ליעד" in roz.inner_text()
-            assert "לפי הקצב" in txt and "בקצב הזה: 6.5% בסוף" in roz.inner_text()
+            assert "לפי הקצב" in txt and "בקצב הזה: 6.5% ל-30 יום" in roz.inner_text() and "מתעדכן כל 6 שעות" in roz.inner_text()
+            assert roz.locator("[data-test=cx-pace]").get_attribute("data-from") == "engine"
             assert "אוקטובר" in roz.inner_text() or "נובמבר" in roz.inner_text() or re.search(r"[א-ת]+ עד היום", roz.inner_text())
         else:
             assert "Monthly cancel rate" in txt and "At this pace: below the target" in roz.inner_text()
@@ -157,6 +158,23 @@ def test_an_engine_without_the_fn_says_not_yet_and_the_board_still_works():
             assert pg.locator("[data-test=cx-month]").count() == 0
             pg.wait_for_selector("[data-test=dash-brand][data-brand=rozela]")
             assert pg.locator("[data-test=live-brand]").count() >= 3
+            assert not pg.errors, pg.errors
+    finally:
+        proc.terminate()
+
+
+def test_a_kaching_copy_still_warming_says_so_instead_of_zeros():
+    base, pwd, proc = boot({"MOCK_CANCEL_STATE": "rozela:warming"})
+    try:
+        with pw.sync_playwright() as p:
+            pg = login(p, base, pwd, "guy")
+            pg.goto(base + "/cs#/dash")
+            pg.wait_for_selector("[data-test=cx-days]", timeout=20000)
+            no_junk(pg, "[data-test=cx]")
+            assert "קאצ׳ינג מתכונן" in pg.inner_text("[data-test=cx-month][data-brand=rozela]")
+            assert any("קאצ׳ינג מתכונן" in t and "Rozela" in t for t in pg.locator("[data-test=cx-note]").all_inner_texts())
+            assert pg.locator("[data-test=cx-brand-table] tr[data-brand=rozela] td[data-k=subs_all_kaching]").inner_text() == "—"
+            assert "6 שעות" in pg.inner_text("[data-test=cx-month][data-brand=celesta]")            # a ready brand shows its copy's time
             assert not pg.errors, pg.errors
     finally:
         proc.terminate()
