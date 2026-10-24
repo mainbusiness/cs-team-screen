@@ -154,3 +154,27 @@ def test_english_desk_gets_english_playbooks(srv):
         txt = pg.locator("[data-test=playbooks]").inner_text()
         assert "Quick handling guide" in txt and "I do not recognize the charge" in txt and "the CS manager" in txt
         no_junk(txt)
+
+
+def test_true_first_reply_from_conversations_is_shown_beside_the_row_based_numbers(srv):
+    """The board's dayStats number (the real first reply by a person) is drawn inside the brand card, today only, and a day without it draws nothing."""
+    base, pwd = srv
+
+    def patch(route):
+        r = route.fetch()
+        j = r.json()
+        for b, (s, n) in {"rozela": (780.0, 12), "celesta": (5400.0, 3)}.items():
+            if b in j.get("brands", {}):
+                j["brands"][b].update(frt_human_known=True, frt_human_s=s, frt_human_n={"all": n, "email": n, "whatsapp": 0}, frt_human_wa_s=None, frt_human_email_s=s)
+        route.fulfill(response=r, json=j)
+    with pw.sync_playwright() as p:
+        pg = login(p, base, pwd, "guy")
+        pg.route("**/api/dash?*", patch)
+        pg.goto(base + "/cs#/dash")
+        pg.wait_for_selector("[data-test=sla-brand][data-brand=rozela] [data-test=sla-conv]", timeout=30000)
+        txt = pg.locator("[data-test=sla-brand][data-brand=rozela] [data-test=sla-conv]").inner_text()
+        assert "13 דק׳" in txt and "מדגם 12" in txt and "מייל 13 דק׳" in txt
+        assert "1.5 ש׳" in pg.locator("[data-test=sla-brand][data-brand=celesta] [data-test=sla-conv]").inner_text()
+        assert pg.locator("[data-test=sla-brand][data-brand=apexmen] [data-test=sla-conv]").count() == 0
+        no_junk(pg.inner_text("[data-test=sla]"))
+        assert pg.errors == []

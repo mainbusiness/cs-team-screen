@@ -6107,7 +6107,8 @@
       method: 'חישוב: ממתינות = הזמן מההודעה האחרונה של הלקוח שלא נענתה (שעות עבודה בלבד). מענה ראשון וסגירה: קירוב מהרשימה, שמחזיקה את כל הפתוחות אבל רק כ-100 סגורות אחרונות לכל מותג, ומתעדכן לפי הטיפול האחרון בפנייה.',
       b_breach: 'SLA: {b} פניות חורגות מיעד המענה ({f} שעות עבודה)', b_risk: 'SLA: {k} פניות קרובות לחריגה מיעד המענה ({f} שעות עבודה)', b_risk_extra: '{k} קרובות לחריגה', b_oldest: 'הוותיקה ממתינה {o}', b_open: 'לוח SLA',
       pb_title: 'מדריך טיפול מהיר', pb_sub: 'ארבעה תרחישים שהופכים לצ׳ארג׳בק אם מתעכבים, וכרטיס שימור למנויים', pb_manager: 'מנהל השירות',
-      pb_open_hint: 'מוצג פתוח כי זו פניית ביטול'
+      pb_open_hint: 'מוצג פתוח כי זו פניית ביטול',
+      conv_frt: 'מענה ראשון של אדם היום (מהשיחות, זמן שעון)', conv_n: 'מדגם', conv_wa: 'וואטסאפ', conv_em: 'מייל', rows_note: 'מהרשימה'
     };
     const EN = {
       title: 'SLA: response times', sub: 'First reply within {f} business hours · resolved within {r} hours', hours: 'Business hours: {h} ({s})', refresh: 'refreshes every minute',
@@ -6120,11 +6121,12 @@
       method: 'How: waiting = time since the customer\'s last unanswered message (business hours only). First reply and resolution are an approximation from the list, which holds every open ticket but only the last ~100 closed per brand, and reflects the ticket\'s last handling.',
       b_breach: 'SLA: {b} tickets are past the reply target ({f} business hours)', b_risk: 'SLA: {k} tickets are close to the reply target ({f} business hours)', b_risk_extra: '{k} close to breach', b_oldest: 'oldest has waited {o}', b_open: 'SLA board',
       pb_title: 'Quick handling guide', pb_sub: 'Four situations that turn into chargebacks when delayed, and the subscription-retention card', pb_manager: 'the CS manager',
-      pb_open_hint: 'open because this is a cancel ticket'
+      pb_open_hint: 'open because this is a cancel ticket',
+      conv_frt: 'First reply by a person today (from conversations, wall clock)', conv_n: 'sample', conv_wa: 'WhatsApp', conv_em: 'Email', rows_note: 'from the list'
     };
     const L = LANG === 'en' ? EN : HE;
     function d(k, v) { let s = L[k] || k; Object.keys(v || {}).forEach(function (x) { s = s.split('{' + x + '}').join(v[x]); }); return s; }
-    const st = { data: null, sig: '', painted: null, busy: false, timer: null, el: null, err: null };
+    const st = { data: null, sig: '', painted: null, busy: false, timer: null, el: null, err: null, ds: null, dsSig: '' };
     const DAYS = LANG === 'en' ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
     function num(v) { return typeof v === 'number' && isFinite(v) ? v : null; }
     function fmtBh(sec) { sec = num(sec); if (sec === null) return '—'; return sec < 3600 ? Math.round(sec / 60) + ' ' + L.min : (sec / 3600).toFixed(1).replace(/\.0$/, '') + ' ' + L.bh; }
@@ -6140,6 +6142,21 @@
     }
     function brandBreach(x) {
       return Object.keys(x.brands || {}).filter(function (b) { return x.brands[b].counts.breach; }).map(function (b) { return brandName(b) + ' ' + x.brands[b].counts.breach; }).join(' · ');
+    }
+    /** The board's own numbers from the conversations (dayStats): the true first reply by a person. The board hands them over after each load. */
+    function setDash(r) {
+      const day = r && r.end_day, ds = {};
+      if (r && r.ok && day && r.brands) Object.keys(r.brands).forEach(function (b) { const o = r.brands[b] || {}; if (o.frt_human_known && o.frt_human_n && o.frt_human_n.all) ds[b] = { day: day, s: o.frt_human_s, n: o.frt_human_n.all, wa: o.frt_human_wa_s, em: o.frt_human_email_s }; });
+      const sig = JSON.stringify(ds);
+      if (sig === st.dsSig) return;
+      st.ds = ds; st.dsSig = sig;
+      if (S.view === 'dash' && st.data) paint();
+    }
+    function convLine(b, today) {
+      const o = st.ds && st.ds[b];
+      if (!o || o.day !== today || num(o.s) === null) return null;
+      return h('div', { class: 'sla-stat small', 'data-test': 'sla-conv' }, h('b', { text: L.conv_frt + ': ' }),
+        fmtH(o.s / 3600) + ' · ' + L.conv_n + ' ' + o.n + (num(o.wa) !== null ? ' · ' + L.conv_wa + ' ' + fmtH(o.wa / 3600) : '') + (num(o.em) !== null ? ' · ' + L.conv_em + ' ' + fmtH(o.em / 3600) : ''));
     }
     function sigOf(x) {
       return x ? JSON.stringify([x.banner, x.in_hours, x.total && [x.total.open, x.total.breach, x.total.risk, x.total.oldest && x.total.oldest.wait_bh_s],
@@ -6178,19 +6195,19 @@
     }
     function stat(o, kind) {
       const s = (o || {})[kind] || {};
-      if (!s.n) return h('div', { class: 'sla-stat muted small', 'data-test': 'sla-' + kind, text: L[kind] + ': ' + L.no_data });
+      if (!s.n) return h('div', { class: 'sla-stat muted small', 'data-test': 'sla-' + kind, text: L[kind] + ' (' + L.rows_note + '): ' + L.no_data });
       const med = kind === 'first_reply' ? fmtBh(s.median) : fmtH(s.median);
       return h('div', { class: 'sla-stat small', 'data-test': 'sla-' + kind },
-        h('b', { text: L[kind] + ': ' }), pct(s.within_pct) + ' ' + L.in_target + ' · ' + L.median + ' ' + med + ' · ' + L.n + ' ' + s.n);
+        h('b', { text: L[kind] + ' (' + L.rows_note + '): ' }), pct(s.within_pct) + ' ' + L.in_target + ' · ' + L.median + ' ' + med + ' · ' + L.n + ' ' + s.n);
     }
-    function card(name, c, oldestBh, win, test, brand, total) {
+    function card(name, c, oldestBh, win, test, brand, total, today) {
       const cls = 'live-card sla-card' + (total ? ' total' : '') + (c.breach ? ' sla-breach' : c.risk ? ' sla-risk' : '');
       return h('div', { class: cls, 'data-test': test, 'data-brand': brand || null },
         h('div', { class: 'l' }, h('bdi', { text: name })),
         h('div', { class: 'v', 'data-test': 'sla-breach-n', text: String(c.breach) }),
         h('div', { class: 'small', text: L.breach + ' · ' + c.risk + ' ' + L.risk + ' · ' + c.open + ' ' + L.waiting }),
         h('div', { class: 'small', 'data-test': 'sla-oldest', text: L.oldest + ': ' + (oldestBh === null ? '—' : fmtBh(oldestBh)) }),
-        stat(win, 'first_reply'), stat(win, 'resolution'));
+        brand ? convLine(brand, today) : null, stat(win, 'first_reply'), stat(win, 'resolution'));
     }
     function dayLine(x) {
       const td = x.total.today || {}, fr = td.first_reply || {}, rs = td.resolution || {};
@@ -6200,7 +6217,7 @@
       if (!st.el) return;
       const x = st.data;
       clear(st.el);
-      st.painted = st.sig + '|' + (st.err || '');
+      st.painted = st.sig + '|' + (st.err || '') + '|' + st.dsSig;
       st.el.append(h('div', { class: 'live-head' }, h('h3', { text: L.title }), x ? h('span', { class: 'muted small', text: d('sub', { f: x.config.first_reply_bh_h, r: x.config.resolution_h }) }) : null,
         h('span', { class: 'muted small', text: L.refresh })));
       if (st.err) st.el.append(h('div', { class: 'err-box', role: 'alert', 'data-test': 'sla-err', text: st.err }));
@@ -6210,7 +6227,7 @@
       const row = h('div', { class: 'live-cards sla-cards' });
       const names = Object.keys(x.brands || {});
       if (names.length > 1) row.append(card(L.all_brands, x.total, x.total.oldest ? x.total.oldest.wait_bh_s : null, x.total.window, 'sla-total', null, true));
-      names.forEach(function (b) { const v = x.brands[b]; row.append(card(brandName(b), v.counts, v.oldest ? v.oldest.wait_bh_s : null, v.window, 'sla-brand', b, false)); });
+      names.forEach(function (b) { const v = x.brands[b]; row.append(card(brandName(b), v.counts, v.oldest ? v.oldest.wait_bh_s : null, v.window, 'sla-brand', b, false, x.day)); });
       st.el.append(row);
       if ((x.missing_brands || []).length) st.el.append(h('div', { class: 'note-box warn', 'data-test': 'sla-missing', text: d('missing', { b: x.missing_brands.map(brandName).join(', ') }) }));
       st.el.append(h('h4', { text: L.alerts }));
@@ -6248,7 +6265,7 @@
     /** ONE element, built once. Asking for it again repaints only when the answer (or the error) changed. */
     function section() {
       if (!st.el) st.el = h('section', { class: 'dash-live dash-sla', id: 'dash-sla', 'data-test': 'sla', 'aria-live': 'polite' });
-      if (st.painted !== st.sig + '|' + (st.err || '') || !st.el.firstChild) paint();
+      if (st.painted !== st.sig + '|' + (st.err || '') + '|' + st.dsSig || !st.el.firstChild) paint();
       load();
       return st.el;
     }
@@ -6330,7 +6347,7 @@
       if (!isCancel) det.append(retCard);
       return det;
     }
-    return { banner: banner, section: section, start: start, load: load, playbooks: playbooks };
+    return { banner: banner, section: section, start: start, load: load, playbooks: playbooks, setDash: setDash };
   })();
 
   const Dash = (function () {
@@ -6992,7 +7009,7 @@
       let r;
       try { r = await api('/api/dash' + q, undefined, 'GET', { quiet: true }); } finally { if (seq === st.seq) st.busy = false; }
       if (seq !== st.seq) return;                       // the manager chose another day / range meanwhile (gate run 2026-10-06)
-      if (r && r.ok) { st.data = r; st.err = null; if (!st.date) st.shown = r.end_day; } else if (r) st.err = r.msg || r.error;
+      if (r && r.ok) { st.data = r; st.err = null; if (!st.date) st.shown = r.end_day; Sla.setDash(r); } else if (r) st.err = r.msg || r.error;
       if (S.view === 'dash') render();
     }
     function show() {

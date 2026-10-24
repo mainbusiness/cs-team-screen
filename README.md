@@ -725,3 +725,20 @@ Full design, measurements and limits: DECISIONS.md 2026-10-14. Tests: `tests/tes
 - The section has its own container and repaint: a check result repainting the notes never rebuilds an editor; an open editor's text lives in state.
 - Mock: rozela has 2 suggestions, celesta 1; `MOCK-GATE` in a note = a gated check; `MOCK_REDRAFT_NULL=1` = `redraft: null`;
   `MOCK_DECIDE_REDRAFT=1` = a decide that carries `redraft`. Tests: `tests/test_ai_notes_suggestions_browser.py`, `tests/test_ai_notes_proxy.py`.
+
+## SLA for the CS manager (Owner, 2026-10-24)
+Course law `brandon-support-sla-is-dispute-prevention`: fast support prevents chargebacks. Code: `sla.py` (pure functions + `GET /api/dash/sla`), the `Sla` module in `static/app.js`,
+tests `tests/test_sla.py` + `tests/test_sla_browser.py`. Managers only (admin + user-manager; an agent gets 403). No engine call of its own: it counts the server's cached ticket lists
+(a brand copy older than 30 s gets the one shared change-feed read). Ids, counts and times only: no customer name, email or text leaves the module.
+- **Targets (config):** first reply by a person <= 4 BUSINESS hours, resolution <= 36 hours (calendar), "about to breach" from 75% of either. Override with the Render env `SLA_CONFIG`
+  (JSON, any of `first_reply_bh_h`, `resolution_h`, `warn_ratio`, `window_days`, `hours`), validated; a bad value falls back to the default.
+- **Business hours (Asia/Jerusalem):** the engine defines only the desk CLOSE (17:00, `engine/DayStats.gs` `DS_SERVICE_CLOSE_HOUR`). Default used: Sun-Thu 09:00-17:00, Fri 09:00-13:00, Sat closed,
+  measured from the agents' activity log 2026-09-25..10-24 (team works Sun-Fri 09-17, Friday ends ~13:00). Change `hours` in `SLA_CONFIG` (`{"6":[9,17],...}`, Python weekday Mon=0..Sun=6).
+- **Open tickets (live):** a ticket in ready / action / health / delay waits for a person; its clock = `waiting_since` (the customer's last unanswered message), business hours only.
+  breach = past either target, risk = 75%+. Kind: "first reply" (no person handled it yet) or "follow-up".
+- **Completed (approximation):** first reply = waiting_since -> handled_at of a ticket a person answered (sent / wa_queued); resolution = the same for a ticket a person closed (done); per agent = `handled_by`.
+  The list holds every open ticket but only the last ~100 closed per brand and the LAST handling, so these are a proxy with the sample size shown; the true first reply of the day (dayStats, wall clock) is drawn beside it from the board's own data.
+- **Surfaces:** (1) banner on every manager screen, ONLY inside business hours and only when something breaches (red) or is about to (yellow), with per-brand counts, the oldest wait and a link to the board; polls once a minute;
+  (2) the SLA section on `#/dash` under the live strip (daily line, per-brand cards, breaching/at-risk table with a link to each ticket, agents table); (3) the midnight snapshot keeps the finished day's SLA numbers (`snap-*` key `sla`).
+- **Guidance in the ticket (agents too):** a collapsed "מדריך טיפול מהיר" card on every open ticket: the four playbooks (לא קיבלתי + the brand's /pages/track, לא זיהיתי את החיוב, ניסיתי לבטל, המוצר לא עבד) and the subscription-retention card
+  (opens first on a cancel ticket). The same rules sit in the knowledge assistant's prompt (`assistant.py` rule 9). Escalation names the CS manager's role, never Guy. The engine's draft prompt already carries the retention ladder (`CS_SUBSCRIPTION_SAVE`).
