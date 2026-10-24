@@ -827,3 +827,24 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 .cx-days tr.on td { background: var(--warn-bg); }
 .dash-cx .linkish { background: none; border: 0; padding: 4px 0; color: var(--brand); cursor: pointer; font: inherit; text-decoration: underline; }
 .dash-cx .table-wrap { margin-top: 6px; }
+
+/* SLA (2026-10-24): the manager's banner, the board section and the in-ticket guidance */
+.banner.sla-banner { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.banner.sla-banner .sla-main { font-size: 15px; }
+.dash-sla { border-inline-start-color: var(--danger); }
+.sla-dayline { font-weight: 700; margin: 8px 0 4px; }
+.sla-dayline.bad { color: var(--danger); }
+.sla-card.sla-breach { box-shadow: inset 0 -3px 0 var(--danger); }
+.sla-card.sla-breach .v { color: var(--danger); }
+.sla-card.sla-risk:not(.sla-breach) .v { color: var(--warn-ink); }
+.sla-card.total .v, .sla-card.total .sla-stat { color: inherit; }
+.sla-stat { margin-top: 4px; }
+.sla-table .sla-row.breach td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
+.sla-table .sla-row.risk td:first-child { box-shadow: inset 3px 0 0 var(--warn-ink); }
+.playbooks { margin: 10px 0; padding: 10px 14px; }
+.playbooks > summary { cursor: pointer; }
+.playbooks .pb-item { border-top: 1px solid var(--line); padding: 6px 0; }
+.playbooks .pb-item h4 { margin: 4px 0; font-size: 15px; }
+.playbooks .pb-item.hot { background: var(--action-bg); border-radius: 8px; padding: 6px 10px; border-top: 0; margin-bottom: 6px; }
+.playbooks .pb-lines { margin: 4px 0 2px; padding-inline-start: 20px; }
+.playbooks .pb-lines li { margin: 3px 0; }

@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from flask import g, jsonify, request
 
 import engine_proxy
+import sla
 
 TZ = ZoneInfo("Asia/Jerusalem")
 IDLE_GAP_S = 300            # "on screen": two actions at most 5 min apart are one run of on-screen work (the pre-2026-10-13 number)
@@ -1074,7 +1075,9 @@ def register(app, d):
             return False
         brands = sorted(d["engines"])
         rows = {b: list(cache.cached_rows(b).values()) for b in brands}
-        log.write_snap(y, {"day": y, "at": now, "rebuilt": bool(force), "brands": {b: overview(rows[b], y, now) for b in brands}})
+        # SLA (2026-10-24): the finished day's first-reply / resolution numbers are kept with the snapshot (the list only holds the last ~100 closed)
+        log.write_snap(y, {"day": y, "at": now, "rebuilt": bool(force), "brands": {b: overview(rows[b], y, now) for b in brands},
+                           "sla": {b: sla.day_summary(rows[b], y, now, sla.config()) for b in brands}})
         return True
 
     @app.post("/api/dash/snapshot")

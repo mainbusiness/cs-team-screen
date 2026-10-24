@@ -1214,6 +1214,8 @@
     clear(el);
     if (S.me.mock) el.append(h('p', { class: 'banner info', text: t('mock') }));
     (S.me.warnings || []).forEach(function (w) { el.append(h('p', { class: 'banner danger', text: t(w) })); });
+    const slab = S.me.can_manage_users ? Sla.banner() : null;          // SLA alert (2026-10-24): managers only, business hours only
+    if (slab) el.append(slab);
     if (S.view === 'users' || S.view === 'zip') return;
     const b = boot();
     if (b) el.append(modeBanner(b));
@@ -2089,6 +2091,7 @@
       body.append(h('div', { class: 'why' + (x.status === 'health' ? ' health' : ''), role: 'note', 'data-test': 'why-human' }, h('b', { text: t('why_human') }),
         lines.map(function (l) { return h('div', null, h('span', { text: l.text }), l.text !== l.raw ? h('div', null, h('bdi', { class: 'raw', text: l.raw })) : null); })));
     }
+    if (isOpen) body.append(Sla.playbooks(x, k.brand));          // quick guidance (2026-10-24): the 4 escalation playbooks + the subscription-retention card
     const cc = convCard(ex.conversation || [], outgoingFor(k.brand, k.id, ex.conversation || []));
     cc.id = 'tk-conv';
     if (isWA(x)) cc.classList.add('wa');
@@ -6084,6 +6087,252 @@
     return { mount: mount };
   })();
 
+  /**
+   * SLA for the CS manager (Owner, 2026-10-24; course law brandon-support-sla-is-dispute-prevention: fast support prevents chargebacks).
+   * Three surfaces, one data source (GET /api/dash/sla, managers only, counted from the server's cached ticket lists):
+   *  - banner(): a strip on every screen for a manager, ONLY during business hours and only when something breaches / is about to.
+   *  - section(): the SLA block on the managers' board (built once, repainted in place only when the answer changed: build-rules §1ב).
+   *  - playbooks(): the four escalation playbooks + the subscription-retention card, a collapsed card inside every open ticket (agents too).
+   * Targets and business hours come from the server (config values); nothing here is hard-coded except the wording.
+   */
+  const Sla = (function () {
+    const HE = {
+      title: 'SLA: זמני מענה', sub: 'מענה ראשון עד {f} שעות עבודה · סגירה עד {r} שעות', hours: 'שעות עבודה: {h} ({s})', refresh: 'מתעדכן כל דקה',
+      win: '{n} ימים אחרונים', day_line: 'היום: {fn} מענים ראשונים של אדם ({fp} בתוך היעד, חציון {fm}) · {rn} סגירות ({rp} בתוך היעד) · עכשיו {b} חורגות ו-{k} קרובות לחריגה',
+      no_data: 'עוד אין נתון', waiting: 'ממתינות', breach: 'חורגות', risk: 'קרובות לחריגה', oldest: 'הוותיקה ביותר', first_reply: 'מענה ראשון של אדם', resolution: 'סגירה',
+      in_target: 'בתוך היעד', median: 'חציון', n: 'מדגם', all_brands: 'כל המותגים', bh: 'ש׳ עבודה', h: 'ש׳', min: 'דק׳', open_ticket: 'פתח', agents: 'נציגים (לפי מי שטיפל אחרון)',
+      agent: 'נציג', alerts: 'פניות שחורגות או קרובות לחריגה', alerts_more: 'ועוד {n} שלא מוצגות', none_alert: 'אין פניות שחורגות או קרובות לחריגה', brand: 'מותג', channel: 'ערוץ',
+      wait: 'ממתינה', wall: 'מאז', why: 'יעד', why_reply: 'מענה', why_resolution: 'סגירה', kind_first: 'מענה ראשון', kind_followup: 'המשך שיחה', state_breach: 'חורגת', state_risk: 'קרובה',
+      email: 'מייל', whatsapp: 'וואטסאפ', off_hours: 'כרגע מחוץ לשעות העבודה: ההתראה במסכים האחרים מופיעה רק בשעות העבודה', missing: 'אין עדיין נתון למותג: {b}',
+      method: 'חישוב: ממתינות = הזמן מההודעה האחרונה של הלקוח שלא נענתה (שעות עבודה בלבד). מענה ראשון וסגירה: קירוב מהרשימה, שמחזיקה את כל הפתוחות אבל רק כ-100 סגורות אחרונות לכל מותג, ומתעדכן לפי הטיפול האחרון בפנייה.',
+      b_breach: 'SLA: {b} פניות חורגות מיעד המענה ({f} שעות עבודה)', b_risk: 'SLA: {k} פניות קרובות לחריגה מיעד המענה ({f} שעות עבודה)', b_risk_extra: '{k} קרובות לחריגה', b_oldest: 'הוותיקה ממתינה {o}', b_open: 'לוח SLA',
+      pb_title: 'מדריך טיפול מהיר', pb_sub: 'ארבעה תרחישים שהופכים לצ׳ארג׳בק אם מתעכבים, וכרטיס שימור למנויים', pb_manager: 'מנהל השירות',
+      pb_open_hint: 'מוצג פתוח כי זו פניית ביטול'
+    };
+    const EN = {
+      title: 'SLA: response times', sub: 'First reply within {f} business hours · resolved within {r} hours', hours: 'Business hours: {h} ({s})', refresh: 'refreshes every minute',
+      win: 'last {n} days', day_line: 'Today: {fn} first replies by a person ({fp} within target, median {fm}) · {rn} closed ({rp} within target) · now {b} breaching and {k} about to breach',
+      no_data: 'no data yet', waiting: 'waiting', breach: 'Breaching', risk: 'about to breach', oldest: 'Oldest', first_reply: 'First reply by a person', resolution: 'Resolution',
+      in_target: 'within target', median: 'median', n: 'sample', all_brands: 'All brands', bh: 'business h', h: 'h', min: 'min', open_ticket: 'Open', agents: 'Agents (by who handled last)',
+      agent: 'Agent', alerts: 'Tickets breaching or about to breach', alerts_more: 'and {n} more not shown', none_alert: 'No ticket is breaching or about to breach', brand: 'Brand', channel: 'Channel',
+      wait: 'Waiting', wall: 'Since', why: 'Target', why_reply: 'reply', why_resolution: 'resolution', kind_first: 'first reply', kind_followup: 'follow-up', state_breach: 'breaching', state_risk: 'at risk',
+      email: 'Email', whatsapp: 'WhatsApp', off_hours: 'Outside business hours now: the banner on other screens shows only during business hours', missing: 'No data yet for: {b}',
+      method: 'How: waiting = time since the customer\'s last unanswered message (business hours only). First reply and resolution are an approximation from the list, which holds every open ticket but only the last ~100 closed per brand, and reflects the ticket\'s last handling.',
+      b_breach: 'SLA: {b} tickets are past the reply target ({f} business hours)', b_risk: 'SLA: {k} tickets are close to the reply target ({f} business hours)', b_risk_extra: '{k} close to breach', b_oldest: 'oldest has waited {o}', b_open: 'SLA board',
+      pb_title: 'Quick handling guide', pb_sub: 'Four situations that turn into chargebacks when delayed, and the subscription-retention card', pb_manager: 'the CS manager',
+      pb_open_hint: 'open because this is a cancel ticket'
+    };
+    const L = LANG === 'en' ? EN : HE;
+    function d(k, v) { let s = L[k] || k; Object.keys(v || {}).forEach(function (x) { s = s.split('{' + x + '}').join(v[x]); }); return s; }
+    const st = { data: null, sig: '', painted: null, busy: false, timer: null, el: null, err: null };
+    const DAYS = LANG === 'en' ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+    function num(v) { return typeof v === 'number' && isFinite(v) ? v : null; }
+    function fmtBh(sec) { sec = num(sec); if (sec === null) return '—'; return sec < 3600 ? Math.round(sec / 60) + ' ' + L.min : (sec / 3600).toFixed(1).replace(/\.0$/, '') + ' ' + L.bh; }
+    function fmtH(hours) { hours = num(hours); if (hours === null) return '—'; return hours < 1 ? Math.round(hours * 60) + ' ' + L.min : (hours < 48 ? hours.toFixed(1).replace(/\.0$/, '') + ' ' + L.h : Math.round(hours / 24) + (LANG === 'en' ? ' d' : ' ימים')); }
+    function pct(v) { return num(v) === null ? '—' : Math.round(v) + '%'; }
+    function hoursText(c) {
+      const by = {};
+      Object.keys(c.hours || {}).forEach(function (k) { const w = c.hours[k]; const key = w[0] + '-' + w[1]; (by[key] = by[key] || []).push(k); });
+      return Object.keys(by).map(function (key) {
+        const idx = by[key].map(function (k) { return (Number(k) + 1) % 7; }).sort(function (a, b) { return a - b; });   // python Mon=0..Sun=6 -> Sun=0
+        return idx.map(function (i) { return DAYS[i]; }).join(' ') + ' ' + key.replace('-', '–');
+      }).join(' · ');
+    }
+    function brandBreach(x) {
+      return Object.keys(x.brands || {}).filter(function (b) { return x.brands[b].counts.breach; }).map(function (b) { return brandName(b) + ' ' + x.brands[b].counts.breach; }).join(' · ');
+    }
+    function sigOf(x) {
+      return x ? JSON.stringify([x.banner, x.in_hours, x.total && [x.total.open, x.total.breach, x.total.risk, x.total.oldest && x.total.oldest.wait_bh_s],
+        Object.keys(x.brands || {}).map(function (b) { const c = x.brands[b].counts; return [b, c.open, c.breach, c.risk]; }), (x.alerts || []).map(function (a) { return [a.id, a.state, a.wait_bh_s]; }),
+        x.total && x.total.today, x.total && x.total.window, x.agents, x.missing_brands]) : '';
+    }
+    async function load() {
+      if (st.busy) return;
+      st.busy = true;
+      let r;
+      try { r = await api('/api/dash/sla', undefined, 'GET', { quiet: true }); } finally { st.busy = false; }
+      if (!r || !r.ok) { if (r && r.error) { st.err = r.msg || r.error; if (S.view === 'dash') paint(); } return; }
+      st.err = null;
+      const sig = sigOf(r);
+      st.data = r;
+      if (sig === st.sig) return;                 // unchanged answer = zero rendering (build-rules §1ב)
+      st.sig = sig;
+      if (S.view === 'dash') paint(); else renderBanners();
+    }
+    function start() {
+      if (!S.me || !S.me.can_manage_users || st.timer) return;
+      load();
+      st.timer = setInterval(function () { if (!document.hidden) load(); }, 60000);
+    }
+    function banner() {
+      const x = st.data;
+      if (!x || !x.banner || S.view === 'dash') return null;
+      const f = x.config.first_reply_bh_h;
+      const t = x.total, old = t.oldest;
+      const main = x.banner === 'breach' ? d('b_breach', { b: t.breach, f: f }) : d('b_risk', { k: t.risk, f: f });
+      const parts = [x.banner === 'breach' && t.risk ? d('b_risk_extra', { k: t.risk }) : null, x.banner === 'breach' ? brandBreach(x) : null,
+        old ? d('b_oldest', { o: fmtBh(old.wait_bh_s) }) : null].filter(Boolean);
+      return h('div', { class: 'banner sla-banner ' + (x.banner === 'breach' ? 'danger' : 'warn'), role: 'alert', 'data-test': 'sla-banner', 'data-level': x.banner },
+        h('b', { class: 'sla-main', text: main }), parts.length ? h('span', { class: 'sla-parts', text: ' · ' + parts.join(' · ') }) : null, ' ',
+        h('a', { class: 'btn small', href: '#/dash', 'data-test': 'sla-banner-go', text: L.b_open }));
+    }
+    function stat(o, kind) {
+      const s = (o || {})[kind] || {};
+      if (!s.n) return h('div', { class: 'sla-stat muted small', 'data-test': 'sla-' + kind, text: L[kind] + ': ' + L.no_data });
+      const med = kind === 'first_reply' ? fmtBh(s.median) : fmtH(s.median);
+      return h('div', { class: 'sla-stat small', 'data-test': 'sla-' + kind },
+        h('b', { text: L[kind] + ': ' }), pct(s.within_pct) + ' ' + L.in_target + ' · ' + L.median + ' ' + med + ' · ' + L.n + ' ' + s.n);
+    }
+    function card(name, c, oldestBh, win, test, brand, total) {
+      const cls = 'live-card sla-card' + (total ? ' total' : '') + (c.breach ? ' sla-breach' : c.risk ? ' sla-risk' : '');
+      return h('div', { class: cls, 'data-test': test, 'data-brand': brand || null },
+        h('div', { class: 'l' }, h('bdi', { text: name })),
+        h('div', { class: 'v', 'data-test': 'sla-breach-n', text: String(c.breach) }),
+        h('div', { class: 'small', text: L.breach + ' · ' + c.risk + ' ' + L.risk + ' · ' + c.open + ' ' + L.waiting }),
+        h('div', { class: 'small', 'data-test': 'sla-oldest', text: L.oldest + ': ' + (oldestBh === null ? '—' : fmtBh(oldestBh)) }),
+        stat(win, 'first_reply'), stat(win, 'resolution'));
+    }
+    function dayLine(x) {
+      const td = x.total.today || {}, fr = td.first_reply || {}, rs = td.resolution || {};
+      return d('day_line', { fn: fr.n || 0, fp: pct(fr.within_pct), fm: fmtBh(fr.median), rn: rs.n || 0, rp: pct(rs.within_pct), b: x.total.breach, k: x.total.risk });
+    }
+    function paint() {
+      if (!st.el) return;
+      const x = st.data;
+      clear(st.el);
+      st.painted = st.sig + '|' + (st.err || '');
+      st.el.append(h('div', { class: 'live-head' }, h('h3', { text: L.title }), x ? h('span', { class: 'muted small', text: d('sub', { f: x.config.first_reply_bh_h, r: x.config.resolution_h }) }) : null,
+        h('span', { class: 'muted small', text: L.refresh })));
+      if (st.err) st.el.append(h('div', { class: 'err-box', role: 'alert', 'data-test': 'sla-err', text: st.err }));
+      if (!x) { if (!st.err) st.el.append(h('div', { class: 'skeleton' })); return; }
+      st.el.append(h('div', { class: 'sla-dayline' + (x.total.breach ? ' bad' : ''), 'data-test': 'sla-dayline', role: 'status', text: dayLine(x) }));
+      if (!x.in_hours) st.el.append(h('div', { class: 'muted small', 'data-test': 'sla-off', text: L.off_hours }));
+      const row = h('div', { class: 'live-cards sla-cards' });
+      const names = Object.keys(x.brands || {});
+      if (names.length > 1) row.append(card(L.all_brands, x.total, x.total.oldest ? x.total.oldest.wait_bh_s : null, x.total.window, 'sla-total', null, true));
+      names.forEach(function (b) { const v = x.brands[b]; row.append(card(brandName(b), v.counts, v.oldest ? v.oldest.wait_bh_s : null, v.window, 'sla-brand', b, false)); });
+      st.el.append(row);
+      if ((x.missing_brands || []).length) st.el.append(h('div', { class: 'note-box warn', 'data-test': 'sla-missing', text: d('missing', { b: x.missing_brands.map(brandName).join(', ') }) }));
+      st.el.append(h('h4', { text: L.alerts }));
+      if (!(x.alerts || []).length) st.el.append(h('div', { class: 'muted small', 'data-test': 'sla-none', text: L.none_alert }));
+      else {
+        const tb = h('table', { class: 'dash-table sla-table', 'data-test': 'sla-alerts' }, h('thead', null, h('tr', null, [L.brand, L.channel, L.kind_first + ' / ' + L.kind_followup, L.wait, L.wall, L.why, ''].map(function (c) { return h('th', { text: c }); }))));
+        const body = h('tbody');
+        x.alerts.forEach(function (a) {
+          body.append(h('tr', { class: 'sla-row ' + a.state, 'data-test': 'sla-alert', 'data-state': a.state, 'data-brand': a.brand },
+            h('td', null, h('bdi', { text: brandName(a.brand) })), h('td', { text: a.ch === 'whatsapp' ? L.whatsapp : L.email }),
+            h('td', { text: a.kind === 'first' ? L.kind_first : L.kind_followup }), h('td', null, h('b', { text: fmtBh(a.wait_bh_s) })), h('td', { text: fmtH(a.wall_h) }),
+            h('td', null, h('span', { class: 'chip ' + (a.state === 'breach' ? 'bad' : 'warn-chip'), text: (a.state === 'breach' ? L.state_breach : L.state_risk) + ' · ' + a.why.map(function (w) { return L['why_' + w]; }).join(' + ') })),
+            h('td', null, h('a', { class: 'btn small', href: '#/b/' + encodeURIComponent(a.brand) + '/t/' + encodeURIComponent(a.id), text: L.open_ticket }))));
+        });
+        tb.append(body);
+        st.el.append(h('div', { class: 'table-wrap' }, tb));
+        if (x.alerts_more) st.el.append(h('div', { class: 'muted small', text: d('alerts_more', { n: x.alerts_more }) }));
+      }
+      const ag = Object.keys(x.agents || {}).filter(function (a) { const v = x.agents[a]; return v.first_reply.n || v.resolution.n; });
+      if (ag.length) {
+        st.el.append(h('h4', { text: L.agents + ' · ' + d('win', { n: x.config.window_days }) }));
+        const tb = h('table', { class: 'dash-table', 'data-test': 'sla-agents' }, h('thead', null, h('tr', null, [L.agent, L.first_reply, L.in_target, L.median, L.resolution, L.in_target, L.median].map(function (c) { return h('th', { text: c }); }))));
+        const body = h('tbody');
+        ag.sort().forEach(function (a) {
+          const f = x.agents[a].first_reply, r = x.agents[a].resolution;
+          body.append(h('tr', { 'data-test': 'sla-agent', 'data-agent': a }, h('td', null, h('bdi', { text: a })), h('td', { text: String(f.n) }), h('td', { text: pct(f.within_pct) }), h('td', { text: fmtBh(f.median) }),
+            h('td', { text: String(r.n) }), h('td', { text: pct(r.within_pct) }), h('td', { text: fmtH(r.median) })));
+        });
+        tb.append(body);
+        st.el.append(h('div', { class: 'table-wrap' }, tb));
+      }
+      st.el.append(h('div', { class: 'muted small sla-def', 'data-test': 'sla-def', text: d('hours', { h: hoursText(x.config), s: x.config.hours_source }) }),
+        h('div', { class: 'muted small', text: L.method }));
+    }
+    /** ONE element, built once. Asking for it again repaints only when the answer (or the error) changed. */
+    function section() {
+      if (!st.el) st.el = h('section', { class: 'dash-live dash-sla', id: 'dash-sla', 'data-test': 'sla', 'aria-live': 'polite' });
+      if (st.painted !== st.sig + '|' + (st.err || '') || !st.el.firstChild) paint();
+      load();
+      return st.el;
+    }
+
+    // ---- the quick guidance inside a ticket (Owner, 2026-10-24) ----
+    const TRACK = { rozela: 'https://tryrozela.com/pages/track', celesta: 'https://try-celesta.com/pages/track', apexmen: 'https://apexmen-il.com/pages/track' };
+    const PB = {
+      he: [
+        { k: 'not_received', t: 'לא קיבלתי', lines: [
+          'בודקים בכרטיס ההזמנה אם נשלחה, מתי, ומה מספר המעקב.',
+          'שולחים ללקוח את דף המעקב {track} ואת מספר המעקב.',
+          'זמן משלוח: אומרים רק "לרוב המשלוח לוקח בין 7 ל-12 ימי עסקים". לא מספר ימים אחר.',
+          'עברו 12 ימי עסקים ואין תזוזה במעקב, או שהלקוח כועס: מעבירים ל{mgr} באותו יום.'] },
+        { k: 'unknown_charge', t: 'לא זיהיתי את החיוב', lines: [
+          'עונים בתוך 4 שעות עבודה. חיוב שלא זוהה ונשאר בלי מענה נגמר בדיספיוט בבנק.',
+          'מזהים את החיוב בשבילו: שם החנות, תאריך, סכום ומה הוזמן (מכרטיס ההזמנה והמנוי). אם זה מנוי, אומרים בפשטות שזה החיוב החוזר שלו.',
+          'לא מתווכחים ולא אומרים "אישרת". אם הוא עדיין לא מזהה או לא רוצה: מבטלים את המנוי באותו יום ושולחים אישור כתוב.',
+          'בקשת החזר: לפי מדיניות המותג. מקרה לא ברור: {mgr}.'] },
+        { k: 'tried_cancel', t: 'ניסיתי לבטל', lines: [
+          'מטפלים באותו יום, בלי שום עיכוב. ביטול שנתקע הופך לצ׳ארג׳בק.',
+          'בודקים ב-Kaching שהמנוי פעיל, מבטלים בכפתור "לבטל את המנוי" ושולחים אישור כתוב.',
+          'הוא כבר ביקש לבטל: לא מציעים לו שימור שוב. מתנצלים בקצרה ומאשרים שבוטל.',
+          'הכפתור נכשל: לא משאירים אותו מחכה. מעבירים ל{mgr} מיד, באותו יום.'] },
+        { k: 'not_worked', t: 'המוצר לא עבד', lines: [
+          'מקשיבים ולא מתגוננים. שואלים כמה זמן הוא משתמש ואיך.',
+          'לא מבטיחים תוצאות בריאותיות ולא טוענים טענה רפואית.',
+          'תופעות לוואי או בעיה בריאותית: בלי שכנוע, מבטלים אם ביקש ומנתבים לבריאות.',
+          'רוצה לבטל או להחזר: מנוי מבטלים באותו יום. החזר לפי מדיניות המותג, וכשצריך החלטה: {mgr}.'] }
+      ],
+      ret: { t: 'שימור בביטול מנוי', lines: [
+        '1. שואלים למה: "מה גרם לך לרצות לבטל?". אין הצעה לפני שיודעים את הסיבה.',
+        '2. מזדהים: "לגמרי מבין אותך". ורק אז פתרון לפי הסיבה.',
+        '3. הצעה אחת לפי הסיבה. אין תוצאות: להתחייב ל-90 יום (ומתנה בהזמנה הבאה, פעם אחת ללקוח). יותר מדי מלאי: לדחות את המשלוח הבא. יקר: מתנה חינם, או הקפאה של חודש. לא ידע שזה מנוי: הסבר ברור על מה הוא מקבל. אחר: רק דחייה.',
+        '4. הקפאה היא תמיד עם תאריך חזרה. אף פעם לא "השהיה פתוחה".',
+        '5. תופעות לוואי או בריאות: בלי הצעה ובלי שכנוע. מבטלים ומנתבים לבריאות.',
+        '6. ניסיון שימור אחד בלבד. הלקוח עדיין רוצה? מבטלים באותו יום ושולחים אישור כתוב.',
+        '7. חיוב שנכשל (כרטיס נדחה) הוא לא ביטול: פונים באותו יום עם קישור לעדכון כרטיס מ-Kaching.'] }
+    };
+    PB.en = [
+      { k: 'not_received', t: 'I did not receive it', lines: [
+        'Open the order card: was it shipped, when, and the tracking number.',
+        'Send the customer the tracking page {track} and the tracking number.',
+        'Delivery time: say only "usually 7 to 12 business days". Never another number of days.',
+        '12 business days passed with no movement, or the customer is angry: hand it to {mgr} the same day.'] },
+      { k: 'unknown_charge', t: 'I do not recognize the charge', lines: [
+        'Answer within 4 business hours. An unrecognized charge left unanswered ends as a bank dispute.',
+        'Identify the charge for them: store name, date, amount and what was ordered (from the order and subscription cards). For a subscription, say plainly it is their recurring charge.',
+        'Do not argue and do not say "you approved it". If they still do not recognize it or do not want it: cancel the subscription the same day and send a written confirmation.',
+        'Refund request: per the brand policy. Unclear case: {mgr}.'] },
+      { k: 'tried_cancel', t: 'I tried to cancel', lines: [
+        'Handle it the same day, no delay. A stuck cancel becomes a chargeback.',
+        'Check in Kaching that the subscription is active, cancel with the "Cancel subscription" button and send a written confirmation.',
+        'They already asked to cancel: do not offer retention again. Apologize briefly and confirm it is cancelled.',
+        'The button failed: do not leave them waiting. Hand it to {mgr} at once, the same day.'] },
+      { k: 'not_worked', t: 'The product did not work', lines: [
+        'Listen, do not get defensive. Ask how long they have used it and how.',
+        'Never promise health results and never make a medical claim.',
+        'Side effects or a health problem: no persuasion, cancel if they ask and route to health.',
+        'Wants to cancel or a refund: cancel a subscription the same day. Refund per the brand policy; when a decision is needed: {mgr}.'] }
+    ];
+    PB.ren = { t: 'Subscription cancel: retention', lines: [
+      '1. Ask why: "What made you want to cancel?". No offer before you know the reason.',
+      '2. Empathize: "I completely understand". Only then a solution matched to the reason.',
+      '3. One offer by reason. No results: commit to 90 days (plus a gift on the next order, once per customer). Too much stock: postpone the next shipment. Expensive: a free gift, or a one-month freeze. Did not know it is a subscription: a clear explanation of what they get. Other: a postponement only.',
+      '4. A freeze always has a return date. Never an open-ended pause.',
+      '5. Side effects or health: no offer, no persuasion. Cancel and route to health.',
+      '6. One save attempt only. Still want to leave? Cancel the same day and send a written confirmation.',
+      '7. A failed charge (declined card) is not a cancel: contact them the same day with the Kaching card-update link.'] };
+    function fill(s, brand) { return String(s).split('{track}').join(TRACK[brand] || '/pages/track').split('{mgr}').join(L.pb_manager); }
+    function playbooks(x, brand) {
+      const list = LANG === 'en' ? PB.en : PB.he, ret = LANG === 'en' ? PB.ren : PB.ret;
+      const isCancel = /^cancel:/i.test(String(x.action || '')) || String(x.category || '') === 'cancel_subscription';
+      const det = h('details', { class: 'card playbooks', 'data-test': 'playbooks', 'data-cancel': isCancel ? '1' : null, open: isCancel });
+      det.append(h('summary', null, h('b', { text: '📋 ' + L.pb_title }), ' ', h('span', { class: 'muted small', text: L.pb_sub })));
+      const ul = function (lines) { return h('ul', { class: 'pb-lines' }, lines.map(function (l) { return h('li', { dir: 'auto', text: fill(l, brand) }); })); };
+      const retCard = h('div', { class: 'pb-item pb-ret' + (isCancel ? ' hot' : ''), 'data-test': 'pb-retention' }, h('h4', { text: ret.t }), isCancel ? h('div', { class: 'muted small', text: L.pb_open_hint }) : null, ul(ret.lines));
+      if (isCancel) det.append(retCard);
+      list.forEach(function (p) { det.append(h('div', { class: 'pb-item', 'data-test': 'pb-' + p.k }, h('h4', { text: p.t }), ul(p.lines))); });
+      if (!isCancel) det.append(retCard);
+      return det;
+    }
+    return { banner: banner, section: section, start: start, load: load, playbooks: playbooks };
+  })();
+
   const Dash = (function () {
     const HE = {
       title: 'לוח מנהלים', day: 'יום', d7: '7 ימים', d30: '30 ימים', updated: 'עודכן', loading: 'טוען…',
@@ -6701,7 +6950,7 @@
         onclick: function () { const c = document.getElementById('ai-notes'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }));
       if (st.data) head.append(h('b', { class: 'shown-day', 'data-test': 'dash-shown', text: st.data.days.length > 1 ? st.data.days[0] + ' – ' + st.data.end_day : st.data.end_day }));
       if (st.data) head.append(h('span', { class: 'muted small', 'data-test': 'dash-updated', text: L.updated + ' ' + new Date(st.data.generated_at * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL') }));
-      p.append(head, liveStrip());
+      p.append(head, liveStrip(), Sla.section());          // SLA (2026-10-24): managers' board, right under the live strip
       if (S.me.is_admin) p.append(cxStrip());          // cancellations (2026-10-23): admins only, like the sales table
       if (st.err) p.append(h('div', { class: 'err-box', text: st.err }));
       const x = st.data;
@@ -7290,6 +7539,7 @@
     Snooze.load();                                     // his snoozed tickets (server-side: the same on every device)
     window.addEventListener('hashchange', route);
     route();
+    Sla.start();                                       // SLA banner for managers (2026-10-24): one light poll a minute, nothing for agents
   }
   start();
 })();

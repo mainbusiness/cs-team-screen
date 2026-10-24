@@ -39,6 +39,7 @@ import llm
 import messages
 import dashboard
 import security
+import sla
 import snooze
 from zipfix import routes as zipfix_routes
 from users_store import ROLES, PgUserStore, UserStore, UserStoreError, public_user
@@ -644,6 +645,8 @@ def create_app(overrides=None):
     dashboard.register(app, {"api_user": api_user, "json_error": json_error, "is_manager": is_manager, "store": store,
                              "cache": tcache, "engines": engines, "log": act_log, "ui_lang": ui_lang, "snooze": snooze_store,
                              "start_thread": bool(o.get("DASH_SNAPSHOT_THREAD"))})
+
+    sla.register(app, {"api_user": api_user, "json_error": json_error, "is_manager": is_manager, "cache": tcache, "engines": engines, "ui_lang": ui_lang})
 
     assistant.register(app, {
         "ticket_cache": tcache, "ui_lang": ui_lang,
