@@ -41,6 +41,7 @@ import dashboard
 import security
 import sla
 import snooze
+import sysreq
 from zipfix import routes as zipfix_routes
 from users_store import ROLES, PgUserStore, UserStore, UserStoreError, public_user
 
@@ -246,6 +247,8 @@ def create_app(overrides=None):
         if request.method in ("GET", "HEAD", "OPTIONS"):
             return
         if request.path.startswith("/bot/zipfix"):       # machine route: no session, authenticated by X-Zipbot-Token instead
+            return
+        if sysreq.MACHINE_PATH_RE.match(request.path):   # the two machine routes only (the Mini): no session, HMAC token in X-HQ-Token
             return
         origin = request.headers.get("Origin")
         if origin:
@@ -662,6 +665,13 @@ def create_app(overrides=None):
     attach.register(app, {"engines": engines, "transport": transport, "api_user": api_user, "ui_lang": ui_lang, "store": store})
     snooze.register(app, {"api_user": api_user, "json_error": json_error, "ui_lang": ui_lang, "store": store, "cache": tcache,
                           "snooze": snooze_store, "is_test_user": dashboard.is_test_user})
+
+    # system change requests from the managers to the owner (2026-10-25): admins on the board, the Mini through the machine API
+    sysreq_store = o.get("SYSREQ_STORE") or (sysreq.PgSysReqStore(pgdb) if pgdb else sysreq.SysReqStore(
+        o.get("SYSREQ_PATH", os.environ.get("SYSREQ_PATH", os.path.join(cache_base, "system-requests.json")))))
+    app.extensions["cs"]["sysreq"] = sysreq_store
+    sysreq.register(app, {"api_user": api_user, "json_error": json_error, "ui_lang": ui_lang, "store": store, "sysreq": sysreq_store,
+                          "token_secret": lambda: app.config["TOKEN_SECRET"]})
 
     @app.errorhandler(404)
     def nf(_e):

@@ -21,6 +21,11 @@ PROXY = {
     "snooze_not_open": ("אפשר לדחות רק פנייה פתוחה. רעננו את הרשימה.", "Only an open ticket can be snoozed. Refresh the list."),
     "snooze_everyone": ("אי אפשר לדחות: אף נציג אחר לא יראה את הפנייה. היא חייבת להישאר אצל מישהו.",
                         "Cannot snooze: no other agent would see this ticket. It must stay with someone."),
+    # system change requests to the owner (sysreq.py, 2026-10-25)
+    "sysreq_bad_text": ("כתבו מה הבעיה ומה צריך להשתנות: בין 10 ל-2000 תווים.", "Describe the problem and what should change: 10 to 2000 characters."),
+    "sysreq_bad_brand": ("בחרו מותג מהרשימה (או כל המותגים).", "Pick a brand from the list (or all brands)."),
+    "sysreq_bad_ticket": ("מספר הפנייה / ההזמנה לא תקין: בלי רווחים ובלי עברית, עד 80 תווים.", "The ticket / order reference is not valid: no spaces, up to 80 characters."),
+    "sysreq_rid_conflict": ("הבקשה הזאת כבר נשלחה עם תוכן אחר. רעננו את הדף ושלחו שוב.", "This request was already sent with other content. Refresh the page and send again."),
     "forbidden_fn": ("הפעולה הזאת לא זמינה מהמסך.", "This action is not available from the screen."),
     "forbidden_role": ("לתפקיד שלך אין הרשאה לפעולה הזאת.", "Your role cannot do this."),
     "brand_not_connected": ("המותג הזה עוד לא מחובר למערכת.", "This brand is not connected yet."),

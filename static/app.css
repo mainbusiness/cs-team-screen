@@ -848,3 +848,25 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 .playbooks .pb-item.hot { background: var(--action-bg); border-radius: 8px; padding: 6px 10px; border-top: 0; margin-bottom: 6px; }
 .playbooks .pb-lines { margin: 4px 0 2px; padding-inline-start: 20px; }
 .playbooks .pb-lines li { margin: 3px 0; }
+
+/* system change requests to the owner (2026-10-25) — managers' board, under the AI-notes card */
+.sysreq-card { margin: 18px 0 8px; }
+.dash-pane .sysreq-card h3 { margin-top: 0; }
+.sysreq-help { margin: 0 0 8px; }
+.sysreq-ta { width: 100%; box-sizing: border-box; min-height: 84px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; resize: vertical; }
+.sysreq-ticket { width: 9em; max-width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.sysreq-card .ain-row .sysreq-count { margin-inline-start: auto; }
+.sysreq-status { padding: 6px 10px; border-radius: 8px; margin: 4px 0 8px; }
+.sysreq-status.ok { background: var(--ready-bg); color: var(--ready); }
+.sysreq-status.bad { background: var(--danger-bg); color: var(--danger); }
+.sysreq-list h4 { margin: 12px 0 6px; }
+.sysreq-item { border-top: 1px solid var(--line); padding: 8px 0; }
+.sysreq-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-bottom: 4px; }
+.sysreq-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.sysreq-reply { margin-top: 6px; padding: 6px 10px; background: var(--bg); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chip.sysreq-chip.pending { background: var(--warn-bg); color: var(--warn-ink); }
+.chip.sysreq-chip.approved { background: var(--ready-bg); color: var(--ready); }
+.chip.sysreq-chip.done { background: var(--sent-bg); color: var(--sent); }
+.chip.sysreq-chip.rejected { background: var(--danger-bg); color: var(--danger); }
+.sysreq-archive { margin-top: 8px; }
+.sysreq-arch-row { padding: 2px 0; overflow-wrap: anywhere; }

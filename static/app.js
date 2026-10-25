@@ -5609,6 +5609,161 @@
     return { mount: mount, load: load };
   })();
 
+  // ---------------------------------------------------------------- system change requests to the owner (Owner, 2026-10-25)
+  /* "שהוא יוכל לשלוח העברות לתקן את המערכת עצמה לא רק את התשובות של ה-AI. זה יעבור לפה לאישור שלי אבל שהוא יוכל להציע דברים."
+   *  Admins only, on the managers' board right under the AI-notes card (the server answers 403 to anyone else: team_screen/sysreq.py).
+   *  A request executes nothing: the Mac Mini pulls it into the owner's HQ, the owner decides there, the status + his reply come back here.
+   *  - The card is built once; only the status line and the list repaint (the textarea is never rebuilt under the manager's fingers).
+   *  - The draft is mirrored to localStorage per user and survives a reload; it is cleared only after the server confirmed the save.
+   *  - One rid per content: a retry of the same text after a lost answer is a replay (no duplicate), an edited text gets a new rid.
+   *  - Done / rejected requests older than 14 days leave the list for a collapsed archive line (never deleted). */
+  const SysReq = (function () {
+    const MIN = 10, MAX = 2000, KEEP_DAYS = 14;
+    const HE = {
+      title: '🛠️ הצעות לשיפור המערכת', jump: '🛠️ הצעה לשיפור המערכת',
+      help: 'כאן מבקשים שינוי במערכת עצמה: מסך, כפתור, תהליך עבודה, כלל או תקלה. הבקשה נשלחת לגיא לאישור, ושום דבר לא משתנה לפני שהוא מאשר. לשינוי בניסוח התשובות של ה-AI — ההערות ל-AI שלמעלה.',
+      ph: 'מה הבעיה, ומה צריך להשתנות? למשל: "אחרי סגירת פנייה בוואטסאפ המסך חוזר לראש הרשימה — שיעבור לפנייה שמעל."',
+      brand: 'מותג', all: 'כל המותגים', ticket: 'פנייה / הזמנה (לא חובה)', ticket_ph: 'למשל 1646', send: 'שליחה לגיא', sending: 'שולח…',
+      count: '{n}/2000', short: 'עוד {n} תווים לפחות', sent: 'נשלח לגיא לאישור ✓', fail: 'לא נשלח: {m} — הטקסט נשאר בתיבה.',
+      list: 'הבקשות שנשלחו', none: 'עוד לא נשלחו בקשות.', load_fail: 'לא הצלחנו לטעון את הבקשות: {m}', again: 'לנסות שוב',
+      st_pending: '⏳ ממתין לגיא', st_approved: '✅ אושר', st_done: '🔧 בוצע', st_rejected: '❌ נדחה',
+      reply: 'תשובת גיא:', meta: '#{id} · {b} · {d} · {who}', ticket_ref: 'פנייה {t}', archive: 'ארכיון — בוצעו / נדחו לפני יותר מ-14 יום ({n})',
+      restored: 'שוחזרה טיוטה שלא נשלחה מהמכשיר הזה.'
+    };
+    const EN = {
+      title: '🛠️ System change requests', jump: '🛠️ Request a system change',
+      help: 'Ask here for a change to the system itself: a screen, a button, a workflow, a rule or a bug. The request goes to the owner for approval, and nothing changes before he approves. To change how the AI words its answers, use the AI notes above.',
+      ph: 'What is the problem, and what should change? E.g. "After closing a WhatsApp ticket the screen jumps to the top of the list; it should move to the ticket above."',
+      brand: 'Brand', all: 'All brands', ticket: 'Ticket / order (optional)', ticket_ph: 'e.g. 1646', send: 'Send to Guy', sending: 'Sending…',
+      count: '{n}/2000', short: 'At least {n} more characters', sent: 'Sent to the owner for approval ✓', fail: 'Not sent: {m}. Your text is still in the box.',
+      list: 'Requests sent', none: 'No requests sent yet.', load_fail: 'Could not load the requests: {m}', again: 'Try again',
+      st_pending: '⏳ Waiting for Guy', st_approved: '✅ Approved', st_done: '🔧 Done', st_rejected: '❌ Rejected',
+      reply: 'Guy\'s reply:', meta: '#{id} · {b} · {d} · {who}', ticket_ref: 'ticket {t}', archive: 'Archive: done / rejected more than 14 days ago ({n})',
+      restored: 'Restored an unsent draft from this device.'
+    };
+    const L = LANG === 'en' ? EN : HE;
+    function s(k, v) { let x = L[k]; Object.keys(v || {}).forEach(function (a) { x = x.split('{' + a + '}').join(String(v[a])); }); return x; }
+    const st = { items: null, err: null, busy: false, status: null, rid: null, ridFor: '', seq: 0, timer: null };
+    let el = null, ta = null, sel = null, tin = null, btn = null, count = null;
+    function key() { return 'cs.sysreq.' + ((S.me && S.me.user && S.me.user.username) || '?'); }
+    function saveDraft() { try { localStorage.setItem(key(), JSON.stringify({ text: ta.value, brand: sel.value, ticket: tin.value })); } catch (e) { /* private mode */ } }
+    function dropDraft() { try { localStorage.removeItem(key()); } catch (e) { /* private mode */ } }
+    function newRid() {
+      const a = new Uint8Array(16);
+      crypto.getRandomValues(a);
+      return Array.prototype.map.call(a, function (x) { return (x < 16 ? '0' : '') + x.toString(16); }).join('');
+    }
+    function content() { return JSON.stringify([ta.value.trim(), sel.value, tin.value.trim()]); }
+    function when(sec) { return fmtDate(new Date(sec * 1000).toISOString(), true); }
+    function scopeName(b) { return b === 'all' ? L.all : brandName(b); }
+    function paintBtn() {
+      const n = ta.value.trim().length;
+      count.textContent = n < MIN ? s('short', { n: MIN - n }) : s('count', { n: n });
+      btn.disabled = st.busy || n < MIN || n > MAX;
+      btn.textContent = st.busy ? L.sending : L.send;
+    }
+    function paintStatus() {
+      const x = el.querySelector('[data-test=sysreq-status]');
+      x.textContent = st.status ? st.status.text : '';
+      x.className = 'sysreq-status small' + (st.status ? (st.status.ok ? ' ok' : ' bad') : '');
+      x.hidden = !st.status;
+    }
+    function itemNode(it) {
+      const node = h('div', { class: 'sysreq-item', 'data-test': 'sysreq-item', 'data-id': String(it.id), 'data-status': it.status },
+        h('div', { class: 'sysreq-head' },
+          h('span', { class: 'chip sysreq-chip ' + it.status, 'data-test': 'sysreq-chip', text: L['st_' + it.status] || it.status }),
+          h('span', { class: 'muted small', 'data-test': 'sysreq-meta' }, s('meta', { id: it.id, b: scopeName(it.brand), d: when(it.created_at), who: it.by || it.user }),
+            it.ticket ? ' · ' + s('ticket_ref', { t: it.ticket }) : '')),
+        h('div', { class: 'sysreq-text', dir: 'auto', 'data-test': 'sysreq-text', text: it.text }));
+      if (it.guy_reply) node.append(h('div', { class: 'sysreq-reply', 'data-test': 'sysreq-reply' }, h('b', { text: L.reply }), ' ', h('span', { dir: 'auto', text: it.guy_reply })));
+      return node;
+    }
+    function paintList() {
+      const box = el.querySelector('[data-test=sysreq-list]');
+      clear(box);
+      box.append(h('h4', { text: L.list }));
+      if (st.err && !st.items) {
+        box.append(h('div', { class: 'err-box small', 'data-test': 'sysreq-load-err' }, s('load_fail', { m: st.err }), ' ',
+          h('button', { type: 'button', class: 'btn small', text: L.again, onclick: function () { load(); } })));
+        return;
+      }
+      if (!st.items) { box.append(h('div', { class: 'skeleton' })); return; }
+      const cut = Date.now() / 1000 - KEEP_DAYS * 86400;
+      const old = function (it) { return (it.status === 'done' || it.status === 'rejected') && it.updated_at < cut; };
+      const live = st.items.filter(function (it) { return !old(it); });
+      const arch = st.items.filter(old);
+      if (!live.length && !arch.length) { box.append(h('div', { class: 'muted small', 'data-test': 'sysreq-none', text: L.none })); return; }
+      live.forEach(function (it) { box.append(itemNode(it)); });
+      if (arch.length) {
+        const det = h('details', { class: 'sysreq-archive', 'data-test': 'sysreq-archive' }, h('summary', { class: 'small muted', text: s('archive', { n: arch.length }) }));
+        arch.forEach(function (it) {
+          det.append(h('div', { class: 'small muted sysreq-arch-row', 'data-test': 'sysreq-arch-row' },
+            (L['st_' + it.status] || it.status) + ' · #' + it.id + ' · ' + when(it.created_at) + ' · ' + (it.text.length > 90 ? it.text.slice(0, 90) + '…' : it.text)));
+        });
+        box.append(det);
+      }
+    }
+    async function load() {
+      const seq = ++st.seq;
+      const r = await api('/api/sysreq', undefined, 'GET', { quiet: true });
+      if (seq !== st.seq) return;
+      if (r && r.ok && Array.isArray(r.items)) { st.items = r.items; st.err = null; }
+      else st.err = (r && (r.msg || r.error)) || t('err_bad_engine');
+      if (el) paintList();
+    }
+    async function submit() {
+      const text = ta.value.trim();
+      if (st.busy || text.length < MIN || text.length > MAX) return;
+      const c = content();
+      if (!st.rid || st.ridFor !== c) { st.rid = newRid(); st.ridFor = c; }     // the same content again = the same rid (a lost answer is a replay)
+      st.busy = true; st.status = null; paintBtn(); paintStatus();
+      const r = await api('/api/sysreq', { rid: st.rid, text: text, brand: sel.value, ticket: tin.value.trim() }, 'POST').catch(function () { return null; });
+      st.busy = false;
+      if (r && r.ok && r.item) {
+        st.status = { ok: true, text: L.sent };
+        ta.value = ''; tin.value = ''; st.rid = null; st.ridFor = ''; dropDraft();
+        if (st.items) st.items = [r.item].concat(st.items.filter(function (x) { return x.id !== r.item.id; }));
+        paintList();
+        load();
+      } else st.status = { ok: false, text: s('fail', { m: (r && (r.msg || r.error)) || t('err_bad_engine') }) };
+      paintBtn(); paintStatus();
+    }
+    function build() {
+      ta = h('textarea', { class: 'sysreq-ta', rows: 4, maxlength: String(MAX), dir: 'auto', placeholder: L.ph, 'aria-label': L.title, 'data-test': 'sysreq-text-input' });
+      count = h('span', { class: 'muted small sysreq-count', 'data-test': 'sysreq-count' });
+      sel = h('select', { 'aria-label': L.brand, 'data-test': 'sysreq-brand' });
+      sel.append(h('option', { value: 'all', text: L.all }));
+      S.me.brands.forEach(function (b) { sel.append(h('option', { value: b.id, text: brandName(b.id) })); });
+      tin = h('input', { type: 'text', maxlength: '80', dir: 'ltr', placeholder: L.ticket_ph, 'aria-label': L.ticket, 'data-test': 'sysreq-ticket', class: 'sysreq-ticket' });
+      btn = h('button', { type: 'button', class: 'btn primary', 'data-test': 'sysreq-send', onclick: submit });
+      [ta, tin].forEach(function (x) { x.addEventListener('input', function () { if (st.status && st.status.ok) { st.status = null; paintStatus(); } saveDraft(); paintBtn(); }); });
+      sel.addEventListener('change', saveDraft);
+      el = h('div', { class: 'dash-card sysreq-card', id: 'sysreq', 'data-test': 'sysreq' },
+        h('h3', { text: L.title }),
+        h('p', { class: 'muted small sysreq-help', 'data-test': 'sysreq-help', text: L.help }),
+        ta,
+        h('div', { class: 'ain-row' }, h('label', { class: 'small' }, L.brand + ' ', sel), h('label', { class: 'small' }, L.ticket + ' ', tin), count, btn),
+        h('div', { class: 'sysreq-status small', role: 'status', 'aria-live': 'polite', 'data-test': 'sysreq-status', hidden: true }),
+        h('section', { class: 'sysreq-list', 'data-test': 'sysreq-list' }));
+      let d = null;
+      try { d = JSON.parse(localStorage.getItem(key()) || 'null'); } catch (e) { d = null; }
+      if (d && typeof d.text === 'string' && d.text.trim()) {
+        ta.value = d.text.slice(0, MAX);
+        if (typeof d.ticket === 'string') tin.value = d.ticket.slice(0, 80);
+        if (typeof d.brand === 'string' && Array.prototype.some.call(sel.options, function (o) { return o.value === d.brand; })) sel.value = d.brand;
+        st.status = { ok: true, text: L.restored };
+      }
+      paintBtn(); paintStatus(); paintList();
+    }
+    function mount(slot) {
+      if (!el) build();
+      if (el.parentNode !== slot) { clear(slot); slot.append(el); }
+      load();
+      if (!st.timer) st.timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) load(); }, 60000);
+    }
+    return { mount: mount, load: load, jumpLabel: function () { return L.jump; } };
+  })();
+
   // ---------------------------------------------------------------- managers' dashboard (Owner, 2026-10-06)
   /** Admin + user-manager only (the server answers 403 to anyone else). Work time from the activity log: first to last
    *  action minus breaks over 30 min (Owner, 2026-10-13); "on screen" keeps the old 5-min runs. Being logged in is not work.
@@ -6946,9 +7101,9 @@
       if (!main) {
         clear(root);
         main = h('div', { id: 'dash-main' });
-        root.append(main, h('div', { id: 'dash-sales', class: 'dash-sales' }), h('div', { id: 'dash-ai' }));
+        root.append(main, h('div', { id: 'dash-sales', class: 'dash-sales' }), h('div', { id: 'dash-ai' }), h('div', { id: 'dash-sysreq' }));
       }
-      return { main: main, ai: document.getElementById('dash-ai'), sales: document.getElementById('dash-sales') };
+      return { main: main, ai: document.getElementById('dash-ai'), sales: document.getElementById('dash-sales'), sysreq: document.getElementById('dash-sysreq') };
     }
     function render() {
       const p = parts().main;
@@ -6965,6 +7120,8 @@
       head.append(rg, di);
       if (S.me.is_admin) head.append(h('button', { type: 'button', class: 'btn small ghost', 'data-test': 'ai-notes-jump', text: t('ain_jump'),
         onclick: function () { const c = document.getElementById('ai-notes'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }));
+      if (S.me.is_admin) head.append(h('button', { type: 'button', class: 'btn small ghost', 'data-test': 'sysreq-jump', text: SysReq.jumpLabel(),
+        onclick: function () { const c = document.getElementById('sysreq'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }));
       if (st.data) head.append(h('b', { class: 'shown-day', 'data-test': 'dash-shown', text: st.data.days.length > 1 ? st.data.days[0] + ' – ' + st.data.end_day : st.data.end_day }));
       if (st.data) head.append(h('span', { class: 'muted small', 'data-test': 'dash-updated', text: L.updated + ' ' + new Date(st.data.generated_at * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL') }));
       p.append(head, liveStrip(), Sla.section());          // SLA (2026-10-24): managers' board, right under the live strip
@@ -7017,6 +7174,7 @@
       render();
       if (S.me.is_admin) SalesBoard.mount(parts().sales);   // sales log for bonuses (admin only; the proxy answers 403 to anyone else)
       if (S.me.is_admin) AiNotes.mount(parts().ai);       // admin only (the proxy answers 403 to anyone else)
+      if (S.me.is_admin) SysReq.mount(parts().sysreq);    // system change requests to the owner (2026-10-25): admin only, the server answers 403 to anyone else
       load();
       loadLive();
       loadCx();

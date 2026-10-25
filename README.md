@@ -28,6 +28,7 @@ Render disk and in each engine's `audit` sheet.
 | `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
+| `sysreq.py` | system change requests from the managers to the owner (2026-10-25): the card "🛠️ הצעות לשיפור המערכת" on `#/dash` under the AI-notes card (admins only), `GET/POST /api/sysreq`, and the machine API `GET /hq/sysreq?since=` + `POST /hq/sysreq/<id>` for the Mini (HMAC token in `X-HQ-Token`, aud `cs-sysreq`, ≤ 5 min; CSRF-exempt by exact path). Postgres `screen_system_requests`, a JSON file for tests. The Mini side is `../sysreq_sync/` (launchd pull → HQ inbox, CLI `decide`). Nothing executes a request. |
 | `zipfix/` | zip fill (מילוי מיקודים): `/api/<brand>/zipfix` + bot route `/bot/zipfix`, background jobs, ported resolver — see `zipfix/README.md` |
 | `tests/` | pytest (310+ tests, incl. real-browser tests with Playwright and a gunicorn test) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
@@ -48,6 +49,7 @@ Render disk and in each engine's `audit` sheet.
 | `ASSISTANT_MODEL`, `TRANSLATE_MODEL` | no | override the two model ids. |
 | `TRUSTED_PROXY_HOPS` | no | default `1` (Render's proxy). Used for the client IP in the login rate limit. |
 | `EXTRA_BRANDS` | no | comma list of extra brand ids the user manager may assign before they have an engine (for example a future brand). |
+| `SYSREQ_PATH` | no | file backend only: the system change requests file (default next to the users file). With `CORE_DB_URL` they are in `screen_system_requests`. |
 | `MOCK_ENGINE`, `COOKIE_SECURE`, `MOCK_LATENCY_MS` | local only | preview mode. `MOCK_ENGINE=1` refuses to start if `ENGINES_JSON` is set; `COOKIE_SECURE=0` is refused outside mock mode. |
 
 `render.yaml` declares the secrets with `sync: false` (no values in the repo), NO disk (state is in the core Postgres: `CORE_DB_URL`; caches in `/tmp/cs-cache`), health check `/healthz`, and **one** gunicorn worker with 16 threads. One worker is
