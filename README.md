@@ -759,3 +759,14 @@ Guy: "very important to pass it to the CS manager Manager, and put an alert for 
 - **Tests:** `tests/test_notice.py` (show-until-ack, restart persistence, per user, brand scope, CSRF/Origin/login, the text vs the procedure
   files word for word — mutation-checked), `tests/test_notice_browser.py` (real browser: modal, Esc blocked, reload shows it again, ack hides it,
   menu reopens it, other users, 390/768/1280). Every other browser test / `tools/screens.py` starts pre-acknowledged (`browser_server.preack_env`).
+
+## Phone top bar + the notice footer (Owner, 2026-10-26)
+- Measured live: at 390 px an admin's bar (title, 📊 board, brand picker, English desk, name, ☰) made the page 521 px wide, so the whole screen sat
+  shifted sideways. The bar stays ONE row on phones (≤640 px), because `.tabs` (top 50px), `.tk-head` (104px) and `.menu` (52px) are pinned to
+  its height: "📊 לוח מנהלים" → 📊 and "English desk" → EN (the full name stays in `title` + `aria-label`; `.tb-long` / `.tb-short`), and the
+  title, brand picker and name shrink with an ellipsis. Nothing is hidden. The English desk's translation status chips (`#tr-state`,
+  `he-translate`, `#tk-subject-warning`) wrap instead of pushing an open ticket to 610 px.
+- The notice modal: the body (`.notice-in`) scrolls inside, the button row (`.notice-foot`) is a footer that never leaves the screen.
+- Tests: `tests/test_topbar_phone_browser.py` (admin, pure user-manager, agents with 1 and 2 brands × list / ticket / board × both desks ×
+  360 / 390 / 414: scrollWidth ≤ clientWidth; fails with the phone CSS removed), `tests/test_notice_browser.py::test_ack_button_is_on_screen_without_scrolling`
+  (768×700, 390×700, 360×560: the button's centre is the button, the body scrolls).

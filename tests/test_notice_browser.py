@@ -119,3 +119,27 @@ def test_other_users(p, server):
     pg.click(".menu-btn")
     assert pg.locator("[data-test=notice-menu]").count() == 0
     browser.close()
+
+
+@pytest.mark.parametrize("size", [(768, 700), (390, 700), (360, 560)])
+def test_ack_button_is_on_screen_without_scrolling(p, server, size):
+    """The body scrolls inside the modal; the footer with the button never leaves the screen."""
+    base, pwd, _ = server
+    browser, pg, errors = login(p, base, pwd, "agent-two", width=size[0])
+    pg.set_viewport_size({"width": size[0], "height": size[1]})
+    if not dlg_open(pg):                                        # agent-two may have acked in an earlier test: reopen from the menu
+        pg.click(".menu-btn")
+        pg.click("[data-test=notice-menu]")
+    pg.wait_for_selector("[data-test=notice-dlg][open]", timeout=8000)
+    pg.wait_for_timeout(200)
+    btn = "[data-test=notice-ack]" if pg.locator("[data-test=notice-ack]").count() else "[data-test=notice-close]"
+    r = pg.evaluate("""(sel) => { const b = document.querySelector(sel).getBoundingClientRect(); const x = b.left + b.width / 2, y = b.top + b.height / 2;
+        const hit = document.elementFromPoint(x, y); return [b.top >= 0 && b.bottom <= innerHeight, !!hit && !!hit.closest(sel),
+        document.querySelector('#notice-dlg .notice-in').scrollHeight > document.querySelector('#notice-dlg .notice-in').clientHeight]; }""", btn)
+    assert r[0] and r[1], (size, r)
+    if size[1] <= 700:
+        assert r[2], "the body is the part that scrolls"
+    pg.evaluate("() => { const b = document.querySelector('#notice-dlg .notice-in'); b.scrollTop = b.scrollHeight; }")
+    assert pg.evaluate("(sel) => { const b = document.querySelector(sel).getBoundingClientRect(); return b.bottom <= innerHeight; }", btn)
+    assert not errors, errors
+    browser.close()

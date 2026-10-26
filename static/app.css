@@ -619,6 +619,21 @@ html[dir=rtl] .zip-orders::placeholder { direction: rtl; text-align: right; }
 .zip-none { color: var(--muted); }
 @media (max-width: 520px) { .zip-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .top .zip-link { display: none; } }   /* phone: the bar is full (2 brands = +44px overflow, measured); entry = ☰ menu */
+/* phone top bar (Owner, 2026-10-26: an admin's bar made the page 521px wide at 390): ONE row, because .tabs (top 50px), .tk-head (104px) and
+   .menu (52px) are pinned to its height. Links collapse to an icon / short label (full text stays in title + aria-label); the title, brand
+   picker and name shrink with an ellipsis. Nothing is hidden. */
+.top .tb-short { display: none; }
+@media (max-width: 640px) {
+  .top { gap: 6px; padding-inline: 8px; }
+  .top .tb-long { display: none; }
+  .top .tb-short { display: inline; }
+  .top > * { flex-shrink: 0; }
+  .top .title { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+  .top select.brand { flex-shrink: 1; min-width: 56px; max-width: 34vw; padding: 5px 4px; }
+  .top .who { flex-shrink: 1; min-width: 0; max-width: 22vw; font-size: 12px; }
+  .top .dash-link { padding: 4px 7px; }
+  .top .spacer { flex: 1 1 0; min-width: 0; }
+}
 
 /* Order numbers open the order in Shopify, in a new tab (Owner, 2026-10-11). Inside a chip it keeps the chip's colour. */
 .order-link { color: inherit; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
@@ -872,7 +887,11 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 .sysreq-arch-row { padding: 2px 0; overflow-wrap: anywhere; }
 
 /* must-read notices (2026-10-26) */
-.notice-dlg { max-height: 92vh; overflow-y: auto; }
+/* the body scrolls inside; the button row is a sticky footer, always on screen (768x700, 390x700) */
+.notice-dlg { max-height: min(92vh, 92dvh); overflow: hidden; }
+.notice-dlg[open] { display: flex; flex-direction: column; }
+.notice-dlg .notice-in { overflow-y: auto; min-height: 0; flex: 1 1 auto; overscroll-behavior: contain; }
+.notice-dlg .notice-foot { flex: 0 0 auto; display: grid; gap: 6px; padding: 10px 18px 12px; border-top: 1px solid var(--line); background: var(--card, #fff); }
 .notice-dlg h3 { font-size: 19px; line-height: 1.35; color: #9a3412; }
 .notice-dlg h4 { margin: 4px 0 2px; font-size: 15px; }
 .notice-p { margin: 0; line-height: 1.55; }
@@ -881,3 +900,7 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 .notice-brands { background: #fff7ed; border: 1px solid #fdba74; border-radius: 10px; padding: 8px 12px; }
 .notice-brand { margin: 4px 0; line-height: 1.5; overflow-wrap: anywhere; }
 .notice-dlg .btn.primary { font-size: 16px; padding: 10px 18px; }
+
+/* the translation status chips carry a long sentence + a retry button: on a phone they wrap inside the screen (English desk ticket was 610px at 390) */
+#tr-state, [data-test=he-translate], #tk-subject-warning { max-width: 100%; white-space: normal; flex-wrap: wrap; }
+.notice-dlg .notice-in:focus { outline: none; }

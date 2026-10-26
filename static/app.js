@@ -1150,7 +1150,9 @@
     clear(top);
     top.append(h('span', { class: 'title', text: t('app') }));
     const brands = S.me.brands;
-    if (S.me.can_manage_users && S.view !== 'dash') top.append(h('a', { class: 'dash-link', href: '#/dash', 'data-test': 'dash-link', text: '📊 ' + (LANG === 'en' ? 'Managers' : 'לוח מנהלים') }));
+    // phone (<=640px): the bar keeps ONE row (tabs / ticket head / menu are pinned to its height) — links collapse to icon / short label, never hidden
+    const dl = LANG === 'en' ? 'Managers' : 'לוח מנהלים';
+    if (S.me.can_manage_users && S.view !== 'dash') top.append(h('a', { class: 'dash-link', href: '#/dash', 'data-test': 'dash-link', title: dl, 'aria-label': dl }, '📊', h('span', { class: 'tb-long', text: ' ' + dl })));
     if (canWork() && brands.length && S.view !== 'zip') {          // phone (<=640px): hidden by CSS, the ☰ menu carries it — the bar has no room
       const zl = LANG === 'en' ? 'Zip-code fill' : 'מילוי מיקודים';
       top.append(h('a', { class: 'dash-link zip-link', href: '#/zip/' + encodeURIComponent(S.brand || brands[0].id), 'data-test': 'zip-link', title: zl, 'aria-label': zl },
@@ -1171,7 +1173,8 @@
     } else if (brands.length === 1 && S.view !== 'users' && S.view !== 'dash' && S.view !== 'zip') {
       top.append(h('span', { class: 'who', text: brandName(brands[0].id) }));
     }
-    top.append(h('a', { class: 'dash-link', href: '/cs/en' + location.hash, 'data-test': 'english-workspace', text: 'English desk', 'aria-current': LANG === 'en' ? 'page' : null }));
+    top.append(h('a', { class: 'dash-link', href: '/cs/en' + location.hash, 'data-test': 'english-workspace', title: 'English desk', 'aria-label': 'English desk', 'aria-current': LANG === 'en' ? 'page' : null },
+      h('span', { class: 'tb-long', text: 'English desk' }), h('span', { class: 'tb-short', text: 'EN' })));
     top.append(h('span', { class: 'spacer' }));
     const pend = Outbox.pending();
     if (pend.length) {
@@ -7766,10 +7769,9 @@
         });
         btns.append(ok);
       }
-      box.append(msg, btns);
-      d.append(box);
+      d.append(box, h('div', { class: 'notice-foot', 'data-test': 'notice-foot' }, msg, btns));
       if (!d.open) d.showModal();
-      d.scrollTop = 0;
+      box.scrollTop = 0;
     }
     function next() {
       const n = items.filter(function (x) { return !x.acked; })[0];

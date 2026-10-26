@@ -30,7 +30,9 @@ def test_english_desk_hebrew_preview_and_guard(english_server, width):
         pg.route('**/api/rozela/ticket', english_metadata)
         pg.goto(base + '/cs/en#/b/rozela/t/t18f2a03')
         pg.wait_for_selector('[data-test=en-draft] textarea')
-        assert pg.locator('[data-test=english-workspace]').inner_text() == 'English desk'
+        ew = pg.locator('[data-test=english-workspace]')
+        assert ew.get_attribute('aria-label') == 'English desk'          # phone (<=640px) shows "EN", the name stays (2026-10-26 top bar)
+        assert ew.inner_text() == ('EN' if pg.viewport_size['width'] <= 640 else 'English desk')
         assert 'Hebrew' in pg.inner_text('[data-test=hebrew-only-notice]')
         ta = pg.locator('[data-test=en-draft] textarea')
         ta.fill('Hello, I will check this for you.')
