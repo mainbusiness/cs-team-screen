@@ -3,3 +3,4 @@ Flask==3.0.3
 gunicorn==23.0.0
 requests==2.32.3
 tzdata==2025.2
+certifi==2026.10.23   # eMudhra CA compromise (2026-10-20): requests trusts certifi, not the system store; >=2026.10.19 drops the leaked intermediates
