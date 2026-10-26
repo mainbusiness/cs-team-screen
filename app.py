@@ -42,6 +42,7 @@ import security
 import sla
 import snooze
 import sysreq
+import notice
 from zipfix import routes as zipfix_routes
 from users_store import ROLES, PgUserStore, UserStore, UserStoreError, public_user
 
@@ -672,6 +673,12 @@ def create_app(overrides=None):
     app.extensions["cs"]["sysreq"] = sysreq_store
     sysreq.register(app, {"api_user": api_user, "json_error": json_error, "ui_lang": ui_lang, "store": store, "sysreq": sysreq_store,
                           "token_secret": lambda: app.config["TOKEN_SECRET"]})
+
+    # must-read notices (Owner, 2026-10-26: the Kaching subscriptions procedure for Manager): modal until each user acks, then in the menu
+    notice_acks = o.get("NOTICE_STORE") or (notice.PgAckStore(pgdb) if pgdb else notice.AckStore(
+        o.get("NOTICE_PATH", os.environ.get("NOTICE_PATH", os.path.join(cache_base, "notice-acks.json")))))
+    app.extensions["cs"]["notice_acks"] = notice_acks
+    notice.register(app, {"api_user": api_user, "json_error": json_error, "ui_lang": ui_lang, "store": store, "acks": notice_acks})
 
     @app.errorhandler(404)
     def nf(_e):

@@ -870,3 +870,14 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 .chip.sysreq-chip.rejected { background: var(--danger-bg); color: var(--danger); }
 .sysreq-archive { margin-top: 8px; }
 .sysreq-arch-row { padding: 2px 0; overflow-wrap: anywhere; }
+
+/* must-read notices (2026-10-26) */
+.notice-dlg { max-height: 92vh; overflow-y: auto; }
+.notice-dlg h3 { font-size: 19px; line-height: 1.35; color: #9a3412; }
+.notice-dlg h4 { margin: 4px 0 2px; font-size: 15px; }
+.notice-p { margin: 0; line-height: 1.55; }
+.notice-ul { margin: 0; padding-inline-start: 20px; display: grid; gap: 3px; line-height: 1.55; }
+.notice-ul li { overflow-wrap: anywhere; }
+.notice-brands { background: #fff7ed; border: 1px solid #fdba74; border-radius: 10px; padding: 8px 12px; }
+.notice-brand { margin: 4px 0; line-height: 1.5; overflow-wrap: anywhere; }
+.notice-dlg .btn.primary { font-size: 16px; padding: 10px 18px; }

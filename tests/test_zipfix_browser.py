@@ -44,6 +44,8 @@ def server():
     s.close()
     env = dict(os.environ, MOCK_ENGINE="1", COOKIE_SECURE="0", USERS_PATH=users, TRUSTED_PROXY_HOPS="0", MOCK_LATENCY_MS="0",
                ENGINES_JSON="", PYTHONDONTWRITEBYTECODE="1", MOCK_ZIPFIX_STEP_MS=str(STEP_MS))
+    import browser_server
+    env.update(browser_server.preack_env(users))   # the must-read notice modal would cover the screen
     code = ("import mock_engine;from app import create_app;"
             "create_app({'ZIPFIX_RUNNER': mock_engine.zipfix_runner, 'ZIPFIX_CONFIGURED': lambda b: True})"
             ".run(host='127.0.0.1',port=%d,threaded=True)" % port)

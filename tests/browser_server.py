@@ -12,6 +12,21 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BRANDS = ["rozela", "celesta", "apexmen", "selera", "velora"]
 
 
+def preack_env(users_path):
+    """Must-read notices (2026-10-26) open a modal over the whole screen until acknowledged. Every browser test / preview other
+    than tests/test_notice_browser.py starts with them acknowledged for every user in the users file -> {"NOTICE_PATH": path}."""
+    import json
+    sys.path.insert(0, ROOT)
+    import notice
+    from users_store import UserStore
+    d = os.path.dirname(os.path.abspath(users_path))
+    names = [u["username"] for u in UserStore(users_path, os.path.join(d, "a.jsonl")).all()]
+    npath = os.path.join(d, "notice-acks.json")
+    with open(npath, "w") as f:
+        json.dump({"acks": {u: {n["id"]: 1.0 for n in notice.NOTICES} for u in names}}, f)
+    return {"NOTICE_PATH": npath}
+
+
 def start(extra_env=None, gunicorn=False, users=(("agent1", ["agent"], ["rozela"], "he"),)):
     sys.path.insert(0, ROOT)
     import security
@@ -22,6 +37,9 @@ def start(extra_env=None, gunicorn=False, users=(("agent1", ["agent"], ["rozela"
     st = UserStore(path, os.path.join(tmp, "a.jsonl"))
     for name, roles, brands, lang in users:
         st.create("t", name, security.hash_password(pwd), {"display_name": name, "roles": roles, "brands": brands, "lang": lang}, BRANDS, must_change=False)
+    extra_env = dict(extra_env or {})
+    if "NOTICE_PATH" not in extra_env:
+        extra_env.update(preack_env(path))
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]

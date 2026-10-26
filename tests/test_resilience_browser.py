@@ -42,6 +42,8 @@ def server():
     s.close()
     env = dict(os.environ, MOCK_ENGINE="1", COOKIE_SECURE="0", USERS_PATH=users, TRUSTED_PROXY_HOPS="0", MOCK_LATENCY_MS="0",
                ENGINES_JSON="", PYTHONDONTWRITEBYTECODE="1")
+    import browser_server
+    env.update(browser_server.preack_env(users))   # the must-read notice modal would cover the screen
     proc = subprocess.Popen([sys.executable, "-c", "from app import create_app;create_app().run(host='127.0.0.1',port=%d,threaded=True)" % port],
                             cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     base = "http://127.0.0.1:%d" % port

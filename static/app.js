@@ -1199,6 +1199,7 @@
       if (S.me.can_manage_users && S.view !== 'users') m.append(h('a', { href: '#/users', text: t('users') }));
       if (S.me.is_admin && S.view !== 'settings' && S.brand) m.append(h('a', { href: '#/settings/' + encodeURIComponent(S.brand), text: t('settings') }));
       if (S.view === 'settings' && canWork()) m.append(h('a', { href: '#/', text: t('to_tickets') }));
+      add(m, Notice.menuLinks());
       m.append(h('a', { href: '/cs/password', text: t('change_pw') }));
       m.append(h('a', { href: (LANG === 'en' ? '/cs' : '/cs/en') + location.hash, text: LANG === 'en' ? t('to_he') : t('to_en') }));
       const f = h('form', { method: 'post', action: '/cs/logout' }, h('input', { type: 'hidden', name: 'csrf', value: CSRF }),
@@ -7700,6 +7701,95 @@
     return { show: show };
   })();
 
+  // ---------------------------------------------------------------- must-read notices (Owner, 2026-10-26: the Kaching subscriptions
+  // procedure for the CS manager). Opens as a modal on every app open until this user clicks "קראתי והבנתי" (stored server-side,
+  // per user); after that it stays in the ☰ menu. Esc does not dismiss an unacknowledged notice. Text via textContent only.
+  const Notice = (function () {
+    let items = [];
+    function rich(text) {                                   // "**x**" = bold; everything else plain text
+      const frag = document.createDocumentFragment();
+      String(text).split('**').forEach(function (part, i) { if (part) frag.append(i % 2 ? h('strong', { text: part }) : document.createTextNode(part)); });
+      return frag;
+    }
+    function dlgEl() {
+      let d = document.getElementById('notice-dlg');
+      if (!d) {
+        d = h('dialog', { id: 'notice-dlg', class: 'dlg dlg-wide notice-dlg', dir: 'rtl', lang: 'he', 'data-test': 'notice-dlg' });
+        d.addEventListener('cancel', function (e) { if (d.dataset.must === '1') e.preventDefault(); });
+        document.body.append(d);
+      }
+      return d;
+    }
+    function fmt(ts) {
+      try { return new Date(ts * 1000).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
+    }
+    function open(n) {
+      const d = dlgEl();
+      clear(d);
+      d.dataset.must = n.acked ? '0' : '1';
+      const box = h('div', { class: 'in notice-in' });
+      box.append(h('h3', { 'data-test': 'notice-title', text: n.title }), h('p', { class: 'notice-p' }, rich(n.intro)));
+      (n.sections || []).forEach(function (sec) {
+        const ul = h('ul', { class: 'notice-ul' });
+        (sec.lines || []).forEach(function (ln) { ul.append(h('li', null, rich(ln))); });
+        box.append(h('div', { class: 'notice-sec' }, h('h4', { text: sec.head }), ul));
+      });
+      if (n.brand_notes && n.brand_notes.length) {
+        const bl = h('div', { class: 'notice-brands', 'data-test': 'notice-brands' }, h('h4', { text: n.brand_head }));
+        n.brand_notes.forEach(function (b) {
+          bl.append(h('p', { class: 'notice-brand', 'data-brand': b.brand }, h('strong', { text: b.name + ': ' }), b.text));
+        });
+        box.append(bl);
+      }
+      const msg = h('div', { role: 'alert' });
+      const btns = h('div', { class: 'row-btns' });
+      if (n.acked) {
+        box.append(h('p', { class: 'muted', 'data-test': 'notice-acked', text: '✓ אישרת שקראת ב-' + fmt(n.acked_at) }));
+        btns.append(h('button', { class: 'btn', type: 'button', 'data-test': 'notice-close', text: 'סגירה', onclick: function () { d.close(); } }));
+      } else {
+        const ok = h('button', { class: 'btn primary', type: 'button', 'data-test': 'notice-ack', text: n.ack });
+        ok.addEventListener('click', async function () {
+          ok.disabled = true;
+          clear(msg);
+          let r;
+          try { r = await api('/api/notice/ack', { id: n.id }); } catch (e) { r = null; }    // Codex: a throw must never lock the modal
+          if (!r || !r.ok) {
+            ok.disabled = false;
+            msg.append(h('div', { class: 'err-box', 'data-test': 'notice-err', text: (r && (r.msg || r.error)) || 'שגיאה — נסו שוב' }));
+            return;
+          }
+          n.acked = true; n.acked_at = r.acked_at;
+          d.dataset.must = '0';
+          d.close();
+          renderTop();
+          next();
+        });
+        btns.append(ok);
+      }
+      box.append(msg, btns);
+      d.append(box);
+      if (!d.open) d.showModal();
+      d.scrollTop = 0;
+    }
+    function next() {
+      const n = items.filter(function (x) { return !x.acked; })[0];
+      if (n) open(n);
+    }
+    async function load() {
+      const r = await api('/api/notice', undefined, 'GET');
+      if (!r.ok || !Array.isArray(r.notices)) return;
+      items = r.notices;
+      renderTop();
+      next();
+    }
+    function menuLinks() {
+      return items.map(function (n) {
+        return h('button', { type: 'button', 'data-test': 'notice-menu', text: n.menu, onclick: function () { S.menuOpen = false; renderTop(); open(n); } });
+      });
+    }
+    return { load: load, menuLinks: menuLinks, open: open };
+  })();
+
   // ---------------------------------------------------------------- start
   async function start() {
     const r = await api('/api/me', undefined, 'GET');
@@ -7715,6 +7805,7 @@
     window.addEventListener('hashchange', route);
     route();
     Sla.start();                                       // SLA banner for managers (2026-10-24): one light poll a minute, nothing for agents
+    Notice.load();                                     // must-read notices (2026-10-26): modal until acknowledged, then in the menu
   }
   start();
 })();

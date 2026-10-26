@@ -29,6 +29,7 @@ Render disk and in each engine's `audit` sheet.
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
 | `sysreq.py` | system change requests from the managers to the owner (2026-10-25): the card "🛠️ הצעות לשיפור המערכת" on `#/dash` under the AI-notes card (admins only), `GET/POST /api/sysreq`, and the machine API `GET /hq/sysreq?since=` + `POST /hq/sysreq/<id>` for the Mini (HMAC token in `X-HQ-Token`, aud `cs-sysreq`, ≤ 5 min; CSRF-exempt by exact path). Postgres `screen_system_requests`, a JSON file for tests. The Mini side is `../sysreq_sync/` (launchd pull → HQ inbox, CLI `decide`). Nothing executes a request. |
+| `notice.py` | must-read notices (2026-10-26): `GET /api/notice`, `POST /api/notice/ack {id}`; per-user ack in Postgres `screen_notice_acks` (a JSON file for tests, `NOTICE_PATH`), audited `notice_acked`. See "Must-read notices" below. |
 | `zipfix/` | zip fill (מילוי מיקודים): `/api/<brand>/zipfix` + bot route `/bot/zipfix`, background jobs, ported resolver — see `zipfix/README.md` |
 | `tests/` | pytest (310+ tests, incl. real-browser tests with Playwright and a gunicorn test) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
@@ -744,3 +745,17 @@ tests `tests/test_sla.py` + `tests/test_sla_browser.py`. Managers only (admin + 
   (2) the SLA section on `#/dash` under the live strip (daily line, per-brand cards, breaching/at-risk table with a link to each ticket, agents table); (3) the midnight snapshot keeps the finished day's SLA numbers (`snap-*` key `sla`).
 - **Guidance in the ticket (agents too):** a collapsed "מדריך טיפול מהיר" card on every open ticket: the four playbooks (לא קיבלתי + the brand's /pages/track, לא זיהיתי את החיוב, ניסיתי לבטל, המוצר לא עבד) and the subscription-retention card
   (opens first on a cancel ticket). The same rules sit in the knowledge assistant's prompt (`assistant.py` rule 9). Escalation names the CS manager's role, never Guy. The engine's draft prompt already carries the retention ladder (`CS_SUBSCRIPTION_SAVE`).
+
+## Must-read notices — the Kaching subscriptions procedure (Owner, 2026-10-26)
+Guy: "very important to pass it to the CS manager Manager, and put an alert for him when he enters his CS system so he won't forget".
+- **Who:** every user holding rozela / celesta / apexmen, and every admin (Manager = admin + all three). A velora/selera-only agent never sees it.
+- **What:** on every app open, until THAT user acknowledges, a modal "🧾 נוהל חדש: מנויים ב-Kaching — חשוב מאוד" with the procedure
+  (`/Users/Shared/course_mrr/cs_sop_manager/<brand>.md`, word for word: shared steps once, then each of the user's brands' retention options line —
+  the three files differ only there). Esc does not dismiss it; the only way out is "✅ קראתי והבנתי". After that: ☰ menu → "🧾 נוהל מנויים"
+  reopens it read-only with "✓ אישרת שקראת ב-…".
+- **Storage:** Postgres `screen_notice_acks(username, notice_id, acked_at)`, `INSERT … ON CONFLICT DO NOTHING` (two instances during a deploy
+  can never move the first time). Audit `notice_acked` once per user. Add a notice = a new dict in `notice.NOTICES` with a NEW id
+  (an id change re-shows it to everyone).
+- **Tests:** `tests/test_notice.py` (show-until-ack, restart persistence, per user, brand scope, CSRF/Origin/login, the text vs the procedure
+  files word for word — mutation-checked), `tests/test_notice_browser.py` (real browser: modal, Esc blocked, reload shows it again, ack hides it,
+  menu reopens it, other users, 390/768/1280). Every other browser test / `tools/screens.py` starts pre-acknowledged (`browser_server.preack_env`).

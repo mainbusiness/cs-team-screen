@@ -52,6 +52,9 @@ def main():
     os.environ.setdefault("MOCK_LATENCY_MS", "1500")          # a slow engine, so the cache has to earn its keep
     env = dict(os.environ, MOCK_ENGINE="1", COOKIE_SECURE="0", USERS_PATH=users, TRUSTED_PROXY_HOPS="0",
                ENGINES_JSON="", PYTHONDONTWRITEBYTECODE="1")
+    sys.path.insert(0, os.path.join(ROOT, "tests"))
+    import browser_server
+    env.update(browser_server.preack_env(users))     # the must-read notice modal (2026-10-26) would cover every screenshot
     code = ("import logging;logging.basicConfig(level=logging.WARNING);from app import create_app;"
             "import mock_engine;"            # מילוי מיקודים: the real zipfix routes + jobs, only the Shopify/zip runner is faked
             "create_app({'ZIPFIX_RUNNER': mock_engine.zipfix_runner, 'ZIPFIX_CONFIGURED': lambda b: True})"
