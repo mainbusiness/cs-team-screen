@@ -904,3 +904,14 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 /* the translation status chips carry a long sentence + a retry button: on a phone they wrap inside the screen (English desk ticket was 610px at 390) */
 #tr-state, [data-test=he-translate], #tk-subject-warning { max-width: 100%; white-space: normal; flex-wrap: wrap; }
 .notice-dlg .notice-in:focus { outline: none; }
+
+/* 2026-10-27: save-discount guide (Guy) */
+details.sg { border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; background: var(--card, #fff); }
+details.sg > summary { cursor: pointer; font-weight: 700; }
+.sg-body { display: grid; gap: 4px; font-size: 14px; line-height: 1.5; }
+.sg-body h5 { margin: 8px 0 2px; font-size: 14px; }
+.sg-body ol { margin: 0; padding-inline-start: 22px; }
+.sg-body p { margin: 0; }
+.sg-table { width: 100%; border-collapse: collapse; }
+.sg-table th, .sg-table td { border: 1px solid var(--line); padding: 5px 8px; text-align: start; vertical-align: top; }
+.sg-table th { background: rgba(0,0,0,.04); }

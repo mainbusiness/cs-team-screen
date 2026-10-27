@@ -986,6 +986,7 @@ class MockEngines:
                 l.setdefault("variantId", self.MOCK_VARIANTS[0]["id"])
                 l.setdefault("price", 160.65)
             s.setdefault("discounts", [])
+            s.setdefault("ordersCount", 2)   # first order + one paid renewal (the engine reads Kaching's orders connection)
             s.setdefault("currency", "ILS")
         nxt = next((c for c in s["cycles"] if not c["skipped"]), None)
         if s["status"] in ("ACTIVE", "FAILED"):

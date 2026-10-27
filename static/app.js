@@ -110,6 +110,24 @@
       mg_discounts: 'הנחות', mg_no_discounts: 'אין הנחות במנוי.', mg_add_discount: 'הוספת הנחה', mg_dtype: 'סוג', mg_dtype_pct: 'אחוזים (%)',
       mg_dtype_fixed: 'סכום קבוע', mg_dvalue: 'ערך', mg_dtitle: 'שם ההנחה (הלקוח רואה אותו)', mg_dcycles: 'לכמה משלוחים (ריק = לתמיד)',
       mg_dc_forever: 'לתמיד', mg_dc_n: 'ל-{n} משלוחים',
+      mg_dcycles_save: 'לכמה משלוחים (1 = ההזמנה הבאה בלבד)', mg_dpresets: 'אחוז מהיר', mg_dc_warn: '⚠ הנחת שימור היא אחוזים, 30/40/50, למשלוח אחד בלבד. אחרת: אי אפשר להסיר הנחה מהמסך הזה.',
+      mg_renewals: 'חידושים ששולמו במנוי הזה: {n}', mg_renewals_unknown: 'חידושים ששולמו: לא ידוע (לבדוק בקצ׳ינג)', mg_rec_first: 'לא שולם חידוש: מציעים 50%', mg_rec_after: 'שולם חידוש: 40% ליקר, 30% לכל סיבה אחרת',
+      sg_title: 'מדריך הנחת שימור', sg_btn: 'מדריך: איך מציעים הנחת שימור', sg_open_hint: 'לקוח רוצה לבטל מנוי: הצעה אחת, פעם אחת, על ההזמנה הבאה בלבד',
+      sg_h_rules: 'הכללים', sg_r1: 'קודם מבינים למה הלקוח רוצה לבטל. לא מציעים כלום לפני שהוא אמר את הסיבה.',
+      sg_r2: 'הצעה אחת בלבד, פעם אחת ללקוח, על ההזמנה הבאה בלבד. אם הוא עדיין רוצה לבטל, מבטלים באותו יום ושולחים אישור בכתב. לא מסתירים את הביטול ולא מתווכחים.',
+      sg_h_table: 'כמה מציעים', sg_th_when: 'מצב הלקוח', sg_th_offer: 'מה מציעים',
+      sg_t1a: 'לא שולם חידוש (רק ההזמנה הראשונה במנוי)', sg_t1b: '50%',
+      sg_t2a: '"לא ידעתי שזה מנוי"', sg_t2b: 'קודם הסבר שקוף על מה הוא מקבל, ואז 50%',
+      sg_t3a: 'שולם חידוש אחד לפחות, והסיבה "יקר לי"', sg_t3b: '40%',
+      sg_t4a: 'שולם חידוש אחד לפחות, "אין תוצאות" או כל סיבה אחרת', sg_t4b: '30%',
+      sg_t5a: '"יש לי יותר מדי במלאי"', sg_t5b: 'בלי הנחה: דוחים או מרווחים את המשלוח הבא לתאריך מוגדר',
+      sg_t6a: 'כועס או מאיים · סיבה בריאותית', sg_t6b: 'מבטלים מיד, בלי שכנוע',
+      sg_t7a: 'חיוב שנכשל', sg_t7b: 'לא ביטול: מעדכנים כרטיס',
+      sg_h_how: 'איך מוסיפים את ההנחה (רק אחרי שהלקוח אמר כן)',
+      sg_how1: 'בפנייה: ניהול מנוי → הוספת הנחה.', sg_how2: 'סוג: אחוזים. ערך: 30, 40 או 50 (כפתור מהיר).', sg_how3: 'לכמה משלוחים: 1. שם: הנחת שימור.',
+      sg_how4: 'המשך לאישור → 4 הספרות האחרונות של המנוי → לבצע.', sg_how5: 'לכתוב ללקוח את האחוז המדויק, ושזה להזמנה הבאה בלבד.',
+      sg_h_test: 'פעם ראשונה', sg_test: 'בודקים על לקוח אמיתי אחד: מוסיפים את ההנחה ומוודאים בקצ׳ינג שבהזמנה הבאה של המנוי מופיעה ההנחה. רק אחרי שזה נראה נכון ממשיכים לשאר.',
+      sg_h_undo: 'טעות בהנחה?', sg_undo: 'ה-API של קצ׳ינג לא יודע להסיר הנחה. מסירים אותה בממשק הניהול של קצ׳ינג, במנוי של הלקוח (לא מהמסך הזה). אם הלקוח כבר קיבל מספר אחר, מתקנים מולו.',
       mg_next: 'המשך לאישור', mg_type: 'כדי לאשר, הקלידו את 4 הספרות האחרונות של מספר המנוי', mg_reason: 'הערה ליומן (אופציונלי)',
       mg_go: 'לבצע', mg_working: 'מבצע…', mg_back: 'חזרה', mg_close: 'סגירה', mg_confirm: 'מה יקרה:',
       mg_off: 'לפי המנוע, שינויים במנויים כבויים כרגע — סביר שהבקשה תסורב.', mg_frozen: 'שינויים במנויים מוקפאים כרגע — סביר שהבקשה תסורב.',
@@ -356,6 +374,24 @@
       mg_discounts: 'Discounts', mg_no_discounts: 'No discounts on this subscription.', mg_add_discount: 'Add discount', mg_dtype: 'Type', mg_dtype_pct: 'Percentage (%)',
       mg_dtype_fixed: 'Fixed amount', mg_dvalue: 'Value', mg_dtitle: 'Discount name (the customer sees it)', mg_dcycles: 'For how many deliveries (empty = forever)',
       mg_dc_forever: 'forever', mg_dc_n: 'for {n} deliveries',
+      mg_dcycles_save: 'For how many deliveries (1 = the next order only)', mg_dpresets: 'Quick percent', mg_dc_warn: '⚠ A save discount is a percentage, 30/40/50, for ONE delivery. Anything else cannot be removed from this screen.',
+      mg_renewals: 'Renewals paid on this subscription: {n}', mg_renewals_unknown: 'Renewals paid: unknown (check in Kaching)', mg_rec_first: 'No renewal paid: offer 50%', mg_rec_after: 'A renewal was paid: 40% for "expensive", 30% for any other reason',
+      sg_title: 'Save-discount guide', sg_btn: 'Guide: how to offer the save discount', sg_open_hint: 'A customer wants to cancel a subscription: one offer, once, on the next order only',
+      sg_h_rules: 'The rules', sg_r1: 'First understand why the customer wants to cancel. Offer nothing before they gave the reason.',
+      sg_r2: 'ONE offer only, once per customer, on the NEXT order only. If they still want to cancel, cancel the same day and send a written confirmation. Never hide the cancel, never argue.',
+      sg_h_table: 'How much to offer', sg_th_when: 'The customer', sg_th_offer: 'The offer',
+      sg_t1a: 'No renewal paid yet (only the first order on the subscription)', sg_t1b: '50%',
+      sg_t2a: '"I did not know it was a subscription"', sg_t2b: 'First a transparent explanation of what they get, then 50%',
+      sg_t3a: 'At least one renewal paid, reason "too expensive"', sg_t3b: '40%',
+      sg_t4a: 'At least one renewal paid, "no results" or any other reason', sg_t4b: '30%',
+      sg_t5a: '"I have too much at home"', sg_t5b: 'No discount: postpone or space the next shipment to a set date',
+      sg_t6a: 'Angry or threatening · a health reason', sg_t6b: 'Cancel at once, no persuasion',
+      sg_t7a: 'A failed charge', sg_t7b: 'Not a cancel: update the card',
+      sg_h_how: 'How to add it (only after the customer said yes)',
+      sg_how1: 'In the ticket: Manage subscription → Add discount.', sg_how2: 'Type: percentage. Value: 30, 40 or 50 (quick button).', sg_how3: 'For how many deliveries: 1. Name: הנחת שימור.',
+      sg_how4: 'Continue to confirm → the last 4 digits of the subscription → Do it.', sg_how5: 'Tell the customer the exact percent, and that it is for the next order only.',
+      sg_h_test: 'The first time', sg_test: 'Test on ONE real customer: add the discount and check in Kaching that the subscription\'s next order shows it. Only when it looks right, go on with the rest.',
+      sg_h_undo: 'A mistaken discount?', sg_undo: 'Kaching\'s API cannot remove a discount. Remove it in the Kaching admin, on the customer\'s subscription (not from this screen). If the customer was told another number, correct it with them.',
       mg_next: 'Continue to confirm', mg_type: 'To confirm, type the last 4 digits of the contract number', mg_reason: 'Note for the log (optional)',
       mg_go: 'Do it', mg_working: 'Working…', mg_back: 'Back', mg_close: 'Close', mg_confirm: 'What will happen:',
       mg_off: 'The engine says subscription changes are off — this will likely be refused.', mg_frozen: 'Subscription changes are frozen — this will likely be refused.',
@@ -2088,7 +2124,8 @@
     if (x.status === 'wa_queued') body.append(h('div', { class: 'wa-note', role: 'status', 'data-test': 'wa-queued' },
       h('span', { class: 'chip ch-wa big', text: t('wa_queued_chip') })));
     if (x.recommendation) body.append(h('div', { class: 'todo', role: 'note', 'data-test': 'what-to-do' },
-      h('b', { text: t('what_to_do') }), h('div', { id: 'tk-reco', dir: 'auto', text: x.recommendation })));
+      h('b', { text: t('what_to_do') }), h('div', { id: 'tk-reco', dir: 'auto', text: x.recommendation }),
+      /הנחת שימור/.test(String(x.recommendation)) ? h('button', { class: 'btn small ghost', type: 'button', text: t('sg_btn'), 'data-test': 'sg-open', onclick: function () { SaveGuide.open(); } }) : null));
     const whyLines = isOpen && x.action ? actionLines(x.action, !!String(x.draft_text || '').trim()) : [];
     if (whyLines.length) {
       const lines = whyLines;
@@ -3876,6 +3913,39 @@
   })();
 
   // ---- manage subscription: every Kaching action (Owner, 2026-10-14). The engine gate re-checks everything; this is the form.
+  // 2026-10-27 (Guy): the save-discount guide for the customer-service team. One element builder, used in the subscription dialog, the add-discount form and a standalone dialog
+  // opened from the ticket's "what to do" line. The text is the engine's playbook (engine/Claude.gs CS_SUBSCRIPTION_SAVE) in the team's words.
+  const SAVE_TITLE = 'הנחת שימור';   // the name the customer sees and the engine's recommendation names; subHasSaveDiscount_ reads it, so it is never translated
+  function saveGuideEl(open) {
+    const rows = ['1', '2', '3', '4', '5', '6', '7'].map(function (n) { return h('tr', null, h('td', { text: t('sg_t' + n + 'a') }), h('td', { text: t('sg_t' + n + 'b') })); });
+    const how = ['1', '2', '3', '4', '5'].map(function (n) { return h('li', { text: t('sg_how' + n) }); });
+    return h('details', Object.assign({ class: 'sg', 'data-test': 'save-guide' }, open ? { open: true } : {}),
+      h('summary', { text: t('sg_title') }),
+      h('div', { class: 'sg-body' },
+        h('h5', { text: t('sg_h_rules') }), h('ol', null, h('li', { text: t('sg_r1') }), h('li', { text: t('sg_r2') })),
+        h('h5', { text: t('sg_h_table') }),
+        h('table', { class: 'sg-table' }, h('thead', null, h('tr', null, h('th', { text: t('sg_th_when') }), h('th', { text: t('sg_th_offer') }))), h('tbody', null, rows)),
+        h('h5', { text: t('sg_h_how') }), h('ol', null, how),
+        h('h5', { text: t('sg_h_test') }), h('p', { text: t('sg_test') }),
+        h('h5', { text: t('sg_h_undo') }), h('p', { text: t('sg_undo') })));
+  }
+  const SaveGuide = (function () {
+    let dlg = null;
+    function open() {
+      if (!dlg) {
+        dlg = document.createElement('dialog');
+        dlg.className = 'dlg dlg-wide';
+        dlg.setAttribute('data-test', 'save-guide-dlg');
+        document.body.appendChild(dlg);
+      }
+      clear(dlg);
+      const g = saveGuideEl(true);
+      dlg.append(h('div', { class: 'in' }, h('h3', { text: t('sg_title') }), g, h('div', { class: 'row-btns' }, h('button', { class: 'btn ghost', type: 'button', text: t('mg_close'), onclick: function () { dlg.close(); } }))));
+      if (!dlg.open) dlg.showModal();
+    }
+    return { open: open };
+  })();
+
   const Manage = (function () {
     const dlg = $('sub-dlg');
     let st = null;
@@ -4027,9 +4097,22 @@
       }
       if (e.kind === 'discount') {
         const type = h('select', { 'aria-label': t('mg_dtype') }, h('option', { value: 'PERCENTAGE', text: t('mg_dtype_pct') }), h('option', { value: 'FIXED_AMOUNT', text: t('mg_dtype_fixed') }));
-        const val = h('input', { type: 'text', inputmode: 'decimal', dir: 'ltr' });
-        const title = h('input', { type: 'text', dir: 'auto', maxlength: '60' });
-        const cyc = h('input', { type: 'number', min: '1', max: '60', step: '1', inputmode: 'numeric' });
+        // 2026-10-27 (Guy): the defaults are the save discount: percentage, ONE delivery, the title the engine's recommendation names. The gates below are unchanged.
+        const val = h('input', { type: 'text', inputmode: 'decimal', dir: 'ltr', 'data-test': 'mg-dvalue' });
+        const title = h('input', { type: 'text', dir: 'auto', maxlength: '60', value: SAVE_TITLE, 'data-test': 'mg-dtitle' });
+        const cyc = h('input', { type: 'number', min: '1', max: '60', step: '1', inputmode: 'numeric', value: '1', 'data-test': 'mg-dcycles' });
+        const warn = h('div', { class: 'problem small', role: 'status', 'data-test': 'mg-dwarn', hidden: true, text: t('mg_dc_warn') });
+        const refreshWarn = function () {
+          const v = val.value.trim();
+          const saveShape = type.value === 'PERCENTAGE' && ['30', '40', '50'].indexOf(v) >= 0 && String(cyc.value) === '1';
+          warn.hidden = title.value.trim() !== SAVE_TITLE || saveShape || !v;
+        };
+        [val, title, cyc, type].forEach(function (el) { el.addEventListener('input', refreshWarn); el.addEventListener('change', refreshWarn); });
+        const presets = h('div', { class: 'row-btns start', 'data-test': 'mg-dpresets' }, ['30', '40', '50'].map(function (n) {
+          return h('button', { class: 'btn small', type: 'button', text: n + '%', 'data-test': 'mg-preset-' + n, onclick: function () { type.value = 'PERCENTAGE'; val.value = n; refreshWarn(); } });
+        }));
+        const orders = typeof c.ordersCount === 'number' ? c.ordersCount : null;
+        const hint = h('div', { class: 'muted small', 'data-test': 'mg-dhint' }, orders === null ? t('mg_renewals_unknown') : [tx('mg_renewals', { n: Math.max(0, orders - 1) }), ' · ', orders - 1 <= 0 && !c.ordersMore ? t('mg_rec_first') : t('mg_rec_after')]);
         const next = btn(t('mg_next'), function () {
           const v = val.value.trim();
           if (!/^\d{1,6}(\.\d{1,2})?$/.test(v)) { val.setAttribute('aria-invalid', 'true'); return; }
@@ -4039,8 +4122,8 @@
           confirmOf('add_discount', p, tx('mg_do_add_discount', { title: p.title, v: type.value === 'PERCENTAGE' ? v + '%' : money(v, st.c.currency),
             c: p.recurringCycleLimit ? t('mg_dc_n', { n: p.recurringCycleLimit }) : t('mg_dc_forever') }));
         }, 'primary');
-        put(h('h4', { text: t('mg_add_discount') }), h('label', null, t('mg_dtype'), type), h('label', null, t('mg_dvalue'), val),
-          h('label', null, t('mg_dtitle'), title), h('label', null, t('mg_dcycles'), cyc), h('div', { class: 'row-btns' }, back, next));
+        put(h('h4', { text: t('mg_add_discount') }), hint, saveGuideEl(true), h('label', null, t('mg_dtype'), type), h('div', { class: 'muted small' }, t('mg_dpresets')), presets, h('label', null, t('mg_dvalue'), val),
+          h('label', null, t('mg_dtitle'), title), h('label', null, t('mg_dcycles_save'), cyc), warn, h('div', { class: 'row-btns' }, back, next));
         return wrap;
       }
       return null;
@@ -4095,6 +4178,7 @@
           st.x.email ? [' · ', h('bdi', { class: 'ltr', text: st.x.email })] : null),
         st.note ? h('div', { class: 'problem', role: 'status', text: st.note }) : null,
         top.length && !editing ? h('div', { class: 'row-btns start' }, top) : null,
+        live && !editing ? saveGuideEl(false) : null,
         cycles, lines, disc,
         workArea(),
         editing ? null : h('div', { class: 'row-btns' }, h('button', { class: 'btn ghost', type: 'button', text: t('mg_close'), onclick: function () { dlg.close(); } }))));
