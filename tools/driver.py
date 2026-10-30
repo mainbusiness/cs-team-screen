@@ -296,7 +296,26 @@ def compose_weekly(stats, local, days=7):
         if sup:
             lines.append("התראות שהושתקו: %d (%s)" % (sum(sup.values()), _top(sup, 3)))
         wa = s.get("whatsapp") or {}
-        lines.append("וואטסאפ: %s%s" % ("לא נראה כעת" if wa.get("stale") else "תקין", " · התראות ניתוק: %d" % wa.get("staleAlerts", 0) if wa.get("staleAlerts") else ""))
+        # ready is False (Dondy logged out / socket dead) or a week of "page not ready" alerts => NOT connected,
+        # even though the extension kept heartbeating. Only call it "תקין" when the page is actually ready.
+        not_ready = wa.get("ready") is False or (wa.get("ready") is not True and wa.get("notReadyAlerts"))
+        if not_ready:
+            wa_state = "⚠️ מנותק — Dondy לא מחובר (צריך להתחבר מחדש דרך מסך ה-VPS)"
+        elif wa.get("stale"):
+            wa_state = "לא נראה כעת"
+        else:
+            wa_state = "תקין"
+        extra = ""
+        if wa.get("notReadyAlerts"):
+            extra += " · התראות ניתוק Dondy: %d" % wa["notReadyAlerts"]
+        if wa.get("staleAlerts"):
+            extra += " · התראות ניתוק תוסף: %d" % wa["staleAlerts"]
+        lines.append("וואטסאפ: %s%s" % (wa_state, extra))
+        # accurate WhatsApp volume (conversation source): received, answered by a PERSON, still waiting.
+        if wa.get("received"):
+            lines.append("  וואטסאפ — נכנסו: %d · נענו ע״י אדם: %d · ממתינים: %d%s" % (
+                wa.get("received", 0), wa.get("humanAnswered", 0), wa.get("awaiting", 0),
+                " (ספירה חלקית)" if wa.get("countsTruncated") else ""))
         if s.get("auditTruncated"):
             lines.append("שימו לב: היומן קוצר, חלק מהספירות חלקיות")
     return "סיכום שבועי " + end, "\n".join(lines)

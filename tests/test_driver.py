@@ -280,8 +280,18 @@ def test_compose_is_plain_tidy_and_survives_a_missing_section():
     assert "<" not in body and "{" not in body
     assert "נשלחו: 25 ידנית (agent-two 15, noa 10) · 3 תשובות אוטומטיות · 2 ביטולים אוטומטיים" in body
     assert "דחיות שליחה: cancel_claim 2" in body and "שגיאות מנוע:" in body and "התראות שהושתקו: 2" in body
-    assert "וואטסאפ: תקין · התראות ניתוק: 1" in body
+    assert "וואטסאפ: תקין · התראות ניתוק תוסף: 1" in body
     assert len(body) < 3000
+
+
+def test_whatsapp_shows_disconnected_when_dondy_is_logged_out_and_the_accurate_volume():
+    # ready False (logged out) or a week of "page not ready" alerts => NOT connected, even though the extension kept heartbeating.
+    # And the accurate conversation-sourced volume: received / answered-by-a-person / still-waiting.
+    local = driver.israel_local(utc(2026, 10, 8, 15, 2))
+    stats = {"apexmen": dict(STATS, whatsapp={"ready": False, "notReadyAlerts": 80, "stale": False, "received": 133, "humanAnswered": 0, "awaiting": 97})}
+    _, body = driver.compose_weekly(stats, local)
+    assert "מנותק" in body and "וואטסאפ: תקין" not in body, body
+    assert "נכנסו: 133" in body and "נענו ע״י אדם: 0" in body and "ממתינים: 97" in body, body
 
 
 # ---------------- Gmail quota: the brand is paused for 30 minutes ----------------
