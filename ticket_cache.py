@@ -932,6 +932,33 @@ class TicketCache:
 
     # ---------- writes made through the screen ----------
 
+    def _merged_away(self, user, brand, src, now_iso):
+        """apiMergeTickets (2026-10-31): the ticket merged INTO the one on screen closes as "merged" in every list at once, and every
+        "related tickets" search of the brand is dropped (it still offered the merged ticket). The engine confirms on revalidate."""
+        if not BRAND_RE.match(brand):
+            return
+        with self.lock:
+            rel = self.mem.setdefault("_related", {})
+            for k in [k for k in rel if k[0] == brand]:
+                rel.pop(k, None)
+        if not isinstance(src, str) or not ID_RE.match(src):
+            return
+        patch = {"status": "done", "category": "merged", "handled_by": user["username"], "handled_at": now_iso}
+        with self.lock:
+            e = self._bucket(brand)["t"].get(src)
+            if e:
+                e["full"] = dict(e["full"], ticket=dict(e["full"].get("ticket") or {}, **patch))
+                e["at"] = self.clock()
+                e["stale"] = True
+            b = self._bucket(brand)["boot"]
+            row = next((r for r in b["data"].get("tickets", []) if r.get("id") == src), None) if b else None
+            if row:                                  # only a row the list has: never a half-empty row for a ticket it did not show
+                b["at"] = self.clock()
+                self._apply_rows(b["data"], [dict(row, **patch)])
+        if e:
+            self._write(os.path.join(self._dir(brand, "t"), src + ".json"), e)
+        self._background(("t", brand, src), lambda: self._refresh(user, brand, src))
+
     def after_write(self, user, brand, fn, args, out):
         if fn in self.QUEUE_INVALIDATE:              # the next load reads the engine (the write changed the queue)
             self.drop_queue(brand, self.QUEUE_INVALIDATE[fn])
@@ -940,6 +967,8 @@ class TicketCache:
             return
         ok = bool(out.get("ok"))
         now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        if ok and fn == "apiMergeTickets":
+            self._merged_away(user, brand, args.get("from"), now_iso)
         patch = None
         if ok and fn == "apiSaveDraft":
             patch = {"draft_text": args.get("text", "")}
@@ -988,7 +1017,8 @@ class TicketCache:
 
 
 WRITE_FNS = ("apiSaveDraft", "apiSend", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiSubCancel", "apiOrderEdit",
-             "apiAutoCancelApprove", "apiAutoCancelReject", "apiAutoReplyReview", "apiWaTakeOver", "apiSendTemplate", "apiRedraftOne")
+             "apiAutoCancelApprove", "apiAutoCancelReject", "apiAutoReplyReview", "apiWaTakeOver", "apiSendTemplate", "apiRedraftOne",
+             "apiMergeTickets")
 # Who else has a ticket on screen (Owner, 2026-10-11: two agents answered the same ticket). Fed by every /watch tick (every 5 s while the ticket is
 # on screen) and every open; "editing" = the agent typed in it lately. In memory: one gunicorn worker (render.yaml). Names only, never text.
 PRESENCE_SEEN_S = 15.0

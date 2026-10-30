@@ -168,6 +168,12 @@
       details: 'פרטים', created: 'נפתח', handled_at: 'טופל', by: 'ע״י', ticket_id: 'מזהה', language: 'שפה', order: 'הזמנה',
       audit_na: 'יומן הפעולות המלא נשמר במנוע (גיליון audit) ולא נחשף למסך.',
       related: 'פניות קודמות של הלקוח', no_related: 'אין פניות נוספות.',
+      mrg_btn: '⤵ מיזוג לפנייה הזו', mrg_working: 'ממזג…', mrg_title: 'למזג את הפנייה לתוך הפנייה הזו?',
+      mrg_body: 'הפנייה של {who} ("{subj}") תתאחד לתוך הפנייה הזו: כל המיילים שלה יופיעו כאן, היא תיסגר כ"מוזגה", ומייל חדש שלה יגיע לכאן. התשובה ללקוח נשלחת מהפנייה הזו. אי אפשר לבטל מיזוג.',
+      mrg_ok: 'למזג', mrg_done: 'הפניות מוזגו ✓', mrg_done_redraft: 'הפניות מוזגו ✓ טיוטה חדשה מכל השיחה תיכתב בדקות הקרובות (או «תשובה אחרת» עכשיו).',
+      mrg_done_reopened: 'הפניות מוזגו ✓ הפנייה נפתחה מחדש כי מוזגה אליה פנייה פתוחה.',
+      mrg_other: 'מיזוג פנייה כפולה מכתובת אחרת', mrg_hint: 'הלקוח כתב מכתובת מייל אחרת או מטופס? לחפש לפי מייל, שם, מספר הזמנה או מזהה פנייה.',
+      mrg_ph: 'מייל / שם / #הזמנה / מזהה פנייה', mrg_find: 'חיפוש', mrg_none: 'לא נמצאה פנייה מייל שאפשר למזג לכאן.',
       stale: 'הפנייה התעדכנה בשרת ({what}).', stale_new: 'הלקוח כתב שוב', stale_status: 'הסטטוס השתנה', refresh: 'רענון',
       pick_ticket: 'בחרו פנייה מהרשימה',
       menu: 'תפריט', users: 'ניהול משתמשים', change_pw: 'החלפת סיסמה', logout: 'יציאה', to_en: 'English UI', to_he: 'ממשק בעברית', to_tickets: 'חזרה לפניות',
@@ -431,6 +437,12 @@
       details: 'Details', created: 'Opened', handled_at: 'Handled', by: 'by', ticket_id: 'Id', language: 'Language', order: 'Order',
       audit_na: 'The full action log lives in the engine (audit sheet) and is not exposed here.',
       related: "Customer's other tickets", no_related: 'No other tickets.',
+      mrg_btn: '⤵ Merge into this ticket', mrg_working: 'Merging…', mrg_title: 'Merge that ticket into this one?',
+      mrg_body: 'The ticket of {who} ("{subj}") becomes part of this ticket: all its emails show here, it closes as "merged", and new mail on it comes here. The reply goes out from this ticket. A merge cannot be undone.',
+      mrg_ok: 'Merge', mrg_done: 'Tickets merged ✓', mrg_done_redraft: 'Tickets merged ✓ A new draft from the whole conversation is written in the next few minutes (or "Different answer" now).',
+      mrg_done_reopened: 'Tickets merged ✓ This ticket was reopened because an open ticket was merged into it.',
+      mrg_other: 'Merge a duplicate from another address', mrg_hint: 'Did the customer write from another email or a form? Search by email, name, order number or ticket id.',
+      mrg_ph: 'Email / name / #order / ticket id', mrg_find: 'Search', mrg_none: 'No email ticket that can be merged here.',
       stale: 'This ticket changed on the server ({what}).', stale_new: 'the customer wrote again', stale_status: 'the status changed', refresh: 'Refresh',
       pick_ticket: 'Pick a ticket from the list',
       menu: 'Menu', users: 'Users', change_pw: 'Change password', logout: 'Sign out', to_en: 'English UI', to_he: 'Hebrew UI', to_tickets: 'Back to tickets',
@@ -4252,6 +4264,61 @@
     return c;
   }
 
+  // ---- "מיזוג פניות" (the CS team, 2026-10-31: "merge duplicate emails or conversations from the same customer into one thread, like
+  // Gorgias"). Another EMAIL ticket of the customer (this address, another address, a closed one) is merged INTO the ticket on screen
+  // (apiMergeTickets): its emails show here, it closes as "merged", new mail on it comes here. One confirm step; a merge is not undoable.
+  const Merge = (function () {
+    function can(cur, x) {
+      return canWork() && !!cur && !!x && !isWA(cur) && !isWA(x) && x.id !== cur.id && cur.category !== 'merged' && x.category !== 'merged' && !x.archived;
+    }
+    async function run(cur, x, btn) {
+      const brand = tkBrand(cur);
+      const yes = await confirmDlg({ title: t('mrg_title'), body: t('mrg_body', { who: x.name || x.email || x.id, subj: x.subject || x.summary || '—' }), ok: t('mrg_ok') });
+      if (!yes || !S.tk || S.tk.id !== cur.id) return;
+      btn.disabled = true; btn.textContent = t('mrg_working');
+      let r;
+      try { r = await engine('apiMergeTickets', { id: cur.id, from: x.id }, brand); } catch (e) { r = { ok: false, error: String(e && e.message || e) }; }
+      if (!r.ok) { btn.disabled = false; btn.textContent = t('mrg_btn'); toast(r.msg || r.error); return; }
+      toast(r.reopened ? t('mrg_done_reopened') : r.redraft ? t('mrg_done_redraft') : t('mrg_done'));
+      if (S.tk && S.tk.id === cur.id) openTicket(cur.id, { fresh: true });
+    }
+    /** A ticket row with its merge button (or the plain row when it cannot be merged here). */
+    function row(cur, x) {
+      const r = rowEl(x, { showStatus: true });
+      if (!can(cur, x)) return r;
+      const b = h('button', { class: 'btn ghost small mg-btn', type: 'button', text: t('mrg_btn'), 'data-test': 'mg-btn', 'data-id': x.id });
+      b.addEventListener('click', function (e) { e.stopPropagation(); run(cur, x, b); });
+      return h('div', { class: 'mg-row' }, r, b);
+    }
+    /** Another address / a form / a ticket id: the related card's own search (server-cached, background priority), merge buttons on the hits. */
+    function finder(cur) {
+      if (!canWork() || !cur || isWA(cur) || cur.category === 'merged') return null;
+      const brand = tkBrand(cur);
+      const inp = h('input', { type: 'text', dir: 'ltr', class: 'lk-in', maxlength: '100', autocomplete: 'off', placeholder: t('mrg_ph'), 'aria-label': t('mrg_ph'), 'data-test': 'mg-in' });
+      const go = h('button', { class: 'btn small', type: 'button', text: t('mrg_find'), 'data-test': 'mg-find' });
+      const out = h('div', { 'aria-live': 'polite', 'data-test': 'mg-out' });
+      let busy = false;
+      async function find() {
+        const q = inp.value.trim();
+        if (busy || q.length < 2) { inp.focus(); return; }
+        busy = true; go.disabled = true; clear(out);
+        const r = await api('/api/' + encodeURIComponent(brand) + '/related', { q: q }, 'POST', { quiet: true });
+        busy = false; go.disabled = false;
+        if (!S.tk || S.tk.id !== cur.id) return;
+        if (!r.ok) { out.append(h('div', { class: 'err-box', role: 'alert', text: r.msg || r.error })); return; }
+        if (r.deferred) { out.append(h('div', { class: 'muted small', text: t('related_later') })); return; }
+        const hits = (r.tickets || []).filter(function (x) { return can(cur, x); });
+        if (!hits.length) { out.append(h('div', { class: 'muted small', 'data-test': 'mg-none', text: t('mrg_none') })); return; }
+        hits.slice(0, 10).forEach(function (x) { out.append(row(cur, x)); });
+      }
+      go.addEventListener('click', find);
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); find(); } });
+      return h('details', { class: 'lk-more mg-more', 'data-test': 'mg-more' }, h('summary', { class: 'small', text: t('mrg_other') }),
+        h('div', { class: 'small muted', text: t('mrg_hint') }), h('div', { class: 'lk-row' }, inp, go), out);
+    }
+    return { row: row, finder: finder };
+  })();
+
   // ---- related
   async function loadRelated() {
     const k = S.tk;
@@ -4278,7 +4345,8 @@
     else if (!k || k.related === null || k.related === undefined) c.append(h('div', { class: 'muted small', text: t('loading') }));
     else if (k.relatedErr) c.append(h('div', { class: 'err-box', text: k.relatedErr }));
     else if (!k.related.length) c.append(h('div', { class: 'muted small', text: t('no_related') }));
-    else k.related.forEach(function (x) { c.append(rowEl(x, { showStatus: true })); });
+    else k.related.forEach(function (x) { c.append(Merge.row(k.ticket, x)); });
+    if (k && k.ticket) { const f = Merge.finder(k.ticket); if (f) c.append(f); }
     return c;
   }
   function paintRelated() {

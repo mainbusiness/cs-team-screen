@@ -66,6 +66,8 @@ FN_TABLE = {
     "apiSubCancel": (WORK_ROLES, ("id", "contractId", "draft")),
     # "קישור לקוח" (2026-10-20): the order number / email the customer gave -> the ticket; unlink removes it. The engine reads the store live.
     "apiLinkCustomer": (WORK_ROLES, ("id", "q", "unlink")),
+    # "מיזוג פניות" (the CS team, 2026-10-31): email ticket `from` is merged INTO ticket `id` (engine Jobs.gs mergeTickets_)
+    "apiMergeTickets": (WORK_ROLES, ("id", "from")),
     # Auto-cancel queue (Owner, 2026-10-05: the CS team decides). Shapes come from the engine builder later.
     "apiAutoCancelList": (WORK_ROLES, ()),
     "apiAutoCancelApprove": (WORK_ROLES, ("id", "replyText")),
@@ -344,6 +346,7 @@ def parse_engines(raw, url_re=ENGINE_URL_RE):
 AI_NOTE_ID_RE = re.compile(r"^[a-z0-9]{8,40}$")
 AI_SUGG_ID_RE = re.compile(r"^s[0-9a-f]{16}$")
 ATTACH_ID_RE = re.compile(r"^a[0-9a-f]{24}$")
+TICKET_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")   # engine Api.gs idOk_
 ATTACH_MAX_FILES = 10
 # A write that is safe to repeat as it is (the same part again overwrites itself): a lost reply is retried by its caller, never resolved by apiResult.
 IDEMPOTENT_WRITES = frozenset(("apiAttachPut",))
@@ -473,6 +476,8 @@ def clean_args(fn, args, table=None):
                 or len(out.get("reason", "")) > 500):
             raise ProxyError("bad_request", 400)
     if fn == "apiRedraftOne" and (not re.match(r"^[0-9a-f]{8}$", str(out.get("base", ""))) or len(out.get("hint", "")) > 200):
+        raise ProxyError("bad_request", 400)
+    if fn == "apiMergeTickets" and not (TICKET_ID_RE.match(out.get("id", "")) and TICKET_ID_RE.match(out.get("from", ""))):
         raise ProxyError("bad_request", 400)
     if fn == "apiLinkCustomer" and len(out.get("q", "")) > 100:
         raise ProxyError("bad_request", 400)
@@ -606,6 +611,7 @@ SCHEMAS = {
     "apiOrderEdit": lambda r, a: r.get("kind") == a.get("kind") and ("message" in r or r.get("mode") == "preview"),
     "apiSubCancelPreview": lambda r, a: isinstance(r.get("contracts"), list) and r.get("id") == a.get("id"),
     "apiLinkCustomer": lambda r, a: r.get("id") == a.get("id") and "linked" in r and isinstance(r.get("extras"), dict),
+    "apiMergeTickets": lambda r, a: r.get("id") == a.get("id") and r.get("from") == a.get("from") and isinstance(r.get("threads"), int),
     # never "cancelled" without the read-back verdict for THIS contract
     "apiSubCancel": lambda r, a: isinstance(r.get("verified"), bool) and r.get("contractId") == a.get("contractId"),
     "apiAutoCancelApprove": lambda r, a: r.get("id") == a.get("id") or "state" in r,

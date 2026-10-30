@@ -915,3 +915,10 @@ details.sg > summary { cursor: pointer; font-weight: 700; }
 .sg-table { width: 100%; border-collapse: collapse; }
 .sg-table th, .sg-table td { border: 1px solid var(--line); padding: 5px 8px; text-align: start; vertical-align: top; }
 .sg-table th { background: rgba(0,0,0,.04); }
+
+/* "מיזוג פניות" (2026-10-31): a related ticket row with its merge button */
+.mg-row { display: flex; align-items: center; gap: 8px; }
+.mg-row > :first-child { flex: 1; min-width: 0; }
+.mg-row .mg-btn { flex: none; white-space: nowrap; }
+.mg-more .lk-row { margin-top: 6px; }
+@media (max-width: 600px) { .mg-row { flex-direction: column; align-items: stretch; } }

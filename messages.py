@@ -137,6 +137,10 @@ ENGINE = {
     "bad_id": ("מזהה פנייה לא תקין.", "Invalid ticket id."),
     "bad_ids": ("רשימת מזהים לא תקינה.", "Invalid id list."),
     "not_found": ("הפנייה לא נמצאה (אולי הועברה לארכיון).", "Ticket not found (maybe archived)."),
+    # apiMergeTickets ("מיזוג פניות", 2026-10-31)
+    "merge_same": ("אי אפשר למזג פנייה לתוך עצמה.", "A ticket cannot be merged into itself."),
+    "merge_channel": ("אפשר למזג רק פניות מייל. שיחת וואטסאפ נשארת פנייה נפרדת.", "Only email tickets can be merged. A WhatsApp chat stays its own ticket."),
+    "merge_already": ("אחת הפניות כבר מוזגה לפנייה אחרת. רעננו את הפנייה.", "One of the tickets was already merged into another. Refresh the ticket."),
     "bad_query": ("חיפוש: 2 עד 100 תווים.", "Search: 2 to 100 characters."),
     "bad_text": ("הטקסט ריק או ארוך מדי.", "The text is empty or too long."),
     "not_open": ("הפנייה כבר לא פתוחה — אי אפשר לשמור בה טיוטה.", "The ticket is no longer open."),

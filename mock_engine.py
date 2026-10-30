@@ -36,7 +36,7 @@ WORK = ("agent", "admin")
 TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTicketExtras": WORK, "apiTickets": WORK,
          "apiSearch": WORK, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
          "apiNote": WORK, "apiKachingCancel": WORK, "apiKachingContract": WORK, "apiKachingAction": WORK, "apiKachingVariants": WORK, "apiOrderEditState": WORK, "apiOrderEdit": WORK,
-         "apiSubCancelPreview": WORK, "apiSubCancel": WORK, "apiLinkCustomer": WORK,
+         "apiSubCancelPreview": WORK, "apiSubCancel": WORK, "apiLinkCustomer": WORK, "apiMergeTickets": WORK,
          "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
          "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK, "apiRedraftOne": WORK,
@@ -892,6 +892,34 @@ class MockEngines:
         """engine ticketCustomerEmail_: the agent's link first (apiLinkCustomer), then the ticket's own."""
         l = self._b(brand)["snaps"].get(t["id"], {}).get("linked") or {}
         return l.get("email") or t.get("email") or ""
+
+    def apiMergeTickets(self, brand, a, c):
+        """engine Jobs.gs mergeTickets_: ticket `from` INTO ticket `id` (email only, not undoable)."""
+        sv, fm = self._find(brand, a.get("id")), self._find(brand, a.get("from"))
+        if a.get("id") == a.get("from"):
+            return {"ok": False, "error": "merge_same"}
+        if not sv or not fm:
+            return {"ok": False, "error": "not_found"}
+        if sv.get("channel") != "email" or fm.get("channel") != "email":
+            return {"ok": False, "error": "merge_channel"}
+        if sv.get("category") == "merged" or fm.get("category") == "merged":
+            return {"ok": False, "error": "merge_already"}
+        opn = ("ready", "action", "health", "delay")
+        sv_open, fm_open = sv.get("status") in opn, fm.get("status") in opn
+        snaps = self._b(brand)["snaps"]
+        ss, sm = snaps.setdefault(sv["id"], {}), snaps.get(fm["id"], {})
+        ss["conversation"] = sorted((ss.get("conversation") or []) + copy.deepcopy(sm.get("conversation") or []), key=lambda m: m.get("at") or "")
+        sv["emails_count"] = str(len([m for m in ss["conversation"] if m.get("who") == "customer"]))
+        sv["notes"] = (sv["notes"] + "\n" if sv.get("notes") else "") + "מוזגה לכאן פנייה %s (%s)" % (fm["id"], c["user"])
+        reopened = not sv_open and fm_open
+        if reopened:
+            sv["status"], sv["action"] = "action", "מוזגה לכאן פנייה פתוחה (%s): לבדוק ולענות" % fm["id"]
+        fm.update({"status": "done", "category": "merged", "action": "merged into " + sv["id"], "handled_by": c["user"], "handled_at": self._now(),
+                   "draft_text": "", "notes": (fm["notes"] + "\n" if fm.get("notes") else "") + "מוזגה לפנייה " + sv["id"]})
+        self.version[brand] += 1
+        for t in (sv, fm):
+            self.touched[brand][t["id"]] = self.version[brand]
+        return {"ok": True, "id": sv["id"], "from": fm["id"], "threads": 2, "reopened": reopened, "redraft": sv_open or fm_open}
 
     def apiLinkCustomer(self, brand, a, c):
         t = self._find(brand, a.get("id"))
