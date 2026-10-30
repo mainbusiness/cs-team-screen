@@ -61,3 +61,37 @@ def test_media_markers_are_never_sent_to_translation():
     for m in ("[audio]", "[video]", "[file]", " [Audio] "):
         assert assistant.needs_hebrew(m) is False
     assert assistant.needs_hebrew("where is my order") is True
+
+
+def test_email_image_is_served_in_parts_and_png_is_allowed(make_app, transport, pw_hash):
+    """2026-10-30: a customer's email image can be 10 MB; the engine answers in parts (reply cap 3 MB) and the screen joins them."""
+    fid = "m" + "e5" * 12
+    blob = b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 9000
+    cut = [blob[:1000000], blob[1000000:2000000], blob[2000000:]]
+
+    def reply(url, body):
+        if body["fn"] == "apiWaPhotoGet":
+            p = (body.get("args") or {}).get("part", 0)
+            return {"ok": True, "id": fid, "mime": "image/png", "data": base64.b64encode(cut[p]).decode(), "part": p, "parts": 3}
+        return valid_reply(url, body)
+    transport.reply = reply
+    c, _ = logged_in(make_app(), pw_hash, "noa", ["agent"], ["rozela"])
+    r = c.get("/api/rozela/photo/" + fid)
+    assert r.status_code == 200 and r.mimetype == "image/png" and r.data == blob
+    assert [b["args"]["part"] for _, b in transport.calls if b["fn"] == "apiWaPhotoGet"] == [0, 1, 2]
+
+
+def test_a_part_with_another_type_or_too_many_parts_is_refused(make_app, transport, pw_hash):
+    fid = "m" + "f6" * 12
+
+    def reply(url, body):
+        if body["fn"] == "apiWaPhotoGet":
+            p = (body.get("args") or {}).get("part", 0)
+            return {"ok": True, "id": fid, "mime": "image/png" if p == 0 else "text/html", "data": base64.b64encode(b"x").decode(), "part": p, "parts": 2}
+        return valid_reply(url, body)
+    transport.reply = reply
+    c, _ = logged_in(make_app(), pw_hash, "noa", ["agent"], ["rozela"])
+    assert c.get("/api/rozela/photo/" + fid).status_code == 400
+    transport.reply = lambda url, body: ({"ok": True, "id": fid, "mime": "image/png", "data": "", "parts": 99}
+                                         if body["fn"] == "apiWaPhotoGet" else valid_reply(url, body))
+    assert c.get("/api/rozela/photo/" + fid).status_code == 502

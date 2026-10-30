@@ -191,3 +191,33 @@ def test_phone_width_the_row_fits(server):
             pg.screenshot(path=os.path.join(SHOTS, "attach_email_375.png"), full_page=True)
         assert errors == []
         b.close()
+
+
+def noise_png(w, h):
+    """A PNG that does not compress (random pixels): ~3 bytes a pixel, so 1700x1700 is ~8.7 MB — like the 8.1 MB photo Dondy refused."""
+    import struct, zlib
+    raw = b"".join(b"\x00" + os.urandom(w * 3) for _ in range(h))
+    chunk = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw, 1)) + chunk(b"IEND", b"")
+
+
+def test_whatsapp_photo_over_5mb_is_shrunk_in_the_browser_and_goes_up(server):
+    """Owner, 2026-10-30: Dondy refused an 8.1 MB photo ("Maximum allowed: 5MB"). The screen now makes it a JPEG under the cap before the upload."""
+    base, pwd = server
+    big = noise_png(1700, 1700)
+    assert len(big) > 5242880
+    with pw.sync_playwright() as p:
+        b, pg, errors = session(p, base, pwd)
+        open_ticket(pg, base, "w8ab77c1")
+        pg.wait_for_selector("[data-test=attach-btn]")
+        pick(pg, [("IMG_2041.png", big)])
+        pg.wait_for_selector("[data-test=attach-chip][data-status=ok]", timeout=30000)
+        chip = pg.inner_text("[data-test=attach-chip]")
+        assert "IMG_2041.jpg" in chip and "MB" in chip
+        mbs = float(chip.split("MB")[0].split()[-1])
+        assert mbs <= 5.0, chip
+        pg.click("[data-test=attach-remove]")
+        pick(pg, [("big.pdf", pdf(6 * 1024 * 1024))])                                  # not an image: still refused, as before
+        pg.wait_for_selector("[data-test=attach-err]:not([hidden])")
+        assert errors == []
+        b.close()

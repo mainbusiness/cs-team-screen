@@ -116,7 +116,7 @@ FN_TABLE = {
 # Server-internal only (phase 5 assistant): never reachable from the browser route, only via call(internal=True).
 INTERNAL_FNS = {
     # 2026-10-11: a stored WhatsApp photo, served as an image by GET /api/<brand>/photo/<id> (never JSON to the browser)
-    "apiWaPhotoGet": (WORK_ROLES, ("id",)),
+    "apiWaPhotoGet": (WORK_ROLES, ("id", "part")),   # 2026-10-30: email images up to 10 MB come in parts (the reply cap is 3 MB)
     # 2026-10-11: one part of a file an agent attaches; only attach.py (POST /api/<brand>/attach) calls it, after its own checks
     "apiAttachPut": (WORK_ROLES, ("id", "part", "parts", "size", "sha256", "name", "mime", "data")),
     "apiKnowledge": (WORK_ROLES, ()),
@@ -408,7 +408,7 @@ def clean_args(fn, args, table=None):
                     raise ProxyError("bad_request", 400)
                 out[k] = v
                 continue
-            if k in ("since", "seen", "cursor"):
+            if k in ("since", "seen", "cursor", "part"):
                 if isinstance(v, bool) or not isinstance(v, int) or v < 0:
                     raise ProxyError("bad_request", 400)
                 out[k] = v

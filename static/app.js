@@ -189,7 +189,7 @@
       wa_fail_note: 'ההודעה לא יצאה. אפשר לשלוח שוב את אותו הטקסט.', wa_resend: 'שלח שוב', wa_resend_arm: 'לחצו שוב לשליחה חוזרת',
       bot_banner: 'הבוט של דונדי מטפל בשיחה הזאת. אין טיוטה — המנוע בודק אותה בכל ריצה.', takeover: 'לקחת את השיחה', takeover_arm: 'לחצו שוב כדי לקחת את השיחה',
       takeover_ok: 'השיחה אצלך — טיוטה תיכתב בריצה הבאה של המנוע', photo_dondy: '📷 תמונה — לצפייה בדונדי', photo_open: '📷 תמונה — פתיחה',
-      photo_wait: '📷 תמונה — עוד לא הגיעה', photo_gone: '📷 תמונה — נמחקה אחרי 7 ימים, לצפייה בדונדי', voice_wait: '🎤 הודעה קולית — עוד לא הגיעה', voice_dondy: '🎤 הודעה קולית — לשמיעה בדונדי', voice_gone: '🎤 הודעה קולית — נמחקה אחרי 30 יום', media_video: '🎬 וידאו — לצפייה בדונדי', media_file: '📎 קובץ — לצפייה בדונדי',
+      photo_wait: '📷 תמונה — עוד לא הגיעה', photo_gone: '📷 תמונה — נמחקה אחרי 7 ימים, לצפייה בדונדי', photo_mail: '📷 תמונה — לצפייה במייל (Gmail)', photo_gone_mail: '📷 תמונה — נמחקה מהמערכת אחרי 7 ימים, נמצאת במייל (Gmail)', att_shrinking: 'מקטין את התמונה…', voice_wait: '🎤 הודעה קולית — עוד לא הגיעה', voice_dondy: '🎤 הודעה קולית — לשמיעה בדונדי', voice_gone: '🎤 הודעה קולית — נמחקה אחרי 30 יום', media_video: '🎬 וידאו — לצפייה בדונדי', media_file: '📎 קובץ — לצפייה בדונדי',
       att_btn: '📎 צירוף קובץ', att_uploading: 'מעלה…', att_failed: 'לא הועלה', att_remove: 'הסרת הקובץ', att_hint: 'PDF, תמונה, Word, Excel או TXT · עד {mb}MB לקובץ',
       att_hint_wa: 'קובץ אחד: PDF, JPG, PNG, Word או Excel · עד {mb}MB', att_type: 'סוג קובץ לא נתמך: {name}', att_size: 'הקובץ גדול מדי: {name} (עד {mb}MB)',
       att_total: 'כל הקבצים יחד גדולים מדי (עד {mb}MB למייל)', att_count: 'אפשר לצרף עד {n} קבצים', att_wa_one: 'בוואטסאפ אפשר לצרף קובץ אחד להודעה',
@@ -452,7 +452,7 @@
       wa_fail_note: 'The message did not go out. You can send the same text again.', wa_resend: 'Send again', wa_resend_arm: 'Click again to resend',
       bot_banner: 'The Dondy bot is handling this chat. No draft — the engine re-checks it every run.', takeover: 'Take over', takeover_arm: 'Click again to take over',
       takeover_ok: 'The chat is yours — a draft will be written on the next engine run', photo_dondy: '📷 Photo — view in Dondy', photo_open: '📷 Photo — open',
-      photo_wait: '📷 Photo — not arrived yet', photo_gone: '📷 Photo — removed after 7 days, view in Dondy', voice_wait: '🎤 Voice message — not arrived yet', voice_dondy: '🎤 Voice message — listen in Dondy', voice_gone: '🎤 Voice message — removed after 30 days', media_video: '🎬 Video — view in Dondy', media_file: '📎 File — view in Dondy',
+      photo_wait: '📷 Photo — not arrived yet', photo_gone: '📷 Photo — removed after 7 days, view in Dondy', photo_mail: '📷 Photo — view in the email (Gmail)', photo_gone_mail: '📷 Photo — removed here after 7 days, still in the email (Gmail)', att_shrinking: 'Shrinking the image…', voice_wait: '🎤 Voice message — not arrived yet', voice_dondy: '🎤 Voice message — listen in Dondy', voice_gone: '🎤 Voice message — removed after 30 days', media_video: '🎬 Video — view in Dondy', media_file: '📎 File — view in Dondy',
       att_btn: '📎 Attach file', att_uploading: 'Uploading…', att_failed: 'Not uploaded', att_remove: 'Remove the file', att_hint: 'PDF, image, Word, Excel or TXT · up to {mb} MB a file',
       att_hint_wa: 'One file: PDF, JPG, PNG, Word or Excel · up to {mb} MB', att_type: 'File type not allowed: {name}', att_size: 'File too large: {name} (up to {mb} MB)',
       att_total: 'All files together are too large (up to {mb} MB an email)', att_count: 'Up to {n} files', att_wa_one: 'WhatsApp takes one file per message',
@@ -2249,7 +2249,7 @@
     flushText(); flushQuote();
     return out;
   }
-  /** WhatsApp photo slots {ref, file:{url}|null, unavailable?}. Never an <img> (Drive files are private; the CSP allows
+  /** Photo slots {ref, file:{url}|null, unavailable?, src?} — WhatsApp, and the customer's email images (src 'email', 2026-10-30). Never an <img> (Drive files are private; the CSP allows
    *  images only from this site): a stored file is a link, an unavailable one says where to look. */
   const MEDIA_MARKER_RE = /^\[(audio|video|file|image|sticker|document|location|contacts?)\]$/i;
   /** What the message body shows: a media-only message gets a Hebrew label instead of "[audio]" (and nothing when the player is there). */
@@ -2279,7 +2279,7 @@
         const src = '/api/' + encodeURIComponent(S.brand) + '/photo/' + cm[1];
         const img = h('img', { class: 'photo-thumb', src: src, alt: t('photo_open'), loading: 'lazy' });
         const a = h('a', { class: 'photo-link', href: src, target: '_blank', rel: 'noopener noreferrer', 'data-test': 'photo-img' }, img);
-        img.addEventListener('error', function () { a.replaceWith(h('span', { class: 'chip photo dondy', text: t('photo_gone'), 'data-test': 'photo-gone' })); });
+        img.addEventListener('error', function () { a.replaceWith(h('span', { class: 'chip photo dondy', text: t(p.src === 'email' ? 'photo_gone_mail' : 'photo_gone'), 'data-test': 'photo-gone' })); });
         row.append(a);
         return;
       }
@@ -2287,7 +2287,7 @@
       if (url && /^https:\/\/(drive|docs)\.google\.com\//.test(url)) {
         row.append(h('a', { class: 'chip photo', href: url, target: '_blank', rel: 'noopener noreferrer', text: t('photo_open'), 'data-test': 'photo-file' }));
       } else if (p.unavailable || p.file) {
-        row.append(h('span', { class: 'chip photo dondy', text: t('photo_dondy'), 'data-test': 'photo-dondy' }));
+        row.append(h('span', { class: 'chip photo dondy', text: t(p.src === 'email' ? 'photo_mail' : 'photo_dondy'), 'data-test': 'photo-dondy' }));
       } else {
         row.append(h('span', { class: 'chip photo wait', text: t('photo_wait'), 'data-test': 'photo-wait' }));
       }
@@ -2317,7 +2317,37 @@
     function ids(brand, id) { return (state[k(brand, id)] || []).filter(function (a) { return a.status === 'ok'; }).map(function (a) { return a.id; }); }
     function blocks(brand, id) { return (state[k(brand, id)] || []).some(function (a) { return a.status === 'up' || a.status === 'err'; }); }
     function sent(brand, id) { delete state[k(brand, id)]; const p = painters[k(brand, id)]; if (p) p(); }   // handed to the Outbox: the row empties
+    /** A big photo is made smaller in the browser before it goes up (Owner, 2026-10-30: Dondy refused an 8.1 MB photo, its cap is 5 MB):
+     *  JPEG, at most 3000 px, quality stepping down until it fits. Not an image, or the browser cannot read it -> the file as it is. */
+    const SHRINK_EXT = ['jpg', 'jpeg', 'png', 'webp'];
+    function shrinkable(name) { return SHRINK_EXT.indexOf(ext(name)) >= 0; }
+    async function shrink(file, cap) {
+      if (file.size <= cap || !shrinkable(file.name) || typeof createImageBitmap !== 'function') return file;
+      let bmp;
+      try { bmp = await createImageBitmap(file); } catch (e) { return file; }
+      let scale = Math.min(1, 3000 / Math.max(bmp.width, bmp.height)), q = 0.85;
+      for (let n = 0; n < 7; n++) {
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(bmp.width * scale)); c.height = Math.max(1, Math.round(bmp.height * scale));
+        const g = c.getContext('2d');
+        g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);          // a transparent PNG becomes white, not black
+        g.drawImage(bmp, 0, 0, c.width, c.height);
+        const blob = await new Promise(function (r) { c.toBlob(r, 'image/jpeg', q); });
+        if (blob && blob.size <= cap) return new File([blob], String(file.name).replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+        scale *= 0.8; q = Math.max(0.6, q - 0.07);
+      }
+      return file;
+    }
     async function upload(brand, x, it, file, repaint) {
+      const i = info(brand), cap = isWA(x) ? i.waFileMax : i.fileMax;
+      if (file.size > cap) {
+        it.msg = t('att_shrinking'); repaint();
+        file = await shrink(file, cap);
+        if (items(brand, x.id).indexOf(it) < 0) return;          // removed meanwhile
+        it.msg = '';
+        if (file.size > cap) { it.status = 'err'; it.msg = t('att_size', { name: it.name, mb: mb(cap) }); repaint(); return; }
+        it.name = file.name; it.size = file.size;
+      }
       const fd = new FormData();
       fd.append('file', file, file.name);
       fd.append('channel', isWA(x) ? 'whatsapp' : 'email');
@@ -2365,7 +2395,7 @@
             onclick: function () { const l = items(brand, x.id); const n = l.indexOf(a); if (n >= 0) l.splice(n, 1); paint(); } });
           chips.append(h('span', { class: 'chip file ' + a.status, 'data-test': 'attach-chip', 'data-status': a.status, title: a.status === 'err' ? a.msg : '' },
             h('span', { class: 'att-name', dir: 'auto', text: a.name }), h('span', { class: 'att-size', text: size(a.size) }),
-            a.status === 'up' ? h('span', { class: 'att-st', text: t('att_uploading') }) : a.status === 'err' ? h('span', { class: 'att-st', text: a.msg }) : null, rm));
+            a.status === 'up' ? h('span', { class: 'att-st', text: a.msg || t('att_uploading') }) : a.status === 'err' ? h('span', { class: 'att-st', text: a.msg }) : null, rm));
         });
         btn.disabled = wa && list.length >= 1;
         wait.hidden = !blocks(brand, x.id);
@@ -2384,8 +2414,8 @@
           const f = files[n];
           if ((wa ? WA_EXT : EXT).indexOf(ext(f.name)) < 0) { say(t('att_type', { name: f.name })); return; }
           const cap = wa ? i.waFileMax : i.fileMax;
-          if (f.size > cap || f.size < 1) { say(t('att_size', { name: f.name, mb: mb(cap) })); return; }
-          total += f.size;
+          if ((f.size > cap && !shrinkable(f.name)) || f.size < 1) { say(t('att_size', { name: f.name, mb: mb(cap) })); return; }
+          total += Math.min(f.size, cap);                       // a bigger photo is shrunk to fit before it goes up
         }
         if (!wa && total > i.emailTotalMax) { say(t('att_total', { mb: Math.floor(i.emailTotalMax / 1000000) })); return; }
         files.forEach(function (f) {
@@ -5697,10 +5727,11 @@
     return { mount: mount, load: load };
   })();
 
-  // ---------------------------------------------------------------- system change requests to the owner (Owner, 2026-10-25)
-  /* "שהוא יוכל לשלוח העברות לתקן את המערכת עצמה לא רק את התשובות של ה-AI. זה יעבור לפה לאישור שלי אבל שהוא יוכל להציע דברים."
+  // ---------------------------------------------------------------- system change requests (Owner, 2026-10-25; no approval since 2026-10-30)
+  /* "שהוא יוכל לשלוח העברות לתקן את המערכת עצמה לא רק את התשובות של ה-AI."
+   *  2026-10-30 (Guy): "שאני לא צריך לאשר דברים שהמנהל של השירות לקוחות שולח בבקשות" — the Mac Mini approves every request it pulls
+   *  and starts the worker routine that implements it; the status + the worker's answer come back here.
    *  Admins only, on the managers' board right under the AI-notes card (the server answers 403 to anyone else: team_screen/sysreq.py).
-   *  A request executes nothing: the Mac Mini pulls it into the owner's HQ, the owner decides there, the status + his reply come back here.
    *  - The card is built once; only the status line and the list repaint (the textarea is never rebuilt under the manager's fingers).
    *  - The draft is mirrored to localStorage per user and survives a reload; it is cleared only after the server confirmed the save.
    *  - One rid per content: a retry of the same text after a lost answer is a replay (no duplicate), an edited text gets a new rid.
@@ -5709,24 +5740,24 @@
     const MIN = 10, MAX = 2000, KEEP_DAYS = 14;
     const HE = {
       title: '🛠️ הצעות לשיפור המערכת', jump: '🛠️ הצעה לשיפור המערכת',
-      help: 'כאן מבקשים שינוי במערכת עצמה: מסך, כפתור, תהליך עבודה, כלל או תקלה. הבקשה נשלחת לגיא לאישור, ושום דבר לא משתנה לפני שהוא מאשר. לשינוי בניסוח התשובות של ה-AI — ההערות ל-AI שלמעלה.',
+      help: 'כאן מבקשים שינוי במערכת עצמה: מסך, כפתור, תהליך עבודה, כלל או תקלה. הבקשה נכנסת ישר לביצוע, בלי לחכות לאישור, וכשזה יבוצע יופיע כאן מה השתנה. לשינוי בניסוח התשובות של ה-AI — ההערות ל-AI שלמעלה.',
       ph: 'מה הבעיה, ומה צריך להשתנות? למשל: "אחרי סגירת פנייה בוואטסאפ המסך חוזר לראש הרשימה — שיעבור לפנייה שמעל."',
-      brand: 'מותג', all: 'כל המותגים', ticket: 'פנייה / הזמנה (לא חובה)', ticket_ph: 'למשל 1646', send: 'שליחה לגיא', sending: 'שולח…',
-      count: '{n}/2000', short: 'עוד {n} תווים לפחות', sent: 'נשלח לגיא לאישור ✓', fail: 'לא נשלח: {m} — הטקסט נשאר בתיבה.',
+      brand: 'מותג', all: 'כל המותגים', ticket: 'פנייה / הזמנה (לא חובה)', ticket_ph: 'למשל 1646', send: 'שליחה לביצוע', sending: 'שולח…',
+      count: '{n}/2000', short: 'עוד {n} תווים לפחות', sent: 'נשלח לביצוע ✓', fail: 'לא נשלח: {m} — הטקסט נשאר בתיבה.',
       list: 'הבקשות שנשלחו', none: 'עוד לא נשלחו בקשות.', load_fail: 'לא הצלחנו לטעון את הבקשות: {m}', again: 'לנסות שוב',
-      st_pending: '⏳ ממתין לגיא', st_approved: '✅ אושר', st_done: '🔧 בוצע', st_rejected: '❌ נדחה',
-      reply: 'תשובת גיא:', meta: '#{id} · {b} · {d} · {who}', ticket_ref: 'פנייה {t}', archive: 'ארכיון — בוצעו / נדחו לפני יותר מ-14 יום ({n})',
+      st_pending: '⏳ התקבל', st_approved: '🛠️ בעבודה', st_done: '🔧 בוצע', st_rejected: '❌ נדחה',
+      reply: 'עדכון:', meta: '#{id} · {b} · {d} · {who}', ticket_ref: 'פנייה {t}', archive: 'ארכיון — בוצעו / נדחו לפני יותר מ-14 יום ({n})',
       restored: 'שוחזרה טיוטה שלא נשלחה מהמכשיר הזה.'
     };
     const EN = {
       title: '🛠️ System change requests', jump: '🛠️ Request a system change',
-      help: 'Ask here for a change to the system itself: a screen, a button, a workflow, a rule or a bug. The request goes to the owner for approval, and nothing changes before he approves. To change how the AI words its answers, use the AI notes above.',
+      help: 'Ask here for a change to the system itself: a screen, a button, a workflow, a rule or a bug. The request goes straight to work, no approval needed; when it is done, what changed appears here. To change how the AI words its answers, use the AI notes above.',
       ph: 'What is the problem, and what should change? E.g. "After closing a WhatsApp ticket the screen jumps to the top of the list; it should move to the ticket above."',
-      brand: 'Brand', all: 'All brands', ticket: 'Ticket / order (optional)', ticket_ph: 'e.g. 1646', send: 'Send to Guy', sending: 'Sending…',
-      count: '{n}/2000', short: 'At least {n} more characters', sent: 'Sent to the owner for approval ✓', fail: 'Not sent: {m}. Your text is still in the box.',
+      brand: 'Brand', all: 'All brands', ticket: 'Ticket / order (optional)', ticket_ph: 'e.g. 1646', send: 'Send', sending: 'Sending…',
+      count: '{n}/2000', short: 'At least {n} more characters', sent: 'Sent, going to work ✓', fail: 'Not sent: {m}. Your text is still in the box.',
       list: 'Requests sent', none: 'No requests sent yet.', load_fail: 'Could not load the requests: {m}', again: 'Try again',
-      st_pending: '⏳ Waiting for Guy', st_approved: '✅ Approved', st_done: '🔧 Done', st_rejected: '❌ Rejected',
-      reply: 'Guy\'s reply:', meta: '#{id} · {b} · {d} · {who}', ticket_ref: 'ticket {t}', archive: 'Archive: done / rejected more than 14 days ago ({n})',
+      st_pending: '⏳ Received', st_approved: '🛠️ In progress', st_done: '🔧 Done', st_rejected: '❌ Rejected',
+      reply: 'Update:', meta: '#{id} · {b} · {d} · {who}', ticket_ref: 'ticket {t}', archive: 'Archive: done / rejected more than 14 days ago ({n})',
       restored: 'Restored an unsent draft from this device.'
     };
     const L = LANG === 'en' ? EN : HE;

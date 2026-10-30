@@ -444,8 +444,10 @@ def create_app(overrides=None):
         })
 
     PHOTO_ID_RE = re.compile(r"^m[0-9a-f]{24}$")
+    MEDIA_MAX_PARTS = 8              # = 12 MB at the engine's 1.5 MB parts; an email image is at most 10 MB
     # 2026-10-11: voice messages are served by the same route (stored on the core, kept 30 days)
-    MEDIA_MIMES = frozenset(("image/jpeg", "audio/ogg", "audio/mpeg", "audio/mp4", "audio/aac", "audio/webm", "audio/amr",
+    # 2026-10-30: the customer's email images too (png / webp / gif, up to 10 MB: read in parts, at most MEDIA_MAX_PARTS)
+    MEDIA_MIMES = frozenset(("image/jpeg", "image/png", "image/webp", "image/gif", "audio/ogg", "audio/mpeg", "audio/mp4", "audio/aac", "audio/webm", "audio/amr",
                              "audio/x-m4a", "audio/wav", "audio/opus"))
 
     @app.get("/api/<brand>/photo/<fid>")
@@ -456,18 +458,26 @@ def create_app(overrides=None):
             return err
         if not PHOTO_ID_RE.match(str(fid)):
             return json_error("bad_request", 400)
-        status, out = engine_proxy.call(engines, transport, app.config["TOKEN_SECRET"], u, str(brand).lower(), "apiWaPhotoGet",
-                                        {"id": fid}, ui_lang(u), internal=True)
-        if status != 200 or not isinstance(out, dict) or out.get("ok") is not True or not isinstance(out.get("data"), str):
-            code = out.get("error") if isinstance(out, dict) else ""
-            return json_error("not_found" if code == "not_found" else (code or "engine_error"), 404 if code == "not_found" else 502)
-        if out.get("mime") not in MEDIA_MIMES:
-            return json_error("bad_request", 400)
-        try:
-            data = base64.b64decode(out["data"], validate=True)
-        except ValueError:
-            return json_error("engine_error", 502)
-        resp = app.response_class(data, mimetype=out["mime"])
+        chunks, part, parts, mime = [], 0, 1, None
+        while part < parts:
+            status, out = engine_proxy.call(engines, transport, app.config["TOKEN_SECRET"], u, str(brand).lower(), "apiWaPhotoGet",
+                                            {"id": fid, "part": part}, ui_lang(u), internal=True)
+            if status != 200 or not isinstance(out, dict) or out.get("ok") is not True or not isinstance(out.get("data"), str):
+                code = out.get("error") if isinstance(out, dict) else ""
+                return json_error("not_found" if code == "not_found" else (code or "engine_error"), 404 if code == "not_found" else 502)
+            if part == 0:
+                mime, parts = out.get("mime"), out.get("parts", 1)
+                if isinstance(parts, bool) or not isinstance(parts, int) or not 1 <= parts <= MEDIA_MAX_PARTS:
+                    return json_error("engine_error", 502)
+            if out.get("mime") != mime or mime not in MEDIA_MIMES:
+                return json_error("bad_request", 400)
+            try:
+                chunks.append(base64.b64decode(out["data"], validate=True))
+            except ValueError:
+                return json_error("engine_error", 502)
+            part += 1
+        data = b"".join(chunks)
+        resp = app.response_class(data, mimetype=mime)
         resp.headers["Cache-Control"] = "private, max-age=86400"
         resp.headers["X-Content-Type-Options"] = "nosniff"
         return resp
