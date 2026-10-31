@@ -145,7 +145,7 @@
       pp_next_cur: 'המשלוח הבא כרגע: {d}', pp_for_pause: 'לכמה זמן להשהות?', pp_for_postpone: 'בכמה לדחות?',
       pp_date_pause: 'או תאריך חזרה', pp_date_postpone: 'או תאריך חדש למשלוח', pp_pick: 'לבחור תקופה או תאריך.',
       pp_m1: 'חודש', pp_m2: 'חודשיים', pp_m3: '3 חודשים', pp_w1: 'שבוע', pp_w2: 'שבועיים', pp_w3: '3 שבועות', pp_pm1: 'חודש', pp_pm2: 'חודשיים',
-      pp_p_until: 'עד {r} לא יהיו חיובים ולא משלוחים ({n} משלוחים ידולגו).',
+      pp_p_until: 'עד {r} לא יהיו חיובים ולא משלוחים ({n} משלוחים ידולגו).', pp_p_until_one: 'עד {r} לא יהיו חיובים ולא משלוחים (משלוח אחד ידולג).',
       pp_p_active: 'המנוי נשאר פעיל וחוזר לבד בתאריך — אף אחד לא צריך לזכור לחדש אותו.',
       pp_p_first: 'החיוב והמשלוח הראשונים אחרי החזרה: {d}.',
       pp_p_first_unknown: 'החיוב הראשון אחרי החזרה לא ידוע (המשלוחים שאחרי התאריך כבר מדולגים) — לבדוק בקצ׳ינג.',
@@ -440,7 +440,7 @@
       pp_next_cur: 'Next delivery now: {d}', pp_for_pause: 'Pause for how long?', pp_for_postpone: 'Postpone by how much?',
       pp_date_pause: 'Or a return date', pp_date_postpone: 'Or a new delivery date', pp_pick: 'Choose a period or a date.',
       pp_m1: '1 month', pp_m2: '2 months', pp_m3: '3 months', pp_w1: '1 week', pp_w2: '2 weeks', pp_w3: '3 weeks', pp_pm1: '1 month', pp_pm2: '2 months',
-      pp_p_until: 'No charges and no deliveries until {r} ({n} deliveries skipped).',
+      pp_p_until: 'No charges and no deliveries until {r} ({n} deliveries skipped).', pp_p_until_one: 'No charges and no deliveries until {r} (1 delivery skipped).',
       pp_p_active: 'The subscription stays active and comes back by itself on the date — nobody has to remember to resume it.',
       pp_p_first: 'The first charge and delivery after the return: {d}.',
       pp_p_first_unknown: 'The first charge after the return is unknown (the deliveries after the date are already skipped) — check in Kaching.',
@@ -4049,7 +4049,8 @@
   // the live contract and refuses when its key differs from the one shown here, so what the agent saw is exactly what runs.
   const SubPlan = (function () {
     const day = function (iso) { return String(iso || '').slice(0, 10); };
-    function today() { return new Date().toISOString().slice(0, 10); }
+    // the agent's today is Israel's (00:00-02:59 Israel is still yesterday in UTC); the engine only requires a date after ITS today (UTC), which this always is
+    function today() { return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
     function valid(d) { const v = Date.parse(String(d) + 'T12:00:00Z'); return /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) && isFinite(v) && new Date(v).toISOString().slice(0, 10) === d; }
     function addDays(d, n) { return new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10); }
     function addMonths(d, n) {
@@ -4318,7 +4319,7 @@
     function planWhat(kind, p) {
       const box = h('div', { class: 'pp-what', 'data-test': 'pp-what' });
       if (kind === 'pause_until') {
-        box.append(h('div', null, tx('pp_p_until', { r: fmtDay(p.d), n: String(p.steps.length) })), h('div', null, t('pp_p_active')),
+        box.append(h('div', null, tx(p.steps.length === 1 ? 'pp_p_until_one' : 'pp_p_until', { r: fmtDay(p.d), n: String(p.steps.length) })), h('div', null, t('pp_p_active')),
           h('div', null, p.firstCharge ? tx('pp_p_first', { d: fmtDate(p.firstCharge) }) : t('pp_p_first_unknown')));
       } else {
         const mv = p.steps.filter(function (s) { return s.action === 'reschedule'; })[0];
@@ -7229,6 +7230,121 @@
       tb.append(body);
       cx.el.append(h('div', { class: 'table-wrap' }, tb));
     }
+    /** Why customers cancel a subscription (Owner, 2026-11-01: "חמש הקטגוריות הכי מרכזיות והכי נפוצות של ביטול מנוי"). The weekly run (Fridays 02:00 Israel)
+     *  reads every conversation in which a customer asked to cancel a subscription and stores the reason; this card shows the five categories (fixed from
+     *  the data, DECISIONS 2026-11-01) per brand and all brands, a week vs the week before, and quotes without names or numbers. Admins only. ONE element,
+     *  repainted only when the answer changed. "Other / not stated" is its own row: never hidden, never merged into a category. */
+    const CRL = ({
+      he: { title: 'למה מבטלים מנוי — 5 הסיבות המרכזיות', sub: 'מנהלים בלבד · מתעדכן פעם בשבוע', all_brands: 'כל המותגים', last_week: 'השבוע האחרון', all_time: 'כל הנתונים',
+        week: 'שבוע {a}–{b}', since: 'מ-{a} עד {b}', read: 'נקראו {r} שיחות, מתוכן {s} בקשות לבטל מנוי', ran: 'הריצה: {t}', next: 'הריצה הבאה: שישי {d} ב-02:00 (שעון ישראל)',
+        col_reason: 'סיבה', col_n: 'בקשות', col_pct: '% מהבקשות', col_change: 'מול השבוע הקודם', col_quotes: 'ציטוטים מהלקוחות', other_row: 'אחר / לא צוין',
+        other_split: 'אחר {o} · לא צוין {n}', no_prev: 'אין שבוע קודם', loading: 'קורא את הנתונים…', empty: 'אין עדיין נתונים — הריצה הראשונה עוד לא הסתיימה.',
+        unavail: 'עוד לא זמין במנוע של: {b}', err: 'לא הצלחנו לקרוא: {b}', missing: 'בשבוע הזה אין נתונים מ: {b}', prev_missing: 'בשבוע הקודם אין נתונים מ: {b} — ההשוואה בלעדיהם', pp: 'נק׳',
+        how: 'מה נספר: כל שיחה (מייל וווטסאפ) שבה לקוח ביקש לבטל מנוי, לפי מילים של הלקוח עצמו. AI ({m}) מסווג כל שיחה לקטגוריה אחת; בבדיקה ידנית של 25 שיחות הוא צדק ב-24. האחוז הוא מתוך בקשות ביטול המנוי באותו שבוע. ביטול הזמנה או חיוב שנכשל לא נספרים. ציטוטים בלי שמות, מיילים ומספרים.' },
+      en: { title: 'Why customers cancel a subscription — the top 5 reasons', sub: 'managers only · updated weekly', all_brands: 'All brands', last_week: 'Last week', all_time: 'All data',
+        week: 'Week {a}–{b}', since: '{a} to {b}', read: '{r} conversations read, {s} of them asked to cancel a subscription', ran: 'Run: {t}', next: 'Next run: Friday {d} at 02:00 (Israel time)',
+        col_reason: 'Reason', col_n: 'Requests', col_pct: '% of requests', col_change: 'vs the week before', col_quotes: 'What customers wrote', other_row: 'Other / not stated',
+        other_split: 'other {o} · not stated {n}', no_prev: 'no earlier week', loading: 'Reading the data…', empty: 'No data yet — the first run has not finished.',
+        unavail: 'Not available yet in the engine of: {b}', err: 'Could not read: {b}', missing: 'No data this week from: {b}', prev_missing: 'No data the week before from: {b} — compared without them', pp: 'pp',
+        how: 'Counted: every conversation (email and WhatsApp) in which a customer asked to cancel a subscription, from the customer\'s own words. AI ({m}) puts each one in one category; on a hand check of 25 conversations it was right on 24. The % is of that week\'s subscription-cancel requests. Order cancels and failed charges are not counted. Quotes have no names, emails or numbers.' }
+    })[LANG === 'en' ? 'en' : 'he'];
+    const CR_FIVE = ['never_agreed', 'not_effective', 'try_first', 'has_stock', 'one_time'];
+    const cr = { el: null, data: null, sig: '', brand: 'all', period: 'week', at: 0, busy: false, err: null, again: null };
+    function crT(k, v) { let s = CRL[k] || k; Object.keys(v || {}).forEach(function (a) { s = s.split('{' + a + '}').join(String(v[a])); }); return s; }
+    function crDay(dd) { const p = String(dd || '').split('-'); return p.length === 3 ? (+p[2]) + '.' + (+p[1]) : '—'; }
+    function crStrip() {
+      if (!cr.el) cr.el = h('section', { class: 'dash-cr', id: 'dash-cr', 'data-test': 'cr', 'aria-live': 'polite' });
+      paintCr(true);
+      return cr.el;
+    }
+    function crPct(n, of) { return of ? Math.round(1000 * n / of) / 10 : null; }
+    function crNames(list) { return (list || []).map(brandName).join(', '); }
+    /** The slice the selectors point at: { cur, prev, label } (prev = the week before, only for the weekly view). */
+    function crSlice(x) {
+      const src = cr.brand === 'all' ? x.total : (function () { const o = x.brands[cr.brand] || {}; return { weeks: o.weeks || [], all: o.all ? Object.assign({}, o.all, { from: o.all_from, to: o.all_to }) : null }; })();
+      if (cr.period === 'all') return src.all ? { cur: src.all, prev: null, label: crT('since', { a: crDay(src.all.from), b: crDay(src.all.to) }) } : null;
+      const w = src.weeks || [];
+      return w.length ? { cur: w[0], prev: w[1] || null, label: crT('week', { a: crDay(w[0].week), b: crDay(w[0].to) }) } : null;
+    }
+    function paintCr(force) {
+      if (!cr.el) return;
+      const x = cr.data;
+      const sig = JSON.stringify([x, cr.brand, cr.period, cr.err]);
+      if (!force && sig === cr.sig) return;              // nothing changed: no rebuild (the 30 s board refresh never touches it)
+      cr.sig = sig;
+      clear(cr.el);
+      cr.el.append(h('div', { class: 'live-head' }, h('h3', { text: '🔎 ' + CRL.title }), h('span', { class: 'muted small', text: CRL.sub })));
+      if (cr.err) cr.el.append(h('div', { class: 'err-box', role: 'alert', 'data-test': 'cr-err', text: cr.err }));
+      if (!x) { cr.el.append(h('div', { class: 'muted', 'data-test': 'cr-loading', text: CRL.loading })); return; }
+      const brands = Object.keys(x.brands || {});
+      const bad = brands.filter(function (b) { return x.brands[b].state === 'error' && !(x.brands[b].weeks || []).length; });
+      if ((x.unavailable || []).length) cr.el.append(h('div', { class: 'note-box warn', 'data-test': 'cr-unavailable', text: crT('unavail', { b: crNames(x.unavailable) }) }));
+      if (bad.length) cr.el.append(h('div', { class: 'note-box warn', 'data-test': 'cr-brand-err', text: crT('err', { b: crNames(bad) }) }));
+      const withData = brands.filter(function (b) { return (x.brands[b].weeks || []).length; });
+      if (cr.brand !== 'all' && withData.indexOf(cr.brand) < 0) cr.brand = 'all';
+      const bsel = h('select', { 'aria-label': CRL.all_brands, 'data-test': 'cr-brand' }, h('option', { value: 'all', text: CRL.all_brands }),
+        withData.map(function (b) { return h('option', { value: b, text: brandName(b), selected: cr.brand === b ? 'selected' : null }); }));
+      bsel.addEventListener('change', function () { cr.brand = bsel.value; paintCr(true); });
+      const psel = h('select', { 'aria-label': CRL.last_week, 'data-test': 'cr-period' }, h('option', { value: 'week', text: CRL.last_week }),
+        h('option', { value: 'all', text: CRL.all_time, selected: cr.period === 'all' ? 'selected' : null }));
+      psel.addEventListener('change', function () { cr.period = psel.value; paintCr(true); });
+      cr.el.append(h('div', { class: 'row-btns start cr-ctl' }, bsel, psel));
+      const sl = crSlice(x);
+      if (!sl) { cr.el.append(h('div', { class: 'muted', 'data-test': 'cr-empty', text: x.busy ? CRL.loading : CRL.empty })); return; }
+      const cur = sl.cur, prev = sl.prev, of = cur.sub_cancels || 0;
+      const runs = cur.runs ? Object.keys(cur.runs).map(function (b) { return cur.runs[b] && cur.runs[b].at; }).filter(Boolean) : (cur.run && cur.run.at ? [cur.run.at] : []);
+      const ranAt = runs.sort().slice(-1)[0];
+      cr.el.append(h('div', { class: 'cr-meta small', 'data-test': 'cr-meta' },
+        h('b', { 'data-test': 'cr-range', text: sl.label }), ' · ', h('span', { 'data-test': 'cr-read', text: crT('read', { r: cur.read || 0, s: of }) }),
+        ranAt ? [' · ', h('span', { 'data-test': 'cr-ran', text: crT('ran', { t: cxWhen(ranAt) }) })] : null,
+        x.next_run && x.next_run.date ? [' · ', h('span', { 'data-test': 'cr-next', text: crT('next', { d: crDay(x.next_run.date) }) })] : null));
+      if ((cur.missing || []).length) cr.el.append(h('div', { class: 'small cx-miss', 'data-test': 'cr-missing', text: crT('missing', { b: crNames(cur.missing) }) }));
+      if (prev && (prev.missing || []).length) cr.el.append(h('div', { class: 'small cx-miss', 'data-test': 'cr-prev-missing', text: crT('prev_missing', { b: crNames(prev.missing) }) }));
+      const tax = {};
+      (x.taxonomy || []).forEach(function (c) { tax[c.key] = c; });
+      const name = function (k) { const c = tax[k] || {}; return (LANG === 'en' ? c.en : c.he) || k; };
+      const order = CR_FIVE.slice().sort(function (a, b) { return (cur.counts[b] || 0) - (cur.counts[a] || 0) || CR_FIVE.indexOf(a) - CR_FIVE.indexOf(b); });
+      function change(nNow, nPrev) {
+        if (!prev) return h('span', { class: 'muted small', 'data-test': 'cr-change', text: cr.period === 'all' ? '—' : CRL.no_prev });
+        const d1 = nNow - nPrev, p1 = crPct(nNow, of), p0 = crPct(nPrev, prev.sub_cancels || 0);
+        const dp = p1 === null || p0 === null ? null : Math.round(10 * (p1 - p0)) / 10;
+        return h('span', { class: 'cr-chg ' + (d1 > 0 ? 'up' : d1 < 0 ? 'down' : ''), 'data-test': 'cr-change' },
+          (d1 > 0 ? '+' : '') + d1, dp === null ? '' : ' · ' + (dp > 0 ? '↑' : dp < 0 ? '↓' : '') + Math.abs(dp) + ' ' + CRL.pp);
+      }
+      function quotes(k) {
+        const q = (cur.quotes || {})[k] || [];
+        return q.length ? h('ul', { class: 'cr-q' }, q.map(function (s) { return h('li', { dir: 'auto', text: '“' + s + '”' }); })) : h('span', { class: 'muted small', text: '—' });
+      }
+      const tb = h('table', { class: 'dash-table cr-table', 'data-test': 'cr-table' }, h('thead', null, h('tr', null,
+        [CRL.col_reason, CRL.col_n, CRL.col_pct, CRL.col_change, CRL.col_quotes].map(function (c) { return h('th', { text: c }); }))));
+      const body = h('tbody');
+      order.forEach(function (k, i) {
+        const n = cur.counts[k] || 0;
+        body.append(h('tr', { 'data-test': 'cr-row', 'data-k': k },
+          h('td', null, h('b', { text: (i + 1) + '. ' + name(k) }), tax[k] && tax[k].def ? h('div', { class: 'muted small cr-def', text: tax[k].def }) : null),
+          h('td', null, h('b', { 'data-test': 'cr-n', text: String(n) })), h('td', { 'data-test': 'cr-pct', text: of ? crPct(n, of) + '%' : '—' }),
+          h('td', null, change(n, prev ? (prev.counts[k] || 0) : 0)), h('td', null, quotes(k))));
+      });
+      const no = (cur.counts.other || 0) + (cur.counts.not_stated || 0);
+      body.append(h('tr', { class: 'cr-other', 'data-test': 'cr-row', 'data-k': 'other_not_stated' },
+        h('td', null, h('b', { text: CRL.other_row }), h('div', { class: 'muted small', 'data-test': 'cr-other-split', text: crT('other_split', { o: cur.counts.other || 0, n: cur.counts.not_stated || 0 }) })),
+        h('td', null, h('b', { 'data-test': 'cr-n', text: String(no) })), h('td', { 'data-test': 'cr-pct', text: of ? crPct(no, of) + '%' : '—' }),
+        h('td', null, change(no, prev ? (prev.counts.other || 0) + (prev.counts.not_stated || 0) : 0)), h('td', null, quotes('other'))));
+      tb.append(body);
+      cr.el.append(h('div', { class: 'table-wrap' }, tb));
+      cr.el.append(h('div', { class: 'muted small cr-how', 'data-test': 'cr-how', text: crT('how', { m: x.model || 'AI' }) }));
+    }
+    async function loadCr(force) {
+      if (!S.me.is_admin || cr.busy) return;
+      if (!force && cr.data && !cr.data.busy && Date.now() - cr.at < 120000) return;   // weekly data: the 30 s board tick asks at most every 2 min
+      cr.busy = true;
+      let r;
+      try { r = await api('/api/dash/cancel-reasons', undefined, 'GET', { quiet: true }); } catch (e) { r = null; } finally { cr.busy = false; }
+      if (r && r.ok) { cr.data = r; cr.err = null; cr.at = Date.now(); } else cr.err = (r && (r.msg || r.error)) || CRL.err.replace('{b}', '');
+      if (S.view === 'dash') paintCr();
+      clearTimeout(cr.again);
+      if (r && r.ok && r.busy) cr.again = setTimeout(function () { if (S.view === 'dash' && !document.hidden) loadCr(true); }, 4000);   // a brand is still being read
+    }
     async function loadCx() {
       if (!S.me.is_admin) return;
       const want = cx.pick || st.date || '';
@@ -7551,6 +7667,7 @@
       if (st.data) head.append(h('span', { class: 'muted small', 'data-test': 'dash-updated', text: L.updated + ' ' + new Date(st.data.generated_at * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL') }));
       p.append(head, liveStrip(), Sla.section());          // SLA (2026-10-24): managers' board, right under the live strip
       if (S.me.is_admin) p.append(cxStrip());          // cancellations (2026-10-23): admins only, like the sales table
+      if (S.me.is_admin) p.append(crStrip());          // why customers cancel a subscription (2026-11-01): admins only
       if (st.err) p.append(h('div', { class: 'err-box', text: st.err }));
       const x = st.data;
       if (!x) { p.append(h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); return; }
@@ -7603,8 +7720,9 @@
       load();
       loadLive();
       loadCx();
+      loadCr();
       if (!timer) timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) load(true); }, 30000);
-      if (!live.timer) live.timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) { loadLive(); loadCx(); } }, 30000);
+      if (!live.timer) live.timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) { loadLive(); loadCx(); loadCr(); } }, 30000);
     }
     return { show: show, load: load, loadLive: loadLive };
   })();

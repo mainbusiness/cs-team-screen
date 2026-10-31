@@ -238,6 +238,97 @@ def cancel_view(per_brand, users, dates, day, today=None):
             "busy": any(o["busy"] for o in brands.values()), "refresh_s": CANCEL_TTL_S}
 
 
+# Why customers cancel a subscription (Owner, 2026-11-01: "חמש הקטגוריות הכי מרכזיות ... רוטינה פעם בשבוע, בימי שישי ב-2 בלילה"). The engine's
+# apiCancelReasons per brand (admin read, cheap: it never calls Claude); the answers change once a week, so a copy is kept REASONS_TTL_S.
+REASONS_KEYS = ("never_agreed", "not_effective", "try_first", "has_stock", "one_time", "other", "not_stated")
+REASONS_TTL_S = 600
+REASONS_ERR_TTL_S = 60
+REASONS_QUOTES = 3
+
+
+def _nat(v):
+    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
+
+
+def _quotes(q):
+    return [str(x)[:140] for x in (q if isinstance(q, list) else []) if isinstance(x, str) and x.strip()][:REASONS_QUOTES]
+
+
+def reasons_norm(raw):
+    """One brand's apiCancelReasons -> only the fields the board draws, every count an int >= 0 (anything else is dropped, never shown as 0)."""
+    def week(w):
+        c = w.get("counts") if isinstance(w.get("counts"), dict) else {}
+        q = w.get("quotes") if isinstance(w.get("quotes"), dict) else {}
+        run = w.get("run") if isinstance(w.get("run"), dict) else None
+        return {"week": str(w.get("week", ""))[:10], "to": str(w.get("to") or "")[:10], "read": _nat(w.get("read")), "sub_cancels": _nat(w.get("sub_cancels")),
+                "counts": {k: _nat(c.get(k)) or 0 for k in REASONS_KEYS}, "quotes": {k: _quotes(q.get(k)) for k in REASONS_KEYS if _quotes(q.get(k))},
+                "run": {"at": str(run.get("at") or "")[:30], "trigger": str(run.get("trigger") or "")[:10], "failed": _nat(run.get("failed")) or 0} if run else None}
+    weeks = [week(w) for w in (raw.get("weeks") or []) if isinstance(w, dict) and DAY_RE.match(str(w.get("week", "")))]
+    al = raw.get("all") if isinstance(raw.get("all"), dict) else None
+    tax = [{"key": str(t.get("key")), "he": str(t.get("he") or "")[:60], "en": str(t.get("en") or "")[:80], "def": str(t.get("def") or "")[:300]}
+           for t in (raw.get("taxonomy") or []) if isinstance(t, dict) and t.get("key") in REASONS_KEYS]
+    nr = raw.get("next_run") if isinstance(raw.get("next_run"), dict) else {}
+    return {"state": raw.get("state"), "weeks": weeks, "all": week(dict(al, week=al.get("from") or "")) if al else None,
+            "all_from": str((al or {}).get("from") or "")[:10], "all_to": str((al or {}).get("to") or "")[:10],
+            "taxonomy": tax, "model": str(raw.get("model") or "")[:40], "version": str(raw.get("version") or "")[:10],
+            "next_run": {"date": str(nr.get("date") or "")[:10], "local": str(nr.get("local") or "")[:40]}, "pending": _nat(raw.get("pending")) or 0}
+
+
+def _sum_weeks(items):
+    """Several brands' rows of the SAME week (or all-history) added: counts add; quotes take turns between brands, at most REASONS_QUOTES."""
+    out = {"read": 0, "sub_cancels": 0, "counts": {k: 0 for k in REASONS_KEYS}, "quotes": {}, "brands": []}
+    for b, w in items:
+        out["brands"].append(b)
+        out["read"] += w.get("read") or 0
+        out["sub_cancels"] += w.get("sub_cancels") or 0
+        for k in REASONS_KEYS:
+            out["counts"][k] += (w.get("counts") or {}).get(k) or 0
+    for k in REASONS_KEYS:
+        pools = [list((w.get("quotes") or {}).get(k) or []) for _, w in items]
+        q = []
+        while len(q) < REASONS_QUOTES and any(pools):
+            for p in pools:
+                if p and len(q) < REASONS_QUOTES:
+                    q.append(p.pop(0))
+        if q:
+            out["quotes"][k] = q
+    return out
+
+
+def reasons_view(per_brand):
+    """per_brand: {brand: {"state", "data": reasons_norm(...)|None, "at", "error", "busy"}} -> what the board draws: per brand, and all brands
+    together per week (a brand without data for a week is named in `missing`, never counted as 0). A brand with no subscriptions is left out."""
+    brands, hidden, unavailable = {}, [], []
+    for b, e in per_brand.items():
+        data = e.get("data")
+        state = (data or {}).get("state") or e.get("state") or "pending"
+        if state == "no_subscriptions":
+            hidden.append(b)
+            continue
+        if state == "not_deployed":
+            unavailable.append(b)
+        brands[b] = {"state": state, "busy": bool(e.get("busy")), "at": e.get("at"), "error": e.get("error"), "weeks": (data or {}).get("weeks") or [],
+                     "all": (data or {}).get("all"), "all_from": (data or {}).get("all_from"), "all_to": (data or {}).get("all_to"), "pending": (data or {}).get("pending") or 0}
+    any_data = next((e.get("data") for e in per_brand.values() if e.get("data") and e["data"].get("taxonomy")), None) or {}
+    weeks = sorted({w["week"] for o in brands.values() for w in o["weeks"]}, reverse=True)
+    total_weeks = []
+    for wk in weeks:
+        items = [(b, w) for b, o in brands.items() for w in o["weeks"] if w["week"] == wk]
+        s = _sum_weeks(items)
+        s.update(week=wk, to=next((w["to"] for _, w in items if w.get("to")), ""), missing=sorted(b for b, o in brands.items() if o["weeks"] and b not in s["brands"]),
+                 runs={b: w.get("run") for b, w in items})
+        total_weeks.append(s)
+    alls = [(b, o["all"]) for b, o in brands.items() if o.get("all")]
+    froms = [o["all_from"] for o in brands.values() if o.get("all_from")]
+    tos = [o["all_to"] for o in brands.values() if o.get("all_to")]
+    total_all = None
+    if alls:
+        total_all = _sum_weeks(alls)
+        total_all["from"], total_all["to"] = (min(froms) if froms else ""), (max(tos) if tos else "")
+    return {"brands": brands, "hidden": sorted(hidden), "unavailable": sorted(unavailable), "taxonomy": any_data.get("taxonomy") or [],
+            "model": any_data.get("model") or "", "next_run": any_data.get("next_run") or {}, "total": {"weeks": total_weeks, "all": total_all}}
+
+
 def cancel_window(sel, today, n=CANCEL_DAYS):
     """The days the cancellations block shows: the last n ending today while the chosen day is among them, else the n ending on that day."""
     to = today if (date.fromisoformat(today) - date.fromisoformat(sel)).days < n else sel
@@ -1029,6 +1120,65 @@ def register(app, d):
         return jsonify(out)
 
     app.extensions["cs"]["cancels_drain"] = cx_drain
+
+    cr_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="cs-reasons")
+    cr_cache, cr_busy, cr_lock, cr_futs = {}, set(), threading.Lock(), []
+
+    def cr_fetch(u, b):
+        started = log.clock()
+        try:
+            try:
+                _, out = engine_proxy.call(d["engines"], cache.transport, cache.secret(), u, b, "apiCancelReasons", {}, "he")
+            except Exception:                             # noqa: BLE001 — a failed read must never take the board down
+                app.logger.exception("cancel reasons failed for %s", b)
+                out = {"ok": False, "error": "error"}
+            if out.get("ok"):
+                e = {"at": started, "data": reasons_norm(out), "state": out.get("state"), "error": None}
+            else:
+                err = out.get("error") or "error"
+                e = {"at": started, "data": None, "state": "not_deployed" if err in CANCEL_NOT_DEPLOYED else "error", "error": err}
+            with cr_lock:
+                prev = cr_cache.get(b)
+                if e["data"] is None and prev and prev.get("data"):
+                    e = dict(prev, error=e["error"], failed_at=started)
+                cr_cache[b] = e
+        finally:
+            with cr_lock:
+                cr_busy.discard(b)
+
+    def cr_drain(timeout=10):
+        for f in list(cr_futs):
+            f.result(timeout=timeout)
+
+    @app.get("/api/dash/cancel-reasons")
+    def dash_cancel_reasons():
+        """Owner, 2026-11-01: why customers cancel a subscription — the five categories, per brand and all brands, per week. Admins only (like the
+        cancellations card). Never waits for the engine: a brand being read says so and the board asks again."""
+        u, err = d["api_user"]()
+        if err:
+            return err
+        if "admin" not in u.get("roles", []):
+            return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
+        now = log.clock()
+        force = request.args.get("refresh") == "1"
+        per = {}
+        for b in [b for b in u.get("brands", []) if b in d["engines"]]:
+            with cr_lock:
+                e = cr_cache.get(b) or {}
+                ttl = REASONS_ERR_TTL_S if (e.get("data") is None or e.get("failed_at")) else REASONS_TTL_S
+                start = (force or not e or now - float(e.get("failed_at") or e.get("at") or 0) > ttl) and b not in cr_busy
+                if start:
+                    cr_busy.add(b)
+                busy = b in cr_busy
+            if start:
+                cr_futs.append(cr_pool.submit(cr_fetch, u, b))
+                del cr_futs[:-50]
+            per[b] = dict(e, busy=busy)
+        out = reasons_view(per)
+        out.update(ok=True, at=now, busy=any(e.get("busy") for e in per.values()))
+        return jsonify(out)
+
+    app.extensions["cs"]["reasons_drain"] = cr_drain
 
     @app.post("/api/<brand>/activity")
     def activity(brand):

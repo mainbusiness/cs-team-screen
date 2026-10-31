@@ -935,3 +935,16 @@ details.sg > summary { cursor: pointer; font-weight: 700; }
 .pp-presets { flex-wrap: wrap; gap: 6px; }
 .pp-preset[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
 .pp-preview { min-height: 1.5em; }
+
+/* why customers cancel a subscription (2026-11-01) */
+.dash-cr { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 10px 12px; margin: 0 0 12px; border-inline-start: 4px solid var(--warn-ink, #b45309); }
+.dash-cr .live-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.dash-cr .cr-ctl { margin: 6px 0; gap: 8px; flex-wrap: wrap; }
+.dash-cr .cr-meta { margin: 4px 0 8px; overflow-wrap: anywhere; }
+.cr-table td { vertical-align: top; }
+.cr-table .cr-def { max-width: 34ch; }
+.cr-table .cr-other td { background: var(--bg); }
+.cr-q { margin: 0; padding-inline-start: 16px; font-size: 13px; display: grid; gap: 2px; }
+.cr-chg.up { color: var(--danger); font-weight: 700; }
+.cr-chg.down { color: var(--ready); font-weight: 700; }
+.cr-how { margin-top: 6px; }

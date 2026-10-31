@@ -46,7 +46,7 @@ TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTick
          "apiAiNoteSuggestions": ("admin",), "apiAiNoteSuggestDecide": ("admin",),
          "apiSaleCandidates": ("admin",), "apiSaleLog": ("admin",), "apiSaleMine": ("admin",), "apiSaleProof": ("admin",), "apiSaleList": ("admin",), "apiSaleDecide": ("admin",),
          "apiSaleSuggestions": ("admin",), "apiSaleSuggestCredit": ("admin",), "apiSaleSuggestDismiss": ("admin",), "apiSaleScan": ("admin",),
-         "apiCancelStats": ("admin",)}
+         "apiCancelStats": ("admin",), "apiCancelReasons": ("admin",)}
 # apiCancelStats (2026-10-23). MOCK_CANCEL_STATS=absent -> the fn is unknown (an engine before the deploy); MOCK_CANCEL_STATE="apexmen:no_kaching,
 # celesta:error" overrides a brand's Kaching state (velora has no mock engine, so its "no_kaching" is shown through another brand).
 if os.environ.get("MOCK_CANCEL_STATS") == "absent":
@@ -1051,7 +1051,7 @@ class MockEngines:
         if not s:
             return None, None
         if "cycles" not in s:
-            base = datetime.now(timezone.utc) + timedelta(days=28)
+            base = (datetime.now(timezone.utc) + timedelta(days=28)).replace(hour=7, minute=0, second=0, microsecond=0)   # a fixed time like Kaching's: never a different Israel day
             s["cycles"] = [{"index": i + 1, "date": _iso(base + timedelta(days=30 * i)), "skipped": False, "status": "UNBILLED"} for i in range(4)]
             for i, l in enumerate(s["lines"]):
                 l.setdefault("id", "gid://shopify/SubscriptionLine/mock-%s-%d" % (cid[-4:], i))
@@ -1081,6 +1081,38 @@ class MockEngines:
 
     def apiKachingVariants(self, brand, a, c):
         return {"ok": True, "variants": list(self.MOCK_VARIANTS)}
+
+    # ---------- why customers cancel (engine CancelReasons.gs, 2026-11-01) ----------
+    REASON_TAX = [("never_agreed", "לא ידע / לא הסכים למנוי"), ("not_effective", "המוצר לא עזר / לא מתאים"), ("try_first", "רוצה לנסות קודם"),
+                  ("has_stock", "יש מלאי בבית"), ("one_time", "מעדיף רכישה חד-פעמית"), ("other", "אחר"), ("not_stated", "לא צוין")]
+    REASON_DATA = {   # brand -> {week: counts in REASON_TAX order}; the newest week first
+        "rozela": {"2026-10-23": [40, 3, 6, 1, 7, 2, 6], "2026-10-16": [30, 5, 3, 2, 9, 3, 5]},
+        "celesta": {"2026-10-23": [12, 2, 1, 0, 3, 1, 2], "2026-10-16": [10, 1, 1, 1, 2, 0, 3]},
+        "apexmen": {"2026-10-23": [4, 0, 1, 0, 1, 0, 0]},
+        "velora": {"2026-10-23": [3, 0, 1, 0, 0, 0, 1], "2026-10-16": [2, 0, 0, 0, 1, 0, 0]}}
+    REASON_QUOTES = {"never_agreed": ["לא הזמנתי מנוי, רק הזמנה אחת", "לא ידעתי שזה מתחדש כל חודש", "קניתי חד פעמי"], "not_effective": ["זה לא השפיע עליי"],
+                     "try_first": ["רוצה קודם לנסות ולראות תוצאות"], "has_stock": ["יש לי עוד שלושה בקבוקים"], "one_time": ["אזמין לבד כשאצטרך"], "other": ["עובר לחו\"ל"]}
+
+    def apiCancelReasons(self, brand, a, c):
+        tax = [{"key": k, "he": he, "en": k, "def": "הגדרה: " + he} for k, he in self.REASON_TAX]
+        base = {"ok": True, "brand": brand, "version": "v1", "model": "claude-haiku-5-5", "taxonomy": tax,
+                "next_run": {"date": "2026-11-06", "at": "2026-11-06T00:00:00.000Z", "local": "2026-11-06 02:00 Asia/Jerusalem"}}
+        if brand == "selera":
+            return dict(base, state="no_subscriptions", weeks=[], all=None, last_run=None, pending=0)
+        data = self.REASON_DATA.get(brand, {})
+        weeks, tot = [], {k: 0 for k, _ in self.REASON_TAX}
+        for wk in sorted(data, reverse=True):
+            counts = {k: n for (k, _), n in zip(self.REASON_TAX, data[wk])}
+            for k in counts:
+                tot[k] += counts[k]
+            subs = sum(counts.values())
+            weeks.append({"week": wk, "from": wk, "to": (datetime.strptime(wk, "%Y-%m-%d") + timedelta(days=6)).strftime("%Y-%m-%d"), "read": subs + 2, "sub_cancels": subs,
+                          "counts": counts, "quotes": {k: q for k, q in self.REASON_QUOTES.items() if counts.get(k)}, "other_hints": {},
+                          "run": {"at": wk + "T23:05:00.000Z", "read": subs + 2, "sub_cancels": subs, "failed": 0, "trigger": "clock"}})
+        allq = {k: q for k, q in self.REASON_QUOTES.items() if tot.get(k)}
+        return dict(base, state="ok" if weeks else "empty", weeks=weeks, pending=0, last_run=weeks[0]["run"] if weeks else None,
+                    all={"from": min(data) if data else None, "to": "2026-10-29", "read": sum(w["read"] for w in weeks), "sub_cancels": sum(tot.values()), "counts": tot,
+                         "quotes": allq, "other_hints": {}} if weeks else None)
 
     # ---------- order edits in Shopify (engine OrderEdit.gs, 2026-10-16) ----------
     OE_PRICE = 100.0

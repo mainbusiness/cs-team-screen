@@ -114,6 +114,9 @@ FN_TABLE = {
     # 2026-10-23 (Guy: "כמה מנויים הצוות מבטל כל יום וכמה ביטולים בכללי"): cancellations per day / agent + the monthly Kaching churn. A read,
     # admin only (like the sales table). from / to = Israel days, YYYY-MM-DD, at most CANCEL_STATS_MAX_DAYS apart (checked in clean_args).
     "apiCancelStats": (ADMIN_ONLY, ("from", "to")),
+    # 2026-11-01 (Guy: "למה אנשים מבטלים את המנוי", five categories, a weekly run on Fridays 02:00): the engine's stored answers, per week. A read,
+    # admin only; no argument from the browser (the engine shows its newest 8 complete weeks).
+    "apiCancelReasons": (ADMIN_ONLY, ()),
 }
 
 # Server-internal only (phase 5 assistant): never reachable from the browser route, only via call(internal=True).
@@ -177,7 +180,7 @@ READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "ap
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
                       "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates", "apiAiNotes", "apiWaPhotoGet",
                       "apiKachingContract", "apiKachingVariants", "apiOrderEditState", "apiSubCancelPreview", "apiSaleCandidates", "apiSaleMine", "apiSaleProof", "apiSaleList",
-                      "apiSaleSuggestions", "apiAiNoteSuggestions", "apiCancelStats"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
+                      "apiSaleSuggestions", "apiAiNoteSuggestions", "apiCancelStats", "apiCancelReasons"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
 # the time a server thread was held (70-110 s), the 16 threads ran out, Render's health check timed out and the
@@ -582,6 +585,15 @@ def _cancel_stats_ok(r, a):
     return all(isinstance(x, dict) and isinstance(x.get("date"), str) and DAY_ARG_RE.match(x["date"]) and lo <= x["date"] <= hi for x in r["days"])
 
 
+def _cancel_reasons_ok(r, a):
+    """apiCancelReasons (2026-11-01): THIS brand's answer with its week list and taxonomy; a bare {ok:true} never draws an empty board as data."""
+    if r.get("state") not in ("ok", "empty", "no_subscriptions") or not isinstance(r.get("weeks"), list) or not isinstance(r.get("taxonomy"), list):
+        return False
+    if r.get("brand") is not None and r.get("brand") != a.get("brand"):
+        return False
+    return all(isinstance(w, dict) and isinstance(w.get("week"), str) and DAY_ARG_RE.match(w["week"]) and isinstance(w.get("counts"), dict) for w in r["weeks"])
+
+
 SCHEMAS = {
     "apiBoot": lambda r, a: isinstance(r.get("tickets"), list) and isinstance(r.get("counts"), dict),
     "apiChanges": lambda r, a: isinstance(r.get("tickets"), list) and "version" in r,
@@ -637,6 +649,7 @@ SCHEMAS = {
     "apiSaleSuggestCredit": lambda r, a: isinstance(r.get("sale"), dict),
     "apiSaleScan": lambda r, a: isinstance(r.get("result"), dict),
     "apiCancelStats": _cancel_stats_ok,
+    "apiCancelReasons": _cancel_reasons_ok,
 }
 
 
