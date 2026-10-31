@@ -326,3 +326,65 @@ def test_zip_entry_never_overflows_the_phone_bar(server, browser):
     pg.click("[data-test=zip-menu]")
     pg.wait_for_selector("[data-test=zip-go]")
     ctx.close()
+
+
+def test_agent_answers_tickets_while_the_run_goes_on(server, browser):
+    """Owner, 2026-11-01: ask for zip codes, go back to answering customers, come back for them — no waiting on the screen.
+    The run is followed from every screen: ⏳ d/t on the 📮 button, then ✓ + a toast + ✓ in the tab title, and the
+    result is there when the agent comes back. A second brand's screen does not stop following the first brand's run."""
+    base, pwd = server
+    ctx, pg, errs = login(browser, base, pwd, "agent1")
+    posts, polls = [], []
+    pg.on("request", lambda r: (polls if r.method == "GET" else posts).append(r.url) if "/zipfix" in r.url else None)
+    pg.goto(base + "/cs#/zip/rozela")
+    pg.wait_for_selector("[data-test=zip-go]")
+    nums = ["1646", "1647", "1649", "1653", "1660", "1661", "1662", "1663", "1664", "1665", "1666", "1667"]
+    pg.fill("[data-test=zip-orders]", " ".join(nums))
+    pg.click("[data-test=zip-go]")
+    pg.wait_for_selector("[data-test=zip-back]")
+    assert "חזרה לפניות" in pg.inner_text("[data-test=zip-back]")
+    pg.click("[data-test=zip-back]")                                      # back to the tickets while it runs
+    until(pg, "location.hash === '#/b/rozela/ready'")
+    pg.wait_for_selector("[data-test=zip-badge][data-state=run]")
+    until(pg, "/⏳ \\d+\\/12/.test(document.querySelector('[data-test=zip-badge]').textContent)")
+    n0 = len(polls)
+    pg.wait_for_timeout(2500)
+    assert len(polls) > n0                                                # still followed from the tickets screen
+    # another brand's zip screen does not stop the rozela run being followed
+    pg.goto(base + "/cs#/zip/celesta")
+    pg.wait_for_selector("[data-test=zip-go]")
+    assert pg.locator("[data-test=zip-running]").count() == 0             # celesta has no run of its own
+    pg.goto(base + "/cs#/b/rozela/ready")
+    pg.wait_for_selector("[data-test=zip-badge][data-state=done]", timeout=20000)
+    assert pg.inner_text("[data-test=zip-badge]") == "✓"
+    assert pg.evaluate("document.title").startswith("✓ ")
+    assert pg.get_attribute("[data-test=zip-link]", "href") == "#/zip/rozela"
+    n_done = len(polls)
+    pg.wait_for_timeout(2500)
+    assert len(polls) == n_done                                           # nothing running → no polling
+    pg.click("[data-test=zip-link]")
+    pg.wait_for_selector("[data-test=zip-text]")
+    assert pg.input_value("[data-test=zip-text]") == expected(nums)["supplier_text"]
+    assert len(posts) == 1                                                # the same run, never started again
+    assert not pg.evaluate("document.title").startswith("✓")
+    pg.goto(base + "/cs#/b/rozela/ready")                                 # seen → the badge is gone
+    pg.wait_for_selector("[data-test=zip-link]")
+    pg.wait_for_timeout(300)
+    assert pg.locator("[data-test=zip-badge]").count() == 0
+    assert not errs, errs
+    ctx.close()
+
+
+def test_done_toast_when_away(server, browser):
+    base, pwd = server
+    ctx, pg, errs = login(browser, base, pwd, "solo")
+    pg.goto(base + "/cs#/zip/rozela")
+    pg.wait_for_selector("[data-test=zip-go]")
+    pg.fill("[data-test=zip-orders]", "1646 1647 1648")
+    pg.click("[data-test=zip-go]")
+    pg.wait_for_selector("[data-test=zip-back]")
+    pg.click("[data-test=zip-back]")
+    until(pg, "(document.getElementById('toast').textContent || '').indexOf('מוכנים') >= 0", 15000)
+    assert "Rozela" in pg.inner_text("#toast")
+    assert not errs, errs
+    ctx.close()

@@ -25,16 +25,36 @@ Q = lambda s: urllib.parse.quote(s, safe='')
 
 
 # Per-job state. The original was one process per run; here jobs are threads of one server, so the two pieces of
-# mutable run state (fuzzy-guess ledger, web-search circuit breaker) are thread-local: a job never sees another job's.
+# mutable run state (fuzzy-guess ledger, web-search circuit breaker) belong to the JOB, not the process: a job never
+# sees another job's. A job resolves its orders on several worker threads (2026-11-01, speed), so the state is one
+# object per job that the job thread creates and every worker of that job binds to (bind_job_state).
+class JobState:
+    def __init__(self):
+        self.fuzzy, self.web_fail, self.lock = set(), 0, threading.Lock()
+
+_job_tl = threading.local()
+def job_state():
+    s = getattr(_job_tl, 's', None)
+    if s is None: s = _job_tl.s = JobState()
+    return s
+
+def bind_job_state(s):
+    _job_tl.s = s
+
 class _TLSet:
-    def __init__(self): self._tl = threading.local()
-    def _s(self):
-        if not hasattr(self._tl, 's'): self._tl.s = set()
-        return self._tl.s
-    def add(self, x): self._s().add(x)
-    def clear(self): self._s().clear()
-    def __iter__(self): return iter(list(self._s()))
-    def __len__(self): return len(self._s())
+    def _s(self): return job_state()
+    def add(self, x):
+        s = self._s()
+        with s.lock: s.fuzzy.add(x)
+    def clear(self):
+        s = self._s()
+        with s.lock: s.fuzzy.clear()
+    def __iter__(self):
+        s = self._s()
+        with s.lock: return iter(list(s.fuzzy))
+    def __len__(self):
+        s = self._s()
+        with s.lock: return len(s.fuzzy)
 
 
 # ---------------- http + cache ----------------
@@ -160,15 +180,27 @@ class _SafeRedirect(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 _opener = urllib.request.build_opener(_SafeRedirect)
-_last = {}
+# Politeness per source host: request STARTS are spaced at least GAP seconds apart, process-wide, whatever the number
+# of worker threads. A slot is reserved under the lock, so parallel workers queue instead of all firing at once.
+# (Before 2026-11-01 the gap was measured from the END of the previous request, one request in flight at a time.)
+GAP_S = 0.6
+HOST_GAP_S = {'html.duckduckgo.com': 2.0}     # the web search was a flat sleep(2) per query; now the same spacing as a slot
+_next = {}
 _last_lock = threading.Lock()
+def _reserve(host):
+    gap = HOST_GAP_S.get(host, GAP_S)
+    with _last_lock:
+        now = time.time()
+        slot = max(now, _next.get(host, 0))
+        _next[host] = slot + gap
+    if slot > now: time.sleep(slot - now)
+
 def http(url, data=None, headers=None, timeout=30):
     if not host_allowed(url): return 0, ''
     host = urllib.parse.urlparse(url).netloc
-    with _last_lock: wait = 0.6 - (time.time() - _last.get(host, 0))
-    if wait > 0: time.sleep(wait)
     req = urllib.request.Request(url, data=data, headers={'User-Agent': UA, **(headers or {})})
     for attempt in (1, 2):
+        _reserve(host)
         try:
             with _opener.open(req, timeout=timeout) as r:
                 return r.status, r.read().decode('utf-8', 'ignore')
@@ -178,19 +210,48 @@ def http(url, data=None, headers=None, timeout=30):
             if attempt == 2 or data is not None and 'myshopify' in url and 'graphql' not in url:
                 return 0, ''
             time.sleep(3)
-        finally:
-            with _last_lock: _last[host] = time.time()
     return 0, ''
+
+_inflight = {}
+_inflight_lock = threading.Lock()
+def _once(k, fetch):
+    """Run fetch() for cache key k at most once at a time: a worker asking for a page another worker is already
+    fetching waits for that answer instead of hitting the source a second time (same street in two orders)."""
+    with _inflight_lock:
+        ev = _inflight.get(k)
+        mine = ev is None
+        if mine: ev = _inflight[k] = threading.Event()
+    if not mine:
+        ev.wait(120)
+        return None                    # caller re-reads the cache; a miss there (temporary failure) fetches itself
+    try:
+        return fetch()
+    finally:
+        with _inflight_lock: _inflight.pop(k, None)
+        ev.set()
+
+def _cached(c, k):
+    try: return c[k]
+    except KeyError: return None       # evicted between the check and the read
 
 def page(url):
     """GET עם מטמון (כולל 404 — כדי לא לחזור עליו)."""
     c = cache(); k = 'GET|' + url
-    if k not in c:
+    if k in c:
+        v = _cached(c, k)
+        if v is not None: return v
+    def fetch():
         s, t = http(url)
         if s not in (200, 404):
-            return s, ''           # תקלה זמנית — לא נכנסת למטמון
-        c[k] = [s, t if s == 200 else '']
-    return c[k]
+            return [s, '']             # תקלה זמנית — לא נכנסת למטמון
+        v = [s, t if s == 200 else '']
+        c[k] = v
+        return v
+    v = _once(k, fetch)
+    if v is None:                      # another worker fetched it
+        v = _cached(c, k) if k in c else None
+        if v is None: v = fetch()
+    return v
 
 def text(h):
     h = re.sub(r'(?s)<script.*?</script>|<style.*?</style>', ' ', h)
@@ -657,23 +718,23 @@ def resolve(city_raw, address1, address2=''):
         res.update(zip=v[0], level='CITY_APPROX', note=f'מיקוד כללי של {name} ({v[2]} מיקודים בעיר)'); return res
     res['note'] = 'לא נמצא'; return res
 
-_wf = threading.local()
 class _WebFail:
-    def __getitem__(self, i): return getattr(_wf, 'n', 0)
-    def __setitem__(self, i, v): _wf.n = v
+    """Circuit breaker of the web search, per JOB (shared by that job's workers)."""
+    def __getitem__(self, i): return job_state().web_fail
+    def __setitem__(self, i, v): job_state().web_fail = v
 _web_fail = _WebFail()
 def web_zip(q, city):
     c = cache(); k = 'WEB|' + q
-    if k not in c:
+    snippets = _cached(c, k) if k in c else None
+    if snippets is None:
         if _web_fail[0] >= 2: return None                 # מפסק: החיפוש חוסם/איטי — לא מעכבים את כל הריצה
-        time.sleep(2)
-        st, t = http('https://html.duckduckgo.com/html/?q=' + Q(q), timeout=12)
+        st, t = http('https://html.duckduckgo.com/html/?q=' + Q(q), timeout=12)   # 2 s spacing = HOST_GAP_S
         if st != 200:
             _web_fail[0] += 1; return None
         _web_fail[0] = 0
-        c[k] = [text(x) for x in re.findall(r'(?s)class="result__snippet"[^>]*>(.*?)</a>', t)]
+        snippets = c[k] = [text(x) for x in re.findall(r'(?s)class="result__snippet"[^>]*>(.*?)</a>', t)]
     votes = {}
-    for sn in c[k]:
+    for sn in snippets:
         if _key(city).split()[0] not in _key(sn): continue
         for zc in re.findall(r'(?<!\d)(\d{7})(?!\d)', sn):
             votes[zc] = votes.get(zc, 0) + 1
@@ -826,28 +887,55 @@ def fetch_many(brand, nums=None, chunk=40):
         out += fetch(brand, nums[i:i + chunk])
     return out
 
+def workers():
+    """Orders resolved at once inside one job (env ZIPFIX_WORKERS, 1–12, default 6)."""
+    try: n = int(os.environ.get('ZIPFIX_WORKERS', '6'))
+    except ValueError: n = 6
+    return n if 1 <= n <= 12 else 6
+
 def run_brand(brand, nums=None, progress=None):
     """Same logic as the original run(), but returns the pieces instead of writing files.
     supplier_text = exactly what is pasted to the supplier (zip lines sorted by order number, then the
     'Order #N address:' blocks). review / ask_customer are NOT for the supplier. progress(done, total)."""
-    FUZZY.clear(); _web_fail[0] = 0
+    state = JobState(); bind_job_state(state)              # fresh fuzzy ledger + web breaker for this job
     prog = progress or (lambda d, t: None)
     orders = fetch_many(brand, nums)
     total = len(orders); prog(0, total)
-    zl, bad, failed = [], [], []
-    for i, o in enumerate(orders, 1):
+
+    def one(o):
+        """→ ('zl'|'bad'|'failed'|None, payload). Runs on a worker thread bound to this job's state."""
+        bind_job_state(state)
         try:
             c = classify(o)
             if c == 'MISSING_ZIP':
-                zl.append((o, resolve(o['city'], o['address1'], o['address2'])))
-            elif c == 'BAD_ADDRESS':
-                bad.append((o, fix_bad(o)))
-            elif c == 'OK' and nums:                       # הספקית ביקשה את ההזמנה → גם מיקוד הלקוח נבדק
-                zl.append((o, verify_customer_zip(o)))
+                return 'zl', resolve(o['city'], o['address1'], o['address2'])
+            if c == 'BAD_ADDRESS':
+                return 'bad', fix_bad(o)
+            if c == 'OK' and nums:                         # הספקית ביקשה את ההזמנה → גם מיקוד הלקוח נבדק
+                return 'zl', verify_customer_zip(o)
+            return None, None
         except Exception as e:                             # one odd order must not sink the batch — it goes to the human list
-            failed.append((o, type(e).__name__))
-        save_cache()
-        prog(i, total)
+            return 'failed', type(e).__name__
+
+    # Orders are independent: resolve them on WORKERS threads at once (2026-11-01 — the serial loop spent nearly all of
+    # its time waiting on liors/zips one request at a time). The per-host spacing in http() still holds process-wide,
+    # so the sources see the same request rate; only the waiting overlaps. Results keep the original order.
+    outs = [None] * total
+    done = 0
+    if total:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        with ThreadPoolExecutor(max_workers=max(1, min(workers(), total)), thread_name_prefix='zipfix-w') as ex:
+            futs = {ex.submit(one, o): i for i, o in enumerate(orders)}
+            for f in as_completed(futs):
+                outs[futs[f]] = f.result()
+                done += 1
+                save_cache()
+                prog(done, total)
+    zl, bad, failed = [], [], []
+    for o, (kind, val) in zip(orders, outs):
+        if kind == 'zl': zl.append((o, val))
+        elif kind == 'bad': bad.append((o, val))
+        elif kind == 'failed': failed.append((o, val))
     allz = [(o, r['zip']) for o, r in zl if r['zip']] + [(o, f['zip']) for o, f in bad if f.get('zip')]
     lines = [f"{o['order'].lstrip('#')} - {zc}" for o, zc in sorted(allz, key=lambda x: _order_key(x[0]))]
     ask = [o for o, r in zl if not r['zip']] + [o for o, f in bad if f['action'] == 'ASK_CUSTOMER']

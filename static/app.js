@@ -878,12 +878,12 @@
   }
 
   let toastTimer = null;
-  function toast(msg) {
+  function toast(msg, ms) {
     const el = $('toast');
     el.textContent = msg;
     el.classList.add('on');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.classList.remove('on'); }, 2600);
+    toastTimer = setTimeout(function () { el.classList.remove('on'); }, ms || 2600);
   }
 
   async function copyText(text, btn) {
@@ -1206,6 +1206,7 @@
       top.append(h('a', { class: 'dash-link zip-link', href: '#/zip/' + encodeURIComponent(S.brand || brands[0].id), 'data-test': 'zip-link', title: zl, 'aria-label': zl },
         '📮', h('span', { class: 'zip-link-txt', text: ' ' + zl })));
     }
+    if (canWork()) Zip.sync();                         // a zip run going on in the background: badge on 📮 + keep following it
     // Owner, 2026-10-14: "only I see the sales, in the managers' table" — no sales entry for anyone outside #/dash (the engine and proxy refuse agents too)
     if (brands.length > 1 && S.view !== 'users' && S.view !== 'dash' && S.view !== 'zip') {
       const sel = h('select', { class: 'brand', 'aria-label': 'brand' });
@@ -1246,7 +1247,7 @@
     if (S.menuOpen) {
       const m = h('div', { class: 'menu', role: 'menu' });
       if ((S.view === 'users' || S.view === 'dash' || S.view === 'zip') && canWork()) m.append(h('a', { href: '#/', text: t('to_tickets') }));
-      if (canWork() && brands.length && S.view !== 'zip') m.append(h('a', { href: '#/zip/' + encodeURIComponent(S.brand || brands[0].id), 'data-test': 'zip-menu', text: LANG === 'en' ? 'Zip-code fill' : 'מילוי מיקודים' }));
+      if (canWork() && brands.length && S.view !== 'zip') m.append(h('a', { href: '#/zip/' + encodeURIComponent(Zip.brandFor(S.brand || brands[0].id)), 'data-test': 'zip-menu', text: (LANG === 'en' ? 'Zip-code fill' : 'מילוי מיקודים') + Zip.label() }));
       if (S.me.can_manage_users && S.view !== 'users') m.append(h('a', { href: '#/users', text: t('users') }));
       if (S.me.is_admin && S.view !== 'settings' && S.brand) m.append(h('a', { href: '#/settings/' + encodeURIComponent(S.brand), text: t('settings') }));
       if (S.view === 'settings' && canWork()) m.append(h('a', { href: '#/', text: t('to_tickets') }));
@@ -7395,7 +7396,9 @@
       brand: 'מותג', orders: 'מספרי הזמנות מהספקית (לא חובה)', orders_ph: 'אפשר להדביק כמו שזה הגיע: 1646, 1647 #1650 …',
       p_all: 'ריק — יחפש מיקודים לכל ההזמנות הפתוחות של המותג.', p_some: 'זוהו {n} הזמנות: {list}', p_bad: 'לא זוהה אף מספר הזמנה. מחקו את הטקסט כדי להריץ על כל ההזמנות הפתוחות.',
       go: 'הבא מיקודים', starting: 'מתחיל…', running: 'מחפש מיקודים…', progress: '{d} מתוך {t} הזמנות', progress_0: 'אוסף את ההזמנות…',
-      elapsed: 'רץ {s} שנ׳ · אפשר לרענן את הדף, הריצה ממשיכה', conn: 'החיבור לשרת נפל לרגע — ממשיך לנסות…',
+      elapsed: 'רץ {s} שנ׳ · אפשר לחזור לענות לפניות — הריצה ממשיכה ברקע, וכשתסתיים יופיע ✓ ליד "מילוי מיקודים"', conn: 'החיבור לשרת נפל לרגע — ממשיך לנסות…',
+      back: '→ חזרה לפניות בזמן שזה רץ', bg_done: '📮 המיקודים של {b} מוכנים — לחצו על "מילוי מיקודים"', bg_failed: '📮 מילוי המיקודים של {b} נכשל — לחצו על "מילוי מיקודים"',
+      b_run: 'מחפש מיקודים ברקע', b_done: 'המיקודים מוכנים', b_err: 'הריצה נכשלה',
       failed: 'הריצה נכשלה', lost: 'הריצה כבר לא נמצאת בשרת (אולי השרת התעדכן). הריצו שוב.', again: 'להריץ שוב', start_failed: 'לא הצלחנו להתחיל',
       c_orders: 'הזמנות', c_zips: 'מיקודים', c_review: 'לבדיקה', c_ask: 'לפנות ללקוח', ran_at: '{b} · הורץ {when}',
       supplier: 'הטקסט לספקית', copy: 'העתק לספקית', copied: 'הועתק ✓', copy_fail: 'ההעתקה נכשלה — סמנו את הטקסט והעתיקו ידנית',
@@ -7409,7 +7412,9 @@
       brand: 'Brand', orders: 'Order numbers from the supplier (optional)', orders_ph: 'Paste them as they came: 1646, 1647 #1650 …',
       p_all: 'Empty — looks up every open order of the brand.', p_some: '{n} orders found: {list}', p_bad: 'No order number found. Clear the box to run on all open orders.',
       go: 'Get zip codes', starting: 'Starting…', running: 'Finding zip codes…', progress: '{d} of {t} orders', progress_0: 'Collecting the orders…',
-      elapsed: 'Running {s} s · you can refresh the page, the run continues', conn: 'Lost the server for a moment — still trying…',
+      elapsed: 'Running {s} s · you can go back to tickets — the run continues in the background and ✓ shows next to "Zip-code fill" when it ends', conn: 'Lost the server for a moment — still trying…',
+      back: '← Back to tickets while this runs', bg_done: '📮 Zip codes for {b} are ready — click "Zip-code fill"', bg_failed: '📮 The zip-code run for {b} failed — click "Zip-code fill"',
+      b_run: 'Finding zip codes in the background', b_done: 'Zip codes ready', b_err: 'The run failed',
       failed: 'The run failed', lost: 'This run is no longer on the server (it may have restarted). Run it again.', again: 'Run again', start_failed: 'Could not start',
       c_orders: 'Orders', c_zips: 'Zip codes', c_review: 'To check', c_ask: 'Ask customer', ran_at: '{b} · ran {when}',
       supplier: 'Text for the supplier', copy: 'Copy for supplier', copied: 'Copied ✓', copy_fail: 'Copy failed — select the text and copy it by hand',
@@ -7426,14 +7431,18 @@
     }
     const POST_URL = 'https://doar.israelpost.co.il/locatezip';
     const POLL_MS = 2000;
-    const st = { brand: null, run: null, busy: false, err: null, fails: 0, timer: null, tick: null, seq: 0, typed: {} };
+    const st = { brand: null, run: null, busy: false, err: null, tick: null, typed: {} };
+    const mem = {};                                      // storage blocked (private mode): the run still works in this page, a refresh loses it
 
     function key(b) { return 'cs.zipfix.' + b; }
     function readRun(b) {
-      try { const v = JSON.parse(sessionStorage.getItem(key(b)) || 'null'); return v && typeof v.job === 'string' ? v : null; } catch (e) { return null; }
+      let v;
+      try { v = JSON.parse(sessionStorage.getItem(key(b)) || 'null'); } catch (e) { v = mem[b] ? JSON.parse(mem[b]) : null; }
+      return v && typeof v.job === 'string' ? v : null;
     }
     function writeRun(b, v) {
-      try { if (v) sessionStorage.setItem(key(b), JSON.stringify(v)); else sessionStorage.removeItem(key(b)); } catch (e) { /* private mode: the run still works, a refresh just loses it */ }
+      if (v) mem[b] = JSON.stringify(v); else delete mem[b];
+      try { if (v) sessionStorage.setItem(key(b), mem[b]); else sessionStorage.removeItem(key(b)); } catch (e) { /* see mem */ }
     }
     /** Every digit run, in order, without repeats. "#1646\n1647, 1646" → ['1646', '1647']. */
     function parseOrders(s) {
@@ -7441,8 +7450,100 @@
       const seen = {};
       return m.filter(function (x) { if (seen[x]) return false; seen[x] = 1; return true; });
     }
-    function stopTimers() { clearTimeout(st.timer); st.timer = null; clearInterval(st.tick); st.tick = null; }
+    function stopTimers() { clearInterval(st.tick); st.tick = null; }
     function el(id) { return document.getElementById(id); }
+
+    /* ---- Background follow (Owner, 2026-11-01: the agent asks for zip codes, goes back to answering customers, and comes
+     * back for them — no waiting on this screen). Each brand's run lives in sessionStorage; ONE loop polls every running
+     * run whatever screen is open, so leaving this screen never stops following it. When a run ends away from this
+     * screen: a toast says so, the 📮 button in the top bar (and the ☰ menu entry) carries ✓ / ! until the result is
+     * opened, and the tab title starts with ✓ for an agent who is in another tab. */
+    const bg = { timer: null, busy: false };
+    function isRunning(v) { return !!(v && v.job && !v.result && !v.error); }
+    function myBrands() { return (S.me && Array.isArray(S.me.brands) ? S.me.brands : []).map(function (b) { return b.id; }); }
+    function here(b) { return S.view === 'zip' && st.brand === b; }
+    function anyRunning() { return myBrands().some(function (b) { return isRunning(readRun(b)); }); }
+    function kick(now) {
+      if (bg.busy || !anyRunning()) return;
+      if (bg.timer && !now) return;
+      clearTimeout(bg.timer);
+      bg.timer = setTimeout(tick, now ? 0 : POLL_MS);
+    }
+    async function tick() {
+      bg.timer = null; bg.busy = true;
+      try { await Promise.all(myBrands().filter(function (b) { return isRunning(readRun(b)); }).map(pollBrand)); } catch (e) { /* next tick */ }
+      finally { bg.busy = false; try { badge(); } finally { kick(); } }   // the loop is never left stuck "busy"
+    }
+    async function pollBrand(brand) {
+      const run = readRun(brand);
+      const r = await api('/api/' + encodeURIComponent(brand) + '/zipfix/' + encodeURIComponent(run.job), undefined, 'GET', { quiet: true, retry: false });
+      const cur = readRun(brand);
+      if (!cur || cur.job !== run.job || !isRunning(cur)) return;     // cleared / replaced meanwhile
+      if (r && (r.error === 'server_restarting' || r.error === 'server_restarted')) {
+        cur.fails = (cur.fails || 0) + 1;                  // a deploy blip: keep the run, say so after two misses, try again
+      } else if (!r || !r.ok) {
+        cur.error = { retry: true, title: z('failed') + ':', msg: (r && (r.error === 'job_not_found' || r.error === 'not_found')) ? z('lost') : ((r && r.msg) || t('err_bad_engine')), code: (r && r.error) || null };
+      } else if (r.state === 'done' && r.result && typeof r.result === 'object') {
+        cur.fails = 0;
+        cur.progress = r.progress || cur.progress;
+        cur.result = r.result;
+      } else if (r.state === 'error') {
+        const e = r.result && typeof r.result === 'object' ? r.result : {};
+        cur.error = { retry: true, title: z('failed') + ':', msg: r.msg || e.msg || r.message || e.error || r.error || t('err_bad_engine'), code: r.error && r.msg ? r.error : null };
+      } else {
+        cur.fails = 0;
+        if (r.progress && typeof r.progress === 'object') cur.progress = r.progress;
+      }
+      writeRun(brand, cur);
+      if (here(brand)) { adopt(); paint(); return; }
+      if (!isRunning(cur)) toast(z(cur.error ? 'bg_failed' : 'bg_done', { b: brandName(brand) }), 9000);
+    }
+    /** This screen takes the stored run of its brand: an ended-with-error run becomes the error box (and is dropped),
+     *  a finished run counts as seen. */
+    function adopt() {
+      const v = readRun(st.brand);
+      if (v && v.error) { st.err = v.error; st.run = null; writeRun(st.brand, null); }
+      else {
+        st.run = v;
+        if (v && v.result && !v.seen) { v.seen = true; writeRun(st.brand, v); }
+      }
+      if (!running()) stopTimers();
+      badge();
+    }
+    /** → {state: 'err'|'done'|'run', brand, d, t} — the most urgent run among my brands, or null. */
+    function summary() {
+      const rank = { err: 3, done: 2, run: 1 };
+      let out = null;
+      myBrands().forEach(function (b) {
+        const v = readRun(b);
+        if (!v || here(b)) return;
+        const s = v.error ? 'err' : (v.result ? (v.seen ? null : 'done') : 'run');
+        if (!s || (out && rank[out.state] >= rank[s])) return;
+        const pr = v.progress || {};
+        out = { state: s, brand: b, d: Number(pr.done) || 0, t: Number(pr.total) || 0 };
+      });
+      return out;
+    }
+    function badgeText(s) { return s.state === 'run' ? '⏳' + (s.t ? ' ' + s.d + '/' + s.t : '') : (s.state === 'done' ? '✓' : '!'); }
+    function badge() {
+      const s = summary();
+      const a = document.querySelector('[data-test=zip-link]');
+      if (a) {
+        const old = a.querySelector('.zip-badge');
+        if (old) old.remove();
+        if (s) {
+          a.append(h('span', { class: 'zip-badge ' + s.state, 'data-test': 'zip-badge', 'data-state': s.state, title: z('b_' + s.state), text: badgeText(s) }));
+          a.setAttribute('href', '#/zip/' + encodeURIComponent(s.brand));
+        }
+      }
+      const base = document.title.replace(/^(✓|!) /, '');
+      document.title = (s && s.state !== 'run' ? badgeText(s) + ' ' : '') + base;
+    }
+    /** Menu suffix, e.g. " · ✓". */
+    function label() { const s = summary(); return s ? ' · ' + badgeText(s) : ''; }
+    /** Where the 📮 entry should lead: the brand whose run needs the agent, else the given one. */
+    function brandFor(dflt) { const s = summary(); return s ? s.brand : dflt; }
+    function sync() { badge(); kick(); }
 
     function render() {
       const p = $('zip-pane');
@@ -7513,7 +7614,8 @@
           h('div', { class: 'line' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), h('span', { text: z('running') }),
             h('span', { 'data-test': 'zip-count', text: tt ? z('progress', { d: d, t: tt }) : z('progress_0') })),
           bar, h('div', { class: 'sub', id: 'zip-elapsed', 'data-test': 'zip-elapsed' }));
-        if (st.fails >= 2) box.append(h('div', { class: 'conn', 'data-test': 'zip-reconnecting', text: z('conn') }));
+        if ((st.run.fails || 0) >= 2) box.append(h('div', { class: 'conn', 'data-test': 'zip-reconnecting', text: z('conn') }));
+        box.append(h('div', null, h('a', { class: 'btn small zip-back', href: '#/b/' + encodeURIComponent(st.brand) + '/ready', 'data-test': 'zip-back', text: z('back') })));
         s.append(box);
         paintElapsed();
       }
@@ -7616,69 +7718,39 @@
       const list = parseOrders(raw);
       if (raw && !list.length) { paintParse(); if (ta) ta.focus(); return; }   // never turn junk into "all open orders"
       const brand = st.brand;
-      st.busy = true; st.err = null; st.fails = 0;
+      st.busy = true; st.err = null;
       if (st.run && st.run.result) { st.run = null; writeRun(brand, null); }
       paint();
       const r = await api('/api/' + encodeURIComponent(brand) + '/zipfix', { orders: list.length ? list.join(', ') : null });
       st.busy = false;
-      if (brand !== st.brand) return;                    // the agent switched brand meanwhile
       if (!r || !r.ok || typeof r.job !== 'string' || !r.job) {
+        if (brand !== st.brand) return;                  // the agent switched brand meanwhile: nothing was started
         st.err = { title: z('start_failed') + ':', msg: (r && r.msg) || t('err_bad_engine'), code: r && r.error };
         paint();
         return;
       }
-      st.run = { job: r.job, started: Date.now(), orders: list.length ? list.join(', ') : null, progress: { done: 0, total: list.length || 0 } };
-      writeRun(brand, st.run);
-      paint();
-      follow();
+      // the run is recorded for ITS brand even if the agent already moved on — the background loop follows it from anywhere
+      writeRun(brand, { job: r.job, started: Date.now(), orders: list.length ? list.join(', ') : null, progress: { done: 0, total: list.length || 0 } });
+      if (here(brand)) { adopt(); paint(); follow(); }
+      kick();
     }
 
+    /** The "running N s" line ticks once a second while this screen shows a running run. Polling is the background loop. */
     function follow() {
       stopTimers();
-      if (!running()) return;
-      st.tick = setInterval(paintElapsed, 1000);
-      poll();
-    }
-    async function poll() {
-      const brand = st.brand, run = st.run;
-      if (!run || !running() || S.view !== 'zip') return;
-      const seq = ++st.seq;
-      const r = await api('/api/' + encodeURIComponent(brand) + '/zipfix/' + encodeURIComponent(run.job), undefined, 'GET', { quiet: true, retry: false });
-      if (seq !== st.seq || st.run !== run || brand !== st.brand || S.view !== 'zip') return;
-      if (r && (r.error === 'server_restarting' || r.error === 'server_restarted')) {
-        st.fails++;                                      // a deploy blip: keep the run, say so after two misses, try again
-      } else if (!r || !r.ok) {
-        writeRun(brand, null);
-        st.run = null;
-        st.err = { retry: true, title: z('failed') + ':', msg: (r && (r.error === 'job_not_found' || r.error === 'not_found')) ? z('lost') : ((r && r.msg) || t('err_bad_engine')), code: r && r.error };
-      } else if (r.state === 'done' && r.result && typeof r.result === 'object') {
-        st.fails = 0;
-        run.progress = r.progress || run.progress;
-        run.result = r.result;
-        writeRun(brand, run);
-      } else if (r.state === 'error') {
-        writeRun(brand, null);
-        st.run = null;
-        const e = r.result && typeof r.result === 'object' ? r.result : {};
-        st.err = { retry: true, title: z('failed') + ':', msg: r.msg || e.msg || r.message || e.error || r.error || t('err_bad_engine'), code: r.error && r.msg ? r.error : null };
-      } else {
-        st.fails = 0;
-        if (r.progress && typeof r.progress === 'object') run.progress = r.progress;
-        writeRun(brand, run);
-      }
-      paint();
-      if (running()) st.timer = setTimeout(poll, POLL_MS); else stopTimers();
+      if (running()) st.tick = setInterval(paintElapsed, 1000);
     }
     function show(brand) {
       $('zip-pane').hidden = false;
-      if (brand !== st.brand) { stopTimers(); st.err = null; st.busy = false; st.fails = 0; }
+      if (brand !== st.brand) { stopTimers(); st.err = null; st.busy = false; }
       st.brand = brand;
-      st.run = readRun(brand);
+      adopt();
       render();
-      if (running()) follow();
+      follow();
+      if (running()) kick(true);                         // fresh status now, not in 2 s
     }
-    function leave() { stopTimers(); st.seq++; $('zip-pane').hidden = true; }
-    return { show: show, leave: leave, parse: parseOrders };
+    function leave() { stopTimers(); $('zip-pane').hidden = true; }
+    return { show: show, leave: leave, parse: parseOrders, sync: sync, label: label, brandFor: brandFor };
   })();
 
   const Settings = (function () {

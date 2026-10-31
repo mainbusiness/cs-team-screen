@@ -619,6 +619,12 @@ html[dir=rtl] .zip-orders::placeholder { direction: rtl; text-align: right; }
 .zip-none { color: var(--muted); }
 @media (max-width: 520px) { .zip-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .top .zip-link { display: none; } }   /* phone: the bar is full (2 brands = +44px overflow, measured); entry = ☰ menu */
+/* a zip run in the background (2026-11-01): status on the 📮 button — running ⏳ d/t, ready ✓, failed ! */
+.zip-badge { display: inline-block; margin-inline-start: 6px; padding: 1px 7px; border-radius: 999px; font-size: 12px; font-weight: 800;
+  line-height: 18px; direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; background: var(--warn-bg); color: var(--warn-ink); }
+.zip-badge.done { background: var(--ready); color: #fff; }
+.zip-badge.err { background: var(--danger); color: #fff; }
+.zip-run .zip-back { text-decoration: none; }
 /* phone top bar (Owner, 2026-10-26: an admin's bar made the page 521px wide at 390): ONE row, because .tabs (top 50px), .tk-head (104px) and
    .menu (52px) are pinned to its height. Links collapse to an icon / short label (full text stays in title + aria-label); the title, brand
    picker and name shrink with an ellipsis. Nothing is hidden. */
