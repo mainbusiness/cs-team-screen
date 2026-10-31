@@ -32,8 +32,9 @@ WORK_ROLES = ("agent", "admin")
 ADMIN_ONLY = ("admin",)
 
 # apiKachingAction: the actions and their own fields (strings; the engine parses and range-checks them).
-KACHING_ACTIONS = ("pause", "resume", "reactivate", "skip", "unskip", "reschedule", "add_discount", "add_line", "update_line", "remove_line")
-KACHING_ACTION_FIELDS = ("cycleIndex", "billingDate", "discountType", "value", "title", "recurringCycleLimit", "variantId", "quantity", "price", "lineId")
+KACHING_ACTIONS = ("pause", "resume", "reactivate", "skip", "unskip", "reschedule", "add_discount", "add_line", "update_line", "remove_line",
+                   "pause_until", "postpone")   # 2026-11-01: a pause for a period / a postponement to a date (plans of skip / reschedule steps)
+KACHING_ACTION_FIELDS = ("cycleIndex", "billingDate", "discountType", "value", "title", "recurringCycleLimit", "variantId", "quantity", "price", "lineId", "plan")   # plan: the steps the agent saw
 
 # fn -> (roles allowed, argument keys the browser may send). Mirrors engine/Api.gs apiTable_.
 # NOT here on purpose: apiAdminRun (maintenance, CLI only), apiWa* (the WhatsApp extension's own secret).

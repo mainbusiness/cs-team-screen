@@ -928,3 +928,10 @@ details.sg > summary { cursor: pointer; font-weight: 700; }
 .mg-row .mg-btn { flex: none; white-space: nowrap; }
 .mg-more .lk-row { margin-top: 6px; }
 @media (max-width: 600px) { .mg-row { flex-direction: column; align-items: stretch; } }
+
+/* pause for a period / postpone to a date (2026-11-01) */
+.pp-what { display: grid; gap: 6px; font-size: 14px; }
+.pp-steps { margin: 2px 0 0; padding-inline-start: 22px; font-size: 14px; display: grid; gap: 2px; }
+.pp-presets { flex-wrap: wrap; gap: 6px; }
+.pp-preset[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+.pp-preview { min-height: 1.5em; }

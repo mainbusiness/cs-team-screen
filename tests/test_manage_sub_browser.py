@@ -27,13 +27,13 @@ def test_pause_then_resume_from_the_panel(page):
     _open_manage(pg, base)
     dlg = pg.locator("#sub-dlg")
     assert "פעיל" in dlg.inner_text()
-    dlg.get_by_role("button", name="השהיית מנוי").click()
+    dlg.get_by_role("button", name="השהיה פתוחה").click()     # 2026-11-01: the open pause has its honest name; "⏸ השהיית מנוי" is the period pause
     assert "לא יהיו חיובים" in dlg.inner_text()
     _confirm(pg, "0123")
     dlg.locator(".chip", has_text="מושהה").first.wait_for()
     dlg.get_by_role("button", name="חידוש מנוי").click()
     _confirm(pg, "0123")
-    dlg.get_by_role("button", name="השהיית מנוי").wait_for()
+    dlg.get_by_role("button", name="השהיה פתוחה").wait_for()
 
 
 def test_skip_a_delivery_and_add_a_discount(page):

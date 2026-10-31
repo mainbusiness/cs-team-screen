@@ -101,7 +101,7 @@
       oe_type: 'הקלידו את מספר ההזמנה ({n}) כדי לאשר', oe_reason: 'סיבה (לא חובה)', oe_go: 'בצעו את השינוי בשופיפיי', oe_working: 'מבצע…', oe_done: 'ההזמנה עודכנה בשופיפיי ✓',
       oe_unverified: 'שופיפיי קיבל את הבקשה, אבל השינוי עוד לא מופיע. לבדוק בשופיפיי — לא לחזור על הפעולה.', oe_close: 'סגירה', oe_cannot: 'אי אפשר לערוך את ההזמנה כאן: {why}',
       manage_sub: 'ניהול מנוי', mg_title: 'ניהול מנוי', mg_loading: 'טוען את המנוי מקצ׳ינג…', mg_err_load: 'לא הצלחנו לטעון את המנוי.',
-      mg_pause: 'השהיית מנוי', mg_resume: 'חידוש מנוי', mg_reactivate: 'הפעלה מחדש', mg_cancel: 'ביטול מנוי',
+      mg_pause: 'השהיה פתוחה (בלי תאריך חזרה)', mg_resume: 'חידוש מנוי', mg_reactivate: 'הפעלה מחדש', mg_cancel: 'ביטול מנוי',
       mg_cycles: 'משלוחים וחיובים הבאים', mg_no_cycles: 'אין משלוחים עתידיים.', mg_cycle_n: 'משלוח {n}', mg_skipped: 'מדולג',
       mg_skip: 'דילוג', mg_unskip: 'ביטול הדילוג', mg_resched: 'שינוי תאריך', mg_new_date: 'תאריך חדש',
       mg_lines: 'מוצרים במנוי', mg_qty: 'כמות', mg_price: 'מחיר ליחידה', mg_change: 'שינוי', mg_remove: 'הסרה', mg_add_line: 'הוספת מוצר',
@@ -138,6 +138,32 @@
       mg_do_add_discount: 'להוסיף הנחה «{title}»: {v}, {c}.', mg_do_add_line: 'להוסיף למנוי: {q} × {p}{pr}.',
       mg_do_update_line: 'לשנות את «{p}»: {what}.', mg_do_remove_line: 'להסיר מהמנוי את «{p}».',
       mg_w_qty: 'כמות {q}', mg_w_swap: 'החלפה ל{p}', mg_w_price: 'מחיר {pr} ליחידה',
+      // pause for a period / postpone to a date (Owner, 2026-11-01)
+      sub_pause_btn: '⏸ השהיית מנוי', sub_postpone_btn: '⏭ דחיית משלוח',
+      sub_paused_note: 'המנוי מושהה בלי תאריך חזרה. כדי להשהות לתקופה או לדחות משלוח: קודם «חידוש מנוי» בניהול המנוי.',
+      pp_title_pause_until: '⏸ השהיית מנוי לתקופה', pp_title_postpone: '⏭ דחיית המשלוח הבא',
+      pp_next_cur: 'המשלוח הבא כרגע: {d}', pp_for_pause: 'לכמה זמן להשהות?', pp_for_postpone: 'בכמה לדחות?',
+      pp_date_pause: 'או תאריך חזרה', pp_date_postpone: 'או תאריך חדש למשלוח', pp_pick: 'לבחור תקופה או תאריך.',
+      pp_m1: 'חודש', pp_m2: 'חודשיים', pp_m3: '3 חודשים', pp_w1: 'שבוע', pp_w2: 'שבועיים', pp_w3: '3 שבועות', pp_pm1: 'חודש', pp_pm2: 'חודשיים',
+      pp_p_until: 'עד {r} לא יהיו חיובים ולא משלוחים ({n} משלוחים ידולגו).',
+      pp_p_active: 'המנוי נשאר פעיל וחוזר לבד בתאריך — אף אחד לא צריך לזכור לחדש אותו.',
+      pp_p_first: 'החיוב והמשלוח הראשונים אחרי החזרה: {d}.',
+      pp_p_first_unknown: 'החיוב הראשון אחרי החזרה לא ידוע (המשלוחים שאחרי התאריך כבר מדולגים) — לבדוק בקצ׳ינג.',
+      pp_q_move: 'המשלוח הבא יעבור מ-{d} ל-{nd}. אין שום חיוב או משלוח לפני כן.',
+      pp_q_none_before: 'אין שום חיוב או משלוח לפני {nd}, והמשלוח הבא יהיה ב-{nd}.',
+      pp_q_cross: 'התאריך החדש עובר משלוחים שכבר מתוכננים, ולכן ידולגו המשלוחים של: {list}.',
+      pp_q_after: 'המשלוח שאחריו: {d} ({n} ימים אחרי התאריך החדש).',
+      pp_q_close: '⚠ רק {n} ימים בין שני המשלוחים. אם זה לא מתאים ללקוח — לבחור תאריך אחר, או לדלג גם על המשלוח שאחריו בניהול מנוי.',
+      pp_in_kaching: 'בקאצ׳ינג ({n} פעולות לפי הסדר; אם אחת נכשלת — עוצרים ומראים בדיוק מה בוצע):',
+      pp_step_skip: 'דילוג על המשלוח של {d}', pp_step_move: 'העברת המשלוח של {d} ל-{nd}',
+      pp_e_date: 'לבחור תאריך תקין.', pp_e_today: 'התאריך חייב להיות אחרי היום.', pp_e_far: 'התאריך רחוק מדי (יותר מ-400 יום).',
+      pp_e_none: 'אין למנוי משלוחים עתידיים.', pp_e_after_last: 'התאריך אחרי המשלוח האחרון שקאצ׳ינג מציג ({d}) — לבחור תאריך מוקדם יותר.',
+      pp_e_none_before: 'אין משלוח לפני התאריך הזה — אין מה להשהות.', pp_e_after_next: 'התאריך החדש חייב להיות אחרי המשלוח הבא ({d}).',
+      pp_e_many: 'יותר מ-12 שינויים בבת אחת — לבחור תאריך מוקדם יותר.',
+      pp_res_ok: '✅ בוצע ואומת בקאצ׳ינג', pp_res_unverified: 'קאצ׳ינג קיבל, אבל השינוי עוד לא נראה. לבדוק בקאצ׳ינג — לא לחזור על הפעולה.',
+      pp_res_fail: '❌ לא בוצע עד הסוף — לבדוק בקאצ׳ינג לפני כל ניסיון נוסף', pp_next_now: 'החיוב הבא לפי קאצ׳ינג עכשיו: {d}', pp_next_none: 'אין כרגע חיוב עתידי לפי קאצ׳ינג.',
+      pp_st_done: '✓ בוצע', pp_st_unverified: '? התקבל, עוד לא נראה', pp_st_failed: '✗ קאצ׳ינג סירב', pp_st_unknown: '? התוצאה לא ידועה', pp_st_not_sent: '— לא נשלח',
+      pp_full: 'לכל פרטי המנוי',
       afs_title: 'ההודעה ל{name} נשלחה. נשאר לטפל:', afs_open: 'פתח את הפנייה', afs_done: 'טיפלתי', afs_chip: 'נשאר לטפל', afs_cancelled: 'המנוי של {name} בוטל אוטומטית',
       afs_sub_no_email: 'המנוי לא בוטל: לא מזוהה מייל של הזמנה ללקוח, אז אי אפשר למצוא את המנוי. לבקש מהלקוח מספר הזמנה או מייל, לקשר בפאנל ההזמנות ולבטל.',
       afs_sub_unreachable: 'המנוי לא בוטל: לא הצלחנו להתחבר למערכת המנויים. לבטל ידנית.',
@@ -371,7 +397,7 @@
       oe_type: 'Type the order number ({n}) to confirm', oe_reason: 'Reason (optional)', oe_go: 'Make the change in Shopify', oe_working: 'Working…', oe_done: 'The order was updated in Shopify ✓',
       oe_unverified: 'Shopify accepted it but the change is not visible yet. Check in Shopify — do not repeat it.', oe_close: 'Close', oe_cannot: 'This order cannot be edited here: {why}',
       manage_sub: 'Manage subscription', mg_title: 'Manage subscription', mg_loading: 'Loading the subscription from Kaching…', mg_err_load: 'Could not load the subscription.',
-      mg_pause: 'Pause', mg_resume: 'Resume', mg_reactivate: 'Reactivate', mg_cancel: 'Cancel subscription',
+      mg_pause: 'Open pause (no return date)', mg_resume: 'Resume', mg_reactivate: 'Reactivate', mg_cancel: 'Cancel subscription',
       mg_cycles: 'Upcoming deliveries and charges', mg_no_cycles: 'No upcoming deliveries.', mg_cycle_n: 'Delivery {n}', mg_skipped: 'Skipped',
       mg_skip: 'Skip', mg_unskip: 'Unskip', mg_resched: 'Change date', mg_new_date: 'New date',
       mg_lines: 'Products', mg_qty: 'Quantity', mg_price: 'Unit price', mg_change: 'Change', mg_remove: 'Remove', mg_add_line: 'Add product',
@@ -408,6 +434,31 @@
       mg_do_add_discount: 'Add the discount “{title}”: {v}, {c}.', mg_do_add_line: 'Add to the subscription: {q} × {p}{pr}.',
       mg_do_update_line: 'Change “{p}”: {what}.', mg_do_remove_line: 'Remove “{p}” from the subscription.',
       mg_w_qty: 'quantity {q}', mg_w_swap: 'swap to {p}', mg_w_price: 'price {pr} each',
+      sub_pause_btn: '⏸ Pause subscription', sub_postpone_btn: '⏭ Postpone delivery',
+      sub_paused_note: 'Paused with no return date. To pause for a period or postpone a delivery: first "Resume" in Manage subscription.',
+      pp_title_pause_until: '⏸ Pause the subscription for a period', pp_title_postpone: '⏭ Postpone the next delivery',
+      pp_next_cur: 'Next delivery now: {d}', pp_for_pause: 'Pause for how long?', pp_for_postpone: 'Postpone by how much?',
+      pp_date_pause: 'Or a return date', pp_date_postpone: 'Or a new delivery date', pp_pick: 'Choose a period or a date.',
+      pp_m1: '1 month', pp_m2: '2 months', pp_m3: '3 months', pp_w1: '1 week', pp_w2: '2 weeks', pp_w3: '3 weeks', pp_pm1: '1 month', pp_pm2: '2 months',
+      pp_p_until: 'No charges and no deliveries until {r} ({n} deliveries skipped).',
+      pp_p_active: 'The subscription stays active and comes back by itself on the date — nobody has to remember to resume it.',
+      pp_p_first: 'The first charge and delivery after the return: {d}.',
+      pp_p_first_unknown: 'The first charge after the return is unknown (the deliveries after the date are already skipped) — check in Kaching.',
+      pp_q_move: 'The next delivery moves from {d} to {nd}. No charge or delivery before that.',
+      pp_q_none_before: 'No charge or delivery before {nd}, and the next delivery is on {nd}.',
+      pp_q_cross: 'The new date passes deliveries that are already planned, so these are skipped: {list}.',
+      pp_q_after: 'The delivery after it: {d} ({n} days after the new date).',
+      pp_q_close: '⚠ Only {n} days between the two deliveries. If that does not suit the customer, choose another date or also skip the next one in Manage subscription.',
+      pp_in_kaching: 'In Kaching ({n} steps in order; if one fails it stops and shows exactly what was done):',
+      pp_step_skip: 'Skip the delivery of {d}', pp_step_move: 'Move the delivery of {d} to {nd}',
+      pp_e_date: 'Choose a valid date.', pp_e_today: 'The date must be after today.', pp_e_far: 'The date is more than 400 days away.',
+      pp_e_none: 'This subscription has no upcoming deliveries.', pp_e_after_last: 'The date is after the last delivery Kaching shows ({d}) — choose an earlier date.',
+      pp_e_none_before: 'No delivery before that date — nothing to pause.', pp_e_after_next: 'The new date must be after the next delivery ({d}).',
+      pp_e_many: 'More than 12 changes at once — choose an earlier date.',
+      pp_res_ok: '✅ Done and verified in Kaching', pp_res_unverified: 'Kaching accepted it but the change is not visible yet. Check in Kaching — do not repeat it.',
+      pp_res_fail: '❌ Not completed — check in Kaching before trying again', pp_next_now: 'Next charge per Kaching now: {d}', pp_next_none: 'No upcoming charge per Kaching right now.',
+      pp_st_done: '✓ Done', pp_st_unverified: '? Accepted, not visible yet', pp_st_failed: '✗ Kaching refused', pp_st_unknown: '? Outcome unknown', pp_st_not_sent: '— Not sent',
+      pp_full: 'All subscription details',
       afs_title: 'Your message to {name} was sent. Still to do:', afs_open: 'Open the ticket', afs_done: 'Done', afs_chip: 'Still to do', afs_cancelled: "{name}'s subscription was cancelled automatically",
       afs_sub_no_email: 'The subscription was NOT cancelled: the customer has no known order email, so the subscription cannot be found. Ask for the order number or email, link it in the orders panel, then cancel.',
       afs_sub_unreachable: 'The subscription was NOT cancelled: the subscriptions system could not be reached. Cancel it manually.',
@@ -3396,10 +3447,15 @@
           h('dt', { text: t('sub_id') }), h('dd', null, h('bdi', { class: 'ltr', text: contractNum(s.id) }))));
       if (canWork()) {
         // Owner, 2026-10-14: every Kaching action (pause, resume, skip, date, products, discount, reactivate) from here
+        // Owner, 2026-11-01: pause FOR A PERIOD and postpone TO A DATE, next to the cancel (a freeze is always a set date, never an open pause)
+        const plannable = s.status === 'ACTIVE' || s.status === 'FAILED';
         card.append(h('div', { class: 'actions' },
           h('button', { class: 'btn small', type: 'button', text: t('manage_sub'), 'data-test': 'manage-sub', onclick: function () { Manage.open(x, s); } }),
+          plannable ? h('button', { class: 'btn small', type: 'button', text: t('sub_pause_btn'), 'data-test': 'sub-pause', onclick: function () { Manage.open(x, s, 'pause_until'); } }) : null,
+          plannable ? h('button', { class: 'btn small', type: 'button', text: t('sub_postpone_btn'), 'data-test': 'sub-postpone', onclick: function () { Manage.open(x, s, 'postpone'); } }) : null,
           cancellable ? h('button', { class: 'btn danger-outline small', type: 'button', text: t('cancel_sub'),
             disabled: !isOpen && false, onclick: function () { Cancel.open(x, s); } }) : null));
+        if (s.status === 'PAUSED') card.append(h('div', { class: 'muted small', 'data-test': 'sub-paused-note', text: t('sub_paused_note') }));
       }
       list.append(card);
     });
@@ -3989,6 +4045,57 @@
     return { open: open };
   })();
 
+  // ---- pause for a period / postpone to a date (Owner, 2026-11-01). A mirror of Kaching.gs kachingPlan_ for the preview: the engine recomputes the plan from
+  // the live contract and refuses when its key differs from the one shown here, so what the agent saw is exactly what runs.
+  const SubPlan = (function () {
+    const day = function (iso) { return String(iso || '').slice(0, 10); };
+    function today() { return new Date().toISOString().slice(0, 10); }
+    function valid(d) { const v = Date.parse(String(d) + 'T12:00:00Z'); return /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) && isFinite(v) && new Date(v).toISOString().slice(0, 10) === d; }
+    function addDays(d, n) { return new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10); }
+    function addMonths(d, n) {
+      const y = Number(d.slice(0, 4)), m = Number(d.slice(5, 7)) - 1, dd = Number(d.slice(8, 10));
+      const last = new Date(Date.UTC(y, m + n + 1, 0)).getUTCDate();
+      return new Date(Date.UTC(y, m + n, Math.min(dd, last), 12)).toISOString().slice(0, 10);
+    }
+    function daysBetween(a, b) { return Math.round((Date.parse(day(b) + 'T12:00:00Z') - Date.parse(day(a) + 'T12:00:00Z')) / 864e5); }
+    function sorted(cycles) {
+      return (cycles || []).filter(function (c) { return c && typeof c.index === 'number' && isFinite(Date.parse(c.date)); })
+        .slice().sort(function (a, b) { return Date.parse(a.date) - Date.parse(b.date); });
+    }
+    /** { steps, key, firstCharge, after, d } or { error: <string key>, d? } — the same rules and order as the engine. */
+    function build(action, cycles, d) {
+      if (!valid(d)) return { error: 'pp_e_date' };
+      if (d <= today()) return { error: 'pp_e_today' };
+      if (Date.parse(d + 'T12:00:00Z') > Date.now() + 400 * 864e5) return { error: 'pp_e_far' };
+      const all = sorted(cycles);
+      if (!all.length) return { error: 'pp_e_none' };
+      const open = all.filter(function (c) { return !c.skipped; });
+      if (day(all[all.length - 1].date) < d) return { error: 'pp_e_after_last', d: all[all.length - 1].date };
+      const steps = [];
+      let firstCharge = null, after = null;
+      if (action === 'pause_until') {
+        open.forEach(function (c) { if (day(c.date) < d) steps.push({ action: 'skip', index: c.index, date: c.date }); });
+        if (!steps.length) return { error: 'pp_e_none_before' };
+        const f = open.filter(function (c) { return day(c.date) >= d; })[0];
+        firstCharge = f ? f.date : null;
+      } else {
+        if (!open.length) return { error: 'pp_e_none' };
+        if (d <= day(open[0].date)) return { error: 'pp_e_after_next', d: open[0].date };
+        const crossed = open.filter(function (c) { return day(c.date) <= d; });
+        const target = crossed[crossed.length - 1];
+        if (day(target.date) !== d) steps.push({ action: 'reschedule', index: target.index, date: target.date, billingDate: d });
+        crossed.slice(0, -1).forEach(function (c) { steps.push({ action: 'skip', index: c.index, date: c.date }); });
+        const n = open.filter(function (c) { return day(c.date) > d; })[0];
+        firstCharge = target.date; after = n ? n.date : null;
+      }
+      if (steps.length > 12) return { error: 'pp_e_many' };
+      const key = steps.map(function (s) { return s.action === 'skip' ? 's' + s.index : 'r' + s.index + ':' + s.billingDate; }).join(',');
+      return { steps: steps, key: key, firstCharge: firstCharge, after: after, d: d };
+    }
+    return { build: build, today: today, addDays: addDays, addMonths: addMonths, daysBetween: daysBetween, sorted: sorted, day: day };
+  })();
+  const PLAN_ACTIONS = ['pause_until', 'postpone'];
+
   const Manage = (function () {
     const dlg = $('sub-dlg');
     let st = null;
@@ -4010,9 +4117,10 @@
         }
       })();
     }
-    async function open(x, s) {
+    async function open(x, s, focus) {
       if (st && st.busy) return;
-      st = { x: x, s: s, brand: tkBrand(x), c: null, edit: null, busy: false, variants: null, note: null };
+      // focus: 'pause_until' | 'postpone' — opened from the card's own button: only that form, in the same dialog and the same 4-digit gate (2026-11-01)
+      st = { x: x, s: s, brand: tkBrand(x), c: null, edit: null, busy: false, variants: null, note: null, focus: PLAN_ACTIONS.indexOf(focus) >= 0 ? focus : null, result: null };
       clear(dlg);
       dlg.append(h('div', { class: 'in' }, h('h3', { text: t('mg_title') }), h('div', { class: 'muted', text: t('mg_loading') })));
       if (!dlg.open) dlg.showModal();
@@ -4026,6 +4134,15 @@
         return;
       }
       st.c = r.contract; st.writes = r.writes; st.frozen = r.frozen;
+      if (st.focus && !(st.c.status === 'ACTIVE' || st.c.status === 'FAILED')) st.focus = null;   // the status changed since the card: the full view tells what it is now
+      if (st.focus) st.edit = { kind: st.focus };
+      render();
+    }
+    async function reloadContract() {
+      const mine = st;
+      const r = await engine('apiKachingContract', { id: mine.x.id, contractId: mine.s.id }, mine.brand);
+      if (st !== mine || !r.ok || !r.contract) return;
+      st.c = r.contract;
       render();
     }
     async function loadVariants() {
@@ -4037,13 +4154,13 @@
     }
     function startEdit(edit) {
       if (!st || st.busy) return;
-      st.edit = edit; st.note = null;
+      st.edit = edit; st.note = null; st.result = null;
       if (edit.kind === 'line' || edit.kind === 'add_line') loadVariants();
       render();
       setTimeout(function () { const w = document.getElementById('mg-work'); if (w) w.scrollIntoView({ block: 'nearest' }); }, 0);
     }
     // the summary is held in ONE element (a fragment empties itself when appended, and render() may run again)
-    function confirmOf(action, params, summary) { startEdit({ kind: 'confirm', action: action, params: params || {}, summary: h('span', { dir: 'auto' }, summary) }); }
+    function confirmOf(action, params, summary, backTo) { startEdit({ kind: 'confirm', action: action, params: params || {}, summary: h('span', { dir: 'auto' }, summary), back: backTo || null }); }
     function btn(text, onclick, cls) { return h('button', { class: 'btn small ' + (cls || ''), type: 'button', text: text, disabled: st.busy, onclick: onclick }); }
 
     function workArea() {
@@ -4052,7 +4169,10 @@
       const c = st.c;
       const wrap = h('div', { class: 'mg-work', id: 'mg-work' });
       const put = function () { for (let k = 0; k < arguments.length; k++) add(wrap, arguments[k]); };   // add() skips null; native append would print "null"
-      const back = btn(t('mg_back'), function () { st.edit = null; render(); }, 'ghost');
+      const back = btn(t('mg_back'), function () {
+        if (e.kind !== 'confirm' && st.focus) { dlg.close(); return; }   // the card's own form: back = close
+        st.edit = (e.kind === 'confirm' && e.back) || null; render();
+      }, 'ghost');
       if (e.kind === 'confirm') {
         const last4 = String(c.id).slice(-4);
         const code = h('input', { class: 'code', inputmode: 'numeric', maxlength: '4', autocomplete: 'off', pattern: '[0-9]{4}', 'aria-label': t('mg_type') });
@@ -4072,6 +4192,22 @@
           const r = await engine('apiKachingAction', args, st.brand);
           if (st !== mine) return;
           st.busy = false; back.disabled = false; go.textContent = t('mg_go');
+          if (PLAN_ACTIONS.indexOf(e.action) >= 0 && (r.ok || Array.isArray(r.steps))) {
+            // a plan ran (all of it, or part): its own result with every step; never left on the confirm step, so nothing is clicked twice
+            if (r.contract && r.contract.id === c.id) st.c = r.contract;
+            st.edit = null; st.note = null; st.result = { r: r, action: e.action };
+            toast(r.ok ? (r.verified ? t('mg_done') : t('pp_res_unverified')) : (r.msg || t('pp_res_fail')));
+            render();
+            refreshSubsCard(st.x);
+            if (!r.contract) reloadContract();
+            return;
+          }
+          if (PLAN_ACTIONS.indexOf(e.action) >= 0 && /changed since the preview/.test(String(r.message || ''))) {
+            st.edit = e.back; st.note = r.msg || r.message;   // nothing ran: back to the form with the contract as it is now
+            render();
+            reloadContract();
+            return;
+          }
           if (r.ok) {
             if (r.contract && r.contract.id === c.id) st.c = r.contract;
             st.edit = null;
@@ -4090,6 +4226,7 @@
         setTimeout(function () { code.focus(); }, 0);
         return wrap;
       }
+      if (PLAN_ACTIONS.indexOf(e.kind) >= 0) return planForm(e, wrap, back);
       if (e.kind === 'reschedule') {
         const tomorrow = new Date(Date.now() + 86400e3).toISOString().slice(0, 10);
         const inp = h('input', { type: 'date', min: tomorrow, value: String(e.cycle.date).slice(0, 10) });
@@ -4173,6 +4310,89 @@
     }
     function lineId(p, l) { p.lineId = l.id; }
 
+    function fmtDay(d) { return fmtDate(d + 'T12:00:00Z'); }
+    function stepText(s) {
+      return s.action === 'skip' ? tx('pp_step_skip', { d: fmtDate(s.date) }) : tx('pp_step_move', { d: fmtDate(s.date), nd: fmtDay(s.billingDate) });
+    }
+    /** "What will happen" for a plan: the same element is the live preview and the confirm step's summary. */
+    function planWhat(kind, p) {
+      const box = h('div', { class: 'pp-what', 'data-test': 'pp-what' });
+      if (kind === 'pause_until') {
+        box.append(h('div', null, tx('pp_p_until', { r: fmtDay(p.d), n: String(p.steps.length) })), h('div', null, t('pp_p_active')),
+          h('div', null, p.firstCharge ? tx('pp_p_first', { d: fmtDate(p.firstCharge) }) : t('pp_p_first_unknown')));
+      } else {
+        const mv = p.steps.filter(function (s) { return s.action === 'reschedule'; })[0];
+        const sk = p.steps.filter(function (s) { return s.action === 'skip'; });
+        box.append(h('div', null, mv && !sk.length ? tx('pp_q_move', { d: fmtDate(mv.date), nd: fmtDay(p.d) }) : tx('pp_q_none_before', { nd: fmtDay(p.d) })));
+        if (sk.length) box.append(h('div', null, tx('pp_q_cross', { list: sk.map(function (s) { return fmtDate(s.date); }).join(', ') })));
+        if (p.after) {
+          const n = SubPlan.daysBetween(p.d, p.after);
+          box.append(h('div', null, tx('pp_q_after', { d: fmtDate(p.after), n: String(n) })));
+          if (n < 14) box.append(h('div', { class: 'problem small', 'data-test': 'pp-close', text: t('pp_q_close', { n: n }) }));
+        }
+      }
+      box.append(h('div', { class: 'small muted' }, t('pp_in_kaching', { n: p.steps.length })),
+        h('ol', { class: 'pp-steps' }, p.steps.map(function (s) { return h('li', null, stepText(s)); })));
+      return box;
+    }
+    function planForm(e, wrap, back) {
+      const pause = e.kind === 'pause_until';
+      const c = st.c;
+      const all = SubPlan.sorted(c.cycles);
+      const next = all.filter(function (cy) { return !cy.skipped; })[0] || null;
+      const lastDay = all.length ? SubPlan.day(all[all.length - 1].date) : '';
+      const inp = h('input', { type: 'date', min: SubPlan.addDays(SubPlan.today(), 1), max: lastDay, 'data-test': 'pp-date', 'aria-label': t(pause ? 'pp_date_pause' : 'pp_date_postpone') });
+      const prev = h('div', { class: 'pp-preview', 'aria-live': 'polite', 'data-test': 'pp-preview' });
+      let plan = null;
+      const go = btn(t('mg_next'), function () {
+        if (!plan || plan.error || st.busy) return;
+        confirmOf(e.kind, { billingDate: plan.d, plan: plan.key }, planWhat(e.kind, plan), { kind: e.kind, value: plan.d });
+      }, 'primary');
+      go.setAttribute('data-test', 'pp-next');
+      function update(d) {
+        clear(prev);
+        plan = d ? SubPlan.build(e.kind, c.cycles, d) : null;
+        if (!plan) prev.append(h('div', { class: 'muted small', text: t('pp_pick') }));
+        else if (plan.error) prev.append(h('div', { class: 'problem', role: 'status', 'data-test': 'pp-err' }, plan.d ? tx(plan.error, { d: fmtDate(plan.d) }) : t(plan.error)));
+        else prev.append(planWhat(e.kind, plan));
+        go.disabled = st.busy || !plan || !!plan.error;
+      }
+      const base = pause ? SubPlan.today() : (next ? SubPlan.day(next.date) : '');
+      const defs = pause ? [['m1', 'pp_m1', function () { return SubPlan.addMonths(base, 1); }], ['m2', 'pp_m2', function () { return SubPlan.addMonths(base, 2); }],
+        ['m3', 'pp_m3', function () { return SubPlan.addMonths(base, 3); }]]
+        : [['w1', 'pp_w1', function () { return SubPlan.addDays(base, 7); }], ['w2', 'pp_w2', function () { return SubPlan.addDays(base, 14); }],
+          ['w3', 'pp_w3', function () { return SubPlan.addDays(base, 21); }], ['pm1', 'pp_pm1', function () { return SubPlan.addMonths(base, 1); }],
+          ['pm2', 'pp_pm2', function () { return SubPlan.addMonths(base, 2); }]];
+      const presets = defs.map(function (d) {
+        return h('button', { class: 'btn small pp-preset', type: 'button', text: t(d[1]), 'aria-pressed': 'false', 'data-test': 'pp-preset-' + d[0], disabled: !base,
+          onclick: function (ev) { const v = d[2](); inp.value = v; mark(ev.currentTarget); update(v); } });
+      });
+      function mark(b) { presets.forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); }); }
+      inp.addEventListener('input', function () { mark(null); update(inp.value); });
+      inp.addEventListener('change', function () { mark(null); update(inp.value); });
+      if (e.value) { inp.value = e.value; update(e.value); } else update(null);
+      add(wrap, st.focus ? null : h('h4', { text: t('pp_title_' + e.kind) }));
+      add(wrap, h('div', { class: 'small', 'data-test': 'pp-next-cur' }, next ? tx('pp_next_cur', { d: fmtDate(next.date) }) : t('pp_e_none')));
+      add(wrap, h('div', { class: 'small muted', text: t(pause ? 'pp_for_pause' : 'pp_for_postpone') }));
+      add(wrap, h('div', { class: 'row-btns start pp-presets', role: 'group' }, presets));
+      add(wrap, h('label', null, t(pause ? 'pp_date_pause' : 'pp_date_postpone'), inp));
+      add(wrap, prev);
+      add(wrap, h('div', { class: 'row-btns' }, back, go));
+      return wrap;
+    }
+    function planResult(res) {
+      const r = res.r;
+      const box = h('div', { class: r.ok ? (r.verified ? 'ok-box' : 'problem') : 'err-box', role: r.ok ? 'status' : 'alert', 'data-test': 'pp-result' },
+        h('b', { text: r.ok ? (r.verified ? t('pp_res_ok') : t('pp_res_unverified')) : t('pp_res_fail') }),
+        !r.ok && r.msg ? h('div', { text: r.msg }) : null,
+        h('ol', { class: 'pp-steps' }, (r.steps || []).map(function (s) {
+          return h('li', { 'data-state': s.state }, stepText(s), ' — ', h('b', { text: t('pp_st_' + s.state) }));
+        })));
+      const nb = st.c && st.c.nextBillingDate;
+      if (st.c && (r.ok || r.done)) box.append(h('div', { class: 'small' }, nb ? tx('pp_next_now', { d: fmtDate(nb) }) : t('pp_next_none')));
+      return box;
+    }
+
     function render() {
       if (!st || !st.c) return;
       const c = st.c;
@@ -4180,6 +4400,8 @@
       const editing = !!st.edit;
       const items = (c.lines || []).map(function (l) { return (l.quantity > 1 ? l.quantity + ' × ' : '') + l.title; }).join(', ');
       const top = [];
+      if (c.status === 'ACTIVE' || c.status === 'FAILED') top.push(btn(t('sub_pause_btn'), function () { startEdit({ kind: 'pause_until' }); }),
+        btn(t('sub_postpone_btn'), function () { startEdit({ kind: 'postpone' }); }));
       if (c.status === 'ACTIVE' || c.status === 'FAILED') top.push(btn(t('mg_pause'), function () { confirmOf('pause', {}, t('mg_do_pause')); }, 'danger-outline'));
       if (c.status === 'PAUSED') top.push(btn(t('mg_resume'), function () { confirmOf('resume', {}, t('mg_do_resume')); }, 'primary'));
       if (['CANCELLED', 'EXPIRED', 'FAILED'].indexOf(c.status) >= 0) top.push(btn(t('mg_reactivate'), function () { confirmOf('reactivate', {}, t('mg_do_reactivate')); }));
@@ -4214,12 +4436,27 @@
       if (live && !editing) disc.append(h('div', { class: 'row-btns start' }, btn(t('mg_add_discount'), function () { startEdit({ kind: 'discount' }); })));
 
       clear(dlg);
+      const head = [h('div', null, h('b', { dir: 'auto', text: items || '—' }), ' ', h('span', { class: 'chip ' + (c.status === 'ACTIVE' ? 'ok' : c.status === 'CANCELLED' ? '' : 'bad'), text: t('ss_' + c.status) })),
+        h('div', { class: 'small muted' }, t('sub_id') + ': ', h('bdi', { class: 'ltr', text: contractNum(c.id) }), ' · ', t('sub_every') + ': ' + everyText(c.every),
+          st.x.email ? [' · ', h('bdi', { class: 'ltr', text: st.x.email })] : null)];
+      if (st.focus) {
+        // opened from the card's ⏸ / ⏭ button (2026-11-01): only that form, then its result
+        dlg.append(h('div', { class: 'in', 'data-test': 'pp-dlg' }, h('h3', { text: t('pp_title_' + st.focus) }), head,
+          st.note ? h('div', { class: 'problem', role: 'status', text: st.note }) : null,
+          st.result ? planResult(st.result) : null,
+          workArea(),
+          editing ? null : h('div', { class: 'row-btns' },
+            h('button', { class: 'btn ghost', type: 'button', text: t('pp_full'), 'data-test': 'pp-full', onclick: function () { st.focus = null; st.result = null; render(); } }),
+            h('button', { class: 'btn ghost', type: 'button', text: t('mg_close'), onclick: function () { dlg.close(); } }))));
+        return;
+      }
       dlg.append(h('div', { class: 'in' },
         h('h3', { text: t('mg_title') }),
         h('div', null, h('b', { dir: 'auto', text: items || '—' }), ' ', h('span', { class: 'chip ' + (c.status === 'ACTIVE' ? 'ok' : c.status === 'CANCELLED' ? '' : 'bad'), text: t('ss_' + c.status) })),
         h('div', { class: 'small muted' }, t('sub_id') + ': ', h('bdi', { class: 'ltr', text: contractNum(c.id) }), ' · ', t('sub_every') + ': ' + everyText(c.every),
           st.x.email ? [' · ', h('bdi', { class: 'ltr', text: st.x.email })] : null),
         st.note ? h('div', { class: 'problem', role: 'status', text: st.note }) : null,
+        st.result ? planResult(st.result) : null,
         top.length && !editing ? h('div', { class: 'row-btns start' }, top) : null,
         live && !editing ? saveGuideEl(false) : null,
         cycles, lines, disc,

@@ -998,7 +998,51 @@ class MockEngines:
     MOCK_VARIANTS = [{"id": "gid://shopify/ProductVariant/48134100517122", "product": "פורמולת הסלק", "title": "", "price": "189.00"},
                      {"id": "gid://shopify/ProductVariant/48134100517123", "product": "פורמולת הסלק", "title": "זוג", "price": "329.00"},
                      {"id": "gid://shopify/ProductVariant/48134100517124", "product": "כדורי דלעת", "title": "", "price": "149.90"}]
-    ACTION_FROM = {"pause": ("ACTIVE", "FAILED"), "resume": ("PAUSED",), "reactivate": ("CANCELLED", "EXPIRED", "FAILED")}
+    ACTION_FROM = {"pause": ("ACTIVE", "FAILED"), "resume": ("PAUSED",), "reactivate": ("CANCELLED", "EXPIRED", "FAILED"),
+                   "pause_until": ("ACTIVE", "FAILED"), "postpone": ("ACTIVE", "FAILED")}
+    PLAN_FAIL_AT = 0   # tests: the 1-based step the mock Kaching refuses (0 = none), to show a partial failure
+
+    @staticmethod
+    def _plan(act, d, cycles):
+        """Mirrors Kaching.gs kachingPlan_ (same sentences, same key)."""
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", d or ""):
+            return {"error": "a date is required (YYYY-MM-DD)"}
+        try:
+            datetime.strptime(d, "%Y-%m-%d")
+        except ValueError:
+            return {"error": "a date is required (YYYY-MM-DD)"}
+        if d <= datetime.now(timezone.utc).strftime("%Y-%m-%d"):
+            return {"error": "the date must be after today"}
+        allc = sorted(cycles, key=lambda c: c["date"])
+        if not allc:
+            return {"error": "this subscription has no upcoming deliveries"}
+        op = [c for c in allc if not c["skipped"]]
+        last = allc[-1]["date"][:10]
+        if last < d:
+            return {"error": "the date is after the last delivery Kaching shows (%s)" % last}
+        steps, first, after = [], None, None
+        if act == "pause_until":
+            steps = [{"action": "skip", "cycleIndex": c["index"], "date": c["date"]} for c in op if c["date"][:10] < d]
+            if not steps:
+                return {"error": "no delivery before that date — nothing to pause"}
+            f = next((c for c in op if c["date"][:10] >= d), None)
+            first = f["date"] if f else None
+        else:
+            if not op:
+                return {"error": "no upcoming delivery to postpone"}
+            if d <= op[0]["date"][:10]:
+                return {"error": "the new date must be after the next delivery (%s)" % op[0]["date"][:10]}
+            crossed = [c for c in op if c["date"][:10] <= d]
+            tg = crossed[-1]
+            if tg["date"][:10] != d:
+                steps.append({"action": "reschedule", "cycleIndex": tg["index"], "date": tg["date"], "billingDate": d})
+            steps += [{"action": "skip", "cycleIndex": c["index"], "date": c["date"]} for c in crossed[:-1]]
+            n = next((c for c in op if c["date"][:10] > d), None)
+            first, after = tg["date"], (n["date"] if n else None)
+        if len(steps) > 12:
+            return {"error": "this needs %d changes, more than 12 at once — choose an earlier date" % len(steps)}
+        key = ",".join("s%d" % x["cycleIndex"] if x["action"] == "skip" else "r%d:%s" % (x["cycleIndex"], x["billingDate"]) for x in steps)
+        return {"steps": steps, "key": key, "firstCharge": first, "after": after}
 
     def _contract(self, brand, t, cid):
         """The ticket customer's contract with ids, prices and cycles (built once from the snapshot's subscription)."""
@@ -1179,7 +1223,7 @@ class MockEngines:
             return {"ok": False, "error": "not_found"}
         act = a.get("action")
         res = lambda ok, msg, **kw: dict({"ok": ok, "action": act, "message": msg}, **kw)
-        if act not in ("pause", "resume", "reactivate", "skip", "unskip", "reschedule", "add_discount", "add_line", "update_line", "remove_line"):
+        if act not in ("pause", "resume", "reactivate", "skip", "unskip", "reschedule", "add_discount", "add_line", "update_line", "remove_line", "pause_until", "postpone"):
             return res(False, "unknown action")
         sw = self.switches[brand]
         if not sw["writes"]:
@@ -1201,6 +1245,38 @@ class MockEngines:
         live = ("ACTIVE", "PAUSED", "FAILED")
         if s["status"] not in self.ACTION_FROM.get(act, live):
             return res(False, "status %s does not allow %s" % (s["status"], act))
+        if act in ("pause_until", "postpone"):
+            pl = self._plan(act, str(a.get("billingDate", "")), s["cycles"])
+            if pl.get("error"):
+                return res(False, pl["error"])
+            if str(a.get("plan", "")) != pl["key"]:
+                return res(False, "the subscription changed since the preview — open it again")
+            out, done, stop = [], 0, None
+            for i, stp in enumerate(pl["steps"]):
+                if self.PLAN_FAIL_AT and i + 1 == self.PLAN_FAIL_AT:
+                    stop = i
+                    break
+                cy = next(x for x in s["cycles"] if x["index"] == stp["cycleIndex"])
+                if stp["action"] == "skip":
+                    cy["skipped"] = True
+                else:
+                    cy["date"] = stp["billingDate"] + cy["date"][10:]
+                done += 1
+            for i, stp in enumerate(pl["steps"]):
+                o = {"action": stp["action"], "index": stp["cycleIndex"], "date": stp["date"], "billingDate": stp.get("billingDate")}
+                o["state"] = "done" if i < done else ("failed" if i == stop else "not_sent")
+                if i == stop:
+                    o["http"] = 400
+                out.append(o)
+            self._contract(brand, t, cid)
+            n = len(pl["steps"])
+            extra = dict(steps=out, done=done, total=n, plan=pl["key"], firstCharge=pl["firstCharge"], after=pl["after"], status=s["status"],
+                         contract=json.loads(json.dumps(s)))
+            if stop is None:
+                return res(True, "done", verified=True, **extra)
+            why = "Kaching refused (400): Billing date of a cycle cannot be set to a value outside of its billing date range"
+            msg = ("partial: %d of %d changes done, then %s. Not retried — check in Kaching before trying again." % (done, n, why)) if done else why + ". Not retried — check in Kaching before trying again."
+            return res(False, msg, verified=False, **extra)
         cyc = None
         if act in ("skip", "unskip", "reschedule"):
             idx = str(a.get("cycleIndex", ""))

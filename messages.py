@@ -265,6 +265,28 @@ KACHING = [
     (r"^a quantity between 1 and 20 is required$", "כמות בין 1 ל-20.", "A quantity between 1 and 20."),
     (r"^a price between 0 and 20000 is required$", "מחיר בין 0 ל-20000.", "A price between 0 and 20000."),
     (r"^nothing to change.*$", "לא נבחר שום שינוי (מוצר, כמות או מחיר).", "Nothing to change (product, quantity or price)."),
+    # Kaching.gs kachingPlan_ / the plan branch — pause for a period, postpone to a date (Owner, 2026-11-01)
+    (r"^the subscription changed since the preview — open it again$", "המנוי השתנה בקאצ'ינג מאז שנפתח החלון — לא בוצע כלום. פתחו שוב ובדקו.",
+     "The subscription changed in Kaching since the window opened — nothing was done. Open it again and check."),
+    (r"^a date is required \(YYYY-MM-DD\)$", "צריך לבחור תאריך.", "Choose a date."),
+    (r"^the date must be after today$", "התאריך חייב להיות אחרי היום.", "The date must be after today."),
+    (r"^the date is more than 400 days away$", "התאריך רחוק מדי (יותר מ-400 יום).", "The date is more than 400 days away."),
+    (r"^this subscription has no upcoming deliveries$", "אין למנוי משלוחים עתידיים.", "This subscription has no upcoming deliveries."),
+    (r"^the date is after the last delivery Kaching shows \((.*)\)$", "התאריך אחרי המשלוח האחרון שקאצ'ינג מציג ({0}) — לבחור תאריך מוקדם יותר.",
+     "The date is after the last delivery Kaching shows ({0}) — choose an earlier date."),
+    (r"^no delivery before that date — nothing to pause$", "אין משלוח לפני התאריך הזה — אין מה להשהות.", "No delivery before that date — nothing to pause."),
+    (r"^no upcoming delivery to postpone$", "אין משלוח קרוב לדחות.", "No upcoming delivery to postpone."),
+    (r"^the new date must be after the next delivery \((.*)\)$", "התאריך החדש חייב להיות אחרי המשלוח הבא ({0}).", "The new date must be after the next delivery ({0})."),
+    (r"^this needs (\S+) changes, more than (\S+) at once.*$", "זה דורש {0} שינויים — יותר מ-{1} בבת אחת. לבחור תאריך מוקדם יותר.",
+     "This needs {0} changes — more than {1} at once. Choose an earlier date."),
+    (r"^this needs (\S+) subscription changes and would pass the daily limit of (\S+)$", "זה דורש {0} שינויים ויעבור את המגבלה היומית ({1}). לא בוצע כלום.",
+     "This needs {0} changes and would pass the daily limit ({1}). Nothing was done."),
+    (r"^partial: (\d+) of (\d+) changes done, then the outcome is unknown.*$",
+     "בוצעו רק {0} מתוך {1} השינויים, ואז התוצאה לא ידועה. לא נוסה שוב — לבדוק בקצ'ינג לפני כל ניסיון נוסף.",
+     "Only {0} of {1} changes were done, then the outcome is unknown. Not retried — check in Kaching before trying again."),
+    (r"^partial: (\d+) of (\d+) changes done, then Kaching refused \((\d+)\).*$",
+     "בוצעו רק {0} מתוך {1} השינויים, ואז קצ'ינג סירב (שגיאה {2}). לא נוסה שוב — לבדוק בקצ'ינג לפני כל ניסיון נוסף.",
+     "Only {0} of {1} changes were done, then Kaching refused (error {2}). Not retried — check in Kaching before trying again."),
 ]
 
 

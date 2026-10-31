@@ -336,6 +336,23 @@ def test_kaching_action_proxy_shapes(app, pw_hash, transport):
     assert j["ok"] is False and "CANCELLED" in j["msg"] and j["message"].startswith("status")
 
 
+def test_kaching_plan_actions_pass_with_their_plan_and_every_step_comes_back(app, pw_hash, transport):
+    """2026-11-01: pause_until / postpone with billingDate + plan (the steps the agent saw); the steps of the result reach the screen untouched."""
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    base = {"id": "t1", "contractId": "gid://shopify/SubscriptionContract/1234", "confirm": "1234", "billingDate": "2027-01-15"}
+    r = call(c, tok, "rozela", "apiKachingAction", dict(base, action="pause_until", plan="s" * 201))
+    assert r.status_code == 400                                  # every field has the same 200-character cap
+    steps = [{"action": "skip", "index": 2, "date": "2026-12-10T07:00:00Z", "state": "done"}, {"action": "skip", "index": 3, "date": "2027-02-10T07:00:00Z", "state": "failed", "http": 400}]
+    transport.reply = {"ok": False, "action": "pause_until", "verified": False, "steps": steps, "done": 1, "total": 2,
+                       "message": "partial: 1 of 2 changes done, then Kaching refused (400): x. Not retried — check in Kaching before trying again."}
+    j = call(c, tok, "rozela", "apiKachingAction", dict(base, action="pause_until", plan="s2,s3")).get_json()
+    sent = transport.calls[-1][1]["args"]
+    assert sent["plan"] == "s2,s3" and sent["billingDate"] == "2027-01-15" and sent["action"] == "pause_until"
+    assert j["steps"] == steps and j["done"] == 1 and "בוצעו רק 1 מתוך 2" in re.sub("[\u2066-\u2069]", "", j["msg"])
+    transport.reply = {"ok": True, "action": "postpone", "verified": True, "message": "done", "steps": [], "done": 1, "total": 1}
+    assert call(c, tok, "rozela", "apiKachingAction", dict(base, action="postpone", plan="r2:2027-01-15")).get_json()["msg"] == "בוצע."
+
+
 @pytest.mark.parametrize("raw", KACHING_GATE_MESSAGES)
 def test_every_kaching_gate_sentence_has_hebrew(raw):
     he = messages.kaching_msg(raw, "he")
