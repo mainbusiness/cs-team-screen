@@ -288,8 +288,11 @@ def _sum_weeks(items):
         q = []
         while len(q) < REASONS_QUOTES and any(pools):
             for p in pools:
-                if p and len(q) < REASONS_QUOTES:
-                    q.append(p.pop(0))
+                while p and len(q) < REASONS_QUOTES:
+                    x = p.pop(0)
+                    if x not in q:            # the same words from two brands are shown once
+                        q.append(x)
+                        break
         if q:
             out["quotes"][k] = q
     return out
@@ -325,7 +328,9 @@ def reasons_view(per_brand):
     if alls:
         total_all = _sum_weeks(alls)
         total_all["from"], total_all["to"] = (min(froms) if froms else ""), (max(tos) if tos else "")
-    return {"brands": brands, "hidden": sorted(hidden), "unavailable": sorted(unavailable), "taxonomy": any_data.get("taxonomy") or [],
+    # a brand still being read (no answer yet): named, so a partial "all brands" sum never looks final (live check 2026-11-01)
+    pending = sorted(b for b, o in brands.items() if not o["weeks"] and o["state"] == "pending")
+    return {"brands": brands, "hidden": sorted(hidden), "unavailable": sorted(unavailable), "pending": pending, "taxonomy": any_data.get("taxonomy") or [],
             "model": any_data.get("model") or "", "next_run": any_data.get("next_run") or {}, "total": {"weeks": total_weeks, "all": total_all}}
 
 

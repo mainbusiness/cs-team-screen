@@ -65,6 +65,10 @@ def test_admin_sees_the_five_reasons_all_brands_then_one_brand_then_all_data(srv
         assert rows(pg)["never_agreed"] == 70 and "מ-16.10 עד 29.10" in sec.locator("[data-test=cr-range]").inner_text()
         assert sec.locator("[data-test=cr-row][data-k=never_agreed] [data-test=cr-change]").inner_text() == "—"
         assert pg.evaluate("() => document.documentElement.scrollWidth <= window.innerWidth + 1")
+        # no cell runs over its neighbour (the shared table style is nowrap; seen live 2026-11-01), and a phone never scrolls the table sideways
+        assert pg.evaluate("() => Array.from(document.querySelectorAll('[data-test=cr-table] td')).every(td => td.scrollWidth <= td.clientWidth + 1)")
+        if width < 600:
+            assert pg.evaluate("() => { const w = document.querySelector('[data-test=cr] .table-wrap'); return w.scrollWidth <= w.clientWidth + 1; }")
         assert pg.errors == []
 
 
@@ -80,3 +84,26 @@ def test_english_desk_and_an_agent_never_sees_it(srv):
         ag.goto(base + "/cs#/dash")
         ag.wait_for_timeout(2500)
         assert ag.locator("[data-test=cr]").count() == 0
+
+
+def test_a_brand_still_being_read_is_named_so_a_partial_sum_never_looks_final(srv):
+    """Seen live 2026-11-01: the first board load summed the brands that had answered, with nothing saying others were still coming."""
+    import json
+    base, pwd = srv
+    with pw.sync_playwright() as p:
+        pg = login(p, base, pwd, "guy")
+        seen = {"n": 0}
+
+        def partial(route, request):
+            resp = route.fetch()
+            body = resp.json()
+            seen["n"] += 1
+            if seen["n"] == 1 and body.get("ok"):
+                body["pending"] = ["celesta"]
+                body["busy"] = True
+            route.fulfill(response=resp, body=json.dumps(body), headers=dict(resp.headers, **{"content-type": "application/json"}))
+        pg.route("**/api/dash/cancel-reasons*", partial)
+        pg.goto(base + "/cs#/dash")
+        pg.wait_for_selector("[data-test=cr-pending]", timeout=30000)
+        assert "עוד קורא את: Celesta" in pg.locator("[data-test=cr-pending]").inner_text()
+        pg.wait_for_selector("[data-test=cr-pending]", state="detached", timeout=30000)      # the 4 s re-ask while busy clears it

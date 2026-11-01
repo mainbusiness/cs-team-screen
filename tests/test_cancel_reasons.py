@@ -70,9 +70,10 @@ def test_the_board_reads_in_the_background_sums_the_brands_and_caches(app, pw_ha
     c, _ = logged_in(app, pw_hash, "boss", ["admin"], ["rozela", "celesta", "velora"])
     first = c.get("/api/dash/cancel-reasons").get_json()
     assert first["ok"] and first["busy"] and first["total"]["weeks"] == []                     # nothing yet: "reading", not zeros
+    assert first["pending"] == ["celesta", "rozela", "velora"]                                 # every brand still being read is named
     drain(app)
     o = c.get("/api/dash/cancel-reasons").get_json()
-    assert not o["busy"] and o["hidden"] == [] and o["unavailable"] == ["velora"]
+    assert not o["busy"] and o["hidden"] == [] and o["unavailable"] == ["velora"] and o["pending"] == []
     w = o["total"]["weeks"][0]
     assert w["week"] == "2026-10-23" and w["sub_cancels"] == 46 and w["read"] == 52 and w["counts"]["never_agreed"] == 20 and w["counts"]["not_stated"] == 4
     assert w["quotes"]["never_agreed"] == ["celesta q1", "rozela q1", "celesta q2"] or w["quotes"]["never_agreed"] == ["rozela q1", "celesta q1", "rozela q2"]
@@ -99,6 +100,15 @@ def test_reasons_norm_drops_every_non_count():
     w = o["weeks"][0]
     assert w["read"] is None and w["sub_cancels"] is None and w["counts"]["never_agreed"] == 0 and w["counts"]["one_time"] == 3 and "x" not in w["counts"]
     assert w["quotes"] == {"one_time": ["a"]}
+
+
+def test_the_same_quote_from_two_brands_is_shown_once():
+    def brand(q):
+        return {"state": "ok", "data": D.reasons_norm({"state": "ok", "taxonomy": [], "weeks": [{"week": "2026-10-23", "counts": {"one_time": 2}, "sub_cancels": 2, "read": 2,
+                                                                                               "quotes": {"one_time": q}}]})}
+    v = D.reasons_view({"rozela": brand(["אזמין לבד", "לא צריך"]), "celesta": brand(["אזמין לבד", "יש לי בבית"])})
+    q = v["total"]["weeks"][0]["quotes"]["one_time"]
+    assert len(q) == 3 and sorted(q) == sorted(["אזמין לבד", "לא צריך", "יש לי בבית"])
 
 
 def test_a_week_some_brand_has_no_data_for_names_it():

@@ -942,8 +942,20 @@ details.sg > summary { cursor: pointer; font-weight: 700; }
 .dash-cr .cr-ctl { margin: 6px 0; gap: 8px; flex-wrap: wrap; }
 .dash-cr .cr-meta { margin: 4px 0 8px; overflow-wrap: anywhere; }
 .cr-table td { vertical-align: top; }
-.cr-table .cr-def { max-width: 34ch; }
-.cr-table .cr-other td { background: var(--bg); }
+.cr-table th, .cr-table td { white-space: normal; overflow-wrap: anywhere; }   /* .dash-table is nowrap: long definitions ran over the quotes (seen live 2026-11-01) */
+.cr-table td:first-child { min-width: 18ch; }
+.cr-table td:last-child { min-width: 24ch; }
+.cr-table .cr-def { max-width: 44ch; }
+@media (max-width: 600px) {   /* a phone: each reason is a card, no sideways scrolling */
+  .cr-table thead { display: none; }
+  .cr-table, .cr-table tbody, .cr-table tr { display: block; width: 100%; }
+  .cr-table tr { border-bottom: 1px solid var(--line); padding: 6px 0; }
+  .cr-table td { display: inline-block; border: 0; padding: 2px 6px; min-width: 0; }
+  .cr-table td:first-child, .cr-table td:last-child { display: block; min-width: 0; }
+  .cr-table td[data-l]::before { content: attr(data-l) ': '; color: var(--muted); font-size: 12px; font-weight: 400; }
+  .cr-table td:last-child::before { display: block; }
+}
+.cr-table .cr-other { background: var(--bg); }
 .cr-q { margin: 0; padding-inline-start: 16px; font-size: 13px; display: grid; gap: 2px; }
 .cr-chg.up { color: var(--danger); font-weight: 700; }
 .cr-chg.down { color: var(--ready); font-weight: 700; }

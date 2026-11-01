@@ -7239,13 +7239,13 @@
         week: 'שבוע {a}–{b}', since: 'מ-{a} עד {b}', read: 'נקראו {r} שיחות, מתוכן {s} בקשות לבטל מנוי', ran: 'הריצה: {t}', next: 'הריצה הבאה: שישי {d} ב-02:00 (שעון ישראל)',
         col_reason: 'סיבה', col_n: 'בקשות', col_pct: '% מהבקשות', col_change: 'מול השבוע הקודם', col_quotes: 'ציטוטים מהלקוחות', other_row: 'אחר / לא צוין',
         other_split: 'אחר {o} · לא צוין {n}', no_prev: 'אין שבוע קודם', loading: 'קורא את הנתונים…', empty: 'אין עדיין נתונים — הריצה הראשונה עוד לא הסתיימה.',
-        unavail: 'עוד לא זמין במנוע של: {b}', err: 'לא הצלחנו לקרוא: {b}', missing: 'בשבוע הזה אין נתונים מ: {b}', prev_missing: 'בשבוע הקודם אין נתונים מ: {b} — ההשוואה בלעדיהם', pp: 'נק׳',
+        unavail: 'עוד לא זמין במנוע של: {b}', err: 'לא הצלחנו לקרוא: {b}', missing: 'בשבוע הזה אין נתונים מ: {b}', prev_missing: 'בשבוע הקודם אין נתונים מ: {b} — ההשוואה בלעדיהם', pending: 'עוד קורא את: {b} — "כל המותגים" עדיין בלעדיהם, יתעדכן לבד', pp: 'נק׳',
         how: 'מה נספר: כל שיחה (מייל וווטסאפ) שבה לקוח ביקש לבטל מנוי, לפי מילים של הלקוח עצמו. AI ({m}) מסווג כל שיחה לקטגוריה אחת; בבדיקה ידנית של 25 שיחות הוא צדק ב-24. האחוז הוא מתוך בקשות ביטול המנוי באותו שבוע. ביטול הזמנה או חיוב שנכשל לא נספרים. ציטוטים בלי שמות, מיילים ומספרים.' },
       en: { title: 'Why customers cancel a subscription — the top 5 reasons', sub: 'managers only · updated weekly', all_brands: 'All brands', last_week: 'Last week', all_time: 'All data',
         week: 'Week {a}–{b}', since: '{a} to {b}', read: '{r} conversations read, {s} of them asked to cancel a subscription', ran: 'Run: {t}', next: 'Next run: Friday {d} at 02:00 (Israel time)',
         col_reason: 'Reason', col_n: 'Requests', col_pct: '% of requests', col_change: 'vs the week before', col_quotes: 'What customers wrote', other_row: 'Other / not stated',
         other_split: 'other {o} · not stated {n}', no_prev: 'no earlier week', loading: 'Reading the data…', empty: 'No data yet — the first run has not finished.',
-        unavail: 'Not available yet in the engine of: {b}', err: 'Could not read: {b}', missing: 'No data this week from: {b}', prev_missing: 'No data the week before from: {b} — compared without them', pp: 'pp',
+        unavail: 'Not available yet in the engine of: {b}', err: 'Could not read: {b}', missing: 'No data this week from: {b}', prev_missing: 'No data the week before from: {b} — compared without them', pending: 'Still reading: {b} — "all brands" is without them for now, it updates by itself', pp: 'pp',
         how: 'Counted: every conversation (email and WhatsApp) in which a customer asked to cancel a subscription, from the customer\'s own words. AI ({m}) puts each one in one category; on a hand check of 25 conversations it was right on 24. The % is of that week\'s subscription-cancel requests. Order cancels and failed charges are not counted. Quotes have no names, emails or numbers.' }
     })[LANG === 'en' ? 'en' : 'he'];
     const CR_FIVE = ['never_agreed', 'not_effective', 'try_first', 'has_stock', 'one_time'];
@@ -7280,6 +7280,7 @@
       const bad = brands.filter(function (b) { return x.brands[b].state === 'error' && !(x.brands[b].weeks || []).length; });
       if ((x.unavailable || []).length) cr.el.append(h('div', { class: 'note-box warn', 'data-test': 'cr-unavailable', text: crT('unavail', { b: crNames(x.unavailable) }) }));
       if (bad.length) cr.el.append(h('div', { class: 'note-box warn', 'data-test': 'cr-brand-err', text: crT('err', { b: crNames(bad) }) }));
+      if ((x.pending || []).length) cr.el.append(h('div', { class: 'note-box warn', role: 'status', 'data-test': 'cr-pending', text: crT('pending', { b: crNames(x.pending) }) }));   // a partial sum never looks final
       const withData = brands.filter(function (b) { return (x.brands[b].weeks || []).length; });
       if (cr.brand !== 'all' && withData.indexOf(cr.brand) < 0) cr.brand = 'all';
       const bsel = h('select', { 'aria-label': CRL.all_brands, 'data-test': 'cr-brand' }, h('option', { value: 'all', text: CRL.all_brands }),
@@ -7308,8 +7309,9 @@
         if (!prev) return h('span', { class: 'muted small', 'data-test': 'cr-change', text: cr.period === 'all' ? '—' : CRL.no_prev });
         const d1 = nNow - nPrev, p1 = crPct(nNow, of), p0 = crPct(nPrev, prev.sub_cancels || 0);
         const dp = p1 === null || p0 === null ? null : Math.round(10 * (p1 - p0)) / 10;
+        // each signed number in its own LTR isolate: "+16" and "↑7.6" never flip around the dot in RTL (seen on the screenshot)
         return h('span', { class: 'cr-chg ' + (d1 > 0 ? 'up' : d1 < 0 ? 'down' : ''), 'data-test': 'cr-change' },
-          (d1 > 0 ? '+' : '') + d1, dp === null ? '' : ' · ' + (dp > 0 ? '↑' : dp < 0 ? '↓' : '') + Math.abs(dp) + ' ' + CRL.pp);
+          h('bdi', { dir: 'ltr', text: (d1 > 0 ? '+' : '') + d1 }), dp === null ? null : [' · ', h('bdi', { dir: 'ltr', text: (dp > 0 ? '↑' : dp < 0 ? '↓' : '') + Math.abs(dp) }), ' ' + CRL.pp]);
       }
       function quotes(k) {
         const q = (cur.quotes || {})[k] || [];
@@ -7322,14 +7324,14 @@
         const n = cur.counts[k] || 0;
         body.append(h('tr', { 'data-test': 'cr-row', 'data-k': k },
           h('td', null, h('b', { text: (i + 1) + '. ' + name(k) }), tax[k] && tax[k].def ? h('div', { class: 'muted small cr-def', text: tax[k].def }) : null),
-          h('td', null, h('b', { 'data-test': 'cr-n', text: String(n) })), h('td', { 'data-test': 'cr-pct', text: of ? crPct(n, of) + '%' : '—' }),
-          h('td', null, change(n, prev ? (prev.counts[k] || 0) : 0)), h('td', null, quotes(k))));
+          h('td', { 'data-l': CRL.col_n }, h('b', { 'data-test': 'cr-n', text: String(n) })), h('td', { 'data-test': 'cr-pct', 'data-l': CRL.col_pct, text: of ? crPct(n, of) + '%' : '—' }),
+          h('td', { 'data-l': CRL.col_change }, change(n, prev ? (prev.counts[k] || 0) : 0)), h('td', { 'data-l': CRL.col_quotes }, quotes(k))));
       });
       const no = (cur.counts.other || 0) + (cur.counts.not_stated || 0);
       body.append(h('tr', { class: 'cr-other', 'data-test': 'cr-row', 'data-k': 'other_not_stated' },
         h('td', null, h('b', { text: CRL.other_row }), h('div', { class: 'muted small', 'data-test': 'cr-other-split', text: crT('other_split', { o: cur.counts.other || 0, n: cur.counts.not_stated || 0 }) })),
-        h('td', null, h('b', { 'data-test': 'cr-n', text: String(no) })), h('td', { 'data-test': 'cr-pct', text: of ? crPct(no, of) + '%' : '—' }),
-        h('td', null, change(no, prev ? (prev.counts.other || 0) + (prev.counts.not_stated || 0) : 0)), h('td', null, quotes('other'))));
+        h('td', { 'data-l': CRL.col_n }, h('b', { 'data-test': 'cr-n', text: String(no) })), h('td', { 'data-test': 'cr-pct', 'data-l': CRL.col_pct, text: of ? crPct(no, of) + '%' : '—' }),
+        h('td', { 'data-l': CRL.col_change }, change(no, prev ? (prev.counts.other || 0) + (prev.counts.not_stated || 0) : 0)), h('td', { 'data-l': CRL.col_quotes }, quotes('other'))));
       tb.append(body);
       cr.el.append(h('div', { class: 'table-wrap' }, tb));
       cr.el.append(h('div', { class: 'muted small cr-how', 'data-test': 'cr-how', text: crT('how', { m: x.model || 'AI' }) }));
