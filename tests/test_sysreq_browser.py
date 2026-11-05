@@ -1,6 +1,6 @@
 """Owner, 2026-10-25 — the CS manager proposes changes to the SYSTEM itself, the owner approves in HQ. Real browser, mock engines:
  - the card is on the managers' board right under the AI-notes card, admins only; an agent never sees it and the API answers 403;
- - send is disabled until 10 characters; a send says "נשלח לגיא לאישור", empties the box and lists the request as waiting;
+ - send is disabled until 10 characters; a send says "נשלח לביצוע", empties the box and lists the request as waiting;
  - an unsent draft survives a reload; the owner's decision (machine API) comes back as a status chip + his reply;
  - a request done / rejected more than 14 days ago is in the collapsed archive line, not in the list;
  - English desk strings; no horizontal overflow at 390 / 768 / 1280; no console errors.
@@ -77,7 +77,7 @@ def test_manager_sends_a_request_and_sees_guys_answer(server):
         card = pg.locator("[data-test=sysreq]")
         assert "🛠️ הצעות לשיפור המערכת" in card.locator("h3").inner_text()
         help_ = card.locator("[data-test=sysreq-help]").inner_text()
-        assert "לאישור" in help_ and "ההערות ל-AI" in help_
+        assert "ישר לביצוע" in help_ and "לגיא לאישור" not in help_ and "ההערות ל-AI" in help_
         # right under the AI-notes card, in the managers' area
         order = pg.evaluate("() => { const a = document.getElementById('ai-notes'), s = document.getElementById('sysreq');"
                             " return !!(a && s && (a.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING)); }")
@@ -94,11 +94,11 @@ def test_manager_sends_a_request_and_sees_guys_answer(server):
         card.locator("[data-test=sysreq-ticket]").fill("1646")
         assert send.is_enabled()
         send.click()
-        assert until(lambda: card.locator("[data-test=sysreq-status]").inner_text() == "נשלח לגיא לאישור ✓")
+        assert until(lambda: card.locator("[data-test=sysreq-status]").inner_text() == "נשלח לביצוע ✓")
         assert card.locator("[data-test=sysreq-text-input]").input_value() == ""
         item = card.locator("[data-test=sysreq-item]")
         assert until(lambda: item.count() == 1)
-        assert item.locator("[data-test=sysreq-chip]").inner_text() == "⏳ ממתין לגיא"
+        assert item.locator("[data-test=sysreq-chip]").inner_text() == "⏳ התקבל"
         assert item.locator("[data-test=sysreq-text]").inner_text() == text
         meta = item.locator("[data-test=sysreq-meta]").inner_text()
         assert "Rozela" in meta and "פנייה 1646" in meta and "admin1" in meta
@@ -116,8 +116,8 @@ def test_manager_sends_a_request_and_sees_guys_answer(server):
         pg.reload()
         open_board(pg, base)
         item = pg.locator("[data-test=sysreq-item][data-id='%d']" % rid_id)
-        assert item.locator("[data-test=sysreq-chip]").inner_text() == "✅ אושר"
-        assert item.locator("[data-test=sysreq-reply]").inner_text() == "תשובת גיא: מאשר, נבנה מחר"
+        assert item.locator("[data-test=sysreq-chip]").inner_text() == "🛠️ בעבודה"
+        assert item.locator("[data-test=sysreq-reply]").inner_text() == "עדכון: מאשר, נבנה מחר"
         for w in (390, 768, 1280):
             pg.set_viewport_size({"width": w, "height": 900})
             pg.wait_for_timeout(250)
@@ -169,6 +169,6 @@ def test_english_desk(server):
         card = pg.locator("[data-test=sysreq]")
         assert "System change requests" in card.locator("h3").inner_text()
         assert "approval" in card.locator("[data-test=sysreq-help]").inner_text()
-        assert card.locator("[data-test=sysreq-send]").inner_text() == "Send to Guy"
+        assert card.locator("[data-test=sysreq-send]").inner_text() == "Send"
         assert pg.evaluate("document.documentElement.scrollWidth <= innerWidth")
         browser.close()

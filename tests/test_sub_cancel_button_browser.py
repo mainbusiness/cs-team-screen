@@ -55,12 +55,12 @@ def test_one_click_cancel_is_verified_and_stays_on_the_ticket(srv):
         pg.click("[data-test=subx-go]")
         ok = pg.locator("[data-test=subx-ok]")
         ok.wait_for()
-        assert re.search(r"המנוי בוטל — אומת בקאצ'ינג \d{1,2}:\d{2}", ok.inner_text()), ok.inner_text()
+        assert re.search(r"המנוי בוטל — אומת \d{1,2}:\d{2}", ok.inner_text()), ok.inner_text()
         assert pg.locator("[data-test=subx-btn]").count() == 0                # done: no second cancel from here
         assert not dlg.is_visible()
         pg.reload()                                                           # every device: the verdict is on the ticket, not in this page
         pg.locator("[data-test=subx-ok]").wait_for()
-        assert "אומת בקאצ'ינג" in pg.inner_text("[data-test=subx-ok]")
+        assert "המנוי בוטל — אומת" in pg.inner_text("[data-test=subx-ok]")
         pg.goto(base + "/cs#/b/rozela")                                       # the list row carries the chip
         row = pg.locator("#list-pane > a.row", has_text="יוסי מזרחי").first
         row.wait_for()
@@ -175,7 +175,7 @@ def test_english_desk_has_the_same_button(srv):
         assert "Cancel" in pg.inner_text("[data-test=subx-q]") and "יוסי מזרחי" in pg.inner_text("[data-test=subx-q]")
         pg.click("[data-test=subx-go]")
         pg.locator("[data-test=subx-ok]").wait_for()
-        assert "verified in Kaching" in pg.inner_text("[data-test=subx-ok]")
+        assert "Subscription cancelled — verified" in pg.inner_text("[data-test=subx-ok]")
         assert not errors, errors
         browser.close()
 

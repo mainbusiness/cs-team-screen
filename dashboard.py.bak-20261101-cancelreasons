@@ -1,0 +1,1163 @@
+"""Managers' dashboard (Owner, 2026-10-06): REAL work time, not login time.
+
+Activity log: every agent action the screen sees (open a ticket, edit, send, close, cancel, re-send, ...) is appended to
+a per-day file on the private disk — user, brand, ticket id, channel, kind, time. No customer content, ever.
+Work time (Owner, 2026-10-13: "they work ~8 hours, the board shows 3"): from the agent's first action of the day to the last,
+minus breaks — a stretch of more than BREAK_GAP_S with no action at all on the screen. A shorter stretch between two actions
+is work done elsewhere (Shopify, Kaching, Dondy, Gmail). The threshold comes from the measured gaps (README "Work time").
+The older, stricter number stays as "on screen" (screen_s): actions at most IDLE_GAP_S apart. Being logged in is NOT work:
+a screen left open over lunch keeps polling, so presence never extends work time.
+Sends and closes are also counted from the ENGINE (handled_by / handled_at on the ticket list) and shown side by side.
+
+Everything here reads the activity log and the server's cached ticket lists: the dashboard makes no engine call of its own.
+"""
+import json
+import os
+import re
+import statistics
+import threading
+import time
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
+
+from concurrent.futures import ThreadPoolExecutor
+
+from flask import g, jsonify, request
+
+import engine_proxy
+import sla
+
+TZ = ZoneInfo("Asia/Jerusalem")
+IDLE_GAP_S = 300            # "on screen": two actions at most 5 min apart are one run of on-screen work (the pre-2026-10-13 number)
+BREAK_GAP_S = 1800          # work time: a stretch over 30 min with no action is a break; a shorter one is work elsewhere (README)
+SESSION_TAIL_S = 60         # credited after a session's LAST action (reading / typing that produced no event of its own)
+HANDLE_MAX_S = 2 * 3600     # an open more than 2 h before a send is not that reply's handle time
+DEDUPE_S = {"open": 60, "edit": 60}   # one "open"/"edit" per user+ticket per minute (retries, autosave, typing heartbeats)
+KINDS = ("open", "edit", "send", "resend", "close", "cancel", "autocancel", "note", "takeover", "review")
+REPLY_KINDS = ("send", "resend")
+FN_KIND = {"apiSend": "send", "apiMarkHandled": "close", "apiClose": "close", "apiKachingCancel": "cancel", "apiSubCancel": "cancel",
+           "apiAutoCancelApprove": "autocancel", "apiAutoCancelReject": "autocancel", "apiNote": "note",
+           "apiWaTakeOver": "takeover", "apiSaveDraft": "edit", "apiAutoReplyReview": "review",
+           "apiSendTemplate": "template"}      # an approved WhatsApp template (costs money at Meta): logged per agent
+OPEN_ST = ("ready", "action", "health", "delay")          # waiting for a person
+LIVE_ST = OPEN_ST + ("bot", "wa_queued")                   # not finished
+ANSWERED_ST = ("sent", "wa_queued")
+AUTO_RE = re.compile(r"^(auto|auto[-_ ]?reply|autoreply|engine|bot)$", re.I)
+AGING = (("0-4h", 0, 4 * 3600), ("4-24h", 4 * 3600, 86400), ("1-3d", 86400, 3 * 86400), ("3d+", 3 * 86400, None))
+BOOT_CLOSED_MAX = 100       # apiBoot carries every open ticket + only the 100 most recent closed ones
+# 2026 industry benchmarks (justcall / kayako / helply), shown next to each number
+BENCH = {"frt_email_s": 24 * 3600, "frt_wa_s": 90, "aht_s": [240, 360], "occupancy": [0.75, 0.85],
+         "sla_wa_s": 3600, "sla_email_s": 24 * 3600}
+ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
+# the Google Sheet the Mini mirrors the sales log into (Systems/CS_Engine/sales_sync); a link only: the sheet is shared with Owner, not public
+SALES_SHEET_URL = os.environ.get("SALES_SHEET_URL", "https://docs.google.com/spreadsheets/d/1rSeuMFyTOo6RiX-1pB3zy03J1qotcusPa8IX39_EFEE/edit")
+# Owner, 2026-10-06: received / answered / closed / awaiting / FRT come from the engine's dayStats (computed from the
+# conversations: our screen, Dondy directly, Gmail directly, bots, templates). The screen's own log is only "on-screen
+# activity" (work time, AHT, hours). Read in the background, cached on disk; a running day is re-read every DS_TTL_S.
+DS_TTL_S = 600
+WARM_AT = (7, 20, 7, 40)   # Israel time window for the morning warm-up (the team starts ~08:00)
+WARM_USER = {"username": "warmup", "roles": ["admin"], "brands": [], "lang": "he"}
+DS_MAX_CHUNKS = 40
+VERIFY_NOTE = "✓ אומת מול השיחות 15/15 (וואטסאפ 10/10 · מייל 5/5) · rozela 2026-10-05"   # final live reconciliation
+DS_FINAL_TTL_S = 6 * 3600   # a finished day is still re-read now and then: the engine can backfill (2026-10-06: 95 email replies)
+SOURCES = {"fromSystem": ("agent", "auto"), "fromDondy": ("human", "bot", "template", "close"), "fromEmail": ("direct",)}
+DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# Owner, 2026-10-07: QA and automation accounts are not the team. Their clicks stay in the log, but they are not rows in the
+# agents table and do not move work time, AHT, occupancy, the heat map or the pies.
+TEST_USER_RE = re.compile(r"^(qa-.*|claude-admin|guy-admin-cli|warmup)$", re.I)
+SERVICE_KEYS = ("received", "person", "auto", "closed", "unanswered")
+LIVE_REFRESH_S = 30         # the managers' live open-tickets strip re-reads /api/dash/open this often
+LIVE_SYNC_S = 30            # a brand copy older than this gets one shared feed read (agents' polls keep it ~4 s fresh)
+# Cancellations (Owner, 2026-10-23: "כמה מנויים הצוות מבטל כל יום וכמה ביטולים בכללי הוא עושה ללקוחות"; November goal: the monthly Kaching cancel
+# rate down by more than 50% vs October). The engine's apiCancelStats (admin read) per brand; the Kaching part is heavy, so it is read in the
+# background and kept CANCEL_TTL_S (a window that ends today) / CANCEL_FINAL_TTL_S (a past window). The board never waits for it.
+CANCEL_DAYS = 14
+CANCEL_TTL_S = 300
+CANCEL_FINAL_TTL_S = 6 * 3600
+CANCEL_ERR_TTL_S = 60       # a failed read is tried again after a minute (the next board refresh), never in a loop
+CANCEL_TARGET_FACTOR = 0.5  # the goal: this month's rate below HALF of last month's
+CANCEL_HEALTHY_PCT, CANCEL_EXCELLENT_PCT = 12.0, 8.0     # the owner's thresholds (context on the card, not the colour)
+CANCEL_FIELDS = ("subs_team", "subs_bot", "orders_cancelled", "team_total", "subs_all_kaching")
+CANCEL_NOT_DEPLOYED = ("unauthorized", "forbidden_fn", "unknown_fn", "bad_fn")   # an engine without the fn answers like any unknown fn
+
+
+def is_test_user(name):
+    return isinstance(name, str) and bool(TEST_USER_RE.match(name))
+
+
+def service_hours(ds):
+    """The engine's serviceHours (tickets written to before the desk closed, by what followed) or None on an older engine / cache."""
+    sh = ds.get("serviceHours")
+    if not isinstance(sh, dict) or not all(isinstance(sh.get(k), dict) for k in SERVICE_KEYS):
+        return None
+    num = lambda v: int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0     # noqa: E731
+    out = {"close_hour": sh.get("closeHour"), "email_known": sh["received"].get("email") is not None}
+    for k in SERVICE_KEYS:
+        out[k] = {c: num(sh[k].get(c)) for c in ("total", "email", "whatsapp")}
+    out["tickets"] = [{"id": t["id"], "ch": "whatsapp" if t.get("ch") == "whatsapp" else "email", "at": t.get("at")}
+                      for t in (sh.get("unansweredTickets") or []) if isinstance(t, dict) and isinstance(t.get("id"), str) and ID_RE.match(t["id"])]
+    return out
+
+
+# ---------- cancellations (2026-10-23) ----------
+
+def _nat(v):
+    """A count from the engine: an int >= 0, else None (shown as "—", never as 0)."""
+    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
+
+
+def _pct_num(v):
+    return round(float(v), 2) if isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0 else None
+
+
+def _month(m):
+    if not isinstance(m, dict):
+        return None
+    mo = m.get("month") if isinstance(m.get("month"), str) and re.match(r"^\d{4}-\d{2}$", m.get("month") or "") else None
+    return {"month": mo, "active_start": _nat(m.get("active_start")), "cancelled": _nat(m.get("cancelled")),
+            "churn_pct": _pct_num(m.get("churn_pct")), "partial": m.get("partial") is True,
+            # contract (deliverables/cancel_stats_contract.md, 2026-10-23): only on a partial month — the month projected to 30 days, "the number the owner quotes"
+            "days_elapsed": _pct_num(m.get("days_elapsed")), "churn_30d": _pct_num(m.get("churn_30d_annualized_pct"))}
+
+
+CACHE_STATES = ("fresh", "stale", "warming", "empty", "no_kaching", "no_subscriptions")
+
+
+def _kcache(c):
+    """kaching_cache (contract, additive): the engine's copy of every Kaching contract, walked every 5 min and served when complete (6 h)."""
+    if not isinstance(c, dict):
+        return None
+    st = c.get("state") if c.get("state") in CACHE_STATES else None
+    at = c.get("at") if isinstance(c.get("at"), str) and len(c.get("at")) <= 40 else None
+    return {"state": st, "refreshing": c.get("refreshing") is True, "at": at, "contracts": _nat(c.get("contracts"))}
+
+
+def cancel_norm(raw):
+    """One brand's apiCancelStats reply -> {state, days: {date: row}, month, prev_month, sources}. Every field that is not a count is None.
+    team_total = what the TEAM cancelled: subscriptions by a person + cancelled orders; unknown when either part is unknown."""
+    days = {}
+    for x in raw.get("days") or []:
+        if not isinstance(x, dict) or not isinstance(x.get("date"), str) or not DAY_RE.match(x["date"]):
+            continue
+        by, tests = {}, 0
+        for u, n in (x.get("subs_team_by") or {}).items() if isinstance(x.get("subs_team_by"), dict) else ():
+            if isinstance(u, str) and _nat(n):
+                if is_test_user(u):
+                    tests += n            # Owner, 2026-10-07: QA / automation accounts are not the team — they move no number on the board
+                else:
+                    by[u] = n
+        row = {k: _nat(x.get(k)) for k in ("subs_team", "subs_bot", "orders_cancelled", "subs_all_kaching")}
+        if row["subs_team"] is not None:
+            row["subs_team"] = max(0, row["subs_team"] - tests)
+        row["team_total"] = None if row["subs_team"] is None or row["orders_cancelled"] is None else row["subs_team"] + row["orders_cancelled"]
+        row["by"], row["test_excluded"] = by, tests
+        days[x["date"]] = row
+    src = raw.get("sources") if isinstance(raw.get("sources"), dict) else {}
+    return {"state": raw.get("kaching"), "days": days, "month": _month(raw.get("month")), "prev_month": _month(raw.get("prev_month")),
+            "kaching_cache": _kcache(raw.get("kaching_cache")),
+            "sources": {k: v.strip()[:300] for k, v in src.items() if isinstance(k, str) and isinstance(v, str) and v.strip()}}
+
+
+def churn_verdict(month, prev, today=None):
+    """The month's rate against the goal (half of last month's rate). good / bad / None (a number is missing); the level is the owner's scale.
+    A month still running is judged by its PACE, not by the rate so far: the engine's churn_30d_annualized_pct (so far × 30 ÷ days elapsed,
+    "the number the owner quotes"), or the same formula here when an engine does not send it. The rate so far only grows through the month, so
+    against a full-month target it is green in every first week (live 2026-10-23: rozela 10.4% so far = 13.8% at that pace, the owner quoted ~14%;
+    celesta 13.4% -> 17.7%, apexmen 12.8% -> 16.9%)."""
+    cur = (month or {}).get("churn_pct")
+    base = (prev or {}).get("churn_pct")
+    target = round(base * CANCEL_TARGET_FACTOR, 2) if base is not None else None
+    projected = elapsed = pace_from = None
+    mo = (month or {}).get("month")
+    if cur is not None and (month or {}).get("partial"):
+        if (month or {}).get("churn_30d") is not None:
+            projected, elapsed, pace_from = month["churn_30d"], month.get("days_elapsed"), "engine"
+        elif today and mo == today[:7]:
+            elapsed = int(today[8:10])
+            projected, pace_from = round(cur * 30 / elapsed, 1), "screen"
+    judged = projected if projected is not None else cur
+    verdict = None if judged is None or target is None else ("good" if judged <= target else "bad")
+    level = None if judged is None else ("excellent" if judged < CANCEL_EXCELLENT_PCT else "healthy" if judged < CANCEL_HEALTHY_PCT else "high")
+    return {"target": target, "verdict": verdict, "level": level, "projected": projected, "days_elapsed": elapsed, "pace_from": pace_from}
+
+
+def cancel_view(per_brand, users, dates, day, today=None):
+    """per_brand: {brand: {"state": ok|no_kaching|no_subscriptions|error|not_deployed|pending, "data": cancel_norm(...)|None, ...}} ->
+    what the managers' board draws. A brand with no subscriptions at all (selera) is left out; a brand whose engine has no apiCancelStats
+    yet is listed in `unavailable`. Totals add the brands that know a field and name the ones that do not (`missing`)."""
+    names = {u["username"]: (u.get("display_name") or u["username"]) for u in users if isinstance(u, dict) and u.get("username")}
+    brands, unavailable, hidden = {}, [], []
+    for b, e in per_brand.items():
+        data = e.get("data")
+        state = (data or {}).get("state") or e.get("state") or "pending"
+        if state == "no_subscriptions":
+            hidden.append(b)
+            continue
+        if state == "not_deployed":
+            unavailable.append(b)
+        rows = (data or {}).get("days") or {}
+        o = {"state": state, "busy": bool(e.get("busy")), "at": e.get("at"), "error": e.get("error"),
+             "rows": {dd: {k: (rows.get(dd) or {}).get(k) for k in CANCEL_FIELDS} for dd in dates} if data else {},
+             "month": (data or {}).get("month"), "prev_month": (data or {}).get("prev_month"), "sources": (data or {}).get("sources") or {},
+             "kaching_cache": (data or {}).get("kaching_cache")}
+        if state == "no_kaching":            # no Kaching connection: nothing about subscriptions in Kaching is known
+            o["month"] = o["prev_month"] = None
+        o.update(churn_verdict(o["month"], o["prev_month"], today))
+        brands[b] = o
+    with_data = [b for b, o in brands.items() if o["rows"]]
+    total = {}
+    for dd in dates:
+        t = {}
+        for k in CANCEL_FIELDS:
+            vals = [(b, brands[b]["rows"][dd][k]) for b in with_data]
+            known = [v for _, v in vals if v is not None]
+            t[k] = sum(known) if known else None
+            t[k + "_missing"] = sorted(b for b, v in vals if v is None) if known else []
+        total[dd] = t
+    agents = {}
+    for b in with_data:
+        row = (per_brand[b].get("data") or {}).get("days", {}).get(day) or {}
+        for u, n in (row.get("by") or {}).items():
+            if is_test_user(u):
+                continue
+            a = agents.setdefault(u, {"user": u, "name": names.get(u, u), "n": 0, "by_brand": {}})
+            a["n"] += n
+            a["by_brand"][b] = a["by_brand"].get(b, 0) + n
+    named = sum(a["n"] for a in agents.values())
+    team = (total.get(day) or {}).get("subs_team")
+    sources = {}
+    for b in sorted(brands):
+        for k, v in brands[b]["sources"].items():
+            sources.setdefault(k, [])
+            if v not in sources[k]:
+                sources[k].append(v)
+    return {"ok": True, "dates": dates, "day": day, "brands": brands, "total": total, "unavailable": sorted(unavailable), "hidden": sorted(hidden),
+            "agents": sorted(agents.values(), key=lambda a: (-a["n"], a["name"])),
+            "unnamed": max(0, team - named) if team is not None else None, "sources": {k: " · ".join(v) for k, v in sources.items()},
+            "target_factor": CANCEL_TARGET_FACTOR, "healthy_pct": CANCEL_HEALTHY_PCT, "excellent_pct": CANCEL_EXCELLENT_PCT,
+            "busy": any(o["busy"] for o in brands.values()), "refresh_s": CANCEL_TTL_S}
+
+
+def cancel_window(sel, today, n=CANCEL_DAYS):
+    """The days the cancellations block shows: the last n ending today while the chosen day is among them, else the n ending on that day."""
+    to = today if (date.fromisoformat(today) - date.fromisoformat(sel)).days < n else sel
+    return [(date.fromisoformat(to) - timedelta(days=i)).isoformat() for i in range(n)]      # newest first
+
+
+# ---------- time ----------
+
+def il_day(ts):
+    return datetime.fromtimestamp(ts, TZ).date().isoformat()
+
+
+def day_start(d):
+    y, m, dd = (int(x) for x in d.split("-"))
+    return datetime(y, m, dd, tzinfo=TZ).timestamp()
+
+
+def next_day(d):
+    return (date.fromisoformat(d) + timedelta(days=1)).isoformat()
+
+
+def prev_day(d):
+    return (date.fromisoformat(d) - timedelta(days=1)).isoformat()
+
+
+def parse_ts(s):
+    if not s or not isinstance(s, str):
+        return None
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=TZ)
+    return dt.timestamp()
+
+
+# ---------- the log ----------
+
+class ActivityLog:
+    def __init__(self, root, clock=time.time):
+        self.root, self.clock = root, clock
+        os.makedirs(root, mode=0o700, exist_ok=True)
+        os.chmod(root, 0o700)
+        self.lock = threading.Lock()
+        self.last = {}          # (user, brand, ticket, kind) -> ts   (dedupe of open / edit)
+        self.present = {}       # (day, user) -> set(minute)          (presence: written once per minute)
+
+    def _path(self, prefix, day):
+        return os.path.join(self.root, "%s-%s.jsonl" % (prefix, day))
+
+    def _put(self, prefix, day, obj):
+        self._append(self._path(prefix, day), obj)
+
+    def _append(self, path, obj):
+        new = not os.path.exists(path)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(obj, ensure_ascii=False) + "\n")
+        if new:
+            os.chmod(path, 0o600)
+
+    def record(self, user, brand, tid, channel, kind, category=None, ts=None):
+        if kind not in KINDS or not isinstance(user, str) or not isinstance(tid, str) or not ID_RE.match(tid):
+            return False
+        ts = self.clock() if ts is None else ts
+        key = (user, brand, tid, kind)
+        with self.lock:
+            gap = DEDUPE_S.get(kind)
+            if gap and ts - self.last.get(key, -1e18) < gap:
+                return False
+            self.last[key] = ts
+            if len(self.last) > 50000:
+                for k, _ in sorted(self.last.items(), key=lambda kv: kv[1])[:25000]:
+                    self.last.pop(k, None)
+            self._put("act", il_day(ts), {"ts": round(ts, 3), "u": user, "b": brand, "t": tid,
+                                          "ch": channel or "", "k": kind, "cat": category or ""})
+        return True
+
+    def touch(self, user, ts=None):
+        """The screen is open and polling for this user this minute (polls stop while the tab is hidden)."""
+        ts = self.clock() if ts is None else ts
+        minute = int(ts // 60)
+        day = il_day(ts)
+        with self.lock:
+            s = self.present.setdefault((day, user), set())
+            if minute in s:
+                return
+            s.add(minute)
+            if len(self.present) > 2000:
+                for k in sorted(self.present)[:1000]:
+                    self.present.pop(k, None)
+            self._put("pres", day, {"u": user, "m": minute})
+
+    def _read(self, prefix, day):
+        out = []
+        try:
+            with open(self._path(prefix, day), encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        out.append(json.loads(line))
+                    except ValueError:
+                        continue
+        except OSError:
+            pass
+        return out
+
+    def events(self, day):
+        return [e for e in self._read("act", day) if isinstance(e.get("ts"), (int, float)) and e.get("k") in KINDS]
+
+    def presence(self, day):
+        out = {}
+        for p in self._read("pres", day):
+            if isinstance(p.get("m"), int) and isinstance(p.get("u"), str):
+                out.setdefault(p["u"], set()).add(p["m"])
+        return out
+
+    def first_day(self):
+        days = sorted(n[4:14] for n in os.listdir(self.root) if n.startswith("act-") and n.endswith(".jsonl"))
+        return days[0] if days else None
+
+    # daily snapshots (midnight Asia/Jerusalem): what the live brand overview said about that day
+    def snap_path(self, day):
+        return os.path.join(self.root, "snap-%s.json" % day)
+
+    def read_snap(self, day):
+        try:
+            with open(self.snap_path(day), encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return None
+
+    def write_snap(self, day, obj):
+        tmp = "%s.%d.tmp" % (self.snap_path(day), os.getpid())
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, self.snap_path(day))
+
+
+class PgActivityLog(ActivityLog):
+    """The same log in the core Postgres (pgstore.py). `root` is only an EPHEMERAL cache dir now (the ds-*.json dayStats
+    files are regenerable from the engines); the history itself — events, presence, midnight snapshots — is in the tables."""
+
+    def __init__(self, db, root, clock=time.time):
+        super().__init__(root, clock)
+        self.db = db
+
+    def _put(self, prefix, day, obj):
+        from psycopg.types.json import Jsonb
+        self.db.x("insert into screen_activity(prefix, day, obj) values (%s,%s,%s)", (prefix, day, Jsonb(obj)))
+
+    def _read(self, prefix, day):
+        return [r[0] for r in self.db.q("select obj from screen_activity where prefix=%s and day=%s order by id", (prefix, day))]
+
+    def first_day(self):
+        r = self.db.q("select min(day) from screen_activity where prefix='act'")
+        return r[0][0] if r and r[0][0] else None
+
+    def read_snap(self, day):
+        r = self.db.q("select obj from screen_snap where day=%s", (day,))
+        return r[0][0] if r else None
+
+    def write_snap(self, day, obj):
+        from psycopg.types.json import Jsonb
+        self.db.x("insert into screen_snap(day, obj) values (%s,%s) on conflict (day) do update set obj=excluded.obj", (day, Jsonb(obj)))
+
+
+# ---------- pure calculations (unit-tested) ----------
+
+def intervals(evts, gap=IDLE_GAP_S, tail=SESSION_TAIL_S):
+    """ONE user's events, sorted -> [(start, end, event)]: the time from each action to the next one when they are at most
+    `gap` apart (the same session), else `tail` after it (the session ends). Each piece belongs to the action that began it."""
+    out = []
+    for i, e in enumerate(evts):
+        nxt = evts[i + 1]["ts"] if i + 1 < len(evts) else None
+        if nxt is not None and nxt - e["ts"] <= gap:
+            out.append((e["ts"], nxt, e))
+        else:
+            out.append((e["ts"], e["ts"] + tail, e))
+    return out
+
+
+def sessions(evts, gap=IDLE_GAP_S, tail=SESSION_TAIL_S):
+    """[(start, end)] of the work sessions (for display / tests)."""
+    out = []
+    for i, e in enumerate(evts):
+        if i == 0 or e["ts"] - evts[i - 1]["ts"] > gap:
+            out.append([e["ts"], e["ts"]])
+        out[-1][1] = e["ts"]
+    return [(s, e + tail) for s, e in out]
+
+
+def shift(evts, lo, hi, gap=BREAK_GAP_S):
+    """ONE user's sorted events -> the day's first and last action in [lo, hi) and its breaks (stretches over `gap` with no
+    action between them): {"first", "last", "breaks_n", "breaks_s"}, or None when there was no action."""
+    ts = [e["ts"] for e in evts if lo <= e["ts"] < hi]
+    if not ts:
+        return None
+    br = [b - a for a, b in zip(ts, ts[1:]) if b - a > gap]
+    return {"first": ts[0], "last": ts[-1], "breaks_n": len(br), "breaks_s": round(sum(br))}
+
+
+def clip(ivs, lo, hi):
+    for s, e, ev in ivs:
+        s2, e2 = max(s, lo), min(e, hi)
+        if e2 > s2:
+            yield s2, e2, ev
+
+
+def split_hours(s, e):
+    """Israel's offset is whole hours, so local hour boundaries are epoch multiples of 3600."""
+    while s < e:
+        cut = min(e, (int(s // 3600) + 1) * 3600)
+        yield s, cut
+        s = cut
+
+
+def handle_times(evts):
+    """ONE user's events, sorted -> [(send_event, seconds)]: from the user's latest open of that ticket to the send."""
+    last_open, out = {}, []
+    for e in evts:
+        key = (e.get("b"), e.get("t"))
+        if e["k"] == "open":
+            last_open[key] = e["ts"]
+        elif e["k"] in REPLY_KINDS:
+            o = last_open.pop(key, None)
+            if o is not None and 0 <= e["ts"] - o <= HANDLE_MAX_S:
+                out.append((e, e["ts"] - o))
+    return out
+
+
+def _median(xs):
+    xs = [x for x in xs if x is not None]
+    return round(statistics.median(xs), 1) if xs else None
+
+
+def _pct(a, b):
+    return round(100.0 * a / b, 1) if b else None
+
+
+def arrived(r):
+    """When the customer's message arrived. created_at is when the ENGINE stored the ticket — measured live 2026-10-05: a
+    backfill at midnight stamped 289 of celesta's tickets "created today" for messages from late September."""
+    ts = [x for x in (parse_ts(r.get("created_at")), parse_ts(r.get("waiting_since"))) if x is not None]
+    return min(ts) if ts else None
+
+
+def _resp_s(r):
+    h = parse_ts(r.get("handled_at"))
+    w = parse_ts(r.get("waiting_since"))
+    c = parse_ts(r.get("created_at"))
+    base = w if (w is not None and h is not None and w <= h) else c
+    return None if h is None or base is None else max(0.0, h - base)
+
+
+def is_wa(r):
+    return str(r.get("channel") or "").lower() == "whatsapp"
+
+
+WA_FAIL_STATES = ("failed", "unknown", "template_required")
+# the engine's own failure lines (Api.gs apiWaSent). Older failures carry them WITHOUT the warning mark (live rozela 2026-10-06: 4)
+WA_FAIL_TEXT = re.compile("^\\u26a0|בדקו בדונדי לפני שליחה חוזרת|חלון 24 השעות נסגר")
+
+
+def wa_failed(r):
+    """An open WhatsApp ticket whose last send failed: `wa_send` (state) when the row carries it, else the engine's action line."""
+    if not is_wa(r) or r.get("status") not in OPEN_ST:
+        return False
+    st = str(r.get("wa_send") or "").split(":")[0]
+    if st:
+        return st in WA_FAIL_STATES
+    return bool(WA_FAIL_TEXT.search(str(r.get("action") or "").strip()))
+
+
+def open_counts(rows):
+    """Open NOW = the agents' "פתוחות" tab badge (app.js tabCount('ready')): status ready / action / health / delay."""
+    out = {"total": 0, "whatsapp": 0, "email": 0}
+    for r in rows:
+        if isinstance(r, dict) and r.get("status") in OPEN_ST:
+            out["total"] += 1
+            out["whatsapp" if is_wa(r) else "email"] += 1
+    return out
+
+
+def overview(rows, day, now):
+    """One brand, one Israel day, from its cached ticket list (open tickets are all there; closed ones only the last 100)."""
+    lo, hi = day_start(day), day_start(next_day(day))
+    inday = lambda ts: ts is not None and lo <= ts < hi          # noqa: E731
+    received = [r for r in rows if inday(arrived(r))]
+    answered = [r for r in rows if r.get("status") in ANSWERED_ST and inday(parse_ts(r.get("handled_at")))]
+    closed = [r for r in rows if r.get("status") == "done" and inday(parse_ts(r.get("handled_at")))]
+    awaiting = [r for r in rows if r.get("status") in OPEN_ST]
+    aging = {k: 0 for k, _, _ in AGING}
+    for r in awaiting:
+        w = parse_ts(r.get("waiting_since")) or parse_ts(r.get("created_at"))
+        if w is None:
+            continue
+        age = max(0, now - w)
+        for k, a, b in AGING:
+            if age >= a and (b is None or age < b):
+                aging[k] += 1
+    frt = {"email": [], "whatsapp": []}
+    for r in answered:
+        c, h = arrived(r), parse_ts(r.get("handled_at"))
+        if inday(c) and h is not None and h >= c:
+            frt["whatsapp" if is_wa(r) else "email"].append(h - c)
+    auto = [r for r in answered if AUTO_RE.match(str(r.get("handled_by") or ""))]
+    done_rows = [r for r in rows if r.get("status") not in LIVE_ST]
+    oldest = min([parse_ts(r.get("handled_at")) or 0 for r in done_rows] or [0])
+    return {
+        "received": len(received), "answered": len(answered), "closed": len(closed),
+        "answered_pct": _pct(len(answered), len(received)), "closed_pct": _pct(len(closed), len(received)),
+        # Owner, 2026-10-13: "open now" is the same number as the agents' "פתוחות" tab. Chats Dondy's bot is handling and sends in the
+        # WhatsApp queue are not waiting for a person.
+        "open_now": len(awaiting), "awaiting": len(awaiting), "aging": aging,
+        "frt_median_s": _median(frt["email"] + frt["whatsapp"]), "frt_email_s": _median(frt["email"]),
+        "frt_wa_s": _median(frt["whatsapp"]), "auto_pct": _pct(len(auto), len(answered)),
+        "wa_failed": sum(1 for r in rows if wa_failed(r)),
+        # the list holds only the last 100 closed tickets: if all of them are from this day, the day had more
+        "truncated": len(done_rows) >= BOOT_CLOSED_MAX and oldest >= lo,
+    }
+
+
+def ds_overview(o, ds):
+    """Replace the list-based day numbers with the engine's dayStats (the conversations themselves)."""
+    rec, ans, clo = ds.get("received") or {}, ds.get("answered") or {}, ds.get("closedToday") or {}
+    aw, frt = ds.get("awaitingNow") or {}, ds.get("frt") or {}
+    mins = lambda x: None if not isinstance(x, dict) or x.get("medianMin") is None else round(x["medianMin"] * 60.0, 1)  # noqa: E731
+    hum = frt.get("human") if isinstance(frt.get("human"), dict) else (ds.get("frtHuman") if isinstance(ds.get("frtHuman"), dict) else None)
+    hbc = frt.get("humanByChannel") if isinstance(frt.get("humanByChannel"), dict) else \
+        {k: (hum or {}).get(k) for k in ("email", "whatsapp") if isinstance((hum or {}).get(k), dict)}   # engine: frt.human.email / .whatsapp
+    src = ds.get("sources") or {}
+    auto = (((src.get("answered") or {}).get("fromSystem") or {}).get("auto")) or 0
+    n_ans = ans.get("total") or 0
+    o = dict(o, awaiting_all=o.get("awaiting_all", o.get("awaiting")), service=service_hours(ds),
+             received=rec.get("total", 0), answered=n_ans, closed=clo.get("total", 0),
+             answered_pct=_pct(n_ans, rec.get("total", 0)), closed_pct=_pct(clo.get("total", 0), rec.get("total", 0)),
+             awaiting=aw.get("total", o.get("awaiting")), frt_median_s=mins(frt.get("all")), frt_email_s=mins(frt.get("email")),
+             frt_wa_s=mins(frt.get("whatsapp")),
+             frt_human_s=mins(hum), frt_human_email_s=mins(hbc.get("email")), frt_human_wa_s=mins(hbc.get("whatsapp")),
+             frt_human_known=hum is not None,
+             # engine @47/48: Gmail can be blocked for a while -> email numbers are null (unknown), totals are WhatsApp only
+             email_status=(ds.get("sourceStatus") or {}).get("email") or "ok",
+             totals_exclude_email=bool(ds.get("totalsExcludeEmail")),
+             frt_human_n={"email": (hbc.get("email") or {}).get("n", 0), "whatsapp": (hbc.get("whatsapp") or {}).get("n", 0),
+                          "all": (hum or {}).get("n", 0)},
+             frt_n={"email": (frt.get("email") or {}).get("n", 0), "whatsapp": (frt.get("whatsapp") or {}).get("n", 0)},
+             auto_pct=_pct(auto, n_ans), truncated=False, sources=src, by_channel={"received": rec, "answered": ans, "closed": clo},
+             stats="dayStats")
+    return o
+
+
+def _sum_sources(tables):
+    out = {}
+    for t in tables:
+        for metric in ("answered", "closed", "replies"):
+            m = out.setdefault(metric, {k: {s: 0 for s in subs + ("total",)} for k, subs in SOURCES.items()})
+            for k, subs in SOURCES.items():
+                for s in subs + ("total",):
+                    m[k][s] += int((((t or {}).get(metric) or {}).get(k) or {}).get(s) or 0)
+    return out
+
+
+def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=None):
+    """The whole dashboard for the viewer's brands. rows_by_brand: {brand: [summary rows]} (cached lists)."""
+    ds_by_brand = ds_by_brand or {}
+    days = [(date.fromisoformat(end_day) - timedelta(days=i)).isoformat() for i in reversed(range(ndays))]
+    lo, hi = day_start(days[0]), min(day_start(next_day(days[-1])), max(now, day_start(days[0])))
+    evts = []
+    for d in [prev_day(days[0])] + days + [next_day(days[-1])]:   # both neighbours: sessions that cross midnight
+        evts.extend(e for e in log.events(d) if e.get("b") in brands and not is_test_user(e.get("u")))
+    evts.sort(key=lambda e: e["ts"])
+    row_of = {(b, r.get("id")): r for b, rs in rows_by_brand.items() for r in rs}
+    present = {}
+    for d in days:
+        for u, mins in log.presence(d).items():
+            if not is_test_user(u):
+                present.setdefault(u, set()).update(m for m in mins if lo <= m * 60 < hi)
+
+    by_user = {}
+    for e in evts:
+        by_user.setdefault(e.get("u"), []).append(e)
+    names = {u["username"]: (u.get("display_name") or u["username"]) for u in users}
+    roster = {u["username"] for u in users if not u.get("disabled") and set(u.get("roles", [])) & {"agent", "admin"}
+              and set(u.get("brands", [])) & set(brands) and not is_test_user(u["username"])}
+    pie_brand, pie_chan, pie_cat = {}, {}, {}
+    heat = {}                     # user -> {day: [24 seconds]}
+    hour_total = [0.0] * 24
+    agents, all_handles, sent_tickets = [], [], {}
+    for user in sorted(roster | {u for u in by_user if isinstance(u, str)}):
+        ue = by_user.get(user, [])
+        per_day = {d: {"active_s": 0.0, "screen_s": 0.0, "sends": 0, "closes": 0} for d in days}
+        by_b, by_c = {}, {}
+        uh = heat.setdefault(user, {d: [0.0] * 24 for d in days})
+        active = screen = 0.0
+        for s, e, _ in clip(intervals(ue, IDLE_GAP_S), lo, hi):       # the old, stricter number: on-screen runs only
+            for hs, he in split_hours(s, e):
+                if il_day(hs) in per_day:
+                    per_day[il_day(hs)]["screen_s"] += he - hs
+            screen += e - s
+        for s, e, ev in clip(intervals(ue, BREAK_GAP_S), lo, hi):
+            for hs, he in split_hours(s, e):
+                d = il_day(hs)
+                if d not in per_day:
+                    continue
+                dur = he - hs
+                hr = datetime.fromtimestamp(hs, TZ).hour
+                per_day[d]["active_s"] += dur
+                uh[d][hr] += dur
+                hour_total[hr] += dur
+            dur = e - s
+            active += dur
+            b, ch = ev.get("b") or "", "whatsapp" if ev.get("ch") == "whatsapp" else "email"
+            cat = ev.get("cat") or (row_of.get((b, ev.get("t"))) or {}).get("category") or "other"
+            by_b.setdefault(b, {"active_s": 0.0, "sends": 0, "closes": 0})["active_s"] += dur
+            by_c.setdefault(ch, {"active_s": 0.0, "sends": 0, "closes": 0})["active_s"] += dur
+            pie_brand[b] = pie_brand.get(b, 0) + dur
+            pie_chan[ch] = pie_chan.get(ch, 0) + dur
+            pie_cat[cat] = pie_cat.get(cat, 0) + dur
+        inr = [e for e in ue if lo <= e["ts"] < hi]
+        sends = [e for e in inr if e["k"] in REPLY_KINDS]
+        closes = [e for e in inr if e["k"] == "close"]
+        for e in sends + closes:
+            k = "sends" if e["k"] in REPLY_KINDS else "closes"
+            per_day[il_day(e["ts"])][k] += 1
+            ch = "whatsapp" if e.get("ch") == "whatsapp" else "email"
+            by_b.setdefault(e.get("b") or "", {"active_s": 0.0, "sends": 0, "closes": 0})[k] += 1
+            by_c.setdefault(ch, {"active_s": 0.0, "sends": 0, "closes": 0})[k] += 1
+        for e in sends:
+            sent_tickets.setdefault((e.get("b"), e.get("t")), []).append(e["ts"])
+        hts = [x for ev, x in handle_times(ue) if lo <= ev["ts"] < hi]
+        all_handles.extend(hts)
+        eng_s = eng_c = 0                       # the engine's own record (handled_by / handled_at)
+        for b, rs in rows_by_brand.items():
+            for r in rs:
+                if r.get("handled_by") != user:
+                    continue
+                h = parse_ts(r.get("handled_at"))
+                if h is None or not lo <= h < hi:
+                    continue
+                if r.get("status") in ANSWERED_ST:
+                    eng_s += 1
+                elif r.get("status") == "done":
+                    eng_c += 1
+        pres_s = len(present.get(user, ())) * 60
+        shifts = {d: shift(ue, day_start(d), day_start(next_day(d))) for d in days}
+        one = shifts[days[-1]] if len(days) == 1 else None
+        agents.append({
+            "user": user, "name": names.get(user, user), "active_s": round(active), "screen_s": round(screen), "sends": len(sends),
+            "shift": one, "breaks_s": sum((x or {}).get("breaks_s", 0) for x in shifts.values()),
+            "breaks_n": sum((x or {}).get("breaks_n", 0) for x in shifts.values()),
+            "resends": sum(1 for e in sends if e["k"] == "resend"), "closes": len(closes),
+            "per_hour": round(len(sends) / (active / 3600.0), 1) if active >= 300 else None,
+            "aht_s": _median(hts), "handled": len(hts), "present_s": pres_s,
+            # occupancy = on-screen work / work time (was: / logged in — logged-in time is now shorter than work time)
+            "occupancy": round(min(1.0, screen / active), 3) if active >= 60 else None,
+            "engine_sends": eng_s, "engine_closes": eng_c,
+            "by_brand": {k: dict(v, active_s=round(v["active_s"])) for k, v in by_b.items()},
+            "by_channel": {k: dict(v, active_s=round(v["active_s"])) for k, v in by_c.items()},
+            "days": [dict(day=d, active_s=round(v["active_s"]), screen_s=round(v["screen_s"]), sends=v["sends"], closes=v["closes"],
+                          first=(shifts[d] or {}).get("first"), last=(shifts[d] or {}).get("last"),
+                          breaks_s=(shifts[d] or {}).get("breaks_s", 0)) for d, v in per_day.items()],
+        })
+    by_sender = {}
+    for ds in ds_by_brand.values():
+        for k, v in ((((ds or {}).get("data") or {}).get("attribution") or {}).get("bySender") or {}).items():
+            by_sender[k] = by_sender.get(k, 0) + int(v or 0)
+    known = {u["username"] for u in users}
+    for k in list(by_sender):
+        if k in known and not is_test_user(k) and k not in {a["user"] for a in agents}:      # a screen user outside the roster (e.g. an admin)
+            agents.append({"user": k, "name": names.get(k, k), "active_s": 0, "screen_s": 0, "shift": None, "breaks_s": 0, "breaks_n": 0,
+                           "sends": 0, "resends": 0, "closes": 0, "per_hour": None,
+                           "aht_s": None, "handled": 0, "present_s": 0, "occupancy": None, "engine_sends": 0, "engine_closes": 0,
+                           "by_brand": {}, "by_channel": {}, "days": []})
+    for a in agents:
+        a["ds_answered"] = by_sender.get(a["user"])
+    agents.sort(key=lambda a: (-(a.get("ds_answered") or 0), -a["active_s"], -a["sends"], a["name"]))
+
+    # brand overview for the end day: live from the cached list today, from the midnight snapshot for a past day
+    today = il_day(now)
+    brands_out = {}
+    for b in brands:
+        if end_day == today:
+            brands_out[b] = dict(overview(rows_by_brand.get(b, []), end_day, now), source="live")
+        else:
+            snap = log.read_snap(end_day)
+            if snap and b in (snap.get("brands") or {}):
+                brands_out[b] = dict(snap["brands"][b], source="snapshot", snapshot_at=snap.get("at"))
+            else:
+                brands_out[b] = dict(overview(rows_by_brand.get(b, []), end_day, now), source="rebuilt")
+        ds = ds_by_brand.get(b) or {}
+        if ds.get("data"):
+            brands_out[b] = dict(ds_overview(brands_out[b], ds["data"]), ds_at=ds.get("at"), ds_final=ds.get("final"))
+        brands_out[b].setdefault("awaiting_all", brands_out[b].get("awaiting"))     # every open ticket waiting for a person (the list)
+        for t in (brands_out[b].get("service") or {}).get("tickets") or []:          # where the ticket stands now (no customer content)
+            r = row_of.get((b, t["id"])) or {}
+            t["status"], t["category"] = r.get("status") or "", r.get("category") or ""
+        brands_out[b]["ds_busy"] = bool(ds.get("busy"))
+        brands_out[b]["ds_error"] = ds.get("error")
+
+    # KPIs over the range
+    answered = [r for rs in rows_by_brand.values() for r in rs
+                if r.get("status") in ANSWERED_ST and (lambda h: h is not None and lo <= h < hi)(parse_ts(r.get("handled_at")))]
+    frt = {"email": [], "whatsapp": []}
+    sla = {"email": [0, 0], "whatsapp": [0, 0]}
+    for r in answered:
+        ch = "whatsapp" if is_wa(r) else "email"
+        c, h = arrived(r), parse_ts(r.get("handled_at"))
+        if c is not None and lo <= c < hi and h >= c:
+            frt[ch].append(h - c)
+        rs_ = _resp_s(r)
+        if rs_ is not None:
+            sla[ch][1] += 1
+            if rs_ <= (BENCH["sla_wa_s"] if ch == "whatsapp" else BENCH["sla_email_s"]):
+                sla[ch][0] += 1
+    reopened = single = 0
+    for key, ts_list in sent_tickets.items():
+        r = row_of.get(key) or {}
+        w = parse_ts(r.get("waiting_since"))
+        again = r.get("status") in OPEN_ST and w is not None and w > max(ts_list)
+        reopened += again
+        single += (len(ts_list) == 1 and not again)
+    auto_n = sum(1 for r in answered if AUTO_RE.match(str(r.get("handled_by") or "")))
+    agent_replies = max(sum(a["sends"] for a in agents), sum(a["engine_sends"] for a in agents))
+    tot_active = sum(a["active_s"] for a in agents)
+    tot_screen = sum(a.get("screen_s", 0) for a in agents)
+    ds_ok = bool(brands) and all(o.get("stats") == "dayStats" for o in brands_out.values())
+    ds_any = any(o.get("stats") == "dayStats" for o in brands_out.values())
+
+    def wmean(key, ch, nkey="frt_n"):         # only brands counted from the conversations (never mixed with list proxies)
+        pts = [(o.get(key), (o.get(nkey) or {}).get(ch, 0)) for o in brands_out.values()
+               if o.get("stats") == "dayStats" and o.get(key) is not None]
+        n = sum(w for _, w in pts)
+        return round(sum(v * w for v, w in pts) / n, 1) if n else None
+    kpis = {
+        "frt_email_s": wmean("frt_email_s", "email") if ds_any else _median(frt["email"]),
+        "frt_wa_s": wmean("frt_wa_s", "whatsapp") if ds_any else _median(frt["whatsapp"]),
+        "frt_source": "dayStats" if ds_any else "list",
+        # the owner via coordinator 2026-10-06: a bot's instant answer is not service — the person's first reply leads
+        "frt_human_known": any(o.get("frt_human_known") for o in brands_out.values()),
+        "frt_human_s": wmean("frt_human_s", "all", "frt_human_n"),
+        "frt_human_email_s": wmean("frt_human_email_s", "email", "frt_human_n"),
+        "frt_human_wa_s": wmean("frt_human_wa_s", "whatsapp", "frt_human_n"),
+        "aht_s": _median(all_handles), "fcr_pct": _pct(single, len(sent_tickets)),
+        "reopen_pct": _pct(reopened, len(sent_tickets)), "fcr_window_open": now - hi < 72 * 3600,
+        "occupancy": round(min(1.0, tot_screen / tot_active), 3) if tot_active >= 60 else None,
+        "backlog": sum(o.get("awaiting_all") or 0 for o in brands_out.values()),
+        "sla_wa_pct": _pct(*sla["whatsapp"]), "sla_email_pct": _pct(*sla["email"]),
+        "sla_wa_n": sla["whatsapp"][1], "sla_email_n": sla["email"][1], "csat": None,
+    }
+    with_sv = {b: o["service"] for b, o in brands_out.items() if o.get("service")}
+    service = {"close_hour": next((v.get("close_hour") for v in with_sv.values() if v.get("close_hour")), 17), "day": end_day,
+               "brands": sorted(with_sv), "missing": sorted(b for b in brands_out if b not in with_sv),
+               "email_unknown": sorted(b for b, v in with_sv.items() if not v.get("email_known")),
+               "total": {k: sum(v[k]["total"] for v in with_sv.values()) for k in SERVICE_KEYS}}
+    return {
+        "ok": True, "generated_at": now, "end_day": end_day, "days": days, "brands": brands_out, "agents": agents, "service": service,
+        "heat": heat, "hour_total": [round(x) for x in hour_total], "kpis": kpis, "bench": BENCH,
+        "pies": {"brand": {k: round(v) for k, v in pie_brand.items()}, "channel": {k: round(v) for k, v in pie_chan.items()},
+                 "category": {k: round(v) for k, v in pie_cat.items()}, "who": {"agents": agent_replies, "auto": auto_n}},
+        "idle_gap_s": IDLE_GAP_S, "break_gap_s": BREAK_GAP_S, "session_tail_s": SESSION_TAIL_S, "log_since": log.first_day(),
+        # Owner, 2026-10-06: agents also answer in Dondy / Gmail directly, so received/answered/closed/FRT come from the
+        # engine's dayStats (computed from the conversations). Brands without it yet say "not final".
+        "stats_source": "dayStats" if ds_ok else ("mixed" if any(o.get("stats") == "dayStats" for o in brands_out.values()) else "list"),
+        "verify_note": VERIFY_NOTE if ds_any else None,
+        "missing_ds": {b: o.get("ds_error") for b, o in brands_out.items() if o.get("stats") != "dayStats"},
+        "sources": {"total": _sum_sources([o.get("sources") for o in brands_out.values() if o.get("sources")]),
+                    "brands": {b: _sum_sources([o["sources"]]) for b, o in brands_out.items() if o.get("sources")}},
+        "senders": by_sender,
+    }
+
+
+# ---------- Flask ----------
+
+def register(app, d):
+    """d: api_user, json_error, is_manager, store, cache, engines, log, ui_lang."""
+    log, cache = d["log"], d["cache"]
+
+    @app.before_request
+    def presence():
+        u = g.get("user")
+        p = request.path
+        if u and p.startswith("/api/") and not p.startswith(("/api/dash", "/api/manage", "/api/me")):
+            log.touch(u["username"])
+
+    def rows_for(u, brands):
+        out = {}
+        for b in brands:
+            rows = cache.cached_rows(b)
+            if not rows:
+                _, lst = cache.get_list(u, b)          # nobody has opened this brand yet: one shared list read
+                rows = {r.get("id"): r for r in (lst.get("tickets") or []) if isinstance(r, dict)} if lst.get("ok") else {}
+            out[b] = list(rows.values())
+        return out
+
+    ds_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="cs-daystats")
+    ds_busy, ds_lock, ds_futs, ds_err = set(), threading.Lock(), [], {}
+
+    def ds_path(b, day):
+        return os.path.join(log.root, "ds-%s-%s.json" % (b, day))
+
+    def ds_read(b, day):
+        try:
+            with open(ds_path(b, day), encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return None
+
+    def ds_fetch(u, b, day):
+        """All chunks of one brand-day (the engine keeps the running totals; `next` is passed back as `cursor`)."""
+        started = log.clock()
+        try:
+            cursor, data = 0, None
+            for _ in range(DS_MAX_CHUNKS):
+                args = {"date": day}
+                if cursor:
+                    args["cursor"] = cursor
+                _, out = engine_proxy.call(d["engines"], cache.transport, cache.secret(), u, b, "apiDayStats", args, "he", internal=True)
+                if not out.get("ok"):
+                    ds_err[(b, day)] = out.get("error") or "error"
+                    return
+                data = out
+                if out.get("partial") and isinstance(out.get("next"), int) and not isinstance(out.get("next"), bool):
+                    cursor = out["next"]
+                    continue
+                break
+            if data is None or data.get("partial"):
+                ds_err[(b, day)] = "partial"
+                return
+            ds_err.pop((b, day), None)
+            obj = {"at": started, "final": started >= day_start(next_day(day)), "data": {k: v for k, v in data.items() if not k.startswith("_")}}
+            tmp = "%s.%d.tmp" % (ds_path(b, day), os.getpid())
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(obj, f, ensure_ascii=False)
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, ds_path(b, day))
+        finally:
+            with ds_lock:
+                ds_busy.discard(b)
+
+    def ds_for(u, brands, day, now, force=False):
+        out = {}
+        for b in brands:
+            e = ds_read(b, day) or {}
+            age = now - float(e.get("at", 0))
+            stale = force or not e or age > (DS_FINAL_TTL_S if e.get("final") else DS_TTL_S)
+            with ds_lock:
+                start = stale and b not in ds_busy       # one dayStats per brand at a time (its state is one property)
+                if start:
+                    ds_busy.add(b)
+                busy = b in ds_busy
+            if start:
+                ds_futs.append(ds_pool.submit(ds_fetch, u, b, day))
+                del ds_futs[:-50]
+            out[b] = dict(e, busy=busy, error=ds_err.get((b, day)))
+        return out
+
+    def ds_drain(timeout=10):
+        for f in list(ds_futs):
+            f.result(timeout=timeout)
+
+    @app.get("/api/dash")
+    def dash():
+        u, err = d["api_user"]()
+        if err:
+            return err
+        if not d["is_manager"](u):
+            return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
+        rng = request.args.get("range", "1")
+        ndays = {"1": 1, "7": 7, "30": 30}.get(rng)
+        now = log.clock()
+        end = request.args.get("date") or il_day(now)
+        if ndays is None or not DAY_RE.match(end):
+            return d["json_error"]("bad_request", 400, d["ui_lang"](u))
+        try:
+            if date.fromisoformat(end) > date.fromisoformat(il_day(now)):
+                end = il_day(now)
+        except ValueError:
+            return d["json_error"]("bad_request", 400, d["ui_lang"](u))
+        brands = [b for b in u.get("brands", []) if b in d["engines"]]
+        force = request.args.get("refresh") == "1" and "admin" in u.get("roles", [])    # admin: re-read the day from the engine now
+        rows = rows_for(u, brands)
+        out = build(log, rows, d["store"].all(), brands, end, ndays, now, ds_for(u, brands, end, now, force))
+        if d.get("snooze") is not None:          # "לענות מאוחר יותר" (2026-10-14): how many tickets each agent has hidden from HIS list right now
+            hidden = d["snooze"].snoozed_now({b: {r.get("id"): r for r in rs} for b, rs in rows.items()})   # the store's own clock
+            for a in out["agents"]:
+                a["snoozed_now"] = hidden.get(a["user"], 0)
+        return jsonify(out)
+
+    live_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="cs-dash-live")
+
+    @app.get("/api/dash/open")
+    def dash_open():
+        """Owner, 2026-10-13: how many tickets are open NOW in every brand, live. Counted from the server's cached list — the
+        same list the agents' screens hold, so it equals their "פתוחות" badge. A brand whose copy is older than LIVE_SYNC_S
+        gets one shared feed read (the read every agent's poll makes anyway); the engine is never read per manager."""
+        u, err = d["api_user"]()
+        if err:
+            return err
+        if not d["is_manager"](u):
+            return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
+        brands = [b for b in u.get("brands", []) if b in d["engines"]]
+
+        def one(b):
+            try:
+                cache.sync_if_older(u, b, LIVE_SYNC_S)
+            except Exception:                         # noqa: BLE001 — a slow brand shows its last copy with its age
+                app.logger.exception("live open count: sync failed for %s", b)
+            rows = cache.cached_rows(b)
+            age = cache.synced_age(b)
+            return b, dict(open_counts(rows.values()), synced_age=age, known=age is not None)
+        out = dict(f.result() for f in [live_pool.submit(one, b) for b in brands])
+        tot = {k: sum(o[k] for o in out.values() if o["known"]) for k in ("total", "whatsapp", "email")}
+        return jsonify({"ok": True, "at": log.clock(), "brands": out, "total": tot, "refresh_s": LIVE_REFRESH_S})
+
+    cx_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="cs-cancels")
+    cx_cache, cx_busy, cx_lock, cx_futs = {}, set(), threading.Lock(), []
+
+    def cx_fetch(u, b, frm, to):
+        """One brand's apiCancelStats for [frm, to] (the engine reads Kaching: slow). Kept in memory; an engine without the fn = not_deployed."""
+        started = log.clock()
+        try:
+            try:
+                _, out = engine_proxy.call(d["engines"], cache.transport, cache.secret(), u, b, "apiCancelStats", {"from": frm, "to": to}, "he")
+            except Exception:                             # noqa: BLE001 — a failed read must never take the board down
+                app.logger.exception("cancel stats failed for %s", b)
+                out = {"ok": False, "error": "error"}
+            if out.get("ok"):
+                e = {"at": started, "data": cancel_norm(out), "state": out.get("kaching"), "error": None}
+            else:
+                err = out.get("error") or "error"
+                e = {"at": started, "data": None, "state": "not_deployed" if err in CANCEL_NOT_DEPLOYED else "error", "error": err}
+            with cx_lock:
+                prev = cx_cache.get((b, to))
+                if e["data"] is None and prev and prev.get("data"):
+                    e = dict(prev, error=e["error"], failed_at=started)      # keep the last good numbers; say the refresh failed
+                cx_cache[(b, to)] = e                     # every outcome is stamped: a failure waits CANCEL_ERR_TTL_S (Codex 2026-10-23)
+        finally:
+            with cx_lock:
+                cx_busy.discard((b, to))
+
+    def cx_for(u, brands, frm, to, today, now, force=False):
+        out = {}
+        for b in brands:
+            with cx_lock:
+                e = cx_cache.get((b, to)) or {}
+                ttl = CANCEL_ERR_TTL_S if (e.get("data") is None or e.get("failed_at")) else (CANCEL_TTL_S if to >= today else CANCEL_FINAL_TTL_S)
+                if e.get("state") == "not_deployed":
+                    ttl = CANCEL_TTL_S                    # the engine deploy is checked again every few minutes, not every refresh
+                stale = force or not e or now - float(e.get("failed_at") or e.get("at") or 0) > ttl
+                start = stale and (b, to) not in cx_busy
+                if start:
+                    cx_busy.add((b, to))
+                busy = (b, to) in cx_busy
+            if start:
+                cx_futs.append(cx_pool.submit(cx_fetch, u, b, frm, to))
+                del cx_futs[:-50]
+            out[b] = dict(e, busy=busy)
+        return out
+
+    def cx_drain(timeout=10):
+        for f in list(cx_futs):
+            f.result(timeout=timeout)
+
+    @app.get("/api/dash/cancels")
+    def dash_cancels():
+        """Owner, 2026-10-23: how many subscriptions the team cancels every day, how many cancellations it makes in all, and the monthly churn
+        against the November goal. Admins only (like the sales table): a user-manager and an agent get 403. Never waits for the engine."""
+        u, err = d["api_user"]()
+        if err:
+            return err
+        if "admin" not in u.get("roles", []):
+            return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
+        now = log.clock()
+        today = il_day(now)
+        sel = request.args.get("date") or today
+        if not DAY_RE.match(sel):
+            return d["json_error"]("bad_request", 400, d["ui_lang"](u))
+        try:
+            if date.fromisoformat(sel) > date.fromisoformat(today):
+                sel = today
+        except ValueError:
+            return d["json_error"]("bad_request", 400, d["ui_lang"](u))
+        dates = cancel_window(sel, today)
+        brands = [b for b in u.get("brands", []) if b in d["engines"]]
+        per = cx_for(u, brands, dates[-1], dates[0], today, now, request.args.get("refresh") == "1")
+        out = cancel_view(per, d["store"].all(), dates, sel, today)
+        out["at"] = now
+        return jsonify(out)
+
+    app.extensions["cs"]["cancels_drain"] = cx_drain
+
+    @app.post("/api/<brand>/activity")
+    def activity(brand):
+        """The screen's own heartbeat while an agent types in a ticket (autosave alone waits for a pause)."""
+        u, err = d["api_user"]()
+        if err:
+            return err
+        brand = str(brand).lower()
+        body = request.get_json(silent=True) or {}
+        tid = body.get("id")
+        if (brand not in u.get("brands", []) or brand not in d["engines"]                     # (Codex 2026-10-06)
+                or not ("agent" in u.get("roles", []) or "admin" in u.get("roles", []))):
+            return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
+        if body.get("kind") != "edit" or not isinstance(tid, str) or not ID_RE.match(tid):
+            return d["json_error"]("bad_request", 400, d["ui_lang"](u))
+        note(u, brand, tid, "edit")
+        return jsonify({"ok": True})
+
+    def note(u, brand, tid, kind, channel=None):
+        r = cache.cached_rows(brand).get(tid) or {}
+        ch = "whatsapp" if (channel == "whatsapp" or is_wa(r)) else "email"
+        log.record(u["username"], brand, tid, ch, kind, r.get("category"))
+
+    def after_engine(u, brand, fn, body, out):
+        kind = FN_KIND.get(fn)
+        args = body.get("args") if isinstance(body.get("args"), dict) else {}
+        if not kind or not out.get("ok") or out.get("already") or not isinstance(args.get("id"), str):
+            return
+        if kind == "send" and body.get("via") == "resend":
+            kind = "resend"
+        note(u, brand, args["id"], kind, args.get("channel"))
+
+    def after_open(u, brand, tid):
+        note(u, brand, tid, "open")
+
+    app.extensions["cs"]["activity"] = {"log": log, "after_engine": after_engine, "after_open": after_open}
+
+    def snapshot_once(day=None, force=False):
+        """Midnight Asia/Jerusalem: keep what the live overview said about the day that just ended. force: an admin rebuilds
+        a past day's snapshot with the current logic (its "now" numbers — open, aging, failures — are as of the rebuild)."""
+        now = log.clock()
+        y = day or prev_day(il_day(now))
+        if log.read_snap(y) and not force:
+            return False
+        brands = sorted(d["engines"])
+        rows = {b: list(cache.cached_rows(b).values()) for b in brands}
+        # SLA (2026-10-24): the finished day's first-reply / resolution numbers are kept with the snapshot (the list only holds the last ~100 closed)
+        log.write_snap(y, {"day": y, "at": now, "rebuilt": bool(force), "brands": {b: overview(rows[b], y, now) for b in brands},
+                           "sla": {b: sla.day_summary(rows[b], y, now, sla.config()) for b in brands}})
+        return True
+
+    @app.post("/api/dash/snapshot")
+    def dash_snapshot():
+        u, err = d["api_user"]()
+        if err:
+            return err
+        if "admin" not in u.get("roles", []):
+            return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
+        day = (request.get_json(silent=True) or {}).get("date")
+        if not isinstance(day, str) or not DAY_RE.match(day) or day >= il_day(log.clock()):
+            return d["json_error"]("bad_request", 400, d["ui_lang"](u))
+        snapshot_once(day, force=True)
+        return jsonify({"ok": True, "snapshot": log.read_snap(day)})
+
+    app.extensions["cs"]["activity"]["snapshot_once"] = snapshot_once
+    app.extensions["cs"]["activity"]["ds_drain"] = ds_drain
+    warmed = {}
+
+    def warm_once():
+        """07:20-07:40 Israel, once a day (coordinator 2026-10-06: the team starts in the morning). The web service never
+        sleeps (paid plan) and the driver keeps the engines warm; what is cold after a quiet night is OUR copy: every
+        brand's list in full, the first open tickets of each, and today's dayStats — so the first open is instant."""
+        now = log.clock()
+        lt = datetime.fromtimestamp(now, TZ)
+        day = lt.date().isoformat()
+        h0, m0, h1, m1 = WARM_AT
+        if warmed.get("day") == day or not ((h0, m0) <= (lt.hour, lt.minute) < (h1, m1)):
+            return False
+        warmed["day"] = day
+        deep_warm(now + 35 * 60)
+        return True
+
+    def deep_warm(deadline):
+        """Every brand's list in full, then EVERY open ticket into the server's cache (one thread per brand, background
+        priority), and today's dayStats. An open then never waits for the engine: a cached copy shows at once."""
+        u = dict(WARM_USER, brands=sorted(d["engines"]))
+        threads = []
+        for b in sorted(d["engines"]):
+            def one(b=b):
+                try:
+                    out = cache._fetch_boot(u, b)
+                    rows = (out.get("tickets") or []) if out.get("ok") else list(cache.cached_rows(b).values())
+                    ids = [r.get("id") for r in rows if r.get("status") in OPEN_ST]
+                    n = cache.warm(u, b, ids, deadline)
+                    app.logger.warning("warm-up %s: %d open, %d read into the cache", b, len(ids), n)
+                except Exception:                     # noqa: BLE001 — a brand that fails is warmed on first use instead
+                    app.logger.exception("warm-up failed for %s", b)
+            th = threading.Thread(target=one, name="cs-warm-" + b, daemon=True)
+            th.start()
+            threads.append(th)
+        ds_for(u, sorted(d["engines"]), il_day(log.clock()), log.clock())
+        return threads
+
+    @app.post("/api/dash/warm")
+    def dash_warm():
+        u, err = d["api_user"]()
+        if err:
+            return err
+        if "admin" not in u.get("roles", []):
+            return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
+        if warmed.get("running_until", 0) > log.clock():
+            return jsonify({"ok": True, "already": True})
+        warmed["running_until"] = log.clock() + 35 * 60
+        deep_warm(log.clock() + 35 * 60)
+        return jsonify({"ok": True, "started": sorted(d["engines"])})
+
+    app.extensions["cs"]["activity"]["deep_warm"] = deep_warm
+
+    app.extensions["cs"]["activity"]["warm_once"] = warm_once
+    if d.get("start_thread"):
+        def loop():
+            while True:
+                time.sleep(60)
+                try:
+                    snapshot_once()
+                except Exception:                     # noqa: BLE001 — a failed snapshot must never take the screen down
+                    app.logger.exception("dashboard snapshot failed")
+                try:
+                    warm_once()
+                except Exception:                     # noqa: BLE001
+                    app.logger.exception("morning warm-up failed")
+        threading.Thread(target=loop, name="cs-dash-snapshot", daemon=True).start()

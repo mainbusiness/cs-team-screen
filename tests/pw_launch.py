@@ -8,11 +8,23 @@ for a reason that says nothing about the screen (seen 2026-10-05). Order tried:
   3. $PW_CHROMIUM or the newest Chromium in ~/Library/Caches/ms-playwright.
 If none starts, the test FAILS with the reasons — it is never skipped, so a green run always means a real browser ran.
 With CS_REQUIRE_BROWSER=1 (the deploy gate sets it) a missing Playwright package is a failure too, not a skip.
+
+The pinned build lives in .venv/pw-browsers, NOT ~/Library/Caches/ms-playwright (2026-10-31): Systems/tools/disk_janitor.py
+empties ~/Library/Caches/* on its schedule, which deleted chromium-1140; every launch then fell through to the installed
+Google Chrome 156, whose process takes ~7s to exit after browser.close() (measured: 6.9s vs 0.03s for chromium-1140).
+Nine browser tests x ~7s teardown pushed the selftest's CS-SEND-REGRESSION run past its 180s timeout.
+.venv/ is outside the janitor's allow-list, gitignored and excluded from the Render deploy copy.
+Repair:  PLAYWRIGHT_BROWSERS_PATH="$PWD/.venv/pw-browsers" .venv/bin/python -m playwright install chromium
 """
 import glob
 import os
 
 import pytest
+
+# Must be set before sync_playwright() spawns its driver - the driver reads it from the environment it inherits.
+LOCAL_BROWSERS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".venv", "pw-browsers")
+if os.path.isdir(LOCAL_BROWSERS) and not os.environ.get("PLAYWRIGHT_BROWSERS_PATH"):
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = LOCAL_BROWSERS
 
 try:
     import playwright.sync_api as pw  # noqa: F401
@@ -23,11 +35,11 @@ except ImportError:  # pragma: no cover
 
 
 def _cached_chromiums():
-    root = os.path.expanduser("~/Library/Caches/ms-playwright")
+    roots = [LOCAL_BROWSERS, os.path.expanduser("~/Library/Caches/ms-playwright")]
     pats = ["chromium-*/chrome-mac*/Chromium.app/Contents/MacOS/Chromium",
             "chromium-*/chrome-mac*/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
             "chromium-*/chrome-linux*/chrome"]
-    found = [p for pat in pats for p in glob.glob(os.path.join(root, pat))]
+    found = [p for root in roots for pat in pats for p in glob.glob(os.path.join(root, pat))]
     return sorted(found, key=lambda p: int("".join(ch for ch in p.split("chromium-")[1].split("/")[0] if ch.isdigit()) or 0), reverse=True)
 
 
