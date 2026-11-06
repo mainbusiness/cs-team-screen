@@ -723,6 +723,29 @@ def register(app, d):
             raise llm.LLMError("translate_failed", 502)
         return out
 
+    RECENT_FIRST = 4      # messages translated in the first pass of an open: what the agent sees without scrolling up
+
+    def in_items(t, x, part=None):
+        """The English-desk translation items of a ticket. part=None: everything; "recent": the newest RECENT_FIRST messages + the
+        ticket fields (what is on screen when it opens); "rest": the older messages (2026-11-06, Guy: what they see first, the rest
+        when they scroll up). Returns (idx, items, more) — more = how many older messages the "recent" pass left for "rest"."""
+        conv = x.get("conversation") or []
+        msgs = [i for i, m in enumerate(conv) if isinstance(m, dict) and str(m.get("text", "")).strip()]
+        cut = len(msgs) - RECENT_FIRST if part in ("recent", "rest") else 0
+        pick = msgs[cut:] if part == "recent" else msgs[:max(cut, 0)] if part == "rest" else msgs
+        idx, items = [], []
+        for i in pick:
+            idx.append(("c", i))
+            items.append((tkey("full-v2", TRANSLATE_MODEL, "en", conv[i].get("text")), str(conv[i].get("text"))))
+        if part != "rest":
+            for name in ("subject", "summary", "draft_text", "recommendation"):
+                if str(t.get(name) or "").strip():
+                    idx.append(("f", name))
+                    items.append((tkey("full-v2", TRANSLATE_MODEL, "en", t.get(name)), str(t.get(name))))
+        return idx, items, (max(cut, 0) if part == "recent" else 0)
+
+    IN_NOTE = "The items are one conversation, oldest first; use it as context."
+
     @app.post("/api/<brand>/translate")
     def translate_in(brand):
         brand = str(brand).lower()
@@ -730,33 +753,24 @@ def register(app, d):
         if err:
             return err
         lang = d["ui_lang"](u)
-        tid = (request.get_json(silent=True) or {}).get("ticketId")
-        if not isinstance(tid, str) or not ID_RE.match(tid):
+        body = request.get_json(silent=True) or {}
+        tid, part = body.get("ticketId"), body.get("part")
+        if not isinstance(tid, str) or not ID_RE.match(tid) or part not in (None, "recent", "rest"):
             return fail("bad_request", 400, lang)
-        wait = tr_limit.hit(u["username"])
+        wait = tr_limit.hit(u["username"])                           # every call, a cache hit too (Codex 2026-11-06: no unmetered lookups)
         if wait:
             return fail("rate_limited", 429, lang, wait=max(1, (wait + 59) // 60))
         t, x = ticket_bundle(u, brand, tid)
         if t is None:
             return fail("not_found", 404, lang)
-        conv = x.get("conversation") or []
-        idx, items = [], []
-        for i, m in enumerate(conv):
-            if not isinstance(m, dict) or not str(m.get("text", "")).strip():
-                continue
-            idx.append(("c", i))
-            items.append((tkey("full-v2", TRANSLATE_MODEL, "en", m.get("text")), str(m.get("text"))))
-        for name in ("subject", "summary", "draft_text", "recommendation"):
-            if str(t.get(name) or "").strip():
-                idx.append(("f", name))
-                items.append((tkey("full-v2", TRANSLATE_MODEL, "en", t.get(name)), str(t.get(name))))
+        idx, items, more = in_items(t, x, part)
         try:
-            res = translate_items(items, "en", "in", "The items are one conversation, oldest first; use it as context.")
+            res = translate_items(items, "en", "in", IN_NOTE)
         except llm.LLMError as e:
             return fail(e.code, e.http, lang)
         # never silent (Codex 2026-10-05): items the model skipped stay in the original and are counted
         out = {"ok": True, "target": "en", "source": norm_lang(t.get("language")), "conversation": [], "subject": None, "summary": None, "draft": None,
-               "incomplete": sum(1 for (_, txt), r in zip(items, res) if r is None and txt.strip())}
+               "incomplete": sum(1 for (_, txt), r in zip(items, res) if r is None and txt.strip()), "more": more}
         for (kind, ref), text in zip(idx, res):
             if kind == "c":
                 out["conversation"].append({"i": ref, "text": text})
@@ -767,6 +781,52 @@ def register(app, d):
             else:
                 out["draft"] = text
         return jsonify(out)
+
+    warm_limit = d.get("translate_warm_limiter") or WindowLimiter(400, 600)
+    warm_busy, warm_lock = set(), threading.Lock()
+
+    def warm_translations(u, brand, ids):
+        """Translate AHEAD (2026-11-06): the English desk's next tickets (the top of the tab it is looking at, the same ids the screen
+        prefetches) are translated in the background, so opening one is a cache hit (~0.3 s) instead of a model call (median 2.7 s,
+        9 of 10 under 7-10 s, measured 11-04/05; only 30% of opens were hits). Costs no more than translating on open: the same
+        per-message cache, and a ticket the agent never opens costs one small call. One thread, one ticket at a time, own budget."""
+        ids = [i for i in ids if isinstance(i, str) and ID_RE.match(i)][:15]
+        with warm_lock:
+            ids = [i for i in ids if (brand, i) not in warm_busy]
+            warm_busy.update((brand, i) for i in ids)
+        if not ids:
+            return 0
+        u = dict(u)                                  # the thread keeps its own copy, never the request's object (Codex 2026-11-06)
+
+        def run():
+            tc = d.get("ticket_cache")
+            if tc is not None:
+                tc._tl.bg = True                     # background priority at the engine gate: an agent's own click always goes first
+            try:
+                for tid in ids:
+                    try:
+                        t, x = ticket_bundle(u, brand, tid)
+                        if t is None:
+                            continue
+                        _, items, _ = in_items(t, x)
+                        if all(tcache.get(k) is not None for k, _ in items):
+                            continue
+                        if warm_limit.hit(u["username"]):
+                            break
+                        translate_items(items, "en", "in", IN_NOTE)
+                    except Exception as e:          # background: a failure only means the open translates as before
+                        engine_proxy.log.warning("translation warm %s failed: %s", brand, getattr(e, "code", type(e).__name__))
+                    finally:
+                        with warm_lock:
+                            warm_busy.discard((brand, tid))
+            finally:
+                with warm_lock:
+                    for tid in ids:
+                        warm_busy.discard((brand, tid))
+        threading.Thread(target=run, daemon=True, name="tr-warm").start()
+        return len(ids)
+
+    app.extensions["cs_assistant"]["warm_translations"] = warm_translations
 
     @app.post("/api/<brand>/translate-he")
     def translate_he(brand):
@@ -944,9 +1004,33 @@ def register(app, d):
             return fail(e.code, e.http, lang)
         return jsonify({"ok": True, "text": result, "target": target})
 
+    def norm_ws(v):
+        return re.sub(r"[ \t]+", " ", str(v or "").replace("\r\n", "\n").replace("\r", "\n")).strip()
+
+    def untouched_draft(t, text):
+        """The agent sends the AI draft as it was shown (2026-11-06): the English in the box IS our translation of the ticket's Hebrew
+        draft. Then the Hebrew draft itself goes out — no English->Hebrew round trip (4 s median, the only source of "translation
+        failed" on a send: 41 of 315 for one agent) and the exact text the Hebrew desk would send. None when anything was changed."""
+        he = str((t or {}).get("draft_text") or "")
+        if not he.strip():
+            return None
+        en = tcache.get(tkey("full-v2", TRANSLATE_MODEL, "en", he))
+        if not isinstance(en, str) or norm_ws(en) != norm_ws(text):
+            return None
+        return he
+
     def outgoing_text(u, brand, tid, text, t=None, x=None, target="he"):
         if target == "he" and hebrew_delivery_ok(text, brand):
             return text
+        if target == "he":
+            if t is None:
+                t, x = ticket_bundle(u, brand, tid)
+            he = untouched_draft(t, text)
+            if he is not None:
+                clean = humanize_hebrew_dashes(normalize_hebrew_currency(he))
+                if hebrew_delivery_ok(clean, brand) and not has_forbidden_dash(clean):
+                    store.audit(u["username"], "english_send_untouched_draft", brand, {"ticket": tid})   # ids only, no text
+                    return clean
         approved = tcache.get(tkey("approved-hebrew-v1", brand, tid, text)) if target == "he" else None
         if (isinstance(approved, dict) and approved.get("text") == text
                 and isinstance(approved.get("ids"), list)

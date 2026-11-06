@@ -2964,13 +2964,22 @@
       const requestId = k.trRequest = (k.trRequest || 0) + 1;
       k.tr = { loading: true };
       this.paint(k);
-      const r = await api('/api/' + encodeURIComponent(k.brand) + '/translate', { ticketId: k.id });
+      // 2026-11-06: what is on screen first (the newest messages + the draft), then the older messages above them
+      const r = await api('/api/' + encodeURIComponent(k.brand) + '/translate', { ticketId: k.id, part: 'recent' });
       if (S.tk !== k || k.trRequest !== requestId) return;
       k.tr = r.ok ? r : { err: r.msg || r.error };
       this.paint(k);
       paintLive(k);
       if (r.ok) EnDraft.prefill(x.id, r.draft);
       else EnDraft.prefill(x.id, null);
+      if (!r.ok || !(r.more > 0)) return;
+      const rest = await api('/api/' + encodeURIComponent(k.brand) + '/translate', { ticketId: k.id, part: 'rest' }, 'POST', { quiet: true });
+      if (S.tk !== k || k.trRequest !== requestId || !k.tr || !k.tr.ok) return;
+      if (rest.ok) {
+        k.tr.conversation = (rest.conversation || []).concat(k.tr.conversation || []);
+        k.tr.incomplete = (k.tr.incomplete || 0) + (rest.incomplete || 0);
+      } else k.tr.incomplete = (k.tr.incomplete || 0) + r.more;
+      this.paint(k);
     },
     paint(k) {
       const chip = document.getElementById('tr-state');

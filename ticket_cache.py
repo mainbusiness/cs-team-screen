@@ -1201,4 +1201,12 @@ def register(app, d):
         ids = (request.get_json(silent=True) or {}).get("ids")
         if not isinstance(ids, list):
             return d["json_error"]("bad_request", 400, u.get("lang", "he"))
-        return jsonify({"ok": True, "queued": cache.prefetch(u, brand, ids)})
+        queued = cache.prefetch(u, brand, ids)
+        # the English desk: translate those same tickets ahead, so opening one does not wait for the model (assistant.py, 2026-11-06)
+        warm = (app.extensions.get("cs_assistant") or {}).get("warm_translations")
+        if warm and d["ui_lang"](u) == "en":
+            try:
+                warm(u, brand, ids)
+            except Exception:                       # never fails the prefetch
+                pass
+        return jsonify({"ok": True, "queued": queued})
