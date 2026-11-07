@@ -1,3 +1,4 @@
+import time
 import contextlib
 """Auto-reply review (Owner, 2026-10-05): proxy rules, write-through, English translation sourced server-side, mock flow."""
 import json
@@ -124,7 +125,7 @@ def test_translate_autoreply_card(en_app, pw_hash):
     c, tok = logged_in(app, pw_hash, "eve", ["agent"], ["rozela"], lang="en")
     r = post(c, tok, "/api/rozela/translate-autoreply", {"id": "t1"}).get_json()
     assert r["ok"] and r["question"] == "When will it arrive?" and r["reply"] == "Hi, your order is on the way"
-    assert r["summary"] == "Simple question" and r["recommendation"] == "Check it"
+    assert r["summary"] == "Simple question" and "recommendation" not in r       # the card never shows it (2026-11-07)
     assert post(c, tok, "/api/rozela/translate-autoreply", {"id": "nope"}).status_code == 404
 
 
@@ -191,3 +192,30 @@ def test_disk_cache_drops_expired_and_damaged(tmp_path):
     assert dc.get("ab" + "0" * 62) == "hello"
     open(p, "w").write("{broken")
     assert dc.get("ab" + "0" * 62) is None and not __import__("os").path.exists(p)
+
+
+def test_autoreply_cards_never_wait_on_the_engine_twice(en_app, pw_hash, transport):
+    """2026-11-07: a page of cards = one apiAutoReplyList in flight (the rest wait for it), and no ticket read when the card has its question."""
+    import threading
+    app, fake = en_app
+    fake.script = [translations] * 6
+    orig = transport.reply
+    def slow(url, body):
+        if body["fn"] == "apiAutoReplyList":
+            time.sleep(0.3)
+            out = orig(url, body)
+            out["items"][0]["question"] = "מתי זה מגיע?"
+            return out
+        return orig(url, body)
+    transport.reply = slow
+    c, tok = logged_in(app, pw_hash, "eve", ["agent"], ["rozela"], lang="en")
+    res = []
+    def one():
+        cc, tt = c, tok
+        res.append(post(cc, tt, "/api/rozela/translate-autoreply", {"id": "t1"}).status_code)
+    ths = [threading.Thread(target=one) for _ in range(3)]
+    [t.start() for t in ths]; [t.join() for t in ths]
+    fns = [b["fn"] for _, b in transport.calls]
+    assert res == [200, 200, 200]
+    assert fns.count("apiAutoReplyList") == 1
+    assert fns.count("apiTicketFull") == 0 and fns.count("apiTicket") == 0

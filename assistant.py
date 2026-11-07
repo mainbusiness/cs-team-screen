@@ -936,22 +936,54 @@ def register(app, d):
 
     ar_memo = {}
     ar_lock = threading.Lock()
+    ar_flight = {}
+    AR_FRESH_S, AR_KEEP_S = 30, 120          # a card's texts can change when the auto-reply is redone: 2 min at most (Codex 2026-11-07)
 
     def ar_list(u, brand):
-        """apiAutoReplyList, memoised 30 s per brand: a page of cards is one engine call, not one per card."""
+        """apiAutoReplyList, memoised 30 s per brand, ONE engine call in flight per brand (2026-11-07: every card of a page asked the
+        engine for the whole list at once when the memo expired — 23 "no slot within 15 s" in a day, card translation median 4.3 s,
+        9/10 under 22 s, while the model part is ~2 s). The others wait for that one answer."""
         with ar_lock:
             hit = ar_memo.get(brand)
-            if hit and time.monotonic() - hit[0] < 30:
+            if hit and time.monotonic() - hit[0] < AR_FRESH_S:
                 return hit[1]
-        out = ecall(u, brand, "apiAutoReplyList", {})
-        if out.get("ok"):
+            ev = ar_flight.get(brand)
+            leader = ev is None
+            if leader:
+                ev = ar_flight[brand] = threading.Event()
+        if not leader:
+            ev.wait(20)
             with ar_lock:
-                ar_memo[brand] = (time.monotonic(), out)
-        return out
+                hit = ar_memo.get(brand)
+            if hit:
+                return hit[1]
+            return ecall(u, brand, "apiAutoReplyList", {})          # the leader failed or is still waiting: one call of its own (Codex)
+        try:
+            out = ecall(u, brand, "apiAutoReplyList", {})
+            if out.get("ok"):
+                with ar_lock:
+                    ar_memo[brand] = (time.monotonic(), out)
+            return out
+        finally:
+            with ar_lock:
+                ar_flight.pop(brand, None)
+            ev.set()
+
+    def ar_item(u, brand, iid):
+        """The card from the memo when it is there (up to AR_KEEP_S), else from a fresh list."""
+        def find(lst):
+            return next((x for x in ((lst or {}).get("items") or []) if isinstance(x, dict) and x.get("id") == iid), None)
+        with ar_lock:
+            hit = ar_memo.get(brand)
+        if hit and time.monotonic() - hit[0] < AR_KEEP_S:
+            item = find(hit[1])
+            if item:
+                return item
+        return find(ar_list(u, brand))
 
     @app.post("/api/<brand>/translate-autoreply")
     def translate_autoreply(brand):
-        """English mode auto-reply card: question, summary, reply and recommendation, sourced from the engine."""
+        """English mode auto-reply card: question, summary and reply, sourced from the engine's auto-reply list."""
         brand = str(brand).lower()
         u, err = gate(brand)
         if err:
@@ -963,18 +995,16 @@ def register(app, d):
         wait = bg_limit.hit(u["username"])
         if wait:
             return fail("rate_limited", 429, lang, wait=max(1, (wait + 59) // 60))
-        lst = ar_list(u, brand)
-        item = next((x for x in (lst.get("items") or []) if isinstance(x, dict) and x.get("id") == iid), None)
+        item = ar_item(u, brand, iid)
         if not item:
             return fail("not_found", 404, lang)
-        t, x = ticket_bundle(u, brand, item.get("ticketId") or iid)
         question = item.get("question") or item.get("lastMessage")
-        if not question and x:
-            last = [m for m in (x.get("conversation") or []) if m.get("who") == "customer"]
+        if not question:                     # only then the ticket (the card shows question, summary and reply; never the recommendation)
+            t, x = ticket_bundle(u, brand, item.get("ticketId") or iid)
+            last = [m for m in ((x or {}).get("conversation") or []) if m.get("who") == "customer"]
             question = last[-1].get("text") if last else None
         try:
-            got = en_fields({"question": question, "summary": item.get("summary"), "reply": item.get("replyText"),
-                             "recommendation": (t or {}).get("recommendation")})
+            got = en_fields({"question": question, "summary": item.get("summary"), "reply": item.get("replyText")})
         except llm.LLMError as ex:
             return fail(ex.code, ex.http, lang)
         return jsonify(dict(got, ok=True, id=iid))
