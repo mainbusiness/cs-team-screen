@@ -685,6 +685,7 @@ SCHEMAS = {
 # ~10% of calls came back as a 404 page, or a POST turned into GET -> {ok:false, error:'get_not_supported'}, no rid).
 # Per brand so a brand whose engine is not redeployed yet keeps working on the schema check alone.
 ECHO_SEEN = set()
+ECHO_LOCK = threading.Lock()      # check-and-add of a brand (Codex round 2, 2026-11-09)
 
 
 def reply_problem(fn, args, rid, r, brand=None):
@@ -698,9 +699,13 @@ def reply_problem(fn, args, rid, r, brand=None):
             return "rid mismatch"                   # a reply to ANOTHER call
         if r.get("fn") != fn:
             return "fn mismatch"
-        if brand and brand not in ECHO_SEEN:
-            ECHO_SEEN.add(brand)
-            log.warning("engine %s echoes rid/fn: replies without the echo are rejected from now on", brand)
+        if brand:
+            with ECHO_LOCK:
+                first = brand not in ECHO_SEEN
+                if first:
+                    ECHO_SEEN.add(brand)
+            if first:
+                log.warning("engine %s echoes rid/fn: replies without the echo are rejected from now on", brand)
     elif brand in ECHO_SEEN:
         return "no rid/fn echo"                     # this engine always echoes: an answer without it is not ours
     if r.get("ok") is not True:
@@ -740,6 +745,9 @@ def _result_lookup(engines, transport, secret, user, brand, rid, lang):
     if err == "rid_reuse":
         return "error", None                        # same rid, different call: never treat as an answer
     if err in ("unauthorized", "forbidden_fn", "unknown_fn", "bad_fn"):
+        # NOT narrowed (Codex round 2 rejected with evidence): an engine without apiResult answers a dispatched unknown fn with "unauthorized"
+        # (Api.gs apiDispatch_), tests/test_lost_reply.py pins that. Logged so an auth mismatch is visible instead of silent.
+        log.warning("engine %s apiResult answered %s: treated as 'no apiResult'", brand, err)
         return "unsupported", None                  # an engine without apiResult answers like any unknown fn
     return "error", None
 
@@ -809,6 +817,7 @@ def resolve_write(engines, transport, secret, user, brand, fn, clean, lang, rid,
     # not found: one resend with the same rid — the engine returns the stored reply or runs it exactly once
     elif gate_.acquire(bg):
         err = None
+        resp = None
         try:
             resp = transport(url, {"fn": fn, "args": _wire(clean), "token": token, "rid": rid})
             if reply_problem(fn, clean, rid, resp, brand):
@@ -817,6 +826,8 @@ def resolve_write(engines, transport, secret, user, brand, fn, clean, lang, rid,
             err = x.code
         finally:
             gate_.release(bg, 0, None if err is None else "engine_bad_response")
+        if err is None and not isinstance(resp, dict):
+            err = "invalid"                         # never read .get on a non-dict (Codex round 2)
         if err is None and resp.get("error") in ALREADY_CODES:
             seen = _effect_visible(engines, transport, secret, user, brand, fn, clean, lang)
             if seen:                                # "someone already handled it" — and that someone is us

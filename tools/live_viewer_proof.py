@@ -142,6 +142,8 @@ def cmd_prove(user):
     if not (code == 200 and tk.get("ok")):
         fails.append("ticket")
     code, se = b.api("POST", "/api/%s/apiSearch" % brand, {"args": {"q": "support"}})
+    if code != 200 or not se.get("ok"):                       # a search over the whole mailbox takes 4-9 s and the first try can time out: one more
+        code, se = b.api("POST", "/api/%s/apiSearch" % brand, {"args": {"q": "support"}})
     print("search (read):", code, se.get("ok"))
     if not (code == 200 and se.get("ok")):
         fails.append("search")

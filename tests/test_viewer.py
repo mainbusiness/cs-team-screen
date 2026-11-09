@@ -213,3 +213,34 @@ def test_a_viewer_gets_no_agent_notice_and_no_online_presence(app, pw_hash):
     assert not [n for n in notice.NOTICES if notice.applies(n, u)]
     c, tok = viewer(app, pw_hash)
     assert c.get("/api/notice").get_json()["notices"] == []
+
+
+# ---- Codex round 2 (2026-11-09), pre-existing code in engine_proxy.py ----
+
+def test_resolve_write_survives_a_resend_reply_that_is_not_a_dict(monkeypatch):
+    monkeypatch.setattr(engine_proxy, "_sleep", lambda s: None)
+    monkeypatch.setattr(engine_proxy, "_result_lookup", lambda *a, **k: ("missing", None))
+    monkeypatch.setattr(engine_proxy, "_effect_visible", lambda *a, **k: None)
+    monkeypatch.setattr(engine_proxy, "reply_problem", lambda *a, **k: None)      # even if validation wrongly passed it
+    engine_proxy.reset_gates()
+    st, out = engine_proxy.resolve_write({"rozela": "u"}, lambda url, body: "<html>not json</html>", "s" * 40, {"username": "u"}, "rozela", "apiNote",
+                                         {"id": "t1", "text": "x"}, "he", "rid1", "tok", "u", engine_proxy.gate("rozela"), False, started=0)
+    assert st == 502 and out["error"] == "write_unknown"
+
+
+def test_echo_seen_check_and_add_is_locked_and_logs_once():
+    import threading
+    engine_proxy.ECHO_SEEN.clear()
+    r = {"ok": True, "fn": "apiBoot", "rid": "r"}
+    hits = []
+    orig = engine_proxy.log.warning
+    engine_proxy.log.warning = lambda m, *a: hits.append(m % a if a else m)
+    try:
+        ts = [threading.Thread(target=lambda: engine_proxy.reply_problem("apiBoot", {}, "r", dict(r), "brandx")) for _ in range(40)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+    finally:
+        engine_proxy.log.warning = orig
+    assert "brandx" in engine_proxy.ECHO_SEEN
+    assert len([h for h in hits if "echoes rid/fn" in h]) == 1
+    assert hasattr(engine_proxy, "ECHO_LOCK")

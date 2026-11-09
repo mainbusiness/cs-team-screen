@@ -59,7 +59,7 @@ def test_viewer_reads_the_list_and_tickets_and_has_no_write_control(srv):
             c = controls(pg)
             assert c["textarea"] == 0, (i, c)
             assert c["inputs"] == [], (i, c)
-            allowed = ("copy", "more-btn", "back", "tk-back")
+            allowed = ("copy", "more-btn", "back", "tk-back", "sg-open")   # sg-open: the read-only save-offer guide
             bad = [b for b in c["buttons"] if not any(a in str(b) for a in allowed)]
             assert bad == [], (i, bad)
             if pg.locator("[data-test=ro-draft]").count():
