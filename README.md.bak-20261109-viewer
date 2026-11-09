@@ -1,0 +1,772 @@
+# CS team screen (phase 3)
+
+The one web screen the owner's support team uses to read tickets, edit the AI draft, send it, cancel
+subscriptions through the Kaching gate, run the automatic-cancellation queue, and (admins) flip the
+system switches. Flask on Render. Hebrew at `/cs`, the same SPA with English UI strings at `/cs/en`.
+
+**It runs on Render, not on the Mac and not on the tailnet.** The team works from outside the owner's
+network, and Render cannot reach the Mac. So the HQ rules about `Systems/Inbox/capture.py`,
+`HQ_Dashboard/registry.json` and tailnet URLs **do not apply to this app**. Its URL is the
+`*.onrender.com` (or custom) domain, and every click it cares about is in its own audit log on the
+Render disk and in each engine's `audit` sheet.
+
+## Layout
+
+| file | what |
+|---|---|
+| `app.py` | Flask factory: login, sessions, CSRF, pages, `/api/<brand>/<fn>` proxy, user manager API |
+| `engine_proxy.py` | fn allowlist + roles (mirror of `engine/Api.gs apiTable_`), argument allowlist, token mint, HTTP forward |
+| `security.py` | PBKDF2 hashing, login rate limiter, engine token minting |
+| `users_store.py` | users + audit log: Postgres in production (`PgUserStore`), a JSON file (flock + temp + fsync + rename, 0600) for local tests |
+| `pgstore.py` | the core-Postgres backend (2026-10-16, no disk): pool, `screen_*` schema, one-time disk backup + import, translate cache |
+| `messages.py` | every Hebrew/English message, incl. Kaching gate + `draftProblem` + auto-cancel/settings error codes |
+| `mock_engine.py` | fake engines for local preview (verifies the real token with a port of `verifyToken_`) |
+| `manage.py` | CLI: `add-user`, `reset-password`, `disable`, `enable`, `list`, `seed-team` |
+| `templates/`, `static/` | the SPA (vanilla JS, no build step, strict CSP — no inline script or style) |
+| `wsgi.py`, `render.yaml`, `requirements*.txt` | deploy |
+| `assistant.py` | phase 5: knowledge assistant (`/api/<brand>/assistant`) + English mode (`/translate`, `/translate-out`) |
+| `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
+| `mock_llm.py` | deterministic fake Claude for local preview only |
+| `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
+| `sysreq.py` | system change requests from the managers to the owner (2026-10-25): the card "🛠️ הצעות לשיפור המערכת" on `#/dash` under the AI-notes card (admins only), `GET/POST /api/sysreq`, and the machine API `GET /hq/sysreq?since=` + `POST /hq/sysreq/<id>` for the Mini (HMAC token in `X-HQ-Token`, aud `cs-sysreq`, ≤ 5 min; CSRF-exempt by exact path). Postgres `screen_system_requests`, a JSON file for tests. The Mini side is `../sysreq_sync/` (launchd pull → HQ inbox, CLI `decide`). Nothing executes a request. |
+| `notice.py` | must-read notices (2026-10-26): `GET /api/notice`, `POST /api/notice/ack {id}`; per-user ack in Postgres `screen_notice_acks` (a JSON file for tests, `NOTICE_PATH`), audited `notice_acked`. See "Must-read notices" below. |
+| `zipfix/` | zip fill (מילוי מיקודים): `/api/<brand>/zipfix` + bot route `/bot/zipfix`, background jobs, ported resolver — see `zipfix/README.md` |
+| `tests/` | pytest (310+ tests, incl. real-browser tests with Playwright and a gunicorn test) |
+| `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
+
+## Environment (Render)
+
+| var | required | what |
+|---|---|---|
+| `TOKEN_SECRET` | yes | 32+ chars. **Same value** as the `TOKEN_SECRET` Script Property of every brand engine. |
+| `ENGINES_JSON` | yes | `{"rozela":"https://script.google.com/macros/s/<id>/exec", "celesta": "...", "apexmen": "..."}`. Only Apps Script `/exec` URLs are accepted (Workspace `/a/macros/<domain>/s/...` too); anything else is dropped and the brand shows "not connected". |
+| `SECRET_KEY` | yes | 32+ random chars, Flask session signing. Render-only; never shared with the engines. The app refuses to start without it. |
+| `ADMIN_BOOTSTRAP` | first boot only | `username:password` (password 10+ chars). Creates the first admin (admin + user-manager, all brands, must change password) **only if the users file is empty**. **Remove it from the Render environment right after the first boot.** The app ignores it once users exist, logs a warning, and shows admins a red banner while it is still set. |
+| `CORE_DB_URL` | production | internal URL of the core Postgres: users, audit, activity, snapshots, snoozes, translate cache (`screen_*` tables). Without it the file backends below are used (local tests). |
+| `USERS_PATH` | no | file backend only (default `/var/data/users.json`; with `CORE_DB_URL` it is just the one-time import source, skipped when the folder is gone). The audit log goes next to it (`users-audit.jsonl`), or to `AUDIT_PATH`. |
+| `ANTHROPIC_API_KEY` | phase 5 | Knowledge assistant (`claude-opus-5-5`) and English-mode translation (`claude-sonnet-5-5`). Without it the assistant answers "off" and English mode cannot translate. Render-only. |
+| `TICKET_CACHE_DIR` | no | default `/tmp/cs-cache/ticket-cache` with `CORE_DB_URL` (ephemeral, 0700, files 0600). In-memory first; the disk copy only makes restarts warm. |
+| `TRANSLATE_CACHE_DIR` | no | default `/var/data/translate-cache` (next to the users file). Translations cached by content hash, 30 days. |
+| `ASSISTANT_MODEL`, `TRANSLATE_MODEL` | no | override the two model ids. |
+| `TRUSTED_PROXY_HOPS` | no | default `1` (Render's proxy). Used for the client IP in the login rate limit. |
+| `EXTRA_BRANDS` | no | comma list of extra brand ids the user manager may assign before they have an engine (for example a future brand). |
+| `SYSREQ_PATH` | no | file backend only: the system change requests file (default next to the users file). With `CORE_DB_URL` they are in `screen_system_requests`. |
+| `MOCK_ENGINE`, `COOKIE_SECURE`, `MOCK_LATENCY_MS` | local only | preview mode. `MOCK_ENGINE=1` refuses to start if `ENGINES_JSON` is set; `COOKIE_SECURE=0` is refused outside mock mode. |
+
+`render.yaml` declares the secrets with `sync: false` (no values in the repo), NO disk (state is in the core Postgres: `CORE_DB_URL`; caches in `/tmp/cs-cache`), health check `/healthz`, and **one** gunicorn worker with 16 threads. One worker is
+deliberate: the login rate limiter lives in process memory, and a disk-backed service runs one
+instance anyway.
+
+## First deploy
+
+1. Create the service from `render.yaml` and set `TOKEN_SECRET`, `ENGINES_JSON`, `SECRET_KEY`, `ADMIN_BOOTSTRAP`.
+2. Open `https://<service>/cs/login`, sign in as the bootstrap admin, and choose a new password.
+3. **Delete `ADMIN_BOOTSTRAP`** from the environment (redeploy).
+4. Create the team, either in the screen (menu → ניהול משתמשים) or in the Render Shell:
+   ```
+   python manage.py seed-team
+   ```
+   This creates four accounts and prints a one-time temporary password for each. Existing ones are skipped:
+
+   | user | roles | brands |
+   |---|---|---|
+   | `guy` | admin | all |
+   | `manager` | admin, user-manager | all |
+   | `agent-one` | agent | rozela, velora |
+   | `agent-two` | agent | celesta, apexmen |
+
+   Or one at a time: `python manage.py add-user manager --roles admin,user-manager --brands all --name "Manager"`.
+   Each user must replace the temporary password at first sign-in. No password is in code or in the repo.
+
+## Security model (short)
+
+- **Auth:** PBKDF2-HMAC-SHA256, 600,000 rounds (the floor is 310k), 16-byte salt per user. Failed logins
+  are limited to 5 per username and 20 per IP per 15 minutes. An unknown user, a wrong password and a
+  disabled account get the same answer and take the same time.
+- **Session:** cookie `__Host-cs`: HttpOnly, Secure, SameSite=Strict, Path=/, no Domain, 12 h absolute.
+  The user record is re-read on every request. Disabling a user, a password reset, or a change of
+  roles or brands bumps the session version, which ends that user's open sessions.
+- **CSRF:** the per-session token must be in `X-CSRF-Token` (API) or the `csrf` form field, and the
+  `Origin` header, when sent, must be this site. Referrer-Policy is `same-origin`. **Not**
+  `no-referrer`: with that, Chromium sends `Origin: null` on our own form posts and nobody can log in
+  (measured in a real browser).
+- **Proxy:** the browser never sees an engine URL or a token. Per call it checks: the user holds the
+  brand, the fn is on the allowlist, and the user's engine role may call it (the engine re-checks).
+  Arguments are rebuilt from a per-fn key list and `args.brand` is forced. The token names **only the
+  called brand**, so a mis-wired `ENGINES_JSON` is refused by the engine ("wrong brand"). `apiSettings`
+  is admin-only in Flask as well as in the engine, and its `action`/`key`/`value` must come from a fixed
+  table. `apiAdminRun` and `apiWa*` are not reachable at all.
+- **Roles:** a user may hold several local roles. The token carries the strongest engine role
+  (admin > agent > user-manager). A pure user-manager sees only the user manager. Only an admin may
+  grant or remove admin, or edit or reset an admin. Nobody may disable themselves or change their own
+  roles. At least one active admin must remain.
+- **Browser:** strict CSP (`script-src 'self'; style-src 'self'`, no inline). All customer text is set
+  via `textContent`. Ticket ids live only in the URL fragment. HTML and API responses are `no-store`.
+
+## Local preview + tests
+
+```
+python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && .venv/bin/playwright install chromium
+.venv/bin/python -m pytest -q tests
+.venv/bin/python tools/screens.py        # mock engines, 14 screenshots → screens/, fails on console errors,
+                                          # 390px overflow, "[object …]"/"null" on screen, Send enabled in DRY_RUN
+```
+
+## API shapes this screen relies on (from `engine/Api.gs` and the coordinator's final shapes, 2026-10-05)
+
+- `apiBoot` → `counts`, `tickets` (summary columns), `dryRun`, `cancelEnabled`, `cancelFrozen`, `brandName`, `serverTime`.
+  The top banner uses only these three switches. The AUTO_CANCEL chip comes from `apiAutoCancelList.switch`.
+- `apiTicket` → `ticket` (all 31 columns). `apiTicketExtras` → `extras` = the snapshot:
+  `{orders, subscriptions, shipping, conversation, lookup, ...}`.
+- Related tickets = `apiSearch(email || phone)` minus the current one. Archived hits are display-only,
+  because `apiTicket` reads only the live tab.
+- `apiKachingCancel` → `{ok, status, message}`, where `message` is the gate's exact English sentence.
+  The screen shows the Hebrew translation **and** the raw sentence.
+- Auto-cancel: approvable = `shadow_would_cancel | aborted_newer | refused`. In flight (spinner, no
+  buttons) = `queued | cancelling | cancelled | replying`. `cancelled_reply_failed` gets a red "send it
+  by hand" box. Every other state (`aborted_*`, `failed_*`, `recovered_*`, unknown) shows its error
+  and offers only "move to manual handling". The badge counts items that are not in flight.
+- `apiSettings` uses `action` (not `op`). A refusal shows the Hebrew line plus the engine's `error`,
+  `reason` and `allowed`, verbatim.
+
+## Phase 5 — knowledge assistant + English mode
+
+- **Assistant** (`POST /api/<brand>/assistant {messages, ticketId?}`): same session, CSRF, brand and role gate as the
+  proxy, agent and admin roles only. The system prompt is the brand's `apiKnowledge`, cached 10 minutes per brand and
+  sent with `cache_control: ephemeral`, plus the rule "answer only about this brand". The two read-only tools are
+  `search_customer` (→ `apiCustomerLookup`) and `get_ticket` (→ `apiTicket` + `apiTicketExtras`). Neither has a brand
+  argument: both call the brand in the URL, with a token that names only that brand, so another brand's data has no
+  path in. `apiKnowledge` and `apiCustomerLookup` are **server-internal**, and the browser route answers 404 for them.
+  An open ticket goes in as a second, uncached system block inside `<customer_data>`. Every tool call is audited to
+  the disk log with tool, brand, ok, ticket id or query length (never the query text). Limits: 20 messages per user
+  per 10 min, 4 tool rounds, ~110 s per turn. If `apiKnowledge` is unavailable, the assistant refuses instead of
+  answering from nothing.
+- **English mode** (`/cs/en`, users with `lang: en`): English-profile accounts are redirected to the English desk. All conversation entries (including automatic messages), summary, recommendation and AI draft are translated to English, with lossless chunks for long messages and content-hash caching. Each block has a Show original toggle; incomplete translations are visibly reported.
+  The agent writes in English, reviews the Hebrew preview, then confirms the send. Editing the source invalidates the preview. The server also guards `apiSend`, `apiSaveDraft` and `apiAutoCancelApprove` for English-profile accounts or English-desk requests: customer text must pass Hebrew validation or be translated and validated before any engine write. Translation errors, missing chunks, empty output and remaining English prose block the write. Ticket language cannot select English delivery for the English desk. Brand names, links, email addresses and tracking identifiers are preserved. English local drafts survive opening closed tickets.
+  Rejected Hebrew translations get one correction from the original source, before any customer write. It transliterates courier/payment/vitamin names, while order/tracking identifiers must match the source exactly. A second rejection stays a visible error with the English draft intact; provider failures are not automatically retried. The editor also releases its temporary busy flag when the outbox refuses a handoff, while the outbox retains the delivery lock.
+- **Brands without subscriptions** (`apiBoot.subscriptions == 'none'`, e.g. selera): no subscriptions panel, no
+  auto-cancel tab, no Kaching chip. Both stay hidden until `apiBoot` answers, so they are never shown first.
+- **Brands with no engine** (in `EXTRA_BRANDS` but not in `ENGINES_JSON`): a neutral "המותג עוד לא מחובר" state, no
+  tabs, no assistant.
+- `render.yaml` gunicorn timeout is 150 s, because an assistant turn with tools can take ~1-2 minutes.
+
+## Performance layer (2026-10-05)
+
+Measured live before it: Render answered in 0.2-0.8 s, apiBoot took 2-3 s, and opening a ticket took **17-18 s**.
+
+- `POST /api/<brand>/list` serves the cached list at once and refreshes it in the background if it is older than
+  10 s. `POST /api/<brand>/ticket {id}` serves the cached `{ticket, extras}` at once. `{revalidate:true}` goes to the
+  engine. `{fresh:true}` (only from the explicit Refresh click) asks the engine to re-read the store and Kaching,
+  which is rate-limited there to 30 per 10 min.
+- Engine calls: `apiTicketFull` when the engine has it, otherwise `apiTicket` and `apiTicketExtras` **in parallel**.
+  "The engine lacks it" is only recorded after the fallback works, so an auth failure never switches it off.
+- `POST /api/<brand>/prefetch {ids}`: the first 15 ids of the visible tab. **At most 3 background engine calls run at
+  once in the whole process**, enforced by a semaphore that also covers both halves of a fallback pair. A user's own
+  click never queues behind prefetch.
+- `POST /api/<brand>/changes {since}`: every 20 s from the browser. It uses `apiChanges` (agent/admin, int `since`,
+  `removed`, `reset`). If the engine lacks it, on `reset`/`bad_since`, or for user-managers, it does one `apiBoot`
+  and diffs here. Only changed rows go back, and the browser merges them in place.
+- Writes through the screen patch the cached ticket and list row at once (draft, status, handled_by, counts), mark
+  the ticket stale, and revalidate it in the background. A refused write invalidates the ticket.
+- Browser: a ticket opened this session paints from memory immediately. Otherwise it comes from the Render cache
+  (~200 ms measured with a 1.5 s engine), with a "מתעדכן…" chip until the revalidation lands. If the agent is
+  typing, the newer copy is offered ("show") instead of replacing the pane. Draft saves are optimistic: "saved"
+  shows in ~5 ms. A refusal rolls the screen's server copy back and shows a sticky error. The agent's text stays
+  in the box and in localStorage until the engine confirms.
+- Isolation: every cache key starts with the brand, brand and id are regex-checked before any path, the routes use
+  the same brand/role gate as the proxy, and per-user fields (user, role, lang) are stripped before a list is cached.
+- `Server-Timing` on every `/api/` response: `cache;desc=hit|miss`, `engine;dur` per engine fn, `gas;dur` (the
+  engine's `serverMs`), and `app;dur`. Durations and hit/miss only, never data.
+
+## Auto-reply review (Owner, 2026-10-05)
+
+The engine answers easy emails by itself (`AUTO_REPLY`) and marks them handled. A human then checks each one.
+
+- Tab **"נענה אוטומטית — לבדיקה"** (`apiAutoReplyList`). The badge counts `review: pending`. Each card shows the
+  customer's question, our reply, and when it was sent, with "🤖 נענה אוטומטית". "✓ נבדק — תקין" takes one click.
+  "⚠ בעיה" needs a note of 2-300 chars, checked in Flask before the engine; it reopens the ticket, and the cache
+  patches the ticket to `action` at once. Shadow items show "🤖 היה נשלח אוטומטית" with the text and a link to the
+  ticket. Items that cannot be sent or reviewed show their error and no buttons. If the engine lacks
+  `apiAutoReplyList`, the tab is hidden.
+- The 🤖 label appears on list rows and on the ticket header. Matching is tolerant: `handled_by` = auto / auto-reply /
+  engine / bot, an `auto_reply` flag, or a sent item in the review list.
+- `recommendation` appears as a green "מה לעשות" box at the top of every ticket, as a chip above the draft, and as
+  one muted line in list rows.
+- System Mode has an **AUTO_REPLY** switch (off / shadow / on, admin only in Flask too), with the note that "on"
+  needs test mode off. The top banner shows an auto-reply chip.
+- English mode: `/translate` now includes the recommendation. `/translate-rows {ids}` translates the summary and
+  recommendation of rows the **server** holds in the brand's cached list. `/translate-autoreply {id}` translates the
+  card from the engine's own item (list memoised 30 s). The browser never supplies text to translate; ids are
+  deduped, with a 30k-character budget. Both endpoints use the disk cache.
+
+## Deploy resilience (lesson, 2026-10-05)
+
+**The client must survive a server restart. Reads retry; writes never do.**
+
+What happened: the service has a persistent disk, so Render cannot deploy without downtime. During the two
+switchovers on 2026-10-04 (22:18 and 22:47-22:48 UTC), Render answered 23 requests with its own 223 KB HTML 502 page
+(`/changes`, `/ticket`, `/prefetch`, `/cs/login`). `api()` failed on `r.json()`, and agents saw "תשובה לא תקינה מהשרת".
+The app itself logged no 500s and no tracebacks.
+
+The rule, enforced in `api()` in `static/app.js`:
+- A **restart** is any answer that is not our JSON: Render's HTML page, an empty body, or a dropped connection.
+  Our own JSON 502/504 answers (`engine_timeout`, `engine_bad_response`) are real answers and are shown at once.
+- **Reads** (`list`, `changes`, `ticket`, `prefetch`, `apiTicket*`, `apiSearch`, `apiBoot`, the auto-reply/auto-cancel
+  lists, `translate*`, the assistant, `/api/me`, `apiSettings` get) retry after 1, 2, 4, 8, 15 and 15 s (~45 s) behind a
+  small non-blocking "מתעדכן… / Reconnecting…" pill. Only after that do they say "השרת בעדכון — נסו שוב בעוד דקה".
+- **Writes** (send, save draft, handled, close, note, Kaching cancel, auto-cancel/auto-reply review, settings set) are
+  **never** re-sent: the request may have landed just before the restart. The agent sees "השרת התעדכן בדיוק ברגע הזה.
+  רעננו את הפנייה ובדקו אם הפעולה בוצעה לפני שמנסים שוב."
+- The 20 s **poller** makes one quiet attempt per tick. On a restart it keeps the last good list and tries again next
+  tick, with no pill and no message. Prefetch, background revalidation and list translation are quiet too.
+- Proof: `tests/test_resilience_browser.py` runs real Chromium, with Playwright injecting Render's HTML 502:
+  - a read that fails twice then loads, showing no error;
+  - a send that fails, with exactly one request and the "check first" message;
+  - a silent poller;
+  - our own JSON 504, shown once and not retried.
+
+  Each of these fails if its rule is removed (checked by mutation).
+
+## WhatsApp vs email (Owner, 2026-10-05)
+
+- **List rows:** WhatsApp rows have a 4 px WhatsApp-green (#25D366) stripe on the inline-start edge (right in RTL) and
+  a green "וואטסאפ" pill with a chat icon (#075E54 on #D9FDD3, 6.9:1). Email rows have a pale blue stripe and a blue
+  "מייל" pill with an envelope.
+- **Channel filter:** הכול / מייל / וואטסאפ, shown only when the brand has WhatsApp tickets.
+- **Ticket page:** a channel banner, and a green tint on customer bubbles in WhatsApp tickets.
+- **Send button:** "שליחה בוואטסאפ" in WhatsApp green (#008069 with white, 4.9:1) or "שליחה במייל".
+- **English UI:** "WhatsApp" / "Email", and the English-mode confirm button names the channel.
+
+## Dondy bot, WhatsApp photos, live switches (engine @18, 2026-10-05)
+
+- **Status `bot`:** a WhatsApp chat that Dondy's AI bot is handling. It gets a tab "🤖 הבוט של דונדי מטפל" with the
+  `counts.bot` badge. The ticket shows a purple banner and no draft. "לקחת את השיחה" (two clicks) calls
+  `apiWaTakeOver {id}` (agent/admin). The cache moves the row to `action` at once, and the next engine run writes a
+  draft. `not_bot` is translated into Hebrew. Note: apiBoot lists all open tickets but only the 100 newest closed
+  ones, so the bot tab lists the bot chats that apiBoot returns, while the badge shows the engine's full count.
+- **Photos:** each slot is `{ref, file:{url}|null, unavailable?}`.
+  - A stored file is a "📷 תמונה — פתיחה" link (Drive URLs only).
+  - `unavailable` is a green "📷 תמונה — לצפייה בדונדי" chip.
+  - A slot still uploading is "📷 תמונה — עוד לא הגיעה".
+  - Never an `<img>`: Drive files are private, and the CSP allows images only from this site.
+- **Switches never go stale on a client** (live E2E: DRY_RUN was flipped in the engine, and Send stayed disabled
+  until a reload).
+  - A System Mode change patches the cached list at once, and `/changes` returns `switches` to every open tab
+    (polled every 15 s).
+  - Opening a ticket re-reads them with `/list {maxAge: 15}`.
+  - A change made directly in the engine is picked up in the background once the cached switches are older than 15 s.
+
+## Live QA fixes (2026-10-05)
+
+- **Sorting:** work tabs are newest-first by `waiting_since`. Tickets waiting more than 30 days go into a collapsed
+  "ישנים (30+ יום)" / "Older than 30 days" section with a count. Prefetch skips them.
+- **Fact panel:**
+  - Never shows the internal shipping thresholds, only בזמן / מאחר / מאחר מאוד plus days since the order.
+  - Never shows "לא נמצאה הזמנה" next to an order chip.
+  - With no email it shows "מנויים: לא נבדק (אין מייל)".
+- **`siblings`** (engine field, optional): a yellow "ללקוח יש עוד N פניות פתוחות" chip that opens a search for the
+  customer's email (or phone). Absent or 0 means no chip.
+- **Favicon:** `/favicon.ico` (cached 7 days).
+- **Desktop tabs** wrap and are compressed, so every tab is visible at 1280 px. The desktop layout follows the real
+  height of the header, banners and tabs (flex column) instead of a fixed `calc(100vh - 104px)`.
+- **The assistant answers in the page's UI language** (`/cs` vs `/cs/en`), sent as `lang` with every question.
+- **Cancel-claim refusal:** `draft_problem` with a cancel-claim reason, or a dedicated `cancel_not_done` /
+  `cancel_claim` code, shows "הטיוטה אומרת שהמנוי בוטל, אבל הוא עדיין פעיל — קודם לבטל בכפתור…". The override stays
+  as it was: offered only for `draft_problem`, two clicks, audited by the engine. Unknown codes are shown, never swallowed.
+- **Engine `extras.notes`** (new engine; the old engine falls back to the inference above):
+  - orders `chip_only` → "פרטי ההזמנה לא נשמרו" next to the chip; `error` → "לא ניתן לבדוק כרגע"; `not_checked` →
+    "הזמנות: לא נבדק"; `none` → "לא נמצאה הזמנה" only when there is no chip.
+  - subscriptions `not_checked_no_email` → "מנויים: לא נבדק (אין מייל)"; `brand_none` → no subscriptions panel;
+    `error` → "לא ניתן לבדוק כרגע".
+  - `shipping.normalDays` / `lateDays` are never read.
+- **Status `merged`:** closed, labelled "אוחד" / "Merged".
+- The engine's Hebrew cancel-claim `problem` is shown verbatim inside the safety-check message.
+
+## Engine HTML errors: retry only what is worth retrying (2026-10-05)
+
+Apps Script sometimes answers with Google's HTML error page. `engine_proxy.call` retries **idempotent reads**
+(`READ_FNS`, plus `apiSettings` get) after 1.5 s and then 3 s, but only when the failed attempt was **fast** (under 8 s,
+which is a redeploy blip) and within a **20 s total budget**. **Background** work (prefetch, revalidation, the
+list refresh) is never retried; its next tick is the retry. **Writes** are never retried; agents see "ייתכן שהפעולה
+בוצעה. רעננו את הפנייה ובדקו לפני שמנסים שוב."
+
+Why the limits, measured live: right after this shipped without them, the engine's HTML answers came after 9-44 s of
+work. Retrying them held a server thread for 70-110 s, the 16 threads ran out, Render's health check timed out
+(`server_failed`, 02:57:12 UTC), and the edge served 502 pages. The service also now runs **32** threads.
+Each attempt is logged as `engine <brand> <fn> attempt=N ms=M -> <code>` (no arguments, no customer data).
+
+## Per-brand engine gate (2026-10-05)
+
+**Root cause** of the burst of HTML errors (02:56-03:04 UTC, every read on three brands at once, ~30 s then HTML):
+Apps Script runs the web app as the deploying user, and that user has about **30 simultaneous executions** in total.
+Over that, calls queue and then fail. The retry deploy, prefetch and verification opens together produced the storm.
+
+`engine_proxy.BrandGate` (one per brand, for every engine call in this process):
+- At most **6** calls in flight per brand engine. Interactive calls (an agent's open, send, save, search) wait for a
+  slot, and after **15 s** get "busy, try again" instead of piling up.
+- Background calls (prefetch, revalidation, list refresh) take only a free slot, at most **2** per brand, never
+  while an agent is waiting, and are **dropped, not queued**. Prefetch fan-out is 2 per brand.
+- A **breaker** opens for **60 s** after an HTML answer or a slow (over 10 s) answer. While it is open, background
+  calls and prefetch are skipped; agents are still served.
+- A background fallback pair (`apiTicket` + `apiTicketExtras`) runs one call after the other, and a half-dropped pair
+  is never cached.
+
+Measured with `tools/load_test.py` (mock only: 4 agents x 3 brands, 0.8 s engine, prefetch on): the peak was
+6 in flight per brand, 0 busy answers and 0 errors. **Never run the load test against a live engine.**
+- **The auto-cancel / auto-reply queues** (`POST /api/<brand>/queue {fn}`) are shared by all agents of a brand.
+  They are cached 45 s and fetched at background priority. When the engine is full, an expired copy is served, or
+  "deferred" when there is none (the client retries once). Approve, reject or review, and an AUTO_CANCEL /
+  AUTO_REPLY switch change, delete the cached queue, so the next load reads the engine.
+
+## Engine replies are validated, never trusted (QA round 3, B1)
+
+A bare `{"ok":true}` (Apps Script `doGet()`, reached when a POST ends as a GET on `/exec` after a slow redirect)
+rendered "no tickets" over ~280 open ones, cached empty knowledge, and would have shown "sent" for a send that
+never happened. Now:
+- **Transport:** a redirect chain that ends with a GET on `/exec` is `engine_bad_response`.
+- **Schemas:** every reply is checked per fn (`engine_proxy.SCHEMAS`) before use or caching. Examples: apiBoot needs
+  `tickets` and `counts`; apiTicketFull needs `ticket.id` equal to the requested id; apiSend needs `sent`, `queued`
+  or the id echo; apiKnowledge needs a non-empty knowledge or policy. A refusal must carry an error code. Invalid means
+  `engine_bad_response`: reads follow the retry rules, writes show "ייתכן שהפעולה בוצעה, רעננו ובדקו".
+- **`rid` / `fn` echo:** every call sends a random `rid`. When the engine echoes `rid` / `fn` they must match;
+  until it does, the schema check alone decides. `apiClose`, `apiMarkHandled`, `apiNote` and `apiAutoReplyReview`
+  legitimately answer a bare `{ok:true}`; for them the transport check, and the echo once deployed, decide.
+- **Cache:** an invalid reply is never cached. A list that suddenly says "nothing open" after 3 or more open tickets
+  is refused, and the last good copy kept. An invalid copy on disk is never served. Empty knowledge is evicted.
+- **A request waiting on another request's in-flight fetch** answers `engine_timeout` after 90 s instead of a 500.
+  Any unexpected error on `/api` is JSON.
+- **Messages follow the page** (`X-UI-Lang` header): `/cs/en` gets English even for a Hebrew profile.
+- **The client** never renders a list, ticket or answer without its data. Open-status tab counts are derived from
+  the rows, so they can no longer disagree with what is listed.
+
+## Lost write replies (QA round 4)
+
+About 10% of engine calls lost their reply (a 404 page, a POST turned into GET -> `get_not_supported`, timeouts) while
+the work often ran. The screen used to say "המנוע סירב: get_not_supported" after a send that went out.
+- **Echo:** every reply must echo the call's `rid` and `fn`. This is enforced per brand from the first echo seen,
+  and logged as "echoes rid/fn". `get_not_supported` is always invalid.
+- **Reads** with an invalid or lost reply follow the retry rules.
+- **Writes** with an invalid or lost reply are resolved in `engine_proxy.resolve_write`:
+  - poll `apiResult {rid}` after 1, 2, 3, 4 and 5 s (~15 s); if found, return the stored reply (`recovered: "apiResult"`);
+  - if not found, resend the SAME call with the SAME rid once. The engine makes it idempotent (`replayed: true`);
+  - if still unknown, `write_unknown`: "לא הצלחנו לאשר אם הפעולה בוצעה — רעננו את הפנייה ובדקו", with `refresh: true`.
+    The screen then re-reads the ticket from the engine and pins the message at its top;
+  - an engine without `apiResult` keeps the "ייתכן שהפעולה בוצעה" message, never "refused".
+  - `apiResult` is a read and can never enter this path (that once recursed). `rid_reuse` is never treated as an answer.
+- **No raw error code** is ever shown to an agent; unknown codes become a plain sentence, and the code stays in `error`.
+
+## QA round 5 (team live)
+
+- **WhatsApp double send.** A WhatsApp ticket is "queued" when its status is `wa_queued` (live engine) or, on an older
+  engine, `wa_send: "pending"`. While queued, the ticket shows "📤 נכנס לתור לוואטסאפ — אל תשלחו שוב" and offers no
+  send. After an unconfirmed WhatsApp send, sending stays **locked** until a fresh engine read of the ticket
+  arrives; the cached copy stays on screen meanwhile, with a "בדוק שוב" button. `{queued, already}` shows "already
+  queued — not sent twice". `already_sent` has its own text. The server never resends a WhatsApp send.
+- **Resend safety (all writes).** The same-rid resend happens only after `apiResult` says not found AND at least
+  40 s after the ORIGINAL call started. Before it, the ticket is read: if this user's write is already visible (sent,
+  queued, closed), that is the answer. "Already handled" on a send whose ticket shows OUR user becomes "sent".
+- **The list can't go stale.** The list refresh ignores the breaker, and once older than 60 s it runs at interactive
+  priority. A failing `apiChanges` falls back to one full `apiBoot` when the list is starving. `/list` and
+  `/changes` return `syncedAge`; over 2 min the screen shows "הרשימה לא עודכנה X דקות — מנסה לרענן" with a refresh
+  button (`/list {maxAge: 0}`).
+- **Ticket opens.** The list row is drawn at once, as a partial read-only view. The server waits at most 15 s for
+  the engine (`engine_slow`, while the fetch continues into the cache). The screen retries up to 3 times with "המנוע
+  איטי כרגע, מנסה שוב…", and the cached copy says "טוען גרסה עדכנית…". Never a bare error box.
+- **Search** answers instantly from the cached list rows (id, name, email, phone, order, subject, summary), then
+  merges the engine's results (including the archive) when they arrive. If the engine fails, the list results stay,
+  with a note.
+- **Unknown statuses and categories** show a neutral label, never a raw key.
+
+## Background sends (Owner, 2026-10-05)
+
+An agent never waits for the engine. On the second click of send, "טופל" or "סגירה":
+- The action goes into the client **outbox** (memory and localStorage): `{rid, brand, id, fn, args, channel}`. The
+  **browser makes the `rid`** (`/api/<brand>/<fn>` passes it to the engine), and the agent is moved to the next ticket
+  of the tab at once (measured under 1 s against an 8 s engine).
+- The request runs in the background through the normal chain (apiResult, lost-reply handling, a WhatsApp send never
+  resent). The **server finishes it even if the tab closes**; a test runs real gunicorn and gives up on the request
+  after 0.5 s.
+- **Markers** on the row, on the ticket and in a toast:
+  - while running: ⏳ "נשלח ברקע…";
+  - success: ✅ "נשלח" / "נשלח לוואטסאפ" / 📤 "נכנס לתור";
+  - refusal: ⚠️ "לא נשלח — צריך תיקון", with the ticket flagged at the top and the reason (plus the override, where
+    allowed) shown when opened; the text stays saved;
+  - unknown: ❓ "לא אושר — לבדוק", with the ticket flagged and send locked.
+
+  "טופל" and "סגירה" take the row off the list at once and bring it back flagged if they fail. The header shows
+  "בתהליך שליחה (N)" with the list of in-flight and failed actions.
+- **One open action per ticket.** While one is in flight, checking or unknown, that ticket offers no send.
+- **After a reload or a closed tab,** in-flight items become "checking" and ask `POST /api/<brand>/result {rid}`
+  (`apiResult`). They are **never resent**. An unknown item is decided by a fresh engine read of the ticket: if it shows
+  our send, it is ok; if it is still open after 90 s, it becomes "unsent — you can send again".
+
+## P0 speed (Owner, 2026-10-05: "the most important thing in this system is speed")
+Baseline measured live, read-only: the open-ticket confirmation was capped at the 15 s wait, and every agent's own
+`/changes` called `apiChanges` itself. On rozela and celesta, 6 of 6 of those calls failed after 9–79 s.
+- **Shared change feed.** `/changes` and `/watch` read the engine **at most once per brand per 4 s**
+  (`CHANGES_SHARED_S`). The read is single-flight and shared by every agent. The server keeps a log of
+  `(version, id)` pairs, so each client gets only its own delta. A client older than the log gets `reset:true` and
+  the whole list.
+  - A full `apiBoot` (switch refresh or a starving list) is diffed and logged, so clients stay on deltas.
+  - Engines that send `dryRun` and `cancelEnabled` with `apiChanges` also save the 15 s `apiBoot` switch refresh.
+- **Confirmed copies.** A cached ticket is "confirmed" when the engine vouched for it within 12 s (`CONFIRM_S`):
+  either it was read in that window, or a feed read in that window did not mark it changed.
+  - The feed's stale marks are race-safe: a read that started before a change stays stale. An older read never
+    overwrites a newer one.
+  - A feed with no monotonic version vouches for nothing.
+  - **Opening a confirmed copy takes ONE request; there is no second round-trip.**
+- **The open ticket first.**
+  - **Reserved gate slot:** of a brand's 6 engine slots, `GATE_RESERVED=1` is kept for `top` reads (the open ticket:
+    `/ticket {open:true}` and the `/watch` re-read). The cap of 6 still holds.
+  - **Priority:** a `top` waiter is served before every other waiter.
+  - **Threads:** `top` reads get their own threads (`top_pool`), so they never queue behind other reads.
+  - **Approved sends share the priority slot** (incident fix, 2026-10-06). Other writes remain ordinary priority.
+- **`/watch` every 5 s** for the ticket on screen. It costs only the shared feed read; the ticket itself is read only
+  when the feed says it changed. If the feed can't be read, the ticket is read directly once its copy is 20 s old.
+- **In-place update, never under the agent's fingers:**
+  - **Agent idle and the draft never edited:** the ticket is redrawn, with the scroll kept.
+  - **Agent typing, or the draft edited in this open (an autosaved edit counts):** only the conversation is
+    replaced. The draft and the caret stay put, and the engine's new draft is **offered** ("החלף לטיוטה החדשה").
+  - **New customer messages:** announced with "התקבלה הודעה חדשה" and the text.
+- **Send → next lands warm.** Opening a ticket prefetches the next 5 in the tab at background priority. Three of
+  them are copied into the page's memory 2.5 s later via `/ticket {peek:true}`, which is cache only and never calls
+  the engine.
+- The list poll runs every 10 s (it was 15 s); it costs the same shared feed read.
+
+Engine @35/36 (round 2, same day):
+- **`apiTicketLite {id, since: v, seen: n}`** is the open ticket's check, used for `/watch` and for the revalidate on
+  open.
+  - `changed:false` vouches for the copy.
+  - `changed:true` merges the new messages, status and draft into the cached copy. Summary and recommendation are
+    filled in behind it at background priority.
+  - When the reply can't be merged (counts don't add up, a field is missing, the version went backwards, a malformed
+    message), it falls back to `apiTicketFull`.
+  - Without `apiTicketLite`, the shared feed decides, as before.
+- **The switches come from `apiChanges`** (`dryRun`, `cancelEnabled`, …), so there is no 15 s `apiBoot`. A `/list
+  {maxAge}` call is answered by the shared feed read.
+- **Fast reads** (Lite, Changes, TicketFull, Ticket, TicketExtras, Result) get a 12 s timeout and ONE immediate retry
+  with the same rid. The 8–42 s is Google's front door, not the engine. Writes and background reads are never retried.
+- **Open-ticket reads are hedged:** a second identical request after 4 s with no answer, only if a SHARED slot is free
+  (never the reserved one, never over 6). The first valid answer wins; the other gives its slot back when it ends.
+- **`CONFIRM_S=45`** (the owner via the coordinator, 2026-10-05: speed first). A copy the engine vouched for within 45 s
+  opens with no engine call; the 5 s `apiTicketLite` check still brings in every change.
+  - The send guards (WhatsApp lock, outbox decisions) trust only a vouch ≤12 s old (`vouched_s` in the meta). An
+    older confirmed copy triggers an immediate background check, and that check settles them.
+  - **"מתעדכן…"** (`#tk-check`): small and never blocking. It shows only while a check of the open chat is running
+    (periodic checks only after 0.8 s).
+  - A copy read before the feed's base is vouched for by its ticket `v` (≥ the row's `v` in a fresh feed).
+- **Breaker** (coordinator, 2026-10-05): it trips on an error answer (`engine_bad_response` / `engine_unreachable`) or
+  on the engine's own work (`serverMs`) above 10 s. It **never trips on wall time**: 30 s of wall time with
+  `serverMs` 40 is Google's gateway, and dropping prefetch for it only made opens slower. Timeouts don't trip it either
+  (they are wall time). The cap of 6 per brand and the reserved slot are unchanged; they are what bounds the load.
+
+## Failed WhatsApp sends (engine @37/38)
+- A failed send (`wa_send` failed / template_required / unknown, the last also covering an expired claim) is back in
+  "action", with ⚠️ at the start of the action line.
+- **Red chip** on the row and at the top of the ticket: "⚠️ השליחה נכשלה", or for template_required "⚠️ עברו 24
+  שעות — צריך תבנית בדונדי". List rows carry no `wa_send` (summary columns), so there the ⚠️ line decides; the
+  ticket reads `wa_send`.
+- **"⚠️ נכשלו (N)" tab,** shown only while N > 0.
+- **"שלח שוב"** appears only when `wa_send` is `failed` (open_failed / chat_not_found / compose_failed), never for
+  unknown or template_required. It sends the same text (`wa_out`) through the normal outbox with a new rid and moves
+  to the next ticket. It is disabled under DRY_RUN, an open action, the WhatsApp lock, or a queued send.
+
+## Managers' dashboard (Owner, 2026-10-06)
+`#/dash` is shown only to **admin + user-manager**. Agents don't see the tab, and `GET /api/dash` answers them 403.
+It makes **no engine calls of its own**: it reads the activity log and the server's cached ticket lists.
+
+**Activity log.** Stored in Postgres (`screen_activity`; `ACTIVITY_DIR` is only the ephemeral dayStats cache folder there; the file backend writes it to `ACTIVITY_DIR`, mode 0700), one append-only
+`act-YYYY-MM-DD.jsonl` file per Israel day.
+- **Fields:** user, brand, ticket id, channel, kind, category, ts. Never customer text.
+- **Kinds:**
+  - `open`: `/ticket {open:true}`, not revalidates;
+  - `edit`: `apiSaveDraft`, plus a typing heartbeat `POST /api/<brand>/activity` at most once a minute;
+  - `send` and `resend`: the outbox marks a re-send with `via:"resend"`; duplicates the engine reports as `already` are not counted;
+  - `close`, `cancel`, `autocancel`, `note`, `takeover`, `review`.
+- **Dedupe:** opens and edits count at most once per user, ticket and minute.
+
+**Work time (Owner, 2026-10-13: "they work ~8 hours, the board showed ~3").**
+- **Work time** = from the agent's first action of the day to the last, minus **breaks**: a stretch of more than
+  `BREAK_GAP_S = 1800` s (30 min) with no action at all on the screen. A shorter stretch between two actions is counted
+  as work done elsewhere (Shopify, Kaching, Dondy, Gmail). `SESSION_TAIL_S = 60` s is credited after each run's last
+  action. Each agent row shows the shift (first–last action) and its breaks.
+- **"On screen"** (`screen_s`, the number before 2026-10-13): actions at most `IDLE_GAP_S = 300` s apart; kept beside
+  work time for comparison. **Occupancy** = on screen ÷ work time (target 75–85%).
+- **Assumption:** an agent who comes back to the screen within 30 min was working in between; a longer silence is a
+  break. Measured from 138,000 Render request-log lines (2026-10-07..13, 4 agents, 20 agent-days): gaps between actions
+  thin out steadily up to 30 min (5–10 min: 50, 10–20: 53, 20–30: 27) and drop 3.4x per minute of width after it
+  (30–45: 12, 45–60: 7, 1–2 h: 12, >2 h: 11); the screen was visible during ~40% of a 5–20 min gap's minutes, 25% of a
+  20–30 min gap's, 19% of a 30–60 min gap's, 0% beyond 2 h. Replies typed straight in Dondy / Gmail are not where the time went: 6–21 a day across
+  all brands (dayStats `dondy_direct` / `gmail_direct`), and they carry no agent name.
+- **Presence never extends work time:** a screen left open over lunch keeps polling. Presence (`pres-*.jsonl`, one mark
+  per user per minute while the tab is visible) is shown as "מחובר" in the agent's details only.
+- **Midnight:** a run that crosses midnight is split between the two days (Asia/Jerusalem).
+- **Handle time** of a reply runs from the agent's latest open of THAT ticket to the send, if within 2 h. AHT is the
+  median.
+
+**Live open tickets (Owner, 2026-10-13).** A strip at the top of the board: per brand (and in total), the tickets open NOW
+— status ready / action / health / delay, the same set and the same list as the agents' "פתוחות" badge — split WhatsApp
+/ email. `GET /api/dash/open` (admin + user-manager) counts the server's cached list; a brand copy older than
+`LIVE_SYNC_S = 30` s gets ONE shared change-feed read (the read every agent's poll makes anyway), so while agents work it
+costs no engine call. The strip re-reads every 30 s on its own timer and repaints only when a number changed.
+
+**Engine truth.** Each agent's sends and closes are also counted from the cached list (`handled_by` / `handled_at`) and
+shown next to the logged numbers ("במנוע N").
+
+**Brand overview.** Live from the cached list for today; for a past day, from the midnight snapshot (`snap-YYYY-MM-DD.json`,
+written by a thread in the single gunicorn process).
+- **Shown:** received / answered / closed with their % of received, open now, awaiting a reply, backlog age, FRT median,
+  % auto-replies, WhatsApp failures.
+- **Limit:** the list holds every open ticket but only the 100 most recent closed ones. A day that filled all 100 is
+  marked "≥ / חלקי".
+
+**KPIs**, with 2026 benchmarks:
+- FRT: email < 24h, chat < 90 s. FRT is a proxy, measured from the ticket's creation to its handling, because the engine
+  has no `first_reply_at`.
+- AHT: 4–6 min.
+- FCR proxy: a ticket with one send in the log, not reopened (the 72 h window is noted while it is open).
+- Reopen rate.
+- Occupancy: 75–85%.
+- Backlog.
+- SLA: WhatsApp ≤1h, email ≤24h.
+- **CSAT: missing (no survey).**
+
+**Charts** are plain SVG (strict CSP, no library). The page refreshes every 30 s while it is open. It has a day / 7 / 30
+selector and a date picker.
+
+**dayStats (engine, 2026-10-06): the day's numbers come from the conversations.** Received, answered, closed,
+awaiting, FRT and who answered come from the engine's `apiDayStats` (internal fn, admin + user-manager), which reads the
+WhatsApp conversations and the Gmail threads. It counts replies from our screen, from Dondy directly (person / bot /
+template / close) and from Gmail directly.
+- **Fetching:** in the background, all chunks (`next` is passed back as `cursor`), one brand at a time.
+- **Cache:** on disk as `ds-<brand>-<day>.json`. A running day is re-read every 10 min, a finished day every 6 h (the
+  engine can backfill), and an admin can force a re-read with `?refresh=1`.
+- **"Answered" / "closed" by source:** shown as a row of cards (total, then from the system / from Dondy / from email,
+  each with its parts), a pie chart, and a per-brand table.
+- **The screen's own log** stays as "פעילות במסך" (work time, AHT, hours).
+- **Banners:** a brand without dayStats is named in a "לא סופי" banner, and its list-based numbers stay out of the FRT
+  KPIs. `VERIFY_NOTE` shows the coordinator's live reconciliation (rozela 2026-10-05: 15/15).
+
+**Cancellations (Owner, 2026-10-23: "כמה מנויים הצוות מבטל כל יום וכמה ביטולים בכללי הוא עושה ללקוחות").** Admins only (like the sales
+table; a user-manager and an agent get 403 and never see it). A section right under the live strip on `#/dash`, built once and repainted only
+when the answer changed:
+- **This month vs the target**, per brand: the monthly Kaching cancel rate so far (`month.churn_pct`, "<month> עד היום" while `partial`), last
+  month's rate, and the target = last month × 0.5 (the owner's November goal: more than 50% below October). A month still running is judged by its
+  PACE: the engine's `churn_30d_annualized_pct` (so far × 30 ÷ days passed — "the number the owner quotes", contract
+  `deliverables/cancel_stats_contract.md`), or the same formula on the screen for an engine that does not send it. The rate so far only grows,
+  so against a full-month target it would be green in every first week. Live 2026-10-23: rozela 10.4% so far = 13.8% at that pace (Guy
+  quoted ~14%), celesta 13.4% → 17.7%, apexmen 12.8% → 16.9%. The card is green when the pace is at or under the target, red over it; the owner's
+  scale (excellent < 8% · healthy < 12%, also on the pace) is a line of context, not the colour. Each card shows the time of the engine's
+  Kaching copy (refreshed every 6 h); a copy still being built ("warming" / "empty") says "קאצ׳ינג מתכונן" instead of numbers. Until the month ends, the target is half of the
+  previous full month (on 2026-10-23: half of September; from 2026-11-01 exactly the owner's goal, half of October).
+- **The chosen day** (the board's date, or a day clicked in the 14-day table): five numbers over the brands, each with the engine's one-line
+  source — subscriptions the team cancelled (`subs_team`) · automatic cancellations (`subs_bot`) · orders cancelled · all cancellations by the
+  team (= the first + orders) · all subscription cancels in Kaching from any source (`subs_all_kaching`, so cancels made outside the team show).
+  Then the same per brand, and per agent (`subs_team_by`, the board's display names). QA / automation accounts (`TEST_USER_RE`) are taken OUT of
+  `subs_team` too, so the agents add up to the team's number; a cancel with no agent name is its own line.
+- **The last 14 days**, all brands or one.
+- **Live check after a deploy:** `tools/live_ui_cancels.py [shots_dir]` (read-only: every write route is aborted in the browser).
+- `tests/test_no_native_append_junk.py`: a DOM `append()` of `null` / a ternary-null / an array prints "null" / "[object …]" — use
+  `add(el, [...])`. Two older sites are listed there as known (proposed to Owner, not changed).
+- **States:** a field the engine does not know is "—", never 0, and a total names the brands it is missing ("בלי ולורה"). `no_kaching`
+  (velora) → "אין חיבור לקאצ׳ינג"; `no_subscriptions` (selera) → not shown; an engine without the fn (`unauthorized`) → "not available yet",
+  and the rest of the board is unaffected.
+- **Data:** engine `apiCancelStats {from, to}` (admin read, ≤ 62 days; the proxy rebuilds and checks the args and the reply: its `kaching`
+  state, `brand`, and every day inside the range asked for). `GET /api/dash/cancels?date=` never waits for it: per brand, read in the background
+  (2 workers), kept in memory 5 min for a window that ends today, 6 h for a past one, 60 s after a failure (a failed refresh keeps the last good
+  numbers and says so); an engine without the fn is asked again every 5 min. The window is the 14 days ending today while the chosen day is in
+  them, else the 14 ending on that day.
+
+## Morning readiness (live QA, 2026-10-06)
+- **The web service never sleeps** (Render `starter` is a paid instance), and the driver keeps the engines warm every
+  minute. What can be cold after a quiet night is the server's own copy of each ticket.
+- **Warm-up:** at 07:20–07:40 Israel time, once a day, the existing server thread (the one that writes the midnight
+  snapshot) runs it. It reads every brand's list in full, then reads EVERY open ticket without a copy from the last
+  12 h into the cache. This runs one thread per brand at background priority, and the gate drops it when agents are
+  busy. It also starts today's dayStats.
+  - An admin can start it now with `POST /api/dash/warm`.
+  - Measured: uncached opens took ~3 s; opens from the cache take ~0.3 s.
+- **During the day,** every open ticket the change feed reports as changed is re-read in the background, so a click
+  lands on a fresh copy.
+- **"Why a person is needed":** the panel no longer says "no automatic draft" when the ticket has one, and no longer
+  shows content-check ("safety") lines at all.
+
+## Sending incident, 2026-10-06
+
+Read-only comparison of the screenshot with the Rozela audit and ticket records found successful sends after the
+displayed failures. The outbox retained previous attempts and only reconciled uncertain outcomes, leaving old
+refusals visible after the customer had been answered. Render also rejected two approved sends at five occupied
+slots while the sixth slot was reserved for reads.
+
+The outbox now reconciles known results and later engine-confirmed outcomes, including tickets outside the current
+list, without resending them. A later failed attempt remains visible; old drafts and attempt records are retained.
+Human sends can use the protected interactive slot, remain capped at six calls per brand, and are never read-retried
+or hedged. Recovery reads are serialized and do not refresh Shopify/Kaching snapshots.
+
+Verification: `tests/test_send_priority.py` and the outbox browser regressions reproduce the actual failure modes.
+Deployments use `deploy/render_deploy.py push`, whose full-suite test gate must pass before GitHub is updated.
+
+## A send that was refused for a passing reason is sent again by itself (2026-10-09)
+
+Guy: "every time an agent sends a reply, the reply is sent. If it fails the first time, try again five seconds later."
+
+Measured, read-only, in the core database: on 2026-10-08 09:38-09:44 UTC one agent's `apiSend` was answered `busy`
+five times in six minutes (the brand's script lock was held), and each time the screen showed "לא נשלח — צריך תיקון" and
+waited for her to click again. The tickets of the owner's screenshot (Rozela email, 2026-10-05/06) were all sent in the
+end, by a second or third manual click. Nothing recorded why a send was refused: the engine audits only a Gmail
+refusal, the proxy logged nothing, so the reasons of the older refusals cannot be recovered.
+
+- **Outbox state `retry`.** An answer that says nothing went out and the cause passes — `busy` (the engine's lock,
+  a rid in flight, no gate slot in 15 s), `server_error`, `rate_limited`, `not_logged_in`, `assistant_*` (the English
+  desk's translation service) — is sent again with the SAME rid after 5, 10, 20, 30, 60, 60, 120, 120, 300 and 300 s
+  (about 17 minutes). The engine stores the reply of a rid that succeeded and replays it, so a retry can never send
+  twice; the email fence and the WhatsApp same-text guard stand behind it. The same happens when a fresh engine read
+  shows that an unconfirmed send did not go out (`unsent`).
+- **No automatic send later than 20 minutes after the agent's click.** The engine remembers a successful rid for 30 minutes
+  (`RES_TTL_S`); after that a same-rid call would run again, and a lost "sent" could become a second message. Past the
+  window the item is handed to the agent.
+- The agent sees "⏳ מנסה לשלוח שוב…" with the try number; the ticket stays locked against a second send; ✕ stops it.
+  The state lives in localStorage: a reload or a new login goes on from the next try. Two tabs take turns (Web Locks).
+- Only after the last try: "לא נשלח — צריך תיקון", on top, with the draft kept — as before.
+- **Never retried:** a refusal about the ticket itself — `wa_window_closed`, `already_sent`, `already_handled`,
+  `wa_send_in_flight`, `newer_message`, `replied_elsewhere`, `thread_missing`, `dry_run`, `translate_failed`.
+- **Every send that is not accepted now leaves a log line** (`send not accepted: <brand> <fn> user= error= http=
+  attempt= detail=`), and a send accepted by a retry says so (`send accepted on attempt N`). Codes only, never text.
+
+Tests: `tests/test_outbox_retry_browser.py`.
+
+## מילוי מיקודים — the screen (Owner, 2026-10-10)
+
+Backend: `zipfix/` (routes, jobs, core). The screen is `Zip` in `static/app.js`, `#zip-pane`, route `#/zip/<brand>`.
+- **Entry:** "📮 מילוי מיקודים" in the top bar and in the ☰ menu, for agent/admin only. A pure user-manager never sees it; the
+  route sends them away and the server answers 403. The brand picker lists only the user's own brands.
+- **One button:** "הבא מיקודים". The box takes anything pasted (commas, spaces, new lines, `#`). The screen shows what it
+  understood ("זוהו N הזמנות"). Empty = every open order. **Text with no number is refused on the screen, so it never turns into "all orders".**
+- **Progress:** polls `GET /api/<brand>/zipfix/<job>` every 2 s and shows done/total, a bar and a seconds counter. A dropped poll
+  (deploy) counts quietly and says "reconnecting" after two misses; it never stops the run. The job id (and the result) are in
+  `sessionStorage['cs.zipfix.<brand>']`, so a refresh resumes the same job. A job the server no longer has says so.
+- **Result:** counts; the supplier text in a read-only LTR box with one "העתק לספקית" button (exact text, Clipboard API then
+  execCommand, "הועתק ✓" only when it copied); "לבדיקה לפני שליחה" with order, zip, reason, address and a link to
+  `https://doar.israelpost.co.il/locatezip` (new tab); "לפנות ללקוח"; `not_found` orders as one line.
+- **Preview/tests:** `mock_engine.zipfix_runner` replaces only the Shopify/zip runner
+  (`create_app({"ZIPFIX_RUNNER": ..., "ZIPFIX_CONFIGURED": lambda b: True})`). Order 666 fails the run, 404 is "not in the store",
+  `MOCK_ZIPFIX_STEP_MS` sets the speed. Tests: `tests/test_zipfix_browser.py`. Shots: `screens/30_zip_*`, `31_zip_*`, `32_zip_*`.
+
+## Send keeps the ticket open; another message; two agents on one ticket (Owner, 2026-10-11)
+
+Owner, from the team: "when a message is sent, don't close the chat — put a close button next to it"; "after it's closed there is no
+option to reply anymore"; "unlike Dondy, the system doesn't let them send a template"; "two agents answer the same ticket".
+- **Send never moves on.** The outbox sends in the background as before. The agent stays on the ticket, the message appears in
+  the conversation at once (dashed, "⏳ בדרך ללקוח" / "📤 בתור לוואטסאפ", until the conversation itself has it), and the box empties
+  for the next one. **Close is its own button.** It reads "סגירה בלי שליחה" before any answer and "סגירת הפנייה" after one (`data-kind`
+  nosend / close; no button on a ticket that is already closed). Closing still goes to the next ticket. A template and "שלח שוב" stay too.
+  The 2026-10-05 "send → next" rule is reversed; "close → next" stays.
+- **Another message (follow-up).** Every `sent`, `done` or `wa_queued` ticket, email or WhatsApp, opened from anywhere, has an EMPTY
+  composer titled "הודעה נוספת ללקוח". It shows who answered or closed it, and when. It is kept on the device only (`apiSaveDraft`
+  refuses non-open tickets). The send is `apiSend {followup: true, seen}`. It is a follow-up when the ticket is not open OR this page
+  already sent on it, because the page's copy can lag behind the engine. The English desk has the same composer (`EnDraft`).
+  - WhatsApp: one message per chat is on its way at a time. While one is queued, Send stays off with "ההודעה הקודמת עדיין בדרך" and the
+    next one can be typed. The page marks its own copy queued as soon as the engine accepts it.
+  - WhatsApp past 24 hours: the template box is offered on answered and closed chats too (`waWin(x, any)`).
+- **A send that did not go out gives the text back.** This covers refused, unsent after the last try, and "already answered in
+  Gmail". The text returns to the box, or to the device copy the next open restores, and is never written over newer typing.
+  On success the device copy is removed only if it still IS the sent text.
+- **Two agents.** Every send and template carries `seen` (the ticket's handled_at as this screen shows it). If someone else answered
+  or closed it after that, the engine answers `changed_meanwhile {by, at, status}`. The banner then says who and when
+  ("agent1 כבר ענה/תה … ב-13:46"), the conversation is re-read so their answer is in front of the agent, the agent's text is back in
+  the box, and Send reads "לשלוח בכל זאת כהודעה נוספת". That send goes with the fresh `seen`. It is never retried automatically.
+- **Who else is here.** `/watch` (every 5 s) and the open (`/ticket {open:true}`) answer `others: [{user, name, editing}]`.
+  They come from an in-memory map (one gunicorn worker) of users who had the ticket on screen in the last 15 s. `editing` is
+  the other agent's own "typed in the last 30 s" (`/watch {ed}`). Shown as a chip in the ticket head: "גם X בפנייה הזאת עכשיו",
+  or red "✍️ X כותב/ת תשובה …". Names only, never text.
+- Cache: `apiSend` / `apiSendTemplate` patches use the engine's own `handled_at` (so the next `seen` matches exactly). A queued
+  send is `wa_queued` at once, and no message text goes into list rows.
+- Mock: `MOCK_WA_DELIVER_MS` makes a pretend bridge that marks queued WhatsApp sends as sent. The mock mirrors `followup`, `seen`,
+  `changed_meanwhile`, the WhatsApp in-flight / identical-text / 24 h refusals, and `handled_at` in replies.
+- Tests: `tests/test_followup_browser.py` (real Chromium, both desks, two agents), `tests/test_followup_server.py`.
+  Shots: `screens/40_*`–`45_*`.
+
+## Files to the customer (Owner, 2026-10-11)
+
+`POST /api/<brand>/attach` (attach.py) — multipart, one file, `channel=email|whatsapp`; -> `{ok, id, name, size, mime}`. The send is
+`apiSend {…, attachments: [id]}` (ids only; the proxy allows ≤10 well-formed unique ids). Content is checked by magic bytes, never by the
+browser's type; the engine checks again. Limits: 10 MB a file, 18 MB an email, 10 files; WhatsApp 1 file, 5 MB, pdf/jpg/png/doc(x)/xls(x).
+The 📎 row (`Attach` in static/app.js) shows only where `apiBoot.attach` allows it: email always on the core; WhatsApp only while the brand's
+`WA_ATTACH` is on and the 24 hours are open. Full design and limits: DECISIONS.md 2026-10-11 "files from the system to the customer".
+Tests: `tests/test_attach.py`, `tests/test_attach_browser.py`. Local preview with WhatsApp files on: `MOCK_WA_ATTACH=rozela`.
+
+
+## Send & close, the close button right after a send, a different answer, answer later (Owner, 2026-10-14)
+
+Full design, measurements and limits: DECISIONS.md 2026-10-14. Tests: `tests/test_send_close_redraft_snooze_browser.py` (both desks), `tests/test_snooze_redraft_server.py`.
+- **Close right after a send.** The close button is usable at once (measured live before: 3.7–4.1 s, the engine's whole answer). A close clicked while
+  the ticket's send is on its way is an Outbox item in state `queued` behind that send: it runs when the engine accepts the send, and is dropped (toast,
+  ticket stays flagged on top) when the send is refused / unsent / unknown. `Outbox.closeLocked()` decides the button, not `Outbox.blocks()`.
+- **"שליחה וסגירה"** (`data-test=send-close-btn`, armed; English desk `en-confirm-close` after the Hebrew preview): send + the queued close + next
+  ticket, at once. Not offered while "someone answered meanwhile" is on the ticket (read first, then "send anyway").
+- **"תשובה אחרת"** (`rd-hint`, `rd-btn`, `rd-undo`): `apiRedraftOne {id, hint, seen, last, base}` / `{…, undo: true}` — engine/AgentRedraft.gs. `base` =
+  `draftFp()` (FNV-1a) of the draft the screen shows; the engine refuses when the draft, the customer or the handler moved. The way back is kept per
+  ticket (`Regen.undo`), so the 5 s redraw of an idle ticket does not lose it. English desk: the new Hebrew draft comes back through `/translate`.
+- **"לענות מאוחר יותר"** (`snooze-btn` → `snooze-opt` 30m / 1h / 2h / eod; `snooze-chip`, `snooze-cancel`, strip `snooze-section`):
+  `GET /api/snooze`, `POST /api/<brand>/snooze {id, kind}` / `{id, cancel: true}` (snooze.py, the private disk, `SNOOZE_PATH` default
+  `<users dir>/snooze.json`). Hidden from HIS list and count only; back on top when the time is up or the customer wrote again; refused when nobody
+  else would see it. The board: `agents[].snoozed_now`. Re-read every 30 s and on tab focus; a timer brings a row back at its exact time.
+- Mock: `REFUSE-SEND` in a send's text = a refusal (`thread_missing`), `BUSY-ONCE` = one `busy` then ok, `MOCK_REDRAFT_FAIL=1` = every different
+  answer blocked. Live check after a deploy: `tools/live_ui_send.py <brand> --desk he --close-timing` / `--send-close` (cstest-* customers only).
+
+## The team's corrections become suggested notes; a note rewrites the open drafts (2026-10-22)
+
+- Inside the AI-notes card (admin only, no new tab): section `💡 הצעות מהתיקונים של הצוות` (`data-test=ai-sugg-section`), per brand:
+  the suggestion, "נמצא ב-{n} תיקונים", 2 examples collapsed (customer / the AI wrote / the team sent), and ✅ add as a note · ✏️ edit and
+  add (inline editor; `text` is sent only when it differs) · ✕ not relevant (two clicks). A brand with none: one muted line with its corrections count.
+- Engine fns (AiLearn.gs): `apiAiNoteSuggestions {}` (read, retried like any read) and `apiAiNoteSuggestDecide {id: ^s[0-9a-f]{16}$, decision, text?}`
+  (write, rid-resolved). Flask rebuilds the args (reject drops `text`; text 1-600 after trim) and the reply schema binds the decision to THAT id; an
+  approval must carry the note (id = the suggestion id without `s`). An approved suggestion is an ordinary brand note: it shows in the list and gets
+  its reading + live check.
+- `redraft: n` on add / delete / attach (and on a decide, if the engine ever sends it) → "✍️ n טיוטות פתוחות ב-{brand} נכתבות מחדש…" under the
+  status (`data-test=ai-note-redraft`); 0 / null / absent → nothing. `check.gate` → a ⚠ line (`data-test=ai-note-gate`), never ✅, even with `follows:true`.
+- The section has its own container and repaint: a check result repainting the notes never rebuilds an editor; an open editor's text lives in state.
+- Mock: rozela has 2 suggestions, celesta 1; `MOCK-GATE` in a note = a gated check; `MOCK_REDRAFT_NULL=1` = `redraft: null`;
+  `MOCK_DECIDE_REDRAFT=1` = a decide that carries `redraft`. Tests: `tests/test_ai_notes_suggestions_browser.py`, `tests/test_ai_notes_proxy.py`.
+
+## SLA for the CS manager (Owner, 2026-10-24)
+Course law `brandon-support-sla-is-dispute-prevention`: fast support prevents chargebacks. Code: `sla.py` (pure functions + `GET /api/dash/sla`), the `Sla` module in `static/app.js`,
+tests `tests/test_sla.py` + `tests/test_sla_browser.py`. Managers only (admin + user-manager; an agent gets 403). No engine call of its own: it counts the server's cached ticket lists
+(a brand copy older than 30 s gets the one shared change-feed read). Ids, counts and times only: no customer name, email or text leaves the module.
+- **Targets (config):** first reply by a person <= 4 BUSINESS hours, resolution <= 36 hours (calendar), "about to breach" from 75% of either. Override with the Render env `SLA_CONFIG`
+  (JSON, any of `first_reply_bh_h`, `resolution_h`, `warn_ratio`, `window_days`, `hours`), validated; a bad value falls back to the default.
+- **Business hours (Asia/Jerusalem):** the engine defines only the desk CLOSE (17:00, `engine/DayStats.gs` `DS_SERVICE_CLOSE_HOUR`). Default used: Sun-Thu 09:00-17:00, Fri 09:00-13:00, Sat closed,
+  measured from the agents' activity log 2026-09-25..10-24 (team works Sun-Fri 09-17, Friday ends ~13:00). Change `hours` in `SLA_CONFIG` (`{"6":[9,17],...}`, Python weekday Mon=0..Sun=6).
+- **Open tickets (live):** a ticket in ready / action / health / delay waits for a person; its clock = `waiting_since` (the customer's last unanswered message), business hours only.
+  breach = past either target, risk = 75%+. Kind: "first reply" (no person handled it yet) or "follow-up".
+- **Completed (approximation):** first reply = waiting_since -> handled_at of a ticket a person answered (sent / wa_queued); resolution = the same for a ticket a person closed (done); per agent = `handled_by`.
+  The list holds every open ticket but only the last ~100 closed per brand and the LAST handling, so these are a proxy with the sample size shown; the true first reply of the day (dayStats, wall clock) is drawn beside it from the board's own data.
+- **Surfaces:** (1) banner on every manager screen, ONLY inside business hours and only when something breaches (red) or is about to (yellow), with per-brand counts, the oldest wait and a link to the board; polls once a minute;
+  (2) the SLA section on `#/dash` under the live strip (daily line, per-brand cards, breaching/at-risk table with a link to each ticket, agents table); (3) the midnight snapshot keeps the finished day's SLA numbers (`snap-*` key `sla`).
+- **Guidance in the ticket (agents too):** a collapsed "מדריך טיפול מהיר" card on every open ticket: the four playbooks (לא קיבלתי + the brand's /pages/track, לא זיהיתי את החיוב, ניסיתי לבטל, המוצר לא עבד) and the subscription-retention card
+  (opens first on a cancel ticket). The same rules sit in the knowledge assistant's prompt (`assistant.py` rule 9). Escalation names the CS manager's role, never Guy. The engine's draft prompt already carries the retention ladder (`CS_SUBSCRIPTION_SAVE`).
+
+## Must-read notices — the Kaching subscriptions procedure (Owner, 2026-10-26)
+Guy: "very important to pass it to the CS manager Manager, and put an alert for him when he enters his CS system so he won't forget".
+- **Who:** every user holding rozela / celesta / apexmen, and every admin (Manager = admin + all three). A velora/selera-only agent never sees it.
+- **What:** on every app open, until THAT user acknowledges, a modal "🧾 נוהל חדש: מנויים ב-Kaching — חשוב מאוד" with the procedure
+  (`/Users/Shared/course_mrr/cs_sop_manager/<brand>.md`, word for word: shared steps once, then each of the user's brands' retention options line —
+  the three files differ only there). Esc does not dismiss it; the only way out is "✅ קראתי והבנתי". After that: ☰ menu → "🧾 נוהל מנויים"
+  reopens it read-only with "✓ אישרת שקראת ב-…".
+- **Storage:** Postgres `screen_notice_acks(username, notice_id, acked_at)`, `INSERT … ON CONFLICT DO NOTHING` (two instances during a deploy
+  can never move the first time). Audit `notice_acked` once per user. Add a notice = a new dict in `notice.NOTICES` with a NEW id
+  (an id change re-shows it to everyone).
+- **Tests:** `tests/test_notice.py` (show-until-ack, restart persistence, per user, brand scope, CSRF/Origin/login, the text vs the procedure
+  files word for word — mutation-checked), `tests/test_notice_browser.py` (real browser: modal, Esc blocked, reload shows it again, ack hides it,
+  menu reopens it, other users, 390/768/1280). Every other browser test / `tools/screens.py` starts pre-acknowledged (`browser_server.preack_env`).
+
+## Phone top bar + the notice footer (Owner, 2026-10-26)
+- Measured live: at 390 px an admin's bar (title, 📊 board, brand picker, English desk, name, ☰) made the page 521 px wide, so the whole screen sat
+  shifted sideways. The bar stays ONE row on phones (≤640 px), because `.tabs` (top 50px), `.tk-head` (104px) and `.menu` (52px) are pinned to
+  its height: "📊 לוח מנהלים" → 📊 and "English desk" → EN (the full name stays in `title` + `aria-label`; `.tb-long` / `.tb-short`), and the
+  title, brand picker and name shrink with an ellipsis. Nothing is hidden. The English desk's translation status chips (`#tr-state`,
+  `he-translate`, `#tk-subject-warning`) wrap instead of pushing an open ticket to 610 px.
+- The notice modal: the body (`.notice-in`) scrolls inside, the button row (`.notice-foot`) is a footer that never leaves the screen.
+- Tests: `tests/test_topbar_phone_browser.py` (admin, pure user-manager, agents with 1 and 2 brands × list / ticket / board × both desks ×
+  360 / 390 / 414: scrollWidth ≤ clientWidth; fails with the phone CSS removed), `tests/test_notice_browser.py::test_ack_button_is_on_screen_without_scrolling`
+  (768×700, 390×700, 360×560: the button's centre is the button, the body scrolls).

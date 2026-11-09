@@ -1110,6 +1110,7 @@
   }
   async function engine(fn, args, brand) {
     const b = brand || S.brand;
+    if (isViewer() && VIEWER_FNS.indexOf(fn) < 0) return { ok: false, error: 'forbidden_role', msg: LANG === 'en' ? 'This account is read-only.' : 'החשבון הזה הוא לקריאה בלבד.' };
     const r = await api('/api/' + encodeURIComponent(b) + '/' + fn, { args: args || {}, lang: LANG });
     if (r && r.refresh) afterUnknownWrite(b, args && args.id, r.msg);       // QA round 4: the write may have run
     return r;
@@ -1167,6 +1168,11 @@
   function ticketHash(id) { return '#/b/' + encodeURIComponent(S.brand) + '/t/' + encodeURIComponent(id); }
 
   function canWork() { return S.me && (S.me.engine_role === 'agent' || S.me.engine_role === 'admin'); }
+  // The read-only viewer (the owner 2026-11-09). The server refuses every write for him twice (Flask + engine); this is the third wall and the reason
+  // no write control is drawn for him. VIEWER_FNS mirrors engine_proxy.VIEWER_FNS (a test compares the two lists).
+  function isViewer() { return !!S.me && S.me.engine_role === 'viewer'; }
+  const VIEWER_FNS = ['apiBoot', 'apiStatus', 'apiTicket', 'apiTicketExtras', 'apiTicketFull', 'apiTicketLite', 'apiChanges', 'apiTickets', 'apiSearch', 'apiAutoCancelList',
+    'apiAutoReplyList', 'apiWaPhotoGet', 'apiDayStats', 'apiCancelStats', 'apiCancelReasons', 'apiBillingHealth'];
 
   function route() {
     const r = parseHash();
@@ -1186,7 +1192,7 @@
       return;
     }
     if (r.view === 'dash') {
-      if (!S.me.can_manage_users) return go('#/', true);           // admin + user-manager only (the server says 403 too)
+      if (!S.me.can_manage_users && !isViewer()) return go('#/', true);           // admin + user-manager (+ the read-only viewer); the server says 403 too
       S.view = 'dash';
       $('users-pane').hidden = true;
       $('settings-pane').hidden = true;
@@ -1251,7 +1257,7 @@
     const brands = S.me.brands;
     // phone (<=640px): the bar keeps ONE row (tabs / ticket head / menu are pinned to its height) — links collapse to icon / short label, never hidden
     const dl = LANG === 'en' ? 'Managers' : 'לוח מנהלים';
-    if (S.me.can_manage_users && S.view !== 'dash') top.append(h('a', { class: 'dash-link', href: '#/dash', 'data-test': 'dash-link', title: dl, 'aria-label': dl }, '📊', h('span', { class: 'tb-long', text: ' ' + dl })));
+    if ((S.me.can_manage_users || isViewer()) && S.view !== 'dash') top.append(h('a', { class: 'dash-link', href: '#/dash', 'data-test': 'dash-link', title: dl, 'aria-label': dl }, '📊', h('span', { class: 'tb-long', text: ' ' + dl })));
     if (canWork() && brands.length && S.view !== 'zip') {          // phone (<=640px): hidden by CSS, the ☰ menu carries it — the bar has no room
       const zl = LANG === 'en' ? 'Zip-code fill' : 'מילוי מיקודים';
       top.append(h('a', { class: 'dash-link zip-link', href: '#/zip/' + encodeURIComponent(S.brand || brands[0].id), 'data-test': 'zip-link', title: zl, 'aria-label': zl },
@@ -1426,7 +1432,7 @@
     if (!connected()) return;                       // nothing to list yet: no tabs, no counts
     TABS.forEach(function (id) {
       if (MERGED.indexOf(id) >= 0) return;               // part of the one open list
-      if (id === 'auto' && (!b || noSubs())) return;     // unknown until apiBoot answers: hidden, not guessed
+      if (id === 'auto' && (!b || noSubs() || !canWork())) return;     // unknown until apiBoot answers: hidden, not guessed; the approve / reject queue is not shown to the read-only viewer
       if (id === 'autoreply' && (!S.ar[S.brand] || S.ar[S.brand].unavailable)) return;
       const n = tabCount(id, b);
       if (id === 'failed' && !n && S.tab !== 'failed') return;      // shown only while something failed
@@ -2201,7 +2207,7 @@
     cc.id = 'tk-conv';
     if (isWA(x)) cc.classList.add('wa');
     body.append(cc);
-    if (x.status === 'bot') {
+    if (x.status === 'bot' && canWork()) {
       const tb = armed(t('takeover'), t('takeover_arm'), 'primary wa', async function (btn) {
         btn.disabled = true;
         const r = await engine('apiWaTakeOver', { id: x.id }, k.brand);
@@ -2213,13 +2219,15 @@
       body.insertBefore(h('div', { class: 'bot-banner', role: 'note', 'data-test': 'bot-banner' }, h('div', null, t('bot_banner')), h('div', { class: 'actions' }, tb)),
         body.children[1] || null);
     }
-    const dcard = x.status === 'bot' ? null : (enMode(x) && (isOpen || canFollowUp(x)) ? EnDraft.card(x) : Draft.card(x));
+    const dcard = !canWork() ? roDraftCard(x) : x.status === 'bot' ? null : (enMode(x) && (isOpen || canFollowUp(x)) ? EnDraft.card(x) : Draft.card(x));
     if (dcard && x.recommendation && isOpen) {
       const h3 = dcard.querySelector('h3');
       h3.after(h('div', { class: 'todo-chip', 'data-test': 'what-to-do-chip' }, h('b', { text: t('what_to_do') + ': ' }), h('span', { class: 'tk-reco2', dir: 'auto', text: x.recommendation })));
     }
+    if (!canWork()) { if (dcard) body.append(dcard); } else {
     const subx = SubCancel.slot();                 // "לבטל את המנוי" (2026-10-16): bottom of the send area, both desks
     if (dcard) { dcard.append(subx); dcard.addEventListener('input', function () { SubCancel.paint(); }); body.append(dcard); } else body.append(subx);
+    }
     body.append(h('div', { id: 'orders-card' }, ordersCard(ex, x)));
     // Rendered only once apiBoot says the brand HAS subscriptions; a deep link can arrive first (paintSubs fills it later).
     const subsHidden = !!(ex.notes && ex.notes.subscriptions === 'brand_none');
@@ -2241,7 +2249,16 @@
       if (k.trHe && k.trHe.ok && k.trHe.sig === k.sig) HeTranslate.paint(k); else HeTranslate.load(k);
     }
     paintSync();
-    SubCancel.paint();
+    if (canWork()) SubCancel.paint();
+  }
+
+  /** The read-only viewer sees the AI's draft as plain text (no editor, no send, no handled, no close). */
+  function roDraftCard(x) {
+    const text = String(x.draft_text || '').trim();
+    if (!text) return null;
+    return h('div', { class: 'card ro-draft', 'data-test': 'ro-draft' }, h('h3', { text: t('draft') }),
+      h('div', { class: 'ro-draft-text', dir: 'auto', text: text }),
+      h('div', { class: 'muted small', 'data-test': 'ro-note', text: LANG === 'en' ? 'Read-only account: nothing here can be sent or changed.' : 'חשבון לקריאה בלבד: אי אפשר לשלוח או לשנות כאן דבר.' }));
   }
 
   /** The failed-send box at the top of the ticket. "שלח שוב" only for a plain failure (failed: open / chat / compose) —
@@ -2251,7 +2268,7 @@
     const box = h('div', { class: 'wa-fail-box', role: 'alert', 'data-test': 'wa-fail' },
       h('div', { text: kind === 'template_required' ? t('wa_fail_tpl_note') : kind === 'unknown' ? t('wa_fail_unknown_note') : t('wa_fail_note') }));
     const text = String(x.wa_out || '');
-    if (kind !== 'failed' || String(x.wa_send || '').split(':')[0] !== 'failed' || !text.trim()) return box;
+    if (!canWork() || kind !== 'failed' || String(x.wa_send || '').split(':')[0] !== 'failed' || !text.trim()) return box;      // no resend for the read-only viewer
     const b0 = S.boots[k.brand];
     const btn = armed(t('wa_resend'), t('wa_resend_arm'), 'primary wa', function () {
       if (btn.disabled) return;
@@ -4508,6 +4525,7 @@
     }
     btn.addEventListener('click', addNote);
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') addNote(); });
+    if (!canWork()) return c;                                  // the read-only viewer reads the notes, never adds one
     c.append(h('div', { class: 'note-add' }, inp, btn), err);
     return c;
   }
@@ -7345,8 +7363,92 @@
       cr.el.append(h('div', { class: 'table-wrap' }, tb));
       cr.el.append(h('div', { class: 'muted small cr-how', 'data-test': 'cr-how', text: crT('how', { m: x.model || 'AI' }) }));
     }
+
+    /** Billing health from Kaching (Owner, 2026-11-09: "Kaching cancellation reasons + failed-charge retry settings visible for analysis, read-only").
+     *  Kaching's API gives the OUTCOME of the retry ladder (first-try success, recovered, lost, subscriptions in dunning, failure reasons) but neither the
+     *  reason a customer gave when cancelling nor the retry settings themselves; the card says so in plain words. Admin + the read-only viewer. ONE element. */
+    const BHL = ({
+      he: { title: 'בריאות חיוב — Kaching', sub: 'קריאה בלבד · Kaching /analytics · מתעדכן כל 10 דקות', p7: '7 ימים', p30: '30 ימים', p90: '90 ימים', loading: 'קורא את הנתונים…',
+        none: 'אין מנויים במותג הזה.', unavail: 'Kaching לא ענה ({d}) — אין מה להציג, ולא ממציאים.', stale: 'הנתונים ישנים: Kaching לא ענה ברענון האחרון.',
+        first: 'הצלחה בניסיון הראשון', success: 'הצלחה סופית', failed: 'חיובים שנכשלו', recovered: 'התאוששו בניסיון חוזר', lost: 'אבדו (לא נגבו)', dunning: 'מנויים בגבייה עכשיו',
+        attempts: 'ניסיונות חיוב', churn: 'נטישת מנויים', active: 'מנויים פעילים', cancelled: 'בוטלו', reasons: 'סיבות כישלון החיוב', col_reason: 'סיבה', col_n: 'כמות', col_pct: '%',
+        na_head: 'לא זמין דרך ה-API של Kaching', na1: 'הסיבה שהלקוח בחר בעת ביטול מנוי', na2: 'הגדרות הניסיון החוזר של חיוב שנכשל (כמה ניסיונות ובאיזה מרווח)',
+        na_tail: 'את "למה מבטלים" מחשבים כאן משיחות השירות (הכרטיס שמעל). את ההגדרות רואים רק בממשק הניהול של Kaching.', range: 'טווח: {a} עד {b}' },
+      en: { title: 'Billing health — Kaching', sub: 'read-only · Kaching /analytics · refreshed every 10 minutes', p7: '7 days', p30: '30 days', p90: '90 days', loading: 'Reading the data…',
+        none: 'This brand has no subscriptions.', unavail: 'Kaching did not answer ({d}) — nothing to show, nothing invented.', stale: 'Old data: Kaching did not answer the last refresh.',
+        first: 'First-try success', success: 'Final success', failed: 'Failed charges', recovered: 'Recovered on a retry', lost: 'Lost (never collected)', dunning: 'Subscriptions in dunning now',
+        attempts: 'Billing attempts', churn: 'Subscription churn', active: 'Active subscriptions', cancelled: 'Cancelled', reasons: 'Why charges fail', col_reason: 'Reason', col_n: 'Count', col_pct: '%',
+        na_head: 'Not available through Kaching\'s API', na1: 'the reason a customer picked when cancelling a subscription', na2: 'the retry settings for a failed charge (how many attempts, at what interval)',
+        na_tail: '"Why customers cancel" is computed here from the service conversations (the card above). The settings can only be seen in the Kaching admin.', range: 'Range: {a} to {b}' }
+    })[LANG === 'en' ? 'en' : 'he'];
+    const BH_REASON_HE = { payment_method_not_found: 'אמצעי תשלום לא נמצא', payment_method_declined: 'הכרטיס נדחה', payment_provider_is_not_enabled: 'ספק התשלום לא מופעל',
+      insufficient_funds: 'אין מספיק כסף בכרטיס', purchase_type_not_supported: 'סוג רכישה לא נתמך בכרטיס', card_number_incorrect: 'מספר כרטיס שגוי', fraud_suspected: 'חשד להונאה',
+      invalid_payment_method: 'אמצעי תשלום לא תקין', expired_payment_method: 'אמצעי התשלום פג תוקף' };
+    const bh = { el: null, data: null, period: 'LAST_30_DAYS', busy: false, err: null, at: 0 };
+    function bhT(k, v) { let x = BHL[k] || k; Object.keys(v || {}).forEach(function (a) { x = x.split('{' + a + '}').join(String(v[a])); }); return x; }
+    function bhN(v, suf) { return v === null || v === undefined ? '—' : String(Math.round(v * 10) / 10) + (suf || ''); }
+    function bhStrip() {
+      if (!bh.el) bh.el = h('section', { class: 'dash-bh', id: 'dash-bh', 'data-test': 'bh', 'aria-live': 'polite' });
+      paintBh();
+      return bh.el;
+    }
+    function paintBh() {
+      const el = bh.el;
+      if (!el) return;
+      clear(el);
+      const sel = h('select', { 'aria-label': BHL.title, 'data-test': 'bh-period' },
+        [['LAST_7_DAYS', BHL.p7], ['LAST_30_DAYS', BHL.p30], ['LAST_90_DAYS', BHL.p90]].map(function (o) { return h('option', { value: o[0], text: o[1], selected: bh.period === o[0] }); }));
+      sel.addEventListener('change', function () { bh.period = sel.value; bh.data = null; paintBh(); loadBh(true); });
+      el.append(h('div', { class: 'live-head' }, h('h3', { text: '💳 ' + BHL.title }), h('span', { class: 'muted small', text: BHL.sub }), sel));
+      if (bh.err) el.append(h('div', { class: 'err-box', role: 'alert', text: bh.err }));
+      if (!bh.data) { if (!bh.err) el.append(h('div', { class: 'muted', text: BHL.loading })); }
+      else {
+        const grid = h('div', { class: 'brand-grid' });
+        Object.keys(bh.data.brands).forEach(function (b) {
+          const x = bh.data.brands[b];
+          const card = h('div', { class: 'dash-card bh-card', 'data-test': 'bh-brand', 'data-brand': b }, h('h4', { text: brandName(b) }));
+          if (x.state === 'no_subscriptions') card.append(h('div', { class: 'muted small', text: BHL.none }));
+          else if (x.state !== 'ok') card.append(h('div', { class: 'note-box warn', 'data-test': 'bh-unavail', text: bhT('unavail', { d: x.detail || x.state || '' }) }));
+          else {
+            if (x.stale) card.append(h('div', { class: 'note-box warn', text: BHL.stale }));
+            const bl = x.billing || {}, sb = x.subscriptions || {};
+            const row = function (k, v, test) { return [h('dt', { text: BHL[k] }), h('dd', { 'data-test': test || null, text: v })]; };
+            card.append(h('dl', { class: 'kv' },
+              row('first', bhN(bl.firstTrySuccessRate, '%'), 'bh-first'), row('success', bhN(bl.successRate, '%'), 'bh-success'),
+              row('attempts', bhN(bl.attempts), 'bh-attempts'), row('failed', bhN(bl.failed), 'bh-failed'), row('recovered', bhN(bl.recovered), 'bh-recovered'),
+              row('lost', bhN(bl.lost), 'bh-lost'), row('dunning', bhN(bl.inDunning), 'bh-dunning'),
+              row('active', bhN(sb.active), 'bh-active'), row('cancelled', bhN(sb.cancelled)), row('churn', bhN(sb.churnRate, '%'), 'bh-churn')));
+            const rs = x.failureReasons || [];
+            if (rs.length) {
+              const tb = h('table', { class: 'dash-table bh-reasons', 'data-test': 'bh-reasons' }, h('thead', null, h('tr', null, h('th', { text: BHL.col_reason }), h('th', { text: BHL.col_n }), h('th', { text: BHL.col_pct }))));
+              const body = h('tbody');
+              rs.forEach(function (r) {
+                const he = LANG === 'he' && BH_REASON_HE[r.reason];
+                body.append(h('tr', { 'data-test': 'bh-reason' }, h('td', null, he ? he + ' ' : '', h('bdi', { class: 'ltr muted small', text: r.reason })),
+                  h('td', { text: bhN(r.count) }), h('td', { text: bhN(r.percentage, '%') })));
+              });
+              tb.append(body);
+              card.append(h('h5', { text: BHL.reasons }), h('div', { class: 'table-wrap' }, tb));
+            }
+            if (x.range) card.append(h('div', { class: 'muted small', text: bhT('range', { a: String(x.range.from).slice(0, 10), b: String(x.range.to).slice(0, 10) }) }));
+          }
+          grid.append(card);
+        });
+        el.append(grid);
+      }
+      el.append(h('div', { class: 'note-box bh-na', role: 'note', 'data-test': 'bh-na' }, h('b', { text: BHL.na_head + ': ' }), h('span', { text: '(1) ' + BHL.na1 + ' · (2) ' + BHL.na2 + '. ' + BHL.na_tail })));
+    }
+    async function loadBh(force) {
+      if (!(S.me.is_admin || isViewer()) || bh.busy) return;
+      if (!force && bh.data && Date.now() - bh.at < 300000) return;
+      bh.busy = true;
+      let r;
+      try { r = await api('/api/dash/billing?period=' + encodeURIComponent(bh.period), undefined, 'GET', { quiet: true }); } catch (e) { r = null; } finally { bh.busy = false; }
+      if (r && r.ok && r.period === bh.period) { bh.data = r; bh.err = null; bh.at = Date.now(); } else if (!(r && r.ok)) bh.err = (r && (r.msg || r.error)) || BHL.unavail.replace('{d}', '');
+      if (S.view === 'dash') paintBh();
+    }
     async function loadCr(force) {
-      if (!S.me.is_admin || cr.busy) return;
+      if (!(S.me.is_admin || isViewer()) || cr.busy) return;
       if (!force && cr.data && !cr.data.busy && Date.now() - cr.at < 120000) return;   // weekly data: the 30 s board tick asks at most every 2 min
       cr.busy = true;
       let r;
@@ -7357,7 +7459,7 @@
       if (r && r.ok && r.busy) cr.again = setTimeout(function () { if (S.view === 'dash' && !document.hidden) loadCr(true); }, 4000);   // a brand is still being read
     }
     async function loadCx() {
-      if (!S.me.is_admin) return;
+      if (!(S.me.is_admin || isViewer())) return;
       const want = cx.pick || st.date || '';
       cx.want = want;
       let r;
@@ -7677,8 +7779,9 @@
       if (st.data) head.append(h('b', { class: 'shown-day', 'data-test': 'dash-shown', text: st.data.days.length > 1 ? st.data.days[0] + ' – ' + st.data.end_day : st.data.end_day }));
       if (st.data) head.append(h('span', { class: 'muted small', 'data-test': 'dash-updated', text: L.updated + ' ' + new Date(st.data.generated_at * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL') }));
       p.append(head, liveStrip(), Sla.section());          // SLA (2026-10-24): managers' board, right under the live strip
-      if (S.me.is_admin) p.append(cxStrip());          // cancellations (2026-10-23): admins only, like the sales table
-      if (S.me.is_admin) p.append(crStrip());          // why customers cancel a subscription (2026-11-01): admins only
+      if (S.me.is_admin || isViewer()) p.append(cxStrip());          // cancellations (2026-10-23): admins only, like the sales table (+ the read-only viewer, 2026-11-09)
+      if (S.me.is_admin || isViewer()) p.append(crStrip());          // why customers cancel a subscription (2026-11-01): admins only (+ the read-only viewer)
+      if (S.me.is_admin || isViewer()) p.append(bhStrip());          // billing health + the failed-charge reasons from Kaching (2026-11-09): admin + the read-only viewer
       if (st.err) p.append(h('div', { class: 'err-box', text: st.err }));
       const x = st.data;
       if (!x) { p.append(h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); return; }
@@ -7732,6 +7835,7 @@
       loadLive();
       loadCx();
       loadCr();
+      loadBh();
       if (!timer) timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) load(true); }, 30000);
       if (!live.timer) live.timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) { loadLive(); loadCx(); loadCr(); } }, 30000);
     }
@@ -8424,7 +8528,7 @@
     }
     S.me = r;
     Outbox.boot();                                     // sends that were in flight when the page closed: ask, never resend
-    Snooze.load();                                     // his snoozed tickets (server-side: the same on every device)
+    if (canWork()) Snooze.load();                      // his snoozed tickets (server-side: the same on every device); the read-only viewer has none
     window.addEventListener('hashchange', route);
     route();
     Sla.start();                                       // SLA banner for managers (2026-10-24): one light poll a minute, nothing for agents

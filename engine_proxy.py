@@ -27,9 +27,11 @@ import requests
 import messages
 import security
 
-ALL_ROLES = ("agent", "admin", "user-manager")
+ALL_ROLES = ("agent", "admin", "user-manager", "viewer")
 WORK_ROLES = ("agent", "admin")
+READ_ROLES = ("agent", "admin", "viewer")      # reads of tickets / lists: the read-only viewer (the owner 2026-11-09) may call exactly these
 ADMIN_ONLY = ("admin",)
+STATS_ROLES = ("admin", "viewer")              # the dashboards' numbers: admin + the read-only viewer
 
 # apiKachingAction: the actions and their own fields (strings; the engine parses and range-checks them).
 KACHING_ACTIONS = ("pause", "resume", "reactivate", "skip", "unskip", "reschedule", "add_discount", "add_line", "update_line", "remove_line",
@@ -41,10 +43,10 @@ KACHING_ACTION_FIELDS = ("cycleIndex", "billingDate", "discountType", "value", "
 FN_TABLE = {
     "apiBoot": (ALL_ROLES, ()),
     "apiStatus": (ALL_ROLES, ()),
-    "apiTicket": (WORK_ROLES, ("id",)),
-    "apiTicketExtras": (WORK_ROLES, ("id",)),
-    "apiTickets": (WORK_ROLES, ("ids",)),
-    "apiSearch": (WORK_ROLES, ("q",)),
+    "apiTicket": (READ_ROLES, ("id",)),
+    "apiTicketExtras": (READ_ROLES, ("id",)),
+    "apiTickets": (READ_ROLES, ("ids",)),
+    "apiSearch": (READ_ROLES, ("q",)),
     "apiSaveDraft": (WORK_ROLES, ("id", "text")),
     # followup: another message on an answered / closed ticket; seen: the ticket's handled_at as the screen showed it (Owner, 2026-10-11)
     "apiSend": (WORK_ROLES, ("id", "text", "override", "followup", "seen", "attachments")),   # attachments: ids from POST /api/<brand>/attach
@@ -70,11 +72,11 @@ FN_TABLE = {
     # "מיזוג פניות" (the CS team, 2026-10-31): email ticket `from` is merged INTO ticket `id` (engine Jobs.gs mergeTickets_)
     "apiMergeTickets": (WORK_ROLES, ("id", "from")),
     # Auto-cancel queue (Owner, 2026-10-05: the CS team decides). Shapes come from the engine builder later.
-    "apiAutoCancelList": (WORK_ROLES, ()),
+    "apiAutoCancelList": (READ_ROLES, ()),
     "apiAutoCancelApprove": (WORK_ROLES, ("id", "replyText")),
     "apiAutoCancelReject": (WORK_ROLES, ("id", "note")),
     # Auto-reply review queue (Owner, 2026-10-05: easy emails answered by the engine, "only a human eye goes over it")
-    "apiAutoReplyList": (WORK_ROLES, ()),
+    "apiAutoReplyList": (READ_ROLES, ()),
     "apiAutoReplyReview": (WORK_ROLES, ("id", "verdict", "note")),
     # WhatsApp chats the Dondy AI bot is handling (status "bot"): a person takes the conversation back (engine @18)
     "apiWaTakeOver": (WORK_ROLES, ("id",)),
@@ -113,37 +115,50 @@ FN_TABLE = {
     "apiAiNoteSuggestDecide": (ADMIN_ONLY, ("id", "decision", "text")),
     # 2026-10-23 (Guy: "כמה מנויים הצוות מבטל כל יום וכמה ביטולים בכללי"): cancellations per day / agent + the monthly Kaching churn. A read,
     # admin only (like the sales table). from / to = Israel days, YYYY-MM-DD, at most CANCEL_STATS_MAX_DAYS apart (checked in clean_args).
-    "apiCancelStats": (ADMIN_ONLY, ("from", "to")),
+    "apiCancelStats": (STATS_ROLES, ("from", "to")),
     # 2026-11-01 (Guy: "למה אנשים מבטלים את המנוי", five categories, a weekly run on Fridays 02:00): the engine's stored answers, per week. A read,
     # admin only; no argument from the browser (the engine shows its newest 8 complete weeks).
-    "apiCancelReasons": (ADMIN_ONLY, ()),
+    "apiCancelReasons": (STATS_ROLES, ()),
+    # 2026-11-09 (Guy: cancellation reasons + failed-charge retry settings visible for analysis): Kaching /analytics billingHealth, a read; admin + viewer. period = one of 3 fixed values.
+    "apiBillingHealth": (STATS_ROLES, ("period",)),
 }
 
 # Server-internal only (phase 5 assistant): never reachable from the browser route, only via call(internal=True).
 INTERNAL_FNS = {
     # 2026-10-11: a stored WhatsApp photo, served as an image by GET /api/<brand>/photo/<id> (never JSON to the browser)
-    "apiWaPhotoGet": (WORK_ROLES, ("id", "part")),   # 2026-10-30: email images up to 10 MB come in parts (the reply cap is 3 MB)
+    "apiWaPhotoGet": (READ_ROLES, ("id", "part")),   # 2026-10-30: email images up to 10 MB come in parts (the reply cap is 3 MB)
     # 2026-10-11: one part of a file an agent attaches; only attach.py (POST /api/<brand>/attach) calls it, after its own checks
     "apiAttachPut": (WORK_ROLES, ("id", "part", "parts", "size", "sha256", "name", "mime", "data")),
     "apiKnowledge": (WORK_ROLES, ()),
     "apiCustomerLookup": (WORK_ROLES, ("q",)),
     # performance (2026-10-05): one-call ticket open + incremental list polling
-    "apiTicketFull": (WORK_ROLES, ("id", "fresh")),
-    "apiAutoReplyList": (WORK_ROLES, ()),
-    "apiChanges": (WORK_ROLES, ("since",)),        # final shape: agent/admin, since = int >= 0
+    "apiTicketFull": (READ_ROLES, ("id", "fresh")),
+    "apiAutoReplyList": (READ_ROLES, ()),
+    "apiChanges": (READ_ROLES, ("since",)),        # final shape: agent/admin, since = int >= 0
     # engine @35/36 (2026-10-05): the open ticket's cheap check. {id, since: ticket v, seen: messages we hold}
-    "apiTicketLite": (WORK_ROLES, ("id", "since", "seen")),
+    "apiTicketLite": (READ_ROLES, ("id", "since", "seen")),
     # engine 2026-10-06: the day's numbers from the conversations themselves (managers' dashboard). Chunked: partial + next.
-    "apiDayStats": (("admin", "user-manager"), ("date", "cursor")),
+    "apiDayStats": (("admin", "user-manager", "viewer"), ("date", "cursor")),
     # QA round 4: the stored final reply of a write, by the rid it was sent with (engine keeps it 30 min)
     "apiResult": (WORK_ROLES, ("rid",)),
     "apiTicket": FN_TABLE["apiTicket"],
     "apiTicketExtras": FN_TABLE["apiTicketExtras"],
 }
 
+BILLING_PERIODS = ("LAST_7_DAYS", "LAST_30_DAYS", "LAST_90_DAYS")
+
 # apiSettings: the only actions, keys and values the screen may send. Anything else never leaves Flask.
 SETTINGS_VALUES = {"DRY_RUN": ("on", "off"), "KACHING_WRITES": ("on", "off"), "AUTO_CANCEL": ("off", "shadow", "on"),
                    "AUTO_REPLY": ("off", "shadow", "on")}
+
+# The ONLY functions the read-only viewer may reach (the owner 2026-11-09). Mirror of engine/Api.gs API_VIEWER_FNS. The tables above name roles per fn;
+# this literal is the second, independent statement of the same thing - the import below refuses to start if they ever disagree.
+VIEWER_FNS = frozenset(("apiBoot", "apiStatus", "apiTicket", "apiTicketExtras", "apiTicketFull", "apiTicketLite", "apiChanges", "apiTickets", "apiSearch",
+                        "apiAutoCancelList", "apiAutoReplyList", "apiWaPhotoGet", "apiDayStats", "apiCancelStats", "apiCancelReasons", "apiBillingHealth"))
+_in_tables = frozenset(fn for fn, (roles, _k) in dict(FN_TABLE, **INTERNAL_FNS).items() if "viewer" in roles)
+if _in_tables != VIEWER_FNS:
+    raise RuntimeError("viewer role drift between FN_TABLE/INTERNAL_FNS and VIEWER_FNS: %s" % sorted(_in_tables ^ VIEWER_FNS))
+
 
 def _core_url_re():
     """The core server (Node + Postgres) may replace a brand's Apps Script URL. Only the ONE host named in CORE_ENGINE_HOST is accepted."""
@@ -180,7 +195,7 @@ READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "ap
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
                       "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates", "apiAiNotes", "apiWaPhotoGet",
                       "apiKachingContract", "apiKachingVariants", "apiOrderEditState", "apiSubCancelPreview", "apiSaleCandidates", "apiSaleMine", "apiSaleProof", "apiSaleList",
-                      "apiSaleSuggestions", "apiAiNoteSuggestions", "apiCancelStats", "apiCancelReasons"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
+                      "apiSaleSuggestions", "apiAiNoteSuggestions", "apiCancelStats", "apiCancelReasons", "apiBillingHealth"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
 # the time a server thread was held (70-110 s), the 16 threads ran out, Render's health check timed out and the
@@ -496,6 +511,8 @@ def clean_args(fn, args, table=None):
             raise ProxyError("bad_request", 400)
     if fn == "apiCancelStats":
         out = _clean_cancel_stats(out)
+    if fn == "apiBillingHealth" and "period" in out and out["period"] not in BILLING_PERIODS:
+        raise ProxyError("bad_request", 400)
     if fn == "apiAutoCancelReject" and not (2 <= len(out.get("note", "").strip()) <= 300):
         raise ProxyError("bad_note", 400)
     if fn == "apiAutoReplyReview":
@@ -594,6 +611,16 @@ def _cancel_reasons_ok(r, a):
     return all(isinstance(w, dict) and isinstance(w.get("week"), str) and DAY_ARG_RE.match(w["week"]) and isinstance(w.get("counts"), dict) for w in r["weeks"])
 
 
+def _billing_health_ok(r, a):
+    """apiBillingHealth (2026-11-09): a bare {ok:true} never draws an empty card as data. state ok needs the numbers; any other state is a plain message."""
+    st = r.get("state")
+    if st not in ("ok", "no_subscriptions", "no_token", "unavailable"):
+        return False
+    if st != "ok":
+        return True
+    return isinstance(r.get("billing"), dict) and isinstance(r.get("subscriptions"), dict) and isinstance(r.get("failureReasons"), list)
+
+
 SCHEMAS = {
     "apiBoot": lambda r, a: isinstance(r.get("tickets"), list) and isinstance(r.get("counts"), dict),
     "apiChanges": lambda r, a: isinstance(r.get("tickets"), list) and "version" in r,
@@ -650,6 +677,7 @@ SCHEMAS = {
     "apiSaleScan": lambda r, a: isinstance(r.get("result"), dict),
     "apiCancelStats": _cancel_stats_ok,
     "apiCancelReasons": _cancel_reasons_ok,
+    "apiBillingHealth": _billing_health_ok,
 }
 
 
@@ -879,7 +907,7 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
         role = security.engine_role(roles)
     except ValueError:
         return 403, {"ok": False, "error": "forbidden_role", "msg": messages.proxy_msg("forbidden_role", lang)}
-    if role not in table[fn][0]:
+    if role not in table[fn][0] or (role == "viewer" and fn not in VIEWER_FNS):      # viewer: the table AND the literal list must both say yes
         return 403, {"ok": False, "error": "forbidden_role", "msg": messages.proxy_msg("forbidden_role", lang)}
     url = engines.get(brand)
     if not url:

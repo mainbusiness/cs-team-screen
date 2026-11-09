@@ -4,6 +4,7 @@ manage.py — user administration from the shell (Render Shell, on the same disk
 
   python manage.py add-user <username> --roles agent --brands rozela,velora [--lang he] [--name "Agent One"]
   python manage.py add-user manager --roles admin,user-manager --brands all
+  python manage.py add-user analyst --roles viewer --brands rozela     # read-only analyst: reads tickets + boards, cannot write anything
   python manage.py reset-password <username>
   python manage.py disable <username> | enable <username>
   python manage.py list
@@ -70,7 +71,7 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("add-user")
     a.add_argument("username")
-    a.add_argument("--roles", required=True, help="comma list: agent, admin, user-manager")
+    a.add_argument("--roles", required=True, help="comma list: agent, admin, user-manager; or viewer (READ-ONLY, always alone)")
     a.add_argument("--brands", required=True, help='comma list, or "all"')
     a.add_argument("--lang", default="he", choices=["he", "en"])
     a.add_argument("--name", default="")

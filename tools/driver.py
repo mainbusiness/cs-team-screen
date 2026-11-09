@@ -321,9 +321,91 @@ def compose_weekly(stats, local, days=7):
     return "סיכום שבועי " + end, "\n".join(lines)
 
 
+# Brands whose OWN weekly summary is also mailed, by that brand's own engine, to the people in the engine's Script Property BRAND_REPORT_TO
+# (the owner 2026-11-09: an analyst gets the ROZELA summary only). A SECOND mail next to the owner's all-brands summary: OWNER_EMAIL is not
+# touched, the emergency mail stays Guy-only, and the body is composed from that one brand's stats alone (brands never mix; the engine checks too).
+BRAND_REPORT_BRANDS = ("rozela",)
+
+
+def _brand_weeklies(engines, secret, transport, stats, local, week):
+    """One short line per brand mail, '' when there is nothing to say. Never raises: the owner's summary must never depend on it."""
+    notes = []
+    for b in BRAND_REPORT_BRANDS:
+        if b not in engines:
+            continue
+        try:
+            base = {"job": "sendBrandReport", "forBrand": b, "week": week}
+            try:
+                r = call_engine(engines[b], secret, b, transport, "apiAdminRun", dict(base, subject="x", body="x", peek=1), 30)
+            except Exception:
+                continue                                   # an engine that does not know the job yet: nothing to send, nothing to report
+            res = r.get("result") or {}
+            if res.get("error") in ("no_recipients", "wrong_brand"):
+                continue                                   # not configured for this brand: silent by design
+            if res.get("sent"):
+                notes.append("brand weekly: already sent (%s %s)" % (b, week))
+                continue
+            st = stats.get(b)
+            if st is None:                                 # the owner's pass returned early ('already sent'): read this brand's numbers now
+                try:
+                    st = call_engine(engines[b], secret, b, transport, "apiAdminRun", {"job": "weeklyStats", "days": 7}, 60).get("result") or None
+                except Exception:
+                    st = None
+            if not st or "received" not in st:
+                notes.append("brand weekly: %s has no stats, not sent (%s)" % (b, week))
+                continue
+            subject, body = compose_weekly({b: st}, local)      # ONLY this brand's numbers
+            subject = "%s — %s" % (subject, BRAND_TITLES.get(b, b))
+            r = call_engine(engines[b], secret, b, transport, "apiAdminRun", dict(base, subject=subject, body=body), 60)
+            res = r.get("result") or {}
+            if res.get("sent"):
+                notes.append("brand weekly: sent %s (%s)" % (b, week))
+            elif res.get("skipped") == "already_sent":
+                notes.append("brand weekly: already sent (%s %s)" % (b, week))
+            else:
+                notes.append("brand weekly: %s NOT sent (%s)" % (b, str(res.get("error") or "?")[:30]))
+        except Exception as e:
+            notes.append("brand weekly: %s error %s" % (b, type(e).__name__))
+    return "; ".join(notes)
+
+
+def _owner_weekly(engines, secret, transport, brands, local, week):
+    """The all-brands summary to OWNER_EMAIL -> (line, stats collected). Unchanged behaviour."""
+    senders = [b for b in WEEKLY_SENDERS if b in engines] + [b for b in brands if b in engines and b not in WEEKLY_SENDERS]   # last resort: any engine that has the job
+    for b in senders:   # already sent? one cheap call
+        try:
+            r = call_engine(engines[b], secret, b, transport, "apiAdminRun", {"job": "sendOwnerReport", "subject": "x", "body": "x", "week": week, "peek": 1}, 30)
+            if (r.get("result") or {}).get("sent"):
+                return "weekly: already sent (%s)" % week, {}
+            break
+        except Exception:
+            continue
+    stats = {}
+    for b in brands:
+        if b not in engines:
+            continue
+        try:
+            stats[b] = (call_engine(engines[b], secret, b, transport, "apiAdminRun", {"job": "weeklyStats", "days": 7}, 60).get("result") or None)
+            if stats[b] is not None and "received" not in stats[b]:
+                stats[b] = None
+        except Exception:
+            stats[b] = None
+    subject, body = compose_weekly(stats, local)
+    for b in senders:
+        try:
+            r = call_engine(engines[b], secret, b, transport, "apiAdminRun", {"job": "sendOwnerReport", "subject": subject, "body": body, "week": week}, 60)
+            res = r.get("result") or {}
+            if res.get("sent") or res.get("skipped") == "already_sent":
+                return "weekly: %s via %s (%s)" % ("sent" if res.get("sent") else "already sent", b, week), stats
+        except Exception:
+            continue
+    return "weekly: FAILED to send (%s)" % week, stats
+
+
 def maybe_weekly(engines, secret, transport, brands, now_utc=None, out=print):
     """Called every minute by the driver. In the Thursday 18:00-18:04 window, and only if this ISO week's report has not been sent (the engine that sends it keeps the stamp):
-    collect weeklyStats from every brand, compose ONE summary, send it through sendOwnerReport on the first sender engine that works. Never raises."""
+    collect weeklyStats from every brand, compose ONE summary, send it through sendOwnerReport on the first sender engine that works. Then (2026-11-09) each brand in
+    BRAND_REPORT_BRANDS mails its own summary to its own recipients, independent of the owner's mail. Never raises."""
     import datetime as dt
     try:
         now_utc = now_utc or dt.datetime.now(dt.timezone.utc)
@@ -331,35 +413,9 @@ def maybe_weekly(engines, secret, transport, brands, now_utc=None, out=print):
         if not weekly_window(local):
             return None
         week = iso_week_label(local)
-        senders = [b for b in WEEKLY_SENDERS if b in engines] + [b for b in brands if b in engines and b not in WEEKLY_SENDERS]   # last resort: any engine that has the job
-        for b in senders:   # already sent? one cheap call
-            try:
-                r = call_engine(engines[b], secret, b, transport, "apiAdminRun", {"job": "sendOwnerReport", "subject": "x", "body": "x", "week": week, "peek": 1}, 30)
-                if (r.get("result") or {}).get("sent"):
-                    return "weekly: already sent (%s)" % week
-                break
-            except Exception:
-                continue
-        stats = {}
-        for b in brands:
-            if b not in engines:
-                continue
-            try:
-                stats[b] = (call_engine(engines[b], secret, b, transport, "apiAdminRun", {"job": "weeklyStats", "days": 7}, 60).get("result") or None)
-                if stats[b] is not None and "received" not in stats[b]:
-                    stats[b] = None
-            except Exception:
-                stats[b] = None
-        subject, body = compose_weekly(stats, local)
-        for b in senders:
-            try:
-                r = call_engine(engines[b], secret, b, transport, "apiAdminRun", {"job": "sendOwnerReport", "subject": subject, "body": body, "week": week}, 60)
-                res = r.get("result") or {}
-                if res.get("sent") or res.get("skipped") == "already_sent":
-                    return "weekly: %s via %s (%s)" % ("sent" if res.get("sent") else "already sent", b, week)
-            except Exception:
-                continue
-        return "weekly: FAILED to send (%s)" % week
+        line, stats = _owner_weekly(engines, secret, transport, brands, local, week)
+        extra = _brand_weeklies(engines, secret, transport, stats, local, week)
+        return line + ("; " + extra if extra else "")
     except Exception as e:
         return "weekly: error %s" % type(e).__name__
 

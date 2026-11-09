@@ -40,7 +40,7 @@ def drain(app):
 
 def test_admin_only_read_with_no_browser_arguments():
     roles, keys = engine_proxy.FN_TABLE["apiCancelReasons"]
-    assert roles == ("admin",) and keys == ()
+    assert roles == ("admin", "viewer") and keys == ()
     assert "apiCancelReasons" in engine_proxy.READ_FNS
 
 

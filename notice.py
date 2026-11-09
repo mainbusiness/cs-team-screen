@@ -59,6 +59,8 @@ BY_ID = {n["id"]: n for n in NOTICES}
 
 
 def applies(notice, user):
+    if "viewer" in (user.get("roles") or []):
+        return False                       # the agents' procedure notices are not for the read-only viewer (2026-11-09)
     if "admin" in (user.get("roles") or []):
         return True
     return any(b in (user.get("brands") or []) for b in notice["brands"])

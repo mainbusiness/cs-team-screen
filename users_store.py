@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 
 USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{1,31}$")
 BRAND_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,29}$")
-ROLES = ("agent", "admin", "user-manager")
+ROLES = ("agent", "admin", "user-manager", "viewer")   # viewer (the owner 2026-11-09): READ-ONLY analyst; always the ONLY role of its user
 LANGS = ("he", "en")
 
 
@@ -163,6 +163,8 @@ class UserStore:
             roles = fields.get("roles")
             if not isinstance(roles, list) or not roles or any(r not in ROLES for r in roles):
                 raise UserStoreError("bad_roles")
+            if "viewer" in roles and set(roles) != {"viewer"}:
+                raise UserStoreError("bad_roles")          # a read-only account never also holds a working role: no mix can widen it
             out["roles"] = [r for r in ROLES if r in roles]
         if "brands" in fields or not partial:
             brands = fields.get("brands")

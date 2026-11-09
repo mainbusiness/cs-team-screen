@@ -154,6 +154,8 @@ def register(app, ctx):
             return err
         lang = ctx["ui_lang"](u)
         brand = str(brand).lower()
+        if "viewer" in u.get("roles", []):                 # read-only role (the owner 2026-11-09): no upload of any kind, before a byte is read
+            return fail("forbidden_role", 403, lang)
         if brand not in u.get("brands", []):
             return fail("forbidden_brand", 403, lang)
         f = request.files.get("file")

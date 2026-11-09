@@ -44,6 +44,7 @@ import security
 BRAND_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,29}$")
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 WORK_ROLES = ("agent", "admin")
+READ_ROLES = ("agent", "admin", "viewer")     # the read-only viewer (the owner 2026-11-09) may read tickets, never write
 OPEN_STATUSES = ("ready", "action", "health", "delay")
 PER_USER = ("user", "role", "lang")
 LIST_TTL_S = 10            # older list -> served, and refreshed in the background
@@ -471,7 +472,7 @@ class TicketCache:
         e = self._boot_entry(brand)
         now = self.clock()
         try:
-            work = security.engine_role(user.get("roles", [])) in WORK_ROLES
+            work = security.engine_role(user.get("roles", [])) in READ_ROLES
         except ValueError:
             work = False
         with self.lock:
@@ -1048,7 +1049,8 @@ def register(app, d):
                     presence.pop(key, None)
         return others
 
-    def gate(brand, work):
+    def gate(brand, work, read=False):
+        """work: agent / admin only. read: also the read-only viewer (2026-11-09). Neither: any signed-in user of the brand (the list)."""
         u, err = d["api_user"]()
         if err:
             return None, err
@@ -1057,7 +1059,7 @@ def register(app, d):
             role = security.engine_role(u.get("roles", []))
         except ValueError:
             role = None
-        if work and role not in WORK_ROLES:
+        if work and role not in (READ_ROLES if read else WORK_ROLES):
             return None, d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
         if not BRAND_RE.match(brand) or brand not in u.get("brands", []):
             return None, d["json_error"]("forbidden_brand", 403, lang)
@@ -1096,7 +1098,7 @@ def register(app, d):
     @app.post("/api/<brand>/ticket")
     def cached_ticket(brand):
         brand = str(brand).lower()
-        u, err = gate(brand, work=True)
+        u, err = gate(brand, work=True, read=True)
         if err:
             return err
         body = request.get_json(silent=True) or {}
@@ -1109,14 +1111,15 @@ def register(app, d):
                 return jsonify({"ok": False, "error": "not_cached"})
             return jsonify(ticket_body(e["full"], cache.meta(brand, e, True)))
         fresh = body.get("fresh") is True
-        if body.get("open") is True and body.get("revalidate") is not True:   # an agent opened it (dashboard activity)
+        viewer = security.engine_role(u.get("roles", [])) == "viewer"        # a read-only viewer is neither activity nor presence
+        if body.get("open") is True and body.get("revalidate") is not True and not viewer:   # an agent opened it (dashboard activity)
             act = app.extensions["cs"].get("activity")
             if act:
                 try:
                     act["after_open"](u, brand, tid)
                 except Exception:                                      # noqa: BLE001 — the log never fails an open
                     engine_proxy.log.exception("activity log failed")
-        others = presence_mark(u, brand, tid, False) if body.get("open") is True else None
+        others = presence_mark(u, brand, tid, False) if (body.get("open") is True and not viewer) else None
         full, e, meta = cache.get_ticket(u, brand, tid, revalidate=body.get("revalidate") is True or fresh, fresh=fresh,
                                          top=body.get("open") is True)       # the ticket on the agent's screen: reserved slot
         if not full:
@@ -1134,7 +1137,7 @@ def register(app, d):
     def watch_ticket(brand):
         """The open ticket, polled every ~5 s: {id, at} -> {changed:false} or {changed:true, ticket, extras, ...}."""
         brand = str(brand).lower()
-        u, err = gate(brand, work=True)
+        u, err = gate(brand, work=True, read=True)
         if err:
             return err
         body = request.get_json(silent=True) or {}
@@ -1142,7 +1145,7 @@ def register(app, d):
         if not isinstance(tid, str) or not ID_RE.match(tid):
             return d["json_error"]("bad_request", 400, d["ui_lang"](u))
         at = float(at) if isinstance(at, (int, float)) and not isinstance(at, bool) else 0.0
-        others = presence_mark(u, brand, tid, body.get("ed") is True)
+        others = [] if security.engine_role(u.get("roles", [])) == "viewer" else presence_mark(u, brand, tid, body.get("ed") is True)
         full, e, meta = cache.watch(u, brand, tid, at)
         if e:
             return jsonify(dict(localized(dict(e), d["ui_lang"](u), "apiTicket"), others=others))
@@ -1173,7 +1176,7 @@ def register(app, d):
     @app.post("/api/<brand>/related")
     def cached_related(brand):
         brand = str(brand).lower()
-        u, err = gate(brand, work=True)
+        u, err = gate(brand, work=True, read=True)
         if err:
             return err
         q = (request.get_json(silent=True) or {}).get("q")
@@ -1184,7 +1187,7 @@ def register(app, d):
     @app.post("/api/<brand>/queue")
     def cached_queue(brand):
         brand = str(brand).lower()
-        u, err = gate(brand, work=True)
+        u, err = gate(brand, work=True, read=True)
         if err:
             return err
         fn = (request.get_json(silent=True) or {}).get("fn")
@@ -1195,7 +1198,7 @@ def register(app, d):
     @app.post("/api/<brand>/prefetch")
     def cached_prefetch(brand):
         brand = str(brand).lower()
-        u, err = gate(brand, work=True)
+        u, err = gate(brand, work=True, read=True)
         if err:
             return err
         ids = (request.get_json(silent=True) or {}).get("ids")

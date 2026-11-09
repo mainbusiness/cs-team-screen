@@ -263,7 +263,7 @@ def test_weekly_not_outside_the_window_not_twice_and_falls_back_to_apexmen():
     tr, calls = weekly_transport(sent_before=True)
     lines = []
     driver.main(["--window", "1"], dict(ENV), tr, lines.append, now_utc=utc(2026, 10, 8, 15, 3))
-    assert not any(c[1] == "weeklyStats" for c in calls), "already sent: no stats are even collected"
+    assert not any(c[1] == "weeklyStats" and c[0] != "rozela" for c in calls), "already sent: no stats are collected for the owner's mail (only rozela's own, for its own mail - 2026-11-09)"
     assert any("already sent" in l for l in lines)
     tr, calls = weekly_transport(fail=("celesta",))
     lines = []
@@ -341,3 +341,85 @@ def test_none_drives_no_brand_and_the_weekly_report_still_goes_out():
     calls.clear()
     assert driver.main(["--window", "1"], env, tr, lines.append, now_utc=utc(2026, 10, 8, 14, 0)) == 0
     assert calls == []
+
+
+# ---------------- the brand's own weekly summary (the owner 2026-11-09: an analyst gets the ROZELA summary only) ----------------
+
+def brand_transport(recipients=True, rozela_stats=True, sent_before=False, brand_sent_before=False):
+    calls = []
+    def tr(url, body, timeout):
+        req = json.loads(body)
+        brand = {URL("a"): "rozela", URL("b"): "celesta", URL("c"): "apexmen", URL("e"): "selera"}.get(url, "?")
+        a = req["args"]
+        job = a.get("job")
+        calls.append((brand, job, a))
+        if job == "sendOwnerReport":
+            return 200, json.dumps(reply(body, ok=True, result={"sent": sent_before} if a.get("peek") else {"sent": True}))
+        if job == "weeklyStats":
+            if brand == "rozela" and not rozela_stats:
+                return 200, json.dumps(reply(body, ok=False, error="bad_job"))
+            return 200, json.dumps(reply(body, ok=True, result=STATS))
+        if job == "sendBrandReport":
+            if brand != "rozela":
+                return 200, json.dumps(reply(body, ok=True, result={"sent": False, "error": "wrong_brand"}))
+            if not recipients:
+                return 200, json.dumps(reply(body, ok=True, result={"sent": False, "error": "no_recipients"}))
+            if a.get("peek"):
+                return 200, json.dumps(reply(body, ok=True, result={"sent": brand_sent_before}))
+            return 200, json.dumps(reply(body, ok=True, result={"sent": True, "recipients": 1}))
+        return 200, json.dumps(reply(body, ok=True, result={"processed": 0, "health": {}}))
+    return tr, calls
+
+
+def brand_sends(calls):
+    return [c for c in calls if c[1] == "sendBrandReport" and not c[2].get("peek")]
+
+
+def test_the_rozela_summary_goes_to_the_rozela_engine_only_and_holds_rozela_alone():
+    tr, calls = brand_transport()
+    lines = []
+    assert driver.main(["--window", "1"], dict(ENV), tr, lines.append, now_utc=utc(2026, 10, 8, 15, 2)) == 0
+    sends = brand_sends(calls)
+    assert [c[0] for c in sends] == ["rozela"] and sends[0][2]["forBrand"] == "rozela" and sends[0][2]["week"] == "2026-W41"
+    body, subject = sends[0][2]["body"], sends[0][2]["subject"]
+    assert "— Rozela —" in body and "התקבלו: 12 מיילים · 30 וואטסאפ" in body and "Rozela" in subject
+    for other in ("Celesta", "ApexMen", "Velora", "Selera"):
+        assert other not in body and other not in subject, other
+    assert body.count("— ") == 2, "one brand section only"
+    assert any("brand weekly: sent rozela" in l for l in lines)
+    # the owner's all-brands summary is untouched: still ONE sendOwnerReport, through celesta, with every brand in it
+    owner = [c for c in calls if c[1] == "sendOwnerReport" and not c[2].get("peek")]
+    assert len(owner) == 1 and owner[0][0] == "celesta" and "— Celesta —" in owner[0][2]["body"] and "— Rozela —" in owner[0][2]["body"]
+    assert not [c for c in calls if c[1] == "sendBrandReport" and c[0] != "rozela" and not c[2].get("peek")]
+
+
+def test_brand_mail_is_once_a_week_silent_without_recipients_and_never_breaks_the_owner_mail():
+    tr, calls = brand_transport(brand_sent_before=True)
+    lines = []
+    driver.main(["--window", "1"], dict(ENV), tr, lines.append, now_utc=utc(2026, 10, 8, 15, 3))
+    assert brand_sends(calls) == [] and any("already sent (rozela" in l for l in lines)
+    tr, calls = brand_transport(recipients=False)
+    lines = []
+    driver.main(["--window", "1"], dict(ENV), tr, lines.append, now_utc=utc(2026, 10, 8, 15, 3))
+    assert brand_sends(calls) == [] and not any("brand weekly" in l for l in lines), "not configured: silent"
+    assert any("weekly: sent via celesta" in l for l in lines)
+    tr, calls = brand_transport(rozela_stats=False)
+    lines = []
+    driver.main(["--window", "1"], dict(ENV), tr, lines.append, now_utc=utc(2026, 10, 8, 15, 3))
+    assert brand_sends(calls) == [] and any("rozela has no stats, not sent" in l for l in lines)
+    assert any("weekly: sent via celesta" in l for l in lines), "the owner's mail does not wait for it"
+
+
+def test_when_the_owner_mail_was_already_sent_the_brand_mail_still_goes_and_reads_its_own_stats():
+    tr, calls = brand_transport(sent_before=True)
+    lines = []
+    driver.main(["--window", "1"], dict(ENV), tr, lines.append, now_utc=utc(2026, 10, 8, 15, 3))
+    assert [c[0] for c in calls if c[1] == "weeklyStats"] == ["rozela"], "only the brand's own stats are read"
+    assert [c[0] for c in brand_sends(calls)] == ["rozela"]
+    assert any("weekly: already sent" in l for l in lines) and any("brand weekly: sent rozela" in l for l in lines)
+
+
+def test_no_brand_mail_outside_the_window():
+    tr, calls = brand_transport()
+    driver.main(["--window", "1"], dict(ENV), tr, lambda s: None, now_utc=utc(2026, 10, 8, 14, 59))
+    assert not [c for c in calls if c[1] == "sendBrandReport"]

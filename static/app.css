@@ -960,3 +960,6 @@ details.sg > summary { cursor: pointer; font-weight: 700; }
 .cr-chg.up { color: var(--danger); font-weight: 700; }
 .cr-chg.down { color: var(--ready); font-weight: 700; }
 .cr-how { margin-top: 6px; }
+.dash-bh .brand-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.dash-bh .kv dd { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .dash-bh .brand-grid { grid-template-columns: minmax(0, 1fr); } }

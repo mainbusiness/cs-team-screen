@@ -23,7 +23,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 MOCK_BRANDS = ("rozela", "celesta", "apexmen", "selera")      # velora on purpose has NO engine: it previews "not connected"
-CS_ROLES = ("agent", "admin", "user-manager")
+CS_ROLES = ("agent", "admin", "user-manager", "viewer")
 OPEN = ("ready", "action", "health", "delay")
 SUMMARY_COLS = ['id', 'status', 'category', 'name', 'email', 'subject', 'summary', 'action', 'waiting_since',
                 'created_at', 'handled_by', 'handled_at', 'language', 'order_no', 'channel', 'emails_count',
@@ -33,20 +33,23 @@ TICKET_COLS = ['id', 'status', 'category', 'name', 'email', 'phone', 'channel', 
                'handled_at', 'language', 'order_no', 'order_date', 'tracking', 'carrier', 'ship_state', 'wa_sig',
                'wa_out', 'wa_send', 'notes', 'watch', 'emails_count', 'cancelled', 'recommendation', 'siblings', 'wa_last_in']
 WORK = ("agent", "admin")
-TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": WORK, "apiTicketExtras": WORK, "apiTickets": WORK,
-         "apiSearch": WORK, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
+READ = ("agent", "admin", "viewer")     # the read-only viewer (the owner 2026-11-09)
+TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": READ, "apiTicketExtras": READ, "apiTickets": READ,
+         "apiSearch": READ, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
          "apiNote": WORK, "apiKachingCancel": WORK, "apiKachingContract": WORK, "apiKachingAction": WORK, "apiKachingVariants": WORK, "apiOrderEditState": WORK, "apiOrderEdit": WORK,
          "apiSubCancelPreview": WORK, "apiSubCancel": WORK, "apiLinkCustomer": WORK, "apiMergeTickets": WORK,
-         "apiAutoCancelList": WORK, "apiAutoCancelApprove": WORK,
+         "apiAutoCancelList": READ, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
-         "apiTicketFull": WORK, "apiChanges": WORK, "apiAutoReplyList": WORK, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK, "apiRedraftOne": WORK,
-         "apiResult": WORK, "apiTicketLite": WORK, "apiDayStats": ("admin", "user-manager"),
+         "apiTicketFull": READ, "apiChanges": READ, "apiAutoReplyList": READ, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK, "apiRedraftOne": WORK,
+         "apiResult": WORK, "apiTicketLite": READ, "apiDayStats": ("admin", "user-manager", "viewer"),
          "apiTemplates": WORK, "apiSendTemplate": WORK,
          "apiAiNotes": ("admin",), "apiAiNoteAdd": ("admin",), "apiAiNoteDelete": ("admin",), "apiAiNoteAttach": ("admin",), "apiAiNoteCheck": ("admin",), "apiAttachPut": WORK,
          "apiAiNoteSuggestions": ("admin",), "apiAiNoteSuggestDecide": ("admin",),
          "apiSaleCandidates": ("admin",), "apiSaleLog": ("admin",), "apiSaleMine": ("admin",), "apiSaleProof": ("admin",), "apiSaleList": ("admin",), "apiSaleDecide": ("admin",),
          "apiSaleSuggestions": ("admin",), "apiSaleSuggestCredit": ("admin",), "apiSaleSuggestDismiss": ("admin",), "apiSaleScan": ("admin",),
-         "apiCancelStats": ("admin",), "apiCancelReasons": ("admin",)}
+         "apiCancelStats": ("admin", "viewer"), "apiCancelReasons": ("admin", "viewer"), "apiBillingHealth": ("admin", "viewer")}
+VIEWER_FNS = ("apiBoot", "apiStatus", "apiTicket", "apiTicketExtras", "apiTicketFull", "apiTicketLite", "apiChanges", "apiTickets", "apiSearch", "apiAutoCancelList",
+              "apiAutoReplyList", "apiWaPhotoGet", "apiDayStats", "apiCancelStats", "apiCancelReasons", "apiBillingHealth")   # second wall, as in Api.gs
 # apiCancelStats (2026-10-23). MOCK_CANCEL_STATS=absent -> the fn is unknown (an engine before the deploy); MOCK_CANCEL_STATE="apexmen:no_kaching,
 # celesta:error" overrides a brand's Kaching state (velora has no mock engine, so its "no_kaching" is shown through another brand).
 if os.environ.get("MOCK_CANCEL_STATS") == "absent":
@@ -512,7 +515,7 @@ class MockEngines:
         ok, claims = verify_token(req.get("token"), self.secret, brand)
         if not ok:
             return fail("unauthorized")
-        if fn not in TABLE or claims["role"] not in TABLE[fn]:
+        if fn not in TABLE or claims["role"] not in TABLE[fn] or (claims["role"] == "viewer" and fn not in VIEWER_FNS):
             return fail("unauthorized")
         args = req.get("args") or {}
         if "brand" in args and str(args["brand"]).lower() != brand:
@@ -1092,6 +1095,18 @@ class MockEngines:
         "velora": {"2026-10-23": [3, 0, 1, 0, 0, 0, 1], "2026-10-16": [2, 0, 0, 0, 1, 0, 0]}}
     REASON_QUOTES = {"never_agreed": ["לא הזמנתי מנוי, רק הזמנה אחת", "לא ידעתי שזה מתחדש כל חודש", "קניתי חד פעמי"], "not_effective": ["זה לא השפיע עליי"],
                      "try_first": ["רוצה קודם לנסות ולראות תוצאות"], "has_stock": ["יש לי עוד שלושה בקבוקים"], "one_time": ["אזמין לבד כשאצטרך"], "other": ["עובר לחו\"ל"]}
+
+    def apiBillingHealth(self, brand, a, c):
+        if brand == "selera":
+            return {"ok": True, "brand": brand, "period": "LAST_30_DAYS", "state": "no_subscriptions", "notAvailable": ["cancel_reasons", "retry_settings"]}
+        return {"ok": True, "brand": brand, "period": a.get("period") or "LAST_30_DAYS", "state": "ok", "source": "kaching /analytics", "fetchedAt": "2026-11-09T09:00:00Z",
+                "notAvailable": ["cancel_reasons", "retry_settings"], "range": {"from": "2026-10-09T21:00:00.000Z", "to": "2026-11-09T21:59:59.999Z"},
+                "failedPaymentsCountAsChurn": False,
+                "subscriptions": {"active": 1200, "paused": 2, "cancelled": 90, "new": 400, "churned": 60, "reactivated": 0, "churnRate": 5.1},
+                "billing": {"successRate": 63.6, "firstTrySuccessRate": 62.3, "failureRate": 36.4, "perCycleSuccessRate": 90.9, "perCycleFirstTrySuccessRate": 89.1,
+                            "attempts": 1000, "succeeded": 636, "failed": 364, "firstTrySuccess": 623, "recovered": 16, "lost": 80, "inDunning": 102},
+                "failureReasons": [{"reason": "payment_method_not_found", "count": 124, "percentage": 27.1}, {"reason": "payment_method_declined", "count": 105, "percentage": 22.9},
+                                   {"reason": "insufficient_funds", "count": 52, "percentage": 11.4}]}
 
     def apiCancelReasons(self, brand, a, c):
         tax = [{"key": k, "he": he, "en": k, "def": "הגדרה: " + he} for k, he in self.REASON_TAX]

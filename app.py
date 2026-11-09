@@ -437,7 +437,7 @@ def create_app(overrides=None):
         return jsonify({
             "ok": True, "user": public_user(u), "engine_role": erole,
             "brands": [{"id": b, "connected": b in engines} for b in u.get("brands", [])],
-            "can_manage_users": is_manager(u), "is_admin": "admin" in u.get("roles", []),
+            "can_manage_users": is_manager(u), "is_admin": "admin" in u.get("roles", []), "read_only": erole == "viewer",
             "valid_brands": valid_brands if is_manager(u) else [], "roles": list(ROLES),
             "mock": mock, "warnings": warnings, "assistant": bool(api_key) or mock or bool(o.get("LLM")),
             "sales_sheet_url": dashboard.SALES_SHEET_URL if "admin" in u.get("roles", []) else "",   # the managers' sales table mirror (Google Sheet)

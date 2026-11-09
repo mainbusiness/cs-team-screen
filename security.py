@@ -34,7 +34,7 @@ TOKEN_SECRET_MIN = 32                # Api.gs fails closed below this
 
 # Engine roles, most privileged first. A user can hold several local roles (e.g. admin + user-manager);
 # the token carries ONE role, the strongest one the engine knows.
-ENGINE_ROLE_ORDER = ("admin", "agent", "user-manager")
+ENGINE_ROLE_ORDER = ("admin", "agent", "user-manager", "viewer")   # viewer (2026-11-09): read-only, last; users_store makes it a sole role
 
 
 def _b64(b: bytes) -> str:

@@ -262,7 +262,7 @@ def register(app, d):
         u, err = d["api_user"]()
         if err:
             return err
-        if not d["is_manager"](u):
+        if not (d["is_manager"](u) or "viewer" in u.get("roles", [])):        # + the read-only viewer (the owner 2026-11-09)
             return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
         brands = [b for b in u.get("brands", []) if b in d["engines"]]
         out = {}

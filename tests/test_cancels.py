@@ -56,7 +56,7 @@ def drain(app):
 # ---------- proxy ----------
 
 def test_cancel_stats_is_an_admin_only_read():
-    assert engine_proxy.FN_TABLE["apiCancelStats"][0] == engine_proxy.ADMIN_ONLY
+    assert engine_proxy.FN_TABLE["apiCancelStats"][0] == engine_proxy.STATS_ROLES == ("admin", "viewer")
     assert "apiCancelStats" in engine_proxy.READ_FNS
 
 

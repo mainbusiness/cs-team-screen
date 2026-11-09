@@ -243,6 +243,8 @@ def cancel_view(per_brand, users, dates, day, today=None):
 REASONS_KEYS = ("never_agreed", "not_effective", "try_first", "has_stock", "one_time", "other", "not_stated")
 REASONS_TTL_S = 600
 REASONS_ERR_TTL_S = 60
+BILLING_ERR_TTL_S = 60
+BILLING_TTL_S = 600           # /api/dash/billing: Kaching /analytics per (brand, period), 10 minutes (the engine caches 10 more)
 REASONS_QUOTES = 3
 
 
@@ -916,8 +918,15 @@ def register(app, d):
     def presence():
         u = g.get("user")
         p = request.path
-        if u and p.startswith("/api/") and not p.startswith(("/api/dash", "/api/manage", "/api/me")):
-            log.touch(u["username"])
+        if u and p.startswith("/api/") and not p.startswith(("/api/dash", "/api/manage", "/api/me")) and "viewer" not in u.get("roles", []):
+            log.touch(u["username"])                  # a read-only viewer is not an agent at work: never on the "online now" list
+
+    def can_see(u):
+        """The boards: managers, and the read-only viewer (the owner 2026-11-09). Never a write: every route below that uses it is a GET."""
+        return d["is_manager"](u) or "viewer" in u.get("roles", [])
+
+    def can_see_stats(u):
+        return "admin" in u.get("roles", []) or "viewer" in u.get("roles", [])
 
     def rows_for(u, brands):
         out = {}
@@ -1000,7 +1009,7 @@ def register(app, d):
         u, err = d["api_user"]()
         if err:
             return err
-        if not d["is_manager"](u):
+        if not can_see(u):
             return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
         rng = request.args.get("range", "1")
         ndays = {"1": 1, "7": 7, "30": 30}.get(rng)
@@ -1033,7 +1042,7 @@ def register(app, d):
         u, err = d["api_user"]()
         if err:
             return err
-        if not d["is_manager"](u):
+        if not can_see(u):
             return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
         brands = [b for b in u.get("brands", []) if b in d["engines"]]
 
@@ -1105,7 +1114,7 @@ def register(app, d):
         u, err = d["api_user"]()
         if err:
             return err
-        if "admin" not in u.get("roles", []):
+        if not can_see_stats(u):
             return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
         now = log.clock()
         today = il_day(now)
@@ -1119,7 +1128,7 @@ def register(app, d):
             return d["json_error"]("bad_request", 400, d["ui_lang"](u))
         dates = cancel_window(sel, today)
         brands = [b for b in u.get("brands", []) if b in d["engines"]]
-        per = cx_for(u, brands, dates[-1], dates[0], today, now, request.args.get("refresh") == "1")
+        per = cx_for(u, brands, dates[-1], dates[0], today, now, request.args.get("refresh") == "1" and "admin" in u.get("roles", []))   # a viewer never forces an engine re-read
         out = cancel_view(per, d["store"].all(), dates, sel, today)
         out["at"] = now
         return jsonify(out)
@@ -1162,10 +1171,10 @@ def register(app, d):
         u, err = d["api_user"]()
         if err:
             return err
-        if "admin" not in u.get("roles", []):
+        if not can_see_stats(u):
             return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
         now = log.clock()
-        force = request.args.get("refresh") == "1"
+        force = request.args.get("refresh") == "1" and "admin" in u.get("roles", [])
         per = {}
         for b in [b for b in u.get("brands", []) if b in d["engines"]]:
             with cr_lock:
@@ -1184,6 +1193,53 @@ def register(app, d):
         return jsonify(out)
 
     app.extensions["cs"]["reasons_drain"] = cr_drain
+
+    # Billing health from Kaching /analytics (Owner, 2026-11-09): first-try success, recovered / lost, subscriptions in dunning, the failure reasons.
+    # A READ for admin + the read-only viewer, per brand of the user. Kept BILLING_TTL_S in memory per (brand, period); one engine call per brand at a time.
+    bh_cache, bh_lock, bh_flight = {}, threading.Lock(), {}
+
+    def bh_get(u, b, period, now):
+        """One brand's billing health, single flight per (brand, period): at most 3 periods x the brands, so the dicts are bounded by construction.
+        A failed read is kept 60 s only (and never replaces the last good numbers, which are served marked stale)."""
+        key = (b, period)
+        with bh_lock:
+            flight = bh_flight.setdefault(key, threading.Lock())
+        with flight:
+            with bh_lock:
+                e = bh_cache.get(key)
+            if e and now - e["at"] <= (BILLING_ERR_TTL_S if e.get("failed") else BILLING_TTL_S):
+                return e
+            try:
+                _, out = engine_proxy.call(d["engines"], cache.transport, cache.secret(), u, b, "apiBillingHealth", {"period": period}, "he")
+            except Exception:                               # noqa: BLE001 — a failed read never takes the board down
+                app.logger.exception("billing health failed for %s", b)
+                out = {"ok": False, "error": "error"}
+            if out.get("ok") and out.get("state"):
+                e = {"at": now, "data": {k: v for k, v in out.items() if not k.startswith("_") and k not in ("ok", "msg")}}
+            elif e and not e.get("failed"):
+                e = dict(e, stale=True, at=now - BILLING_TTL_S + BILLING_ERR_TTL_S)      # the last good numbers, marked old; asked again in 60 s
+            else:
+                e = {"at": now, "data": {"state": "unavailable", "detail": str(out.get("error") or "error")[:40]}, "failed": True}
+            with bh_lock:
+                bh_cache[key] = e
+            return e
+
+    @app.get("/api/dash/billing")
+    def dash_billing():
+        u, err = d["api_user"]()
+        if err:
+            return err
+        if not can_see_stats(u):
+            return d["json_error"]("forbidden_role", 403, d["ui_lang"](u))
+        period = request.args.get("period", "LAST_30_DAYS")
+        if period not in engine_proxy.BILLING_PERIODS:
+            return d["json_error"]("bad_request", 400, d["ui_lang"](u))
+        now = log.clock()
+        brands = {}
+        for b in [b for b in u.get("brands", []) if b in d["engines"]]:
+            e = bh_get(u, b, period, now)
+            brands[b] = dict(e["data"], stale=bool(e.get("stale")))
+        return jsonify({"ok": True, "at": now, "period": period, "brands": brands})
 
     @app.post("/api/<brand>/activity")
     def activity(brand):

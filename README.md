@@ -31,6 +31,7 @@ Render disk and in each engine's `audit` sheet.
 | `sysreq.py` | system change requests from the managers to the owner (2026-10-25): the card "🛠️ הצעות לשיפור המערכת" on `#/dash` under the AI-notes card (admins only), `GET/POST /api/sysreq`, and the machine API `GET /hq/sysreq?since=` + `POST /hq/sysreq/<id>` for the Mini (HMAC token in `X-HQ-Token`, aud `cs-sysreq`, ≤ 5 min; CSRF-exempt by exact path). Postgres `screen_system_requests`, a JSON file for tests. The Mini side is `../sysreq_sync/` (launchd pull → HQ inbox, CLI `decide`). Nothing executes a request. |
 | `notice.py` | must-read notices (2026-10-26): `GET /api/notice`, `POST /api/notice/ack {id}`; per-user ack in Postgres `screen_notice_acks` (a JSON file for tests, `NOTICE_PATH`), audited `notice_acked`. See "Must-read notices" below. |
 | `zipfix/` | zip fill (מילוי מיקודים): `/api/<brand>/zipfix` + bot route `/bot/zipfix`, background jobs, ported resolver — see `zipfix/README.md` |
+| `tests/test_viewer*.py` | the read-only viewer: fn list parity (engine Api.gs / engine_proxy / app.js / mock), every write 403 with zero engine calls, the other Flask routes, a real-browser check that no write control is drawn |
 | `tests/` | pytest (310+ tests, incl. real-browser tests with Playwright and a gunicorn test) |
 | `tools/screens.py` | mock preview + Playwright screenshots + on-screen checks → `screens/` |
 
@@ -100,6 +101,7 @@ instance anyway.
   (admin > agent > user-manager). A pure user-manager sees only the user manager. Only an admin may
   grant or remove admin, or edit or reset an admin. Nobody may disable themselves or change their own
   roles. At least one active admin must remain.
+- **Viewer (read-only, 2026-11-09):** role `viewer` (always alone, never combined) for an analyst (an analyst, Rozela). He reads the list, tickets, search and the boards (managers' dashboard, SLA, cancellations, why-customers-cancel, billing health); every write is refused: in Flask before the engine is contacted (`engine_proxy.VIEWER_FNS` must equal the roles in `FN_TABLE`/`INTERNAL_FNS`, else the app refuses to start), in the engine (`API_VIEWER_FNS` in `apiDispatch_`), and the screen draws no write control. No activity / presence / "online now" trace, no agent notices. Create: `python manage.py add-user analyst --roles viewer --brands rozela` (or the user manager). Details and the list of what stays closed: DECISIONS.md 2026-11-09.
 - **Browser:** strict CSP (`script-src 'self'; style-src 'self'`, no inline). All customer text is set
   via `textContent`. Ticket ids live only in the URL fragment. HTML and API responses are `no-store`.
 
