@@ -24,7 +24,7 @@
       app: 'שירות לקוחות', tab_ready: 'פתוחות', tab_action: 'צריך החלטה', tab_health: 'בריאות', tab_delay: 'עיכוב',
       tab_sent: 'ממתין ללקוח', tab_today: 'טופל היום', tab_search: 'חיפוש',
       st_ready: 'חדש', st_action: 'צריך החלטה', st_health: 'בריאות', st_delay: 'עיכוב', st_sent: 'ממתין ללקוח', st_done: 'טופל', st_noreply: 'ללא מענה',
-      cat_shipping: 'משלוח', cat_product: 'מוצר', cat_order_change: 'שינוי הזמנה', cat_return_refund: 'החזרה / החזר', cat_cancel_subscription: 'ביטול מנוי',
+      cat_shipping: 'משלוח', cat_product: 'מוצר', cat_order_change: 'שינוי הזמנה', cat_return_refund: 'החזרה / החזר', cat_cancel_subscription: 'ביטול מנוי', cat_auto_cancel: 'ביטול אוטומטי — המערכת מבטלת ועונה לבד, אין צורך לגעת',
       cat_billing: 'חיוב', cat_health: 'בריאות', cat_complaint: 'תלונה', cat_legal: 'משפטי', cat_discount: 'הנחה', cat_voc: 'מחקר לקוחות', cat_other: 'אחר',
       ch_email: 'מייל', ch_whatsapp: 'וואטסאפ',
       dry_run: 'מצב ניסיון — שליחה כבויה. אפשר לקרוא, לערוך ולשמור טיוטות; השליחה ללקוח חסומה.',
@@ -324,7 +324,7 @@
       app: 'Customer service', tab_ready: 'Open', tab_action: 'Needs decision', tab_health: 'Health', tab_delay: 'Delay',
       tab_sent: 'Waiting for customer', tab_today: 'Handled today', tab_search: 'Search',
       st_ready: 'New', st_action: 'Needs decision', st_health: 'Health', st_delay: 'Delay', st_sent: 'Waiting for customer', st_done: 'Handled', st_noreply: 'No reply',
-      cat_shipping: 'Shipping', cat_product: 'Product', cat_order_change: 'Order change', cat_return_refund: 'Return / refund', cat_cancel_subscription: 'Cancel subscription',
+      cat_shipping: 'Shipping', cat_product: 'Product', cat_order_change: 'Order change', cat_return_refund: 'Return / refund', cat_cancel_subscription: 'Cancel subscription', cat_auto_cancel: 'Automatic cancel — the system cancels and replies by itself, no need to touch it',
       cat_billing: 'Billing', cat_health: 'Health', cat_complaint: 'Complaint', cat_legal: 'Legal', cat_discount: 'Discount', cat_voc: 'Customer research', cat_other: 'Other',
       ch_email: 'Email', ch_whatsapp: 'WhatsApp',
       dry_run: 'Test mode — sending is off. You can read, edit and save drafts; nothing reaches the customer.',
@@ -1137,7 +1137,9 @@
     boots: {}, bootErr: {}, ar: {}, rowTr: {}, tkMemo: {}, prefetchedAt: {}, assist: {}, auto: {}, autoEdits: {}, autoMsg: {}, settings: {}, listSig: '', tk: null, search: { q: '', res: null, err: null, seq: 0 }, menuOpen: false
   };
   const OPEN = ['ready', 'action', 'health', 'delay'];
-  const TABS = ['ready', 'action', 'failed', 'wa24', 'autoreply', 'auto', 'health', 'delay', 'bot', 'sent', 'today', 'search'];
+  // 'auto' (the separate automatic-cancellations queue) is gone (Owner, 2026-11-11): the system cancels by itself and the
+  // tickets live in the regular lists (queued / failed -> open list, done -> sent + handled today, with the auto chips).
+  const TABS = ['ready', 'action', 'failed', 'wa24', 'autoreply', 'health', 'delay', 'bot', 'sent', 'today', 'search'];
   // Owner, 2026-10-07: new / needs decision / health / delay are ONE list ("ready" = every open ticket); what a ticket is shows as a label on its
   // row, never as a filter that hides tickets. Their old links still open the one list.
   const MERGED = ['action', 'health', 'delay'];
@@ -1669,7 +1671,7 @@
       lp.append(h('div', { class: 'empty', 'data-test': 'not-connected' }, h('b', null, tx('not_connected', { b: brandName(S.brand) })), h('span', { text: t('not_connected_hint') })));
       return;
     }
-    if (S.tab === 'auto' && noSubs()) { go(listHash('ready'), true); return; }
+    if (S.tab === 'auto') { go(listHash('ready'), true); return; }     // old bookmark of the removed queue
     const err = S.bootErr[S.brand];
     let rows = rowsFor(S.tab);
     const sig = JSON.stringify([S.brand, S.tab, S.ticketId, S.chan || 'all', S.search.note || '', err || '', S.tab === 'search' ? [S.search.q, S.search.err, S.search.res] : rows,
