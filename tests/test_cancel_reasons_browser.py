@@ -36,7 +36,7 @@ def test_admin_sees_the_five_reasons_all_brands_then_one_brand_then_all_data(srv
     base, pwd = srv
     with pw.sync_playwright() as p:
         pg = login(p, base, pwd, "guy", width)
-        pg.goto(base + "/cs#/dash")
+        pg.goto(base + "/cs#/dash/more")
         pg.wait_for_selector("[data-test=cr-table]", timeout=30000)
         sec = pg.locator("[data-test=cr]")
         txt = sec.inner_text()
@@ -76,12 +76,12 @@ def test_english_desk_and_an_agent_never_sees_it(srv):
     base, pwd = srv
     with pw.sync_playwright() as p:
         pg = login(p, base, pwd, "amit", 1280, "/cs/en")
-        pg.goto(base + "/cs/en#/dash")
+        pg.goto(base + "/cs/en#/dash/more")
         pg.wait_for_selector("[data-test=cr-table]", timeout=30000)
         t = pg.locator("[data-test=cr]").inner_text()
         assert "the top 5 reasons" in t and "Next run: Friday 6.11 at 02:00" in t and "Other / not stated" in t
         ag = login(p, base, pwd, "agent-two")
-        ag.goto(base + "/cs#/dash")
+        ag.goto(base + "/cs#/dash/more")
         ag.wait_for_timeout(2500)
         assert ag.locator("[data-test=cr]").count() == 0
 
@@ -103,7 +103,7 @@ def test_a_brand_still_being_read_is_named_so_a_partial_sum_never_looks_final(sr
                 body["busy"] = True
             route.fulfill(response=resp, body=json.dumps(body), headers=dict(resp.headers, **{"content-type": "application/json"}))
         pg.route("**/api/dash/cancel-reasons*", partial)
-        pg.goto(base + "/cs#/dash")
+        pg.goto(base + "/cs#/dash/more")
         pg.wait_for_selector("[data-test=cr-pending]", timeout=30000)
         assert "עוד קורא את: Celesta" in pg.locator("[data-test=cr-pending]").inner_text()
         pg.wait_for_selector("[data-test=cr-pending]", state="detached", timeout=30000)      # the 4 s re-ask while busy clears it

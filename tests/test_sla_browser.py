@@ -75,8 +75,9 @@ def test_manager_gets_banner_then_board_section(srv, width, path):
         no_junk(txt)
         assert pg.locator("[data-test=sla-brand]").count() >= 2 and pg.locator("[data-test=sla-total]").count() == 1
         assert pg.locator("[data-test=sla-dayline]").inner_text().strip()
+        # 2026-11-12 (Guy: "the most important first"): response times are now the FIRST section, above the live strip
         order = pg.evaluate("() => { const a = document.querySelector('[data-test=dash-live]'), b = document.querySelector('[data-test=sla]');"
-                            " return !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING); }")
+                            " return !!(b.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING); }")
         assert order
         if path == "/cs":
             assert "זמני מענה" in txt and "שעות עבודה" in txt

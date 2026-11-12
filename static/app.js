@@ -1153,7 +1153,7 @@
   function parseHash() {
     const p = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
     if (p[0] === 'users') return { view: 'users' };
-    if (p[0] === 'dash') return { view: 'dash' };
+    if (p[0] === 'dash') return { view: 'dash', sub: p[1] || '' };
     if (p[0] === 'zip') return { view: 'zip', brand: p[1] };
     if (p[0] === 'settings') return { view: 'settings', brand: p[1] };
     if (p[0] === 'b' && p[1]) {
@@ -1195,11 +1195,12 @@
     }
     if (r.view === 'dash') {
       if (!S.me.can_manage_users && !isViewer()) return go('#/', true);           // admin + user-manager (+ the read-only viewer); the server says 403 too
+      const wasDash = S.view === 'dash';             // a tab switch inside the board (2026-11-12): no re-mount, no reload
       S.view = 'dash';
       $('users-pane').hidden = true;
       $('settings-pane').hidden = true;
       document.body.className = 'view-dash';
-      renderTop(); renderBanners(); Dash.show(); Assist.sync();
+      renderTop(); renderBanners(); Dash.show(r.sub, wasDash); Assist.sync();
       return;
     }
     if (r.view === 'users') {
@@ -1328,6 +1329,8 @@
     (S.me.warnings || []).forEach(function (w) { el.append(h('p', { class: 'banner danger', text: t(w) })); });
     const slab = S.me.can_manage_users ? Sla.banner() : null;          // SLA alert (2026-10-24): managers only, business hours only
     if (slab) el.append(slab);
+    const qb = Quality.can() ? Quality.banner() : null;               // the daily quality check is still open (2026-11-12): managers only
+    if (qb) el.append(qb);
     if (S.view === 'users' || S.view === 'zip') return;
     const b = boot();
     if (b) el.append(modeBanner(b));
@@ -6960,6 +6963,343 @@
     return { banner: banner, section: section, start: start, load: load, playbooks: playbooks, setDash: setDash };
   })();
 
+  /**
+   * The CS manager's DAILY SAMPLED QUALITY CHECK (Owner, 2026-11-12: agents send the AI / template draft without reading it and sometimes do not
+   * really answer — "a control"). Server: quality.py. Managers only (admin + user-manager; the server answers 403 to anyone else).
+   *  - summary(): the card on the main tab of #/dash — quality score per agent over 7 days, the signals from the agents' own clicks, today's status.
+   *  - the pane #/dash/quality: the day's sample; each item = what the customer wrote, what the agent sent, the AI draft when the engine kept it;
+   *    rate 1-5 + four yes / no questions + a note. Built ONCE per open: no timer ever rebuilds it (a manager may be typing a note — build-rules §1ב).
+   *  - banner(): on every screen while today's check is open; remind(): a modal from the end of the workday (server: remind_hour), "later" = 1 h.
+   */
+  const Quality = (function () {
+    const HE = {
+      tab: 'בדיקת איכות יומית', sum_title: '✅ איכות מענה — לפי נציג (7 ימים)', open_check: 'פתח את הבדיקה', later: 'אזכיר לי בעוד שעה',
+      banner: 'כל יום: לוודא שהנציגים באמת עונים לכל פנייה, ועונים נכון, בכל המותגים — בדיקה מדגמית של היום ממתינה ({n} פניות, דורגו {r}).',
+      st_done: '✓ הבדיקה של היום בוצעה — {by}, {t}', st_wait: '⏳ הבדיקה של היום ממתינה — {n} פניות במדגם, דורגו {r}', st_none: 'אין עדיין פניות שנציג ענה עליהן היום — אין מה לבדוק.',
+      col_agent: 'נציג', col_score: 'ציון (נבדקו)', c_answered: 'ענה לשאלה', c_correct: 'מידע נכון', c_personal: 'אישי, לא תבנית', c_tone: 'טון',
+      col_untouched: 'נשלח בלי הקלדה', col_closed: 'נסגרו בלי תשובה', col_today: 'היום: תשובות · בלי הקלדה',
+      def: 'ציון = ממוצע הדירוגים בבדיקות היומיות ב-7 הימים האחרונים (בסוגריים: כמה פניות נבדקו). "נשלח בלי הקלדה" = תשובות של הנציג שיצאו בלי אף הקשה במקלדת בפנייה — הטיוטה של ה-AI או התבנית נשלחה כמו שהיא. "נסגרו בלי תשובה" = פניות שהנציג סגר בלי שאף אחד ענה ב-24 השעות שלפני (לפעמים נכון, למשל לקוח שכתב תודה — לכן הן נכנסות למדגם). הכל מהפעולות של הנציג עצמו בלבד, לא מנתוני המותג.',
+      no_agents: 'אין עדיין נתונים ב-7 הימים האחרונים.', hist: 'בדיקות ב-7 הימים האחרונים:',
+      pane_title: '🔎 בדיקת איכות יומית', pane_why: 'כל יום: לוודא שהנציגים באמת עונים לכל פנייה, ועונים נכון, בכל המותגים.',
+      pane_how: 'המדגם: עד {g} פניות לכל נציג בכל מותג מהיום (עד {a} לנציג, עד {m} ביום), קודם פנייה שנסגרה בלי תשובה אם יש. המדגם קבוע ליום — רענון לא מערבב; פניות חדשות מצטרפות עד שמסיימים.',
+      progress: 'דורגו {r} מתוך {n}', finish: '✅ סיימתי את הבדיקה של היום', finished: '✓ הבדיקה הסתיימה — {by}, {t}', finish_left: 'נשארו {n} בלי ציון',
+      refresh: '🔄 רענון המדגם', day_lbl: 'יום', empty: 'אין פניות במדגם של היום הזה.', loading: 'טוען…',
+      k_send: 'ענה', k_closed: '⚠️ נסגרה בלי תשובה', untouched: '🤖 נשלח בלי הקלדה', not_rated: 'לא דורג', show: 'הצג', hide: 'הסתר',
+      cust: 'הלקוח כתב', sent: 'הנציג שלח', draft: 'הטיוטה של ה-AI', same: 'זהה לטיוטה', diff: 'שונה מהטיוטה ({p}% חפיפה במילים)',
+      no_sent: 'התשובה עוד לא מופיעה בשיחה (למשל וואטסאפ בתור) — פתחו את הפנייה.', closed_note: 'הנציג סגר את הפנייה בלי לשלוח תשובה.',
+      untouched_note: 'הנציג לא הקליד אף תו בפנייה לפני השליחה — מה שנשלח הוא הטיוטה שהוכנה (AI / תבנית) כמו שהיא.',
+      no_draft: 'טיוטת ה-AI המקורית לא נשמרה בפנייה הזאת (המנוע שומר אותה רק כשנציג עורך אותה).',
+      open_tk: 'פתח את הפנייה ↗', score: 'ציון כללי', yes: 'כן', no: 'לא', note: 'הערה (לא חובה)', save: 'שמור והמשך', saved: '✓ נשמר',
+      need: 'בחרו ציון וענו כן / לא על ארבע השאלות.', rated_by: 'דורג ע״י {by}', err: 'שגיאה — נסו שוב',
+      q_answered: 'ענה על השאלה של הלקוח?', q_correct: 'המידע נכון?', q_personal: 'אישי — לא תבנית שהודבקה?', q_tone: 'טון נכון?',
+      remind_title: '🔎 בדיקת איכות יומית', ch_wa: 'וואטסאפ', ch_email: 'מייל', updated: 'עודכן'
+    };
+    const EN = {
+      tab: 'Daily quality check', sum_title: '✅ Reply quality — per agent (7 days)', open_check: 'Open the check', later: 'Remind me in an hour',
+      banner: 'Every day: make sure the agents really answer every ticket, and answer it right, in every brand — today\'s sample check is waiting ({n} tickets, {r} rated).',
+      st_done: '✓ Today\'s check is done — {by}, {t}', st_wait: '⏳ Today\'s check is waiting — {n} tickets in the sample, {r} rated', st_none: 'No ticket was answered by an agent yet today — nothing to check.',
+      col_agent: 'Agent', col_score: 'Score (checked)', c_answered: 'Answered', c_correct: 'Correct', c_personal: 'Personal', c_tone: 'Tone',
+      col_untouched: 'Sent untouched', col_closed: 'Closed, no reply', col_today: 'Today: replies · untouched',
+      def: 'Score = the average of the daily checks over the last 7 days (in brackets: how many were checked). "Sent untouched" = the agent\'s replies that went out with no keystroke in the ticket — the AI draft or template sent as it was. "Closed, no reply" = tickets the agent closed with no reply from anyone in the 24 h before (sometimes right, e.g. a "thanks" — so they enter the sample). All from the agent\'s own actions only, never brand numbers.',
+      no_agents: 'No data in the last 7 days yet.', hist: 'Checks in the last 7 days:',
+      pane_title: '🔎 Daily quality check', pane_why: 'Every day: make sure the agents really answer every ticket, and answer it right, in every brand.',
+      pane_how: 'The sample: up to {g} tickets per agent per brand from today ({a} per agent, {m} per day at most), a ticket closed with no reply first when there is one. Fixed for the day — a reload never reshuffles; new tickets join until the check is finished.',
+      progress: '{r} of {n} rated', finish: '✅ I finished today\'s check', finished: '✓ Check finished — {by}, {t}', finish_left: '{n} still unrated',
+      refresh: '🔄 Refresh the sample', day_lbl: 'Day', empty: 'No tickets in that day\'s sample.', loading: 'Loading…',
+      k_send: 'replied', k_closed: '⚠️ closed with no reply', untouched: '🤖 sent untouched', not_rated: 'not rated', show: 'Show', hide: 'Hide',
+      cust: 'The customer wrote', sent: 'The agent sent', draft: 'The AI draft', same: 'same as the draft', diff: 'differs from the draft ({p}% word overlap)',
+      no_sent: 'The reply is not in the conversation yet (e.g. WhatsApp queue) — open the ticket.', closed_note: 'The agent closed the ticket without sending a reply.',
+      untouched_note: 'The agent typed nothing in the ticket before sending — what went out is the prepared draft (AI / template) as it was.',
+      no_draft: 'The original AI draft was not kept for this ticket (the engine keeps it only when an agent edits it).',
+      open_tk: 'Open the ticket ↗', score: 'Overall score', yes: 'Yes', no: 'No', note: 'Note (optional)', save: 'Save and next', saved: '✓ Saved',
+      need: 'Pick a score and answer yes / no on all four questions.', rated_by: 'rated by {by}', err: 'Error — try again',
+      q_answered: 'Answered the customer\'s question?', q_correct: 'Correct information?', q_personal: 'Personal — not a pasted template?', q_tone: 'Right tone?',
+      remind_title: '🔎 Daily quality check', ch_wa: 'WhatsApp', ch_email: 'Email', updated: 'Updated'
+    };
+    const L = LANG === 'en' ? EN : HE;
+    const CHECKS = ['answered', 'correct', 'personal', 'tone'];
+    function f(k, v) { let s = L[k] || k; Object.keys(v || {}).forEach(function (x) { s = s.split('{' + x + '}').join(v[x]); }); return s; }
+    const st = { status: null, sig: '', board: null, sumEl: null, pane: null, day: '', data: null, cards: {}, timer: null };
+    function can() { return !!(S.me && S.me.can_manage_users); }
+    function hm(ts) { try { return new Date(ts * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
+    function dm(ts) { try { return new Date(ts * 1000).toLocaleString(LANG === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
+    function pct(v) { return v === null || v === undefined ? '—' : Math.round(v) + '%'; }
+    function onPane() { return S.view === 'dash' && location.hash.indexOf('#/dash/quality') === 0; }
+
+    // ---------------- status: banner + end-of-day reminder (every screen, managers only)
+    async function loadStatus() {
+      if (!can() || document.hidden) return;
+      const r = await api('/api/dash/quality/status', undefined, 'GET', { quiet: true });
+      if (!r || !r.ok) return;
+      st.status = r;
+      const sig = [r.day, r.n, r.rated, r.done].join('|');
+      if (sig !== st.sig) { st.sig = sig; renderBanners(); }
+      remind();
+    }
+    function start() {
+      if (!can()) return;
+      loadStatus();
+      if (!st.timer) st.timer = setInterval(loadStatus, 5 * 60000);
+    }
+    function banner() {
+      const x = st.status;
+      if (!x || x.done || !x.n || onPane()) return null;
+      return h('div', { class: 'banner warn q-banner', role: 'status', 'data-test': 'quality-banner' },
+        h('span', { text: '🔎 ' + f('banner', { n: x.n, r: x.rated }) }), ' ',
+        h('a', { class: 'btn small', href: '#/dash/quality', 'data-test': 'quality-banner-go', text: L.open_check }));
+    }
+    function snoozeKey() { return 'cs-quality-later-' + (st.status ? st.status.day : ''); }
+    function remind() {
+      const x = st.status;
+      if (!x || !x.remind_modal || x.done || !x.n || onPane()) return;
+      let until = 0;
+      try { until = Number(sessionStorage.getItem(snoozeKey()) || 0); } catch (e) { until = 0; }
+      if (Date.now() < until) return;
+      const nd = document.getElementById('notice-dlg');
+      if (nd && nd.open) return;                       // a must-read notice first; the next status poll reminds
+      let d = document.getElementById('quality-remind');
+      if (!d) {
+        d = h('dialog', { id: 'quality-remind', class: 'dlg q-remind', dir: LANG === 'en' ? 'ltr' : 'rtl', 'data-test': 'quality-remind' });
+        d.addEventListener('cancel', function () { later(); });     // Esc = "later", never "never"
+        document.body.append(d);
+      }
+      if (d.open) return;
+      clear(d);
+      d.append(h('div', { class: 'in' }, h('h3', { text: L.remind_title }), h('p', { class: 'q-remind-p', text: f('banner', { n: x.n, r: x.rated }) })),
+        h('div', { class: 'row-btns' },
+          h('button', { class: 'btn primary', type: 'button', 'data-test': 'quality-remind-go', text: L.open_check, onclick: function () { d.close(); go('#/dash/quality'); } }),
+          h('button', { class: 'btn', type: 'button', 'data-test': 'quality-remind-later', text: L.later, onclick: function () { later(); d.close(); } })));
+      d.showModal();
+    }
+    function later() { try { sessionStorage.setItem(snoozeKey(), String(Date.now() + 3600000)); } catch (e) { /* private mode: it asks again next poll */ } }
+
+    // ---------------- the summary card (main tab)
+    function summary() {
+      if (!st.sumEl) st.sumEl = h('section', { class: 'dash-card q-sum', id: 'dash-quality-sum', 'data-test': 'quality-sum', 'aria-live': 'polite' });
+      paintSum();
+      return st.sumEl;
+    }
+    async function loadBoard() {
+      if (!can()) return;
+      const r = await api('/api/dash/quality', undefined, 'GET', { quiet: true });
+      if (!r || !r.ok) return;
+      const sig = JSON.stringify([r.day_rec, r.agents, r.history]);
+      if (st.board && sig === st.boardSig) return;     // nothing changed: nothing repainted
+      st.board = r; st.boardSig = sig;
+      st.status = Object.assign({}, st.status || {}, { day: r.today, n: r.day_rec ? r.day_rec.n : 0, done: !!(r.day_rec && r.day_rec.done),
+        rated: r.items.filter(function (i) { return i.rating; }).length });
+      paintSum();
+    }
+    function statusLine(dr, n, rated) {
+      if (dr && dr.done) return h('div', { class: 'q-status ok', 'data-test': 'quality-status', 'data-state': 'done', text: f('st_done', { by: dr.done_by_name, t: dm(dr.done_at) }) });
+      if (!n) return h('div', { class: 'q-status', 'data-test': 'quality-status', 'data-state': 'empty', text: L.st_none });
+      return h('div', { class: 'q-status wait', 'data-test': 'quality-status', 'data-state': 'waiting' }, h('span', { text: f('st_wait', { n: n, r: rated }) }), ' ',
+        h('a', { class: 'btn small primary', href: '#/dash/quality', 'data-test': 'quality-open', text: L.open_check }));
+    }
+    function paintSum() {
+      const el = st.sumEl;
+      if (!el) return;
+      clear(el);
+      el.append(h('h3', { text: L.sum_title }));
+      const b = st.board;
+      if (!b) { el.append(h('div', { class: 'skeleton' })); return; }
+      el.append(statusLine(b.day_rec, b.items.length, b.items.filter(function (i) { return i.rating; }).length));
+      const hist = h('div', { class: 'q-hist', 'data-test': 'quality-history' }, h('span', { class: 'muted small', text: L.hist }));
+      b.history.forEach(function (x) {
+        hist.append(h('span', { class: 'q-day ' + (x.done ? 'ok' : (x.n ? 'miss' : 'none')), 'data-day': x.day, title: x.day,
+          text: x.day.slice(8) + '/' + x.day.slice(5, 7) + ' ' + (x.done ? '✓' : (x.n ? '✗' : '—')) }));
+      });
+      el.append(hist);
+      if (!b.agents.length) { el.append(h('p', { class: 'muted', text: L.no_agents })); return; }
+      const tb = h('table', { class: 'dash-table q-table', 'data-test': 'quality-agents' }, h('thead', null, h('tr', null,
+        [L.col_agent, L.col_score, L.c_answered, L.c_correct, L.c_personal, L.c_tone, L.col_untouched, L.col_closed, L.col_today].map(function (c) { return h('th', { text: c }); }))));
+      const body = h('tbody');
+      b.agents.forEach(function (a) {
+        body.append(h('tr', { 'data-test': 'quality-agent', 'data-user': a.user },
+          h('td', { text: a.name }),
+          h('td', { class: a.score !== null && a.score < 3.5 ? 'q-bad' : '', 'data-test': 'q-score', text: a.score === null ? '—' : a.score.toFixed(1) + ' / 5 (' + a.rated + ')' }),
+          CHECKS.map(function (c) { const v = a.checks[c]; return h('td', { class: v !== null && v < 80 ? 'q-bad' : '', text: pct(v) }); }),
+          h('td', { class: a.untouched_pct !== null && a.untouched_pct >= 50 ? 'q-bad' : '', 'data-test': 'q-untouched', text: pct(a.untouched_pct) + (a.sends ? ' (' + a.sends + ')' : '') }),
+          h('td', { 'data-test': 'q-closed', text: a.closed ? a.closed + ' · ' + pct(a.closed_pct) : '0' }),
+          h('td', { text: a.today_sends + ' · ' + a.today_untouched })));
+      });
+      tb.append(body);
+      el.append(h('div', { class: 'table-wrap' }, tb), h('p', { class: 'muted small q-def', 'data-test': 'quality-def', text: L.def }));
+    }
+
+    // ---------------- the check pane (#/dash/quality)
+    async function openPane(root, day) {
+      st.pane = root;
+      st.day = day || st.day || '';
+      clear(root);
+      root.append(h('div', { class: 'skeleton' }));
+      const r = await api('/api/dash/quality' + (st.day ? '?day=' + encodeURIComponent(st.day) : ''), undefined, 'GET');
+      if (st.pane !== root) return;
+      clear(root);
+      if (!r || !r.ok) { root.append(h('div', { class: 'err-box', text: (r && (r.msg || r.error)) || L.err })); return; }
+      st.data = r; st.day = r.day; st.cards = {};
+      if (r.day === r.today) { st.board = r; st.boardSig = JSON.stringify([r.day_rec, r.agents, r.history]); paintSum(); }
+      root.append(h('div', { class: 'dash-head' }, h('h2', { text: L.pane_title + ' — ' + r.day })),
+        h('p', { class: 'q-why', text: L.pane_why }),
+        h('p', { class: 'muted small', text: f('pane_how', { g: r.per_group, a: r.max_per_agent, m: r.max_total }) }));
+      const days = h('div', { class: 'q-hist', 'data-test': 'quality-days' }, h('span', { class: 'muted small', text: L.day_lbl + ':' }));
+      r.history.slice().reverse().forEach(function (x) {
+        days.append(h('button', { type: 'button', class: 'btn small' + (x.day === r.day ? ' on' : ''), 'aria-pressed': x.day === r.day ? 'true' : 'false',
+          text: x.day.slice(8) + '/' + x.day.slice(5, 7) + ' ' + (x.done ? '✓' : (x.n ? '✗' : '—')), onclick: function () { openPane(root, x.day); } }));
+      });
+      days.append(h('button', { type: 'button', class: 'btn small ghost', 'data-test': 'quality-refresh', text: L.refresh, onclick: function () { openPane(root, st.day); } }));
+      root.append(days);
+      const prog = h('div', { class: 'q-progress', 'data-test': 'quality-progress' });
+      root.append(prog);
+      if (!r.items.length) { root.append(h('p', { class: 'note-box', 'data-test': 'quality-empty', text: L.empty })); paintProgress(prog); return; }
+      const byBrand = {};
+      r.items.forEach(function (it) { (byBrand[it.brand] = byBrand[it.brand] || []).push(it); });
+      r.items = [].concat.apply([], Object.keys(byBrand).map(function (b) { return byBrand[b]; }));   // "next" = the next card on the screen
+      Object.keys(byBrand).forEach(function (b) {
+        root.append(h('h3', { class: 'q-brand', text: brandName(b) }));
+        byBrand[b].forEach(function (it) { root.append(card(it)); });
+      });
+      root.append(h('div', { class: 'q-progress q-progress-end' }));
+      paintProgress();
+      const first = r.items.filter(function (i) { return !i.rating; })[0];
+      if (first && !(r.day_rec && r.day_rec.done)) expand(first.key, false);
+    }
+    function paintProgress() {
+      if (!st.pane || !st.data) return;
+      const r = st.data, n = r.items.length, rated = r.items.filter(function (i) { return i.rating; }).length;
+      st.pane.querySelectorAll('.q-progress').forEach(function (prog) {
+        clear(prog);
+        if (r.day_rec && r.day_rec.done) { prog.append(h('div', { class: 'q-status ok', 'data-test': 'quality-finished', text: f('finished', { by: r.day_rec.done_by_name, t: dm(r.day_rec.done_at) }) })); return; }
+        if (!n) return;
+        const msg = h('div', { role: 'alert' });
+        const fin = h('button', { type: 'button', class: 'btn primary', 'data-test': 'quality-finish', disabled: rated < n, text: L.finish });
+        fin.addEventListener('click', async function () {
+          fin.disabled = true; clear(msg);
+          const x = await api('/api/dash/quality/done', { day: r.day });
+          if (!x || !x.ok) { fin.disabled = false; msg.append(h('div', { class: 'err-box', 'data-test': 'quality-finish-err', text: (x && (x.msg || x.error)) || L.err })); return; }
+          r.day_rec = x.day_rec;
+          if (r.day === r.today) { st.status = Object.assign({}, st.status || {}, { done: true }); st.sig = ''; renderBanners(); loadBoard(); }
+          paintProgress();
+        });
+        prog.append(h('span', { class: 'q-count', 'data-test': 'quality-count', text: f('progress', { r: rated, n: n }) + (rated < n ? ' · ' + f('finish_left', { n: n - rated }) : '') }), fin, msg);
+      });
+    }
+    function rowText(it) {
+      return [it.agent_name, hm(it.ts), it.ch === 'whatsapp' ? L.ch_wa : L.ch_email].join(' · ');
+    }
+    function badge(it) {
+      return it.rating ? h('b', { class: 'q-badge ok', 'data-test': 'q-badge', text: '★ ' + it.rating.score }) : h('span', { class: 'q-badge', 'data-test': 'q-badge', text: L.not_rated });
+    }
+    function card(it) {
+      const c = { it: it, el: null, body: null, head: null, loaded: false, form: null };
+      c.head = h('button', { type: 'button', class: 'q-row', 'aria-expanded': 'false', 'data-test': 'q-row' });
+      c.body = h('div', { class: 'q-body', hidden: true });
+      c.el = h('article', { class: 'q-item' + (it.rating ? ' rated' : ''), 'data-test': 'quality-item', 'data-key': it.key, 'data-kind': it.kind }, c.head, c.body);
+      c.head.addEventListener('click', function () { if (c.body.hidden) expand(it.key, true); else collapse(it.key); });
+      st.cards[it.key] = c;
+      paintHead(c);
+      return c.el;
+    }
+    function paintHead(c) {
+      const it = c.it;
+      clear(c.head);
+      add(c.head, [h('span', { class: 'q-who', text: rowText(it) }),
+        it.kind === 'closed' ? h('span', { class: 'chip q-chip bad', text: L.k_closed }) : null,          // add(): a native append() prints "null"
+        it.untouched ? h('span', { class: 'chip q-chip warn', 'data-test': 'q-untouched-chip', text: L.untouched }) : null,
+        badge(it)]);
+      c.el.classList.toggle('rated', !!it.rating);
+    }
+    function collapse(key) {
+      const c = st.cards[key];
+      if (!c) return;
+      c.body.hidden = true; c.head.setAttribute('aria-expanded', 'false');
+    }
+    async function expand(key, scroll) {
+      const c = st.cards[key];
+      if (!c) return;
+      c.body.hidden = false; c.head.setAttribute('aria-expanded', 'true');
+      if (scroll) c.el.scrollIntoView({ block: 'nearest' });
+      if (c.loaded) return;
+      c.loaded = true;
+      clear(c.body);
+      const view = h('div', { class: 'q-view' }, h('div', { class: 'muted small', text: L.loading }));
+      c.form = form(c);
+      c.body.append(view, c.form);
+      const r = await api('/api/dash/quality/item?day=' + encodeURIComponent(st.data.day) + '&key=' + encodeURIComponent(key), undefined, 'GET');
+      clear(view);
+      if (!r || !r.ok) { c.loaded = false; view.append(h('div', { class: 'err-box', 'data-test': 'q-item-err', text: (r && (r.msg || r.error)) || L.err })); }
+      else paintView(view, c.it, r);
+      view.append(h('a', { class: 'q-open', href: '#/b/' + encodeURIComponent(c.it.brand) + '/t/' + encodeURIComponent(c.it.tid), target: '_blank', rel: 'noopener', text: L.open_tk }));
+    }
+    function msgBox(cls, title, text, extra) {
+      return h('div', { class: 'q-msg ' + cls }, h('div', { class: 'q-msg-h' }, h('b', { text: title }), extra || null), h('div', { class: 'q-msg-t', dir: 'auto', text: text }));
+    }
+    function paintView(view, it, r) {
+      (r.customer || []).forEach(function (m) { view.append(msgBox('cust', L.cust + ' · ' + m.at.slice(11, 16), m.text)); });
+      if (it.kind === 'closed') view.append(h('div', { class: 'note-box warn', 'data-test': 'q-closed-note', text: L.closed_note }));
+      else if (r.sent) view.append(msgBox('sent', L.sent + ' · ' + r.sent.at.slice(11, 16), r.sent.text));
+      else view.append(h('div', { class: 'note-box', text: L.no_sent }));
+      if (r.draft) {
+        const tag = r.draft.same === null ? null : h('span', { class: 'chip q-chip ' + (r.draft.same ? 'warn' : ''), 'data-test': 'q-draft-tag',
+          text: r.draft.same ? L.same : f('diff', { p: Math.round((r.draft.overlap || 0) * 100) }) });
+        view.append(msgBox('draft', L.draft, r.draft.text, tag));
+      } else if (it.kind === 'send' && !it.untouched) view.append(h('div', { class: 'muted small', text: L.no_draft }));
+      if (it.kind === 'send' && it.untouched) view.append(h('div', { class: 'note-box warn', 'data-test': 'q-untouched-note', text: L.untouched_note }));
+    }
+    function form(c) {
+      const it = c.it, prev = it.rating || {};
+      const val = { score: prev.score || 0, checks: Object.assign({}, prev.checks || {}) };
+      const box = h('div', { class: 'q-form', 'data-test': 'q-form' });
+      const scores = h('div', { class: 'seg q-scores', role: 'group', 'aria-label': L.score });
+      const rows = {};
+      function paint() {
+        scores.querySelectorAll('button').forEach(function (b) { const on = Number(b.dataset.v) === val.score; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+        CHECKS.forEach(function (k) { rows[k].querySelectorAll('button').forEach(function (b) { const on = String(val.checks[k]) === b.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); });
+      }
+      [1, 2, 3, 4, 5].forEach(function (n) {
+        scores.append(h('button', { type: 'button', class: 'seg-btn', 'data-v': String(n), 'data-test': 'q-score-' + n, text: String(n), onclick: function () {
+          val.score = n;
+          if (n >= 4) CHECKS.forEach(function (k) { if (typeof val.checks[k] !== 'boolean') val.checks[k] = true; });   // a good reply: one click, still editable
+          paint();
+        } }));
+      });
+      box.append(h('div', { class: 'q-line' }, h('span', { class: 'q-lbl', text: L.score }), scores));
+      CHECKS.forEach(function (k) {
+        const seg = h('div', { class: 'seg', role: 'group', 'aria-label': L['q_' + k] });
+        [['true', L.yes], ['false', L.no]].forEach(function (p) {
+          seg.append(h('button', { type: 'button', class: 'seg-btn', 'data-v': p[0], 'data-test': 'q-' + k + '-' + p[0], text: p[1], onclick: function () { val.checks[k] = p[0] === 'true'; paint(); } }));
+        });
+        rows[k] = seg;
+        box.append(h('div', { class: 'q-line' }, h('span', { class: 'q-lbl', text: L['q_' + k] }), seg));
+      });
+      const note = h('textarea', { class: 'q-note', rows: '2', maxlength: '500', 'aria-label': L.note, placeholder: L.note, 'data-test': 'q-note', value: prev.note || '' });
+      const msg = h('div', { role: 'alert' });
+      const save = h('button', { type: 'button', class: 'btn primary', 'data-test': 'q-save', text: L.save });
+      save.addEventListener('click', async function () {
+        clear(msg);
+        if (!val.score || CHECKS.some(function (k) { return typeof val.checks[k] !== 'boolean'; })) { msg.append(h('div', { class: 'err-box', 'data-test': 'q-need', text: L.need })); return; }
+        save.disabled = true;
+        const r = await api('/api/dash/quality/rate', { day: st.data.day, key: it.key, score: val.score, checks: val.checks, note: note.value });
+        save.disabled = false;
+        if (!r || !r.ok) { msg.append(h('div', { class: 'err-box', 'data-test': 'q-save-err', text: (r && (r.msg || r.error)) || L.err })); return; }
+        it.rating = r.rating;
+        paintHead(c);
+        msg.append(h('span', { class: 'q-saved', 'data-test': 'q-saved', text: L.saved + ' · ' + f('rated_by', { by: r.rating.by }) }));
+        if (st.data.day === st.data.today && st.status) { st.status.rated = st.data.items.filter(function (i) { return i.rating; }).length; st.sig = ''; }
+        paintProgress();
+        collapse(it.key);
+        const keys = st.data.items.map(function (i) { return i.key; });
+        const nx = st.data.items.slice(keys.indexOf(it.key) + 1).concat(st.data.items).filter(function (i) { return !i.rating; })[0];
+        if (nx) expand(nx.key, true);
+      });
+      box.append(note, h('div', { class: 'row-btns' }, save), msg);
+      paint();
+      return box;
+    }
+    function ensurePane(root) { if (st.pane === root && st.data && root.firstChild) return; openPane(root, st.day); }
+    return { can: can, start: start, ensurePane: ensurePane, banner: banner, summary: summary, loadBoard: loadBoard, openPane: openPane, loadStatus: loadStatus, tab: function () { return L.tab; } };
+  })();
+
   const Dash = (function () {
     const HE = {
       title: 'לוח מנהלים', day: 'יום', d7: '7 ימים', d30: '30 ימים', updated: 'עודכן', loading: 'טוען…',
@@ -7751,19 +8091,45 @@
     }
     /** The pane holds two parts: the numbers (rebuilt on every 30 s refresh) and the AI notes card (built once — the 30 s refresh must
      *  never rebuild a textarea a manager is typing in; build-rules §1ב). */
+    // Owner, 2026-11-12: "the most important first, the rest in a separate tab". Three panes in one board: the main view (what a decision needs:
+    // response times, the quality check, the open backlog, did every ticket get an answer), the daily quality check, and "נתונים נוספים"
+    // (everything else, moved — nothing deleted). The panes are built once; a tab switch only toggles `hidden`.
     function parts() {
       const root = $('dash-pane');
       let main = document.getElementById('dash-main');
       if (!main) {
         clear(root);
-        main = h('div', { id: 'dash-main' });
-        root.append(main, h('div', { id: 'dash-sales', class: 'dash-sales' }), h('div', { id: 'dash-ai' }), h('div', { id: 'dash-sysreq' }));
+        main = h('div', { id: 'dash-main', 'data-test': 'dash-pane-main' });
+        root.append(h('div', { id: 'dash-headbox' }), h('nav', { id: 'dash-tabs', class: 'dash-tabs', 'data-test': 'dash-tabs' }), main,
+          h('div', { id: 'dash-quality', 'data-test': 'dash-pane-quality', hidden: true }),
+          h('div', { id: 'dash-more', 'data-test': 'dash-pane-more', hidden: true }, h('div', { id: 'dash-more-main' }),
+            h('div', { id: 'dash-sales', class: 'dash-sales' }), h('div', { id: 'dash-ai' }), h('div', { id: 'dash-sysreq' })));
       }
-      return { main: main, ai: document.getElementById('dash-ai'), sales: document.getElementById('dash-sales'), sysreq: document.getElementById('dash-sysreq') };
+      return { main: main, head: $('dash-headbox'), tabs: $('dash-tabs'), quality: $('dash-quality'), more: $('dash-more'), moreMain: $('dash-more-main'),
+        ai: $('dash-ai'), sales: $('dash-sales'), sysreq: $('dash-sysreq') };
+    }
+    const TABS = LANG === 'en' ? { '': 'Main', quality: 'Daily quality check', more: 'More data' } : { '': 'עיקרי', quality: 'בדיקת איכות יומית', more: 'נתונים נוספים' };
+    function paintTabs() {
+      const pp = parts();
+      clear(pp.tabs);
+      ['', 'quality', 'more'].forEach(function (k) {
+        if (k === 'quality' && !Quality.can()) return;
+        const on = st.sub === k;
+        pp.tabs.append(h('a', { class: 'dash-tab' + (on ? ' on' : ''), href: '#/dash' + (k ? '/' + k : ''), 'aria-current': on ? 'page' : null, 'data-test': 'dash-tab-' + (k || 'main'), text: TABS[k] }));
+      });
+      pp.main.hidden = st.sub !== '';
+      pp.quality.hidden = st.sub !== 'quality';
+      pp.more.hidden = st.sub !== 'more';
+    }
+    function jumpMore(id) {
+      go('#/dash/more');
+      setTimeout(function () { const c = document.getElementById(id); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
     }
     function render() {
-      const p = parts().main;
-      clear(p);
+      const pp = parts();
+      const p = pp.main, m = pp.moreMain;
+      clear(p); clear(m); clear(pp.head);
+      paintTabs();
       const head = h('div', { class: 'dash-head' }, h('h2', { text: L.title }));
       const rg = h('div', { class: 'seg', role: 'group' });
       [['1', L.day], ['7', L.d7], ['30', L.d30]].forEach(function (x) {
@@ -7775,46 +8141,54 @@
       di.addEventListener('change', function () { st.date = di.value; st.data = null; cx.pick = ''; render(); load(); loadCx(); });
       head.append(rg, di);
       if (S.me.is_admin) head.append(h('button', { type: 'button', class: 'btn small ghost', 'data-test': 'ai-notes-jump', text: t('ain_jump'),
-        onclick: function () { const c = document.getElementById('ai-notes'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }));
+        onclick: function () { jumpMore('ai-notes'); } }));
       if (S.me.is_admin) head.append(h('button', { type: 'button', class: 'btn small ghost', 'data-test': 'sysreq-jump', text: SysReq.jumpLabel(),
-        onclick: function () { const c = document.getElementById('sysreq'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }));
+        onclick: function () { jumpMore('sysreq'); } }));
       if (st.data) head.append(h('b', { class: 'shown-day', 'data-test': 'dash-shown', text: st.data.days.length > 1 ? st.data.days[0] + ' – ' + st.data.end_day : st.data.end_day }));
       if (st.data) head.append(h('span', { class: 'muted small', 'data-test': 'dash-updated', text: L.updated + ' ' + new Date(st.data.generated_at * 1000).toLocaleTimeString(LANG === 'en' ? 'en-GB' : 'he-IL') }));
-      p.append(head, liveStrip(), Sla.section());          // SLA (2026-10-24): managers' board, right under the live strip
-      if (S.me.is_admin || isViewer()) p.append(cxStrip());          // cancellations (2026-10-23): admins only, like the sales table (+ the read-only viewer, 2026-11-09)
-      if (S.me.is_admin || isViewer()) p.append(crStrip());          // why customers cancel a subscription (2026-11-01): admins only (+ the read-only viewer)
-      if (S.me.is_admin || isViewer()) p.append(bhStrip());          // billing health + the failed-charge reasons from Kaching (2026-11-09): admin + the read-only viewer
+      pp.head.append(head);
+      // MAIN — what a decision needs. 1) response times per brand and per agent (SLA), 2) the quality score per agent + today's check,
+      // 3) open now (backlog) live, 4) did every ticket written to before the desk closed get an answer, 5) the brand cards (FRT, awaiting, backlog age).
+      p.append(Sla.section());
+      if (Quality.can()) p.append(Quality.summary());
+      p.append(liveStrip());
+      // MORE ("נתונים נוספים") — moved here, nothing deleted: cancellations, why customers cancel, billing health, sources, KPIs vs the market,
+      // work time / activity per agent, the heat map, the pies; then the sales table, the AI notes and the system requests (their own containers).
+      if (S.me.is_admin || isViewer()) m.append(cxStrip());          // cancellations (2026-10-23): admins only, like the sales table (+ the read-only viewer, 2026-11-09)
+      if (S.me.is_admin || isViewer()) m.append(crStrip());          // why customers cancel a subscription (2026-11-01): admins only (+ the read-only viewer)
+      if (S.me.is_admin || isViewer()) m.append(bhStrip());          // billing health + the failed-charge reasons from Kaching (2026-11-09): admin + the read-only viewer
       if (st.err) p.append(h('div', { class: 'err-box', text: st.err }));
       const x = st.data;
-      if (!x) { p.append(h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); return; }
+      if (!x) { p.append(h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); m.append(h('div', { class: 'skeleton' })); return; }
       if (x.stats_source === 'mixed') p.append(h('div', { class: 'note-box warn', role: 'status', 'data-test': 'dash-missing',
         text: '⚠️ ' + d('missing', { b: Object.keys(x.missing_ds || {}).map(brandName).join(', ') }) }));
       if (x.stats_source === 'list') p.append(h('div', { class: 'err-box dash-fixing', role: 'alert', 'data-test': 'dash-fixing' },
         h('b', { text: '⚠️ ' + L.fixing }), h('div', { class: 'small', text: L.fixing_sub })));
       if (x.verify_note) p.append(h('div', { class: 'verified', role: 'status', 'data-test': 'dash-verify', text: x.verify_note }));
-      p.append(h('div', { class: 'muted small dash-method', 'data-test': 'dash-method', text: d('method', { m: Math.round(x.idle_gap_s / 60), b: Math.round((x.break_gap_s || 1800) / 60) }) + (x.log_since ? ' · ' + d('since', { d: x.log_since }) : '') }));
-      if (!x.log_since) p.append(h('div', { class: 'note-box', 'data-test': 'dash-log-new', text: L.log_new }));
       p.append(serviceBlock(x) || '');
       if (x.days.length > 1) p.append(h('div', { class: 'note-box', 'data-test': 'dash-last-day', text: d('last_day_only', { d: x.end_day }) }));
       const bw = h('div', { class: 'brand-grid' });
       Object.keys(x.brands).forEach(function (b) { bw.append(brandCard(b, x.brands[b])); });
       p.append(bw);
-      if (x.sources && x.sources.total && x.sources.total.answered) p.append(sourcesBlock(x.sources, 'answered'), sourcesBlock(x.sources, 'closed'));
-      p.append(h('h3', { text: L.kpis }), kpis(x.kpis, x.bench));
-      p.append(h('h3', { text: L.agents + ' — ' + L.onscreen, 'data-test': 'dash-onscreen' }), agentsTable(x.agents));
+      p.append(h('a', { class: 'dash-more-link', href: '#/dash/more', 'data-test': 'dash-more-link', text: (LANG === 'en' ? 'More data: cancellations, billing, KPIs, work time, charts' : 'נתונים נוספים: ביטולים, חיובים, מדדים, זמן עבודה, גרפים') + ' ←' }));
+      m.append(h('div', { class: 'muted small dash-method', 'data-test': 'dash-method', text: d('method', { m: Math.round(x.idle_gap_s / 60), b: Math.round((x.break_gap_s || 1800) / 60) }) + (x.log_since ? ' · ' + d('since', { d: x.log_since }) : '') }));
+      if (!x.log_since) m.append(h('div', { class: 'note-box', 'data-test': 'dash-log-new', text: L.log_new }));
+      if (x.sources && x.sources.total && x.sources.total.answered) m.append(sourcesBlock(x.sources, 'answered'), sourcesBlock(x.sources, 'closed'));
+      m.append(h('h3', { text: L.kpis }), kpis(x.kpis, x.bench));
+      m.append(h('h3', { text: L.agents + ' — ' + L.onscreen, 'data-test': 'dash-onscreen' }), agentsTable(x.agents));
       const sd = x.senders || {};
       if (Object.keys(sd).length) {
         const known = {}; x.agents.forEach(function (a) { known[a.user] = 1; });
         const fixed = ['dondy_direct', 'gmail_direct', 'auto', 'auto-reply', 'bot', 'template'];
         const other = Object.keys(sd).filter(function (k) { return !known[k] && fixed.indexOf(k) < 0 && sd[k]; }).map(function (k) { return k + ' ' + sd[k]; });
-        p.append(h('div', { class: 'muted small', 'data-test': 'dash-direct', text: d('direct_note', { d: sd.dondy_direct || 0, g: sd.gmail_direct || 0,
+        m.append(h('div', { class: 'muted small', 'data-test': 'dash-direct', text: d('direct_note', { d: sd.dondy_direct || 0, g: sd.gmail_direct || 0,
           a: (sd.auto || 0) + (sd['auto-reply'] || 0), b: (sd.bot || 0) + (sd.template || 0) }) + (other.length ? ' · ' + L.others + ': ' + other.join(', ') : '') }));
       }
-      p.append(heatmap(x));
+      m.append(heatmap(x));
       const pg = h('div', { class: 'pie-grid' });
       pg.append(pie(L.pie_brand, 'brand', x.pies.brand, 's'), pie(L.pie_chan, 'channel', x.pies.channel, 's'),
         pie(L.pie_cat, 'category', x.pies.category, 's'), pie(L.pie_who, 'who', x.pies.who, 'n'));
-      p.append(h('h3', { text: L.pies }), pg);
+      m.append(h('h3', { text: L.pies }), pg);
     }
     async function load(fromTimer) {
       if (st.busy && fromTimer) return;
@@ -7827,9 +8201,17 @@
       if (r && r.ok) { st.data = r; st.err = null; if (!st.date) st.shown = r.end_day; Sla.setDash(r); } else if (r) st.err = r.msg || r.error;
       if (S.view === 'dash') render();
     }
-    function show() {
+    function show(sub, wasDash) {
+      st.sub = sub === 'more' || (sub === 'quality' && Quality.can()) ? sub : '';
       $('dash-pane').hidden = false;
+      if (wasDash && parts().main.childNodes.length) {      // a tab switch: show the other pane, rebuild nothing
+        paintTabs();
+        if (st.sub === 'quality') Quality.ensurePane(parts().quality);
+        return;
+      }
       render();
+      if (st.sub === 'quality') Quality.ensurePane(parts().quality);
+      Quality.loadBoard();
       if (S.me.is_admin) SalesBoard.mount(parts().sales);   // sales log for bonuses (admin only; the proxy answers 403 to anyone else)
       if (S.me.is_admin) AiNotes.mount(parts().ai);       // admin only (the proxy answers 403 to anyone else)
       if (S.me.is_admin) SysReq.mount(parts().sysreq);    // system change requests to the owner (2026-10-25): admin only, the server answers 403 to anyone else
@@ -7839,7 +8221,7 @@
       loadCr();
       loadBh();
       if (!timer) timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) load(true); }, 30000);
-      if (!live.timer) live.timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) { loadLive(); loadCx(); loadCr(); } }, 30000);
+      if (!live.timer) live.timer = setInterval(function () { if (S.view === 'dash' && !document.hidden) { loadLive(); loadCx(); loadCr(); Quality.loadBoard(); } }, 30000);
     }
     return { show: show, load: load, loadLive: loadLive };
   })();
@@ -8535,6 +8917,7 @@
     route();
     Sla.start();                                       // SLA banner for managers (2026-10-24): one light poll a minute, nothing for agents
     Notice.load();                                     // must-read notices (2026-10-26): modal until acknowledged, then in the menu
+    Quality.start();                                   // the daily quality check (2026-11-12): banner + end-of-day reminder, managers only
   }
   start();
 })();

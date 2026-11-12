@@ -161,7 +161,7 @@ def test_ai_notes_general_brand_partial_failure_and_delete(server):
     base, pwd = server
     with pw.sync_playwright() as p:
         browser, ctx, pg = login(p, base, pwd, "admin1")
-        pg.goto(base + "/cs#/dash")
+        pg.goto(base + "/cs#/dash/more")
         pg.wait_for_selector("[data-test=ai-notes]")
         card = pg.locator("[data-test=ai-notes]")
         assert card.locator("h3").inner_text() == "שיפור ה-AI — הערות למנהלים"
@@ -240,7 +240,7 @@ def test_dashboard_refresh_never_rebuilds_the_note_being_typed(server):
     base, pwd = server
     with pw.sync_playwright() as p:
         browser, ctx, pg = login(p, base, pwd, "admin1")
-        pg.goto(base + "/cs#/dash")
+        pg.goto(base + "/cs#/dash/more")
         pg.wait_for_selector("[data-test=ai-note-text]")
         pg.fill("[data-test=ai-note-text]", "טיוטה של הערה באמצע הקלדה")
         pg.focus("[data-test=ai-note-text]")
@@ -257,7 +257,7 @@ def test_non_admin_sees_no_card_and_the_proxy_refuses(server):
     base, pwd = server
     with pw.sync_playwright() as p:
         browser, ctx, pg = login(p, base, pwd, "mgr1")                             # a user manager sees the dashboard...
-        pg.goto(base + "/cs#/dash")
+        pg.goto(base + "/cs#/dash/more")
         pg.wait_for_selector("[data-test=range-1]")
         pg.wait_for_timeout(800)
         assert pg.locator("[data-test=ai-notes]").count() == 0                     # ...but not the AI card

@@ -21,6 +21,15 @@ PROXY = {
     "snooze_not_open": ("אפשר לדחות רק פנייה פתוחה. רעננו את הרשימה.", "Only an open ticket can be snoozed. Refresh the list."),
     "snooze_everyone": ("אי אפשר לדחות: אף נציג אחר לא יראה את הפנייה. היא חייבת להישאר אצל מישהו.",
                         "Cannot snooze: no other agent would see this ticket. It must stay with someone."),
+    # the daily quality check (quality.py, 2026-11-12)
+    "quality_bad_rating": ("בחרו ציון 1–5 וסמנו כן / לא בכל ארבע השאלות.", "Pick a score 1-5 and answer yes / no on all four questions."),
+    "quality_bad_note": ("ההערה ארוכה מדי (עד 500 תווים).", "The note is too long (500 characters at most)."),
+    "quality_not_in_sample": ("הפנייה הזאת לא במדגם של היום הזה. רעננו את הדף.", "This ticket is not in that day's sample. Refresh the page."),
+    "quality_unrated": ("נשארו {n} פניות בלי ציון — דרגו את כולן ואז סיימו.", "{n} tickets still have no rating: rate them all, then finish."),
+    "quality_empty": ("אין היום פניות לבדיקה.", "There is nothing to check today."),
+    "quality_other_brands": ("במדגם יש מותגים שאין לך גישה אליהם — רק מנהל עם כל המותגים יכול לסיים את הבדיקה.",
+                             "The sample has brands you cannot see: only a manager with every brand can finish the check."),
+    "engine_error": ("המנוע לא ענה כרגע. נסו שוב בעוד רגע.", "The engine did not answer. Try again in a moment."),
     # system change requests to the owner (sysreq.py, 2026-10-25)
     "sysreq_bad_text": ("כתבו מה הבעיה ומה צריך להשתנות: בין 10 ל-2000 תווים.", "Describe the problem and what should change: 10 to 2000 characters."),
     "sysreq_bad_brand": ("בחרו מותג מהרשימה (או כל המותגים).", "Pick a brand from the list (or all brands)."),

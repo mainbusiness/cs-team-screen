@@ -84,7 +84,7 @@ def test_admin_sees_live_numbers_from_real_actions(server):
         ad.route("**/api/dash?range=1*", lambda route, req: (__import__("time").sleep(1.5), route.continue_()))   # an old answer, late
         ad.evaluate("() => document.querySelector('[data-test=range-1]').click()")
         ad.click("[data-test=range-7]")
-        ad.wait_for_selector("[data-test=heat-who]")
+        ad.wait_for_selector("[data-test=heat-who]", state="attached")                  # 2026-11-12: the heat map is in "נתונים נוספים"
         ad.wait_for_timeout(2500)                                                          # the late range-1 answer has landed
         assert " – " in ad.inner_text("[data-test=dash-shown]") and ad.locator("[data-test=heat-who]").count() == 1
         ad.unroute("**/api/dash?range=1*")
@@ -175,6 +175,7 @@ def test_live_open_strip_equals_the_agents_open_tab(server):
         assert ad.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth") == 0
         # the 30 s board reload moves the SAME strip element (never a rebuild flicker), and an unchanged answer repaints nothing
         ad.evaluate("() => { window.__live = document.querySelector('[data-test=dash-live]'); }")
+        ad.click("[data-test=dash-tab-more]")                    # 2026-11-12: work time, the heat map and the KPIs are in "נתונים נוספים"
         ad.click("[data-test=range-7]"); ad.wait_for_selector("[data-test=heat-who]")
         assert ad.evaluate("() => document.querySelector('[data-test=dash-live]') === window.__live")
         # an agent answers one open ticket: the agent's badge and the managers' strip move together
@@ -190,6 +191,7 @@ def test_live_open_strip_equals_the_agents_open_tab(server):
         assert n2 == int(ag.inner_text("a.tab.ready .n")) == badge - 1 and wa2 + em2 == n2
         assert ad.locator("[data-test=dash-live]").count() == 1
         # work time (Owner, 2026-10-13): the method in one line, the shift with its breaks, and the old on-screen number beside it
+        ad.click("[data-test=dash-tab-more]")
         ad.click("[data-test=range-1]")
         ad.wait_for_selector("[data-test=dash-agent][data-user=agent1] [data-test=ag-shift]")
         assert "–" in ad.inner_text("[data-test=dash-agent][data-user=agent1] [data-test=ag-shift]")

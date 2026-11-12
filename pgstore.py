@@ -15,6 +15,7 @@ What lives here (own `screen_*` tables, nothing shared with the core engine's ta
   screen_meta      import marker + counts
   screen_system_requests  the managers' system change requests for the owner (sysreq.py, 2026-10-25)
   screen_notice_acks  who acknowledged which must-read notice, and when (notice.py, 2026-10-26)
+  screen_quality_days / screen_quality_ratings  the CS manager's daily sampled quality check (quality.py, 2026-11-12)
 
 Two instances run side by side during a deploy, so correctness never depends on an in-process lock: every
 read-modify-write is a transaction holding a Postgres advisory lock.
@@ -55,6 +56,11 @@ create table if not exists screen_system_requests(id bigserial primary key, rid 
 create index if not exists screen_system_requests_upd on screen_system_requests(updated_at);
 create table if not exists screen_notice_acks(username text not null, notice_id text not null, acked_at double precision not null,
                                               primary key (username, notice_id));
+create table if not exists screen_quality_days(day text primary key, sample jsonb not null, created_at double precision not null,
+                                               done_by text not null default '', done_at double precision);
+create table if not exists screen_quality_ratings(day text not null, item_key text not null, agent text not null, brand text not null,
+                                                  score int not null, checks jsonb not null, note text not null default '',
+                                                  rated_by text not null, rated_at double precision not null, primary key (day, item_key));
 """
 
 # pure caches that are never worth copying: regenerable from the engines / Shopify in seconds
@@ -294,7 +300,7 @@ def reset_all(url):
     db = DB(url, size=1)
     init(db)
     for t in ("screen_users", "screen_audit", "screen_activity", "screen_snap", "screen_snooze", "screen_translate", "screen_backup", "screen_meta",
-              "screen_system_requests", "screen_notice_acks"):
+              "screen_system_requests", "screen_notice_acks", "screen_quality_days", "screen_quality_ratings"):
         db.x("truncate %s restart identity" % t)
     for c in list(db._q.queue):
         c.close()

@@ -55,7 +55,7 @@ def test_admin_sees_cancellations_per_day_agent_and_month(srv, width, path):
     base, pwd = srv
     with pw.sync_playwright() as p:
         pg = login(p, base, pwd, "guy", width, path)
-        pg.goto(base + path + "#/dash")
+        pg.goto(base + path + "#/dash/more")
         pg.wait_for_selector("[data-test=cx]")
         # the section sits right under the live strip, before the service-hours block
         order = pg.evaluate("() => { const a = document.querySelector('[data-test=dash-live]'), b = document.querySelector('[data-test=cx]');"
@@ -134,7 +134,7 @@ def test_agents_and_user_managers_never_see_it(srv, user):
     base, pwd = srv
     with pw.sync_playwright() as p:
         pg = login(p, base, pwd, user)
-        pg.goto(base + "/cs#/dash")
+        pg.goto(base + "/cs#/dash/more")
         pg.wait_for_timeout(1500)
         assert pg.locator("[data-test=cx]").count() == 0
         assert pg.evaluate("async () => (await fetch('/api/dash/cancels')).status") == 403
@@ -142,7 +142,8 @@ def test_agents_and_user_managers_never_see_it(srv, user):
         st = pg.evaluate("async c => (await fetch('/api/rozela/apiCancelStats', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-Token': c},"
                          " body: JSON.stringify({args: {from: '2026-10-10', to: '2026-10-20'}})})).status", csrf)
         assert st == 403
-        if user == "dan":                                    # the user-manager still has the board itself
+        if user == "dan":                                    # the user-manager still has the board itself (its main tab, 2026-11-12)
+            pg.goto(base + "/cs#/dash")
             pg.wait_for_selector("[data-test=dash-live]")
         assert not pg.errors, pg.errors
 
@@ -152,10 +153,11 @@ def test_an_engine_without_the_fn_says_not_yet_and_the_board_still_works():
     try:
         with pw.sync_playwright() as p:
             pg = login(p, base, pwd, "guy")
-            pg.goto(base + "/cs#/dash")
+            pg.goto(base + "/cs#/dash/more")
             pg.wait_for_selector("[data-test=cx-unavailable]", timeout=20000)
             assert "עוד לא זמינים" in pg.inner_text("[data-test=cx-unavailable]")
             assert pg.locator("[data-test=cx-month]").count() == 0
+            pg.click("[data-test=dash-tab-main]")                # the rest of the board is on the main tab (2026-11-12)
             pg.wait_for_selector("[data-test=dash-brand][data-brand=rozela]")
             assert pg.locator("[data-test=live-brand]").count() >= 3
             assert not pg.errors, pg.errors
@@ -168,7 +170,7 @@ def test_a_kaching_copy_still_warming_says_so_instead_of_zeros():
     try:
         with pw.sync_playwright() as p:
             pg = login(p, base, pwd, "guy")
-            pg.goto(base + "/cs#/dash")
+            pg.goto(base + "/cs#/dash/more")
             pg.wait_for_selector("[data-test=cx-days]", timeout=20000)
             no_junk(pg, "[data-test=cx]")
             assert "קאצ׳ינג מתכונן" in pg.inner_text("[data-test=cx-month][data-brand=rozela]")
@@ -185,7 +187,7 @@ def test_no_kaching_and_kaching_errors_are_named_never_zero():
     try:
         with pw.sync_playwright() as p:
             pg = login(p, base, pwd, "guy", 390)
-            pg.goto(base + "/cs#/dash")
+            pg.goto(base + "/cs#/dash/more")
             pg.wait_for_selector("[data-test=cx-days]", timeout=20000)
             no_junk(pg, "[data-test=cx]")
             assert "אין חיבור לקאצ׳ינג" in pg.inner_text("[data-test=cx-month][data-brand=apexmen]")

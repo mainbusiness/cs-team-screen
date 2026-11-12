@@ -51,7 +51,7 @@ def open_card(p, base, pwd, user="admin1", width=1280, routes=None):
     pg.fill("input[name=password]", pwd)
     pg.click("button[type=submit]")
     pg.wait_for_load_state("networkidle")
-    pg.goto(base + ("/cs/en#/dash" if user == "admin2" else "/cs#/dash"))
+    pg.goto(base + ("/cs/en#/dash/more" if user == "admin2" else "/cs#/dash/more"))
     pg.wait_for_selector("[data-test=ai-notes]")
     pg.wait_for_selector("[data-test=ai-sugg-section] [data-test=ai-sugg-empty]")     # the suggestions arrived
     return browser, pg

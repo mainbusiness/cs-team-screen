@@ -29,6 +29,7 @@ Render disk and in each engine's `audit` sheet.
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
 | `sysreq.py` | system change requests from the managers to the owner (2026-10-25): the card "🛠️ הצעות לשיפור המערכת" on `#/dash` under the AI-notes card (admins only), `GET/POST /api/sysreq`, and the machine API `GET /hq/sysreq?since=` + `POST /hq/sysreq/<id>` for the Mini (HMAC token in `X-HQ-Token`, aud `cs-sysreq`, ≤ 5 min; CSRF-exempt by exact path). Postgres `screen_system_requests`, a JSON file for tests. The Mini side is `../sysreq_sync/` (launchd pull → HQ inbox, CLI `decide`). Nothing executes a request. |
+| `quality.py` | the CS manager's daily sampled quality check (2026-11-12): `GET /api/dash/quality[?day=]`, `GET /api/dash/quality/status`, `GET /api/dash/quality/item?day=&key=`, `POST /api/dash/quality/rate`, `POST /api/dash/quality/done` (admin + user-manager only). Postgres `screen_quality_days` + `screen_quality_ratings`, a JSON file for tests (`QUALITY_PATH`). Audited `quality_rated` / `quality_day_done`. See "Managers' board tabs + the daily quality check" below. |
 | `notice.py` | must-read notices (2026-10-26): `GET /api/notice`, `POST /api/notice/ack {id}`; per-user ack in Postgres `screen_notice_acks` (a JSON file for tests, `NOTICE_PATH`), audited `notice_acked`. See "Must-read notices" below. |
 | `zipfix/` | zip fill (מילוי מיקודים): `/api/<brand>/zipfix` + bot route `/bot/zipfix`, background jobs, ported resolver — see `zipfix/README.md` |
 | `tests/test_viewer*.py` | the read-only viewer: fn list parity (engine Api.gs / engine_proxy / app.js / mock), every write 403 with zero engine calls, the other Flask routes, a real-browser check that no write control is drawn |
@@ -772,3 +773,36 @@ Guy: "very important to pass it to the CS manager Manager, and put an alert for 
 - Tests: `tests/test_topbar_phone_browser.py` (admin, pure user-manager, agents with 1 and 2 brands × list / ticket / board × both desks ×
   360 / 390 / 414: scrollWidth ≤ clientWidth; fails with the phone CSS removed), `tests/test_notice_browser.py::test_ack_button_is_on_screen_without_scrolling`
   (768×700, 390×700, 360×560: the button's centre is the button, the body scrolls).
+
+## Managers' board tabs + the daily quality check (Owner, 2026-11-12)
+Guy: agents click "send" on the AI / template draft without reading it, and sometimes do not really answer; he wants a CONTROL. The CS manager
+(agent-two) samples every agent's replies in every brand each day and rates them. The board also got simpler: the most important first, the rest
+in a separate tab.
+- **Tabs inside `#/dash`:** `#/dash` = **עיקרי** · `#/dash/quality` = **בדיקת איכות יומית** (managers only) · `#/dash/more` = **נתונים נוספים**.
+  Panes are built once; a tab switch only toggles `hidden` (no re-mount, no reload: the AI-notes / system-request textareas are never rebuilt).
+- **Main tab, in this order:** the SLA section (first reply / resolution per brand AND per agent, the breaching list) · the quality card (score
+  per agent over 7 days, the two signals, today's check status, the last 7 days' checks) · open now (live) · "written to before 17:00 —
+  answered?" · the brand cards (received / answered / awaiting / FRT / backlog age).
+- **Moved to נתונים נוספים (nothing deleted):** cancellations, why customers cancel, Kaching billing health, the work-time method note, the
+  log-new note, answered / closed by source, KPIs vs 2026 benchmarks, the agents' work time / on-screen table, the "no agent name" line,
+  the heat map, the pies, the sales table, the AI notes, the system requests. The "🧠 שיפור ה-AI" / "🛠️ הצעה לשיפור המערכת" buttons jump there.
+- **The sample** (per Israel day, shared by all managers): tickets a user with role `agent` (not a QA / automation account; not admins, so the
+  manager is not sampled) answered today (`send`), plus tickets the agent CLOSED today with no reply from anyone in the 24 h before.
+  Per agent per brand up to 3 (a closed-with-no-reply one first), at most 9 per agent and 40 per day, round-robin; the order is
+  sha256(day|brand|agent|ticket), so a reload never reshuffles. Append-only: a drawn item never leaves; a group below 3 is topped up later
+  in the day; after "done" nothing is added.
+- **Signals (from the activity log, the agent's OWN events only):** "נשלח בלי הקלדה" = the agent's send with no `edit` (typing heartbeat /
+  autosave) by THAT agent in the ticket since his previous send or the last 2 h (the measure of DECISIONS 2026-11-01); "נסגרו בלי תשובה" =
+  closes with no reply in the 24 h before. Shown per agent as % beside the score (7 days) and today's counts.
+- **One item:** the ticket through the shared cache (`get_ticket`, no activity row for the manager): the customer's messages since our
+  previous reply (≤ 3), the reply sent (the `us` message within 15 min of the logged send), and the AI draft when the engine snapshot has
+  `aiDraft` (kept by AiLearn.gs the first time a person saves over the AI draft) with "same / differs (word overlap)" (0.97 = AiLearn's threshold).
+- **Rating:** 1-5 + yes / no on: answered the question · correct information · personal (not a pasted template) · tone, + an optional note
+  (≤ 500). A 4 or 5 pre-answers "yes" (editable). "סיימתי את הבדיקה של היום" is refused until every item is rated; a manager who lacks one of
+  the sample's brands cannot finish it.
+- **Reminder:** a banner on every screen for managers while today's sample has items and is not done; from `QUALITY_REMIND_HOUR` (default
+  16, Israel) a modal; "אזכיר לי בעוד שעה" / Esc snoozes it for an hour in that tab (sessionStorage). Status polls every 5 min.
+  The browser tests and `tools/screens.py` start with `QUALITY_REMIND_HOUR=24`.
+- **Tests:** `tests/test_quality.py` (roles, CSRF, the sample rules, own-keystrokes, validation, done gate, restart, brand scope, the item
+  view), `tests/test_quality_browser.py` (real browser: main vs more, banner → check → rate → finish, the modal + "later", agent sees
+  nothing, 390 / 1280 no overflow, no console errors).

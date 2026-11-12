@@ -40,7 +40,7 @@ def open_card(p, base, pwd):
     pg.fill("input[name=password]", pwd)
     pg.click("button[type=submit]")
     pg.wait_for_load_state("networkidle")
-    pg.goto(base + "/cs#/dash")
+    pg.goto(base + "/cs#/dash/more")
     pg.wait_for_selector("[data-test=ai-notes]")
     return browser, pg
 

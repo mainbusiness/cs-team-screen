@@ -67,7 +67,7 @@ def test_managers_table_filters_proof_decisions_summary_and_unlogged_sales(srv):
     base, pwd = srv
     with pw.sync_playwright() as p:
         pg = login(p, base, pwd, "guy")
-        pg.goto(base + "/cs#/dash")
+        pg.goto(base + "/cs#/dash/more")
         pg.wait_for_selector("[data-test=sales-title]")
         pg.wait_for_selector("[data-test=sale-row]")
         assert pg.locator("[data-test=sale-row]").count() == 3                          # 2 rozela + 1 celesta, this month

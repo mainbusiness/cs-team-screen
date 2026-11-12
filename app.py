@@ -43,6 +43,7 @@ import sla
 import snooze
 import sysreq
 import notice
+import quality
 from zipfix import routes as zipfix_routes
 from users_store import ROLES, PgUserStore, UserStore, UserStoreError, public_user
 
@@ -689,6 +690,13 @@ def create_app(overrides=None):
         o.get("NOTICE_PATH", os.environ.get("NOTICE_PATH", os.path.join(cache_base, "notice-acks.json")))))
     app.extensions["cs"]["notice_acks"] = notice_acks
     notice.register(app, {"api_user": api_user, "json_error": json_error, "ui_lang": ui_lang, "store": store, "acks": notice_acks})
+
+    # the CS manager's daily sampled quality check (Owner, 2026-11-12): managers only, on the board + a reminder at the end of the day
+    quality_store = o.get("QUALITY_STORE") or (quality.PgQualityStore(pgdb) if pgdb else quality.QualityStore(
+        o.get("QUALITY_PATH", os.environ.get("QUALITY_PATH", os.path.join(cache_base, "quality.json")))))
+    app.extensions["cs"]["quality"] = quality_store
+    quality.register(app, {"api_user": api_user, "json_error": json_error, "ui_lang": ui_lang, "is_manager": is_manager, "store": store,
+                           "quality": quality_store, "log": act_log, "cache": tcache, "engines": engines})
 
     @app.errorhandler(404)
     def nf(_e):

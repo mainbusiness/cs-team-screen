@@ -44,6 +44,7 @@ def start(extra_env=None, gunicorn=False, users=(("agent1", ["agent"], ["rozela"
     s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]
     s.close()
+    extra_env.setdefault("QUALITY_REMIND_HOUR", "24")   # the end-of-day quality reminder modal (2026-11-12) never covers another test
     env = dict(os.environ, MOCK_ENGINE="1", COOKIE_SECURE="0", USERS_PATH=path, TRUSTED_PROXY_HOPS="0", MOCK_LATENCY_MS="0",
                ENGINES_JSON="", PYTHONDONTWRITEBYTECODE="1", SECRET_KEY="s" * 48, TOKEN_SECRET="k" * 48, **(extra_env or {}))
     if gunicorn:

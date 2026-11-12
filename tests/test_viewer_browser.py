@@ -82,7 +82,7 @@ def test_viewer_dashboard_shows_the_boards_and_billing_but_no_admin_cards(srv):
     base, pwd = srv
     with pw.sync_playwright() as p:
         pg = login(p, base, pwd, "viewer1")
-        pg.goto(base + "/cs#/dash")
+        pg.goto(base + "/cs#/dash/more")
         pg.wait_for_selector("[data-test=bh-brand]", timeout=30000)
         txt = pg.inner_text("[data-test=bh]")
         for bad in ("null", "undefined", "NaN", "[object", "{d}", "{a}", "{b}"):
@@ -133,7 +133,7 @@ def test_english_viewer_desk_shows_the_read_only_note(srv):
     base, pwd = srv
     with pw.sync_playwright() as p:
         pg = login(p, base, pwd, "viewer-en", 1280, "/cs/en")
-        pg.goto(base + "/cs/en#/dash")
+        pg.goto(base + "/cs/en#/dash/more")
         pg.wait_for_selector("[data-test=bh-brand]", timeout=30000)
         txt = pg.inner_text("[data-test=bh]")
         assert "Not available through Kaching" in txt and "retry settings" in txt
@@ -144,7 +144,7 @@ def test_phone_width_has_no_sideways_scroll_on_the_billing_card(srv):
     base, pwd = srv
     with pw.sync_playwright() as p:
         pg = login(p, base, pwd, "viewer1", 390)
-        pg.goto(base + "/cs#/dash")
+        pg.goto(base + "/cs#/dash/more")
         pg.wait_for_selector("[data-test=bh-brand]", timeout=30000)
         pg.wait_for_timeout(1500)
         assert pg.evaluate("() => document.documentElement.scrollWidth <= window.innerWidth + 1")

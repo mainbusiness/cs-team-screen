@@ -57,7 +57,7 @@ def login(p, base, pwd, user, width=1280, en=False):
 
 
 def open_board(pg, base, en=False):
-    pg.goto(base + ("/cs/en#/dash" if en else "/cs#/dash"))
+    pg.goto(base + ("/cs/en#/dash/more" if en else "/cs#/dash/more"))
     pg.wait_for_selector("[data-test=sysreq]")
     pg.wait_for_selector("[data-test=sysreq-list] :is([data-test=sysreq-none],[data-test=sysreq-item],[data-test=sysreq-archive])")
 
@@ -153,7 +153,7 @@ def test_agent_and_user_manager_never_see_it(server, user):
     base, pwd, _ = server
     with pw.sync_playwright() as p:
         browser, pg, errors = login(p, base, pwd, user)
-        pg.goto(base + "/cs#/dash")
+        pg.goto(base + "/cs#/dash/more")
         pg.wait_for_timeout(1500)
         assert pg.locator("[data-test=sysreq]").count() == 0
         assert pg.locator("[data-test=sysreq-jump]").count() == 0
