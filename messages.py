@@ -117,6 +117,9 @@ ENGINE = {
     "attach_missing": ("קובץ מצורף כבר לא נמצא בשרת (נמחק אחרי 30 יום או שההעלאה לא הסתיימה). להסיר אותו ולצרף שוב.",
                        "An attached file is no longer on the server (removed after 30 days, or its upload did not finish). Remove it and attach it again."),
     "attach_wa_off": ("צירוף קבצים בוואטסאפ עוד לא פעיל במותג הזה.", "Files on WhatsApp are not switched on for this brand yet."),
+    # Owner, 2026-11-13: "don't say 'I sent you a file' and then not add anything; if you can't add the file, tell the customer you can't"
+    "file_claim_no_file": ("ההודעה לא נשלחה: היא אומרת שמצורף קובץ, אבל לא צורף קובץ — הלקוח לא היה מקבל כלום. במייל: צרפו את הקובץ ב-📎 ושלחו. בוואטסאפ אי אפשר לשלוח קבצים: מחקו את המשפט וכתבו ללקוח שאי אפשר לשלוח כאן קובץ (אפשר להציע לשלוח במייל).",
+                           "Not sent: the message says a file is attached, but no file is attached — the customer would get nothing. Email: attach the file with 📎 and send. WhatsApp cannot carry files: remove the sentence and tell the customer we cannot send a file here (you can offer email)."),
     "attach_wa_one": ("בוואטסאפ אפשר לצרף קובץ אחד להודעה.", "WhatsApp takes one file per message."),
     "attach_wa_type": ("בוואטסאפ אפשר לצרף רק PDF, JPG, PNG, DOC/DOCX או XLS/XLSX.", "On WhatsApp only PDF, JPG, PNG, DOC/DOCX or XLS/XLSX can be attached."),
     "attach_corrupt": ("הקובץ הגיע פגום לשרת. לצרף אותו שוב.", "The file arrived damaged. Attach it again."),

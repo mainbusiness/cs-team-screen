@@ -49,7 +49,7 @@ FN_TABLE = {
     "apiSearch": (READ_ROLES, ("q",)),
     "apiSaveDraft": (WORK_ROLES, ("id", "text")),
     # followup: another message on an answered / closed ticket; seen: the ticket's handled_at as the screen showed it (Owner, 2026-10-11)
-    "apiSend": (WORK_ROLES, ("id", "text", "override", "followup", "seen", "attachments")),   # attachments: ids from POST /api/<brand>/attach
+    "apiSend": (WORK_ROLES, ("id", "text", "override", "followup", "seen", "attachments", "fileClaimOk")),   # fileClaimOk: the agent says "my message does not say a file is attached" (2026-11-13)   # attachments: ids from POST /api/<brand>/attach
     "apiMarkHandled": (WORK_ROLES, ("id",)),
     "apiClose": (WORK_ROLES, ("id",)),
     "apiNote": (WORK_ROLES, ("id", "text")),
@@ -435,7 +435,7 @@ def clean_args(fn, args, table=None):
                     raise ProxyError("bad_request", 400)
                 out[k] = v
                 continue
-            if k in ("override", "fresh", "followup", "undo", "unlink"):
+            if k in ("override", "fresh", "followup", "undo", "unlink", "fileClaimOk"):
                 if v is True:
                     out[k] = True
                 continue

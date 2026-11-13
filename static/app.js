@@ -223,6 +223,11 @@
       takeover_ok: 'השיחה אצלך — טיוטה תיכתב בריצה הבאה של המנוע', photo_dondy: '📷 תמונה — לצפייה בדונדי', photo_open: '📷 תמונה — פתיחה',
       photo_wait: '📷 תמונה — עוד לא הגיעה', photo_gone: '📷 תמונה — נמחקה אחרי 7 ימים, לצפייה בדונדי', photo_mail: '📷 תמונה — לצפייה במייל (Gmail)', photo_gone_mail: '📷 תמונה — נמחקה מהמערכת אחרי 7 ימים, נמצאת במייל (Gmail)', att_shrinking: 'מקטין את התמונה…', voice_wait: '🎤 הודעה קולית — עוד לא הגיעה', voice_dondy: '🎤 הודעה קולית — לשמיעה בדונדי', voice_gone: '🎤 הודעה קולית — נמחקה אחרי 30 יום', media_video: '🎬 וידאו — לצפייה בדונדי', media_file: '📎 קובץ — לצפייה בדונדי',
       att_btn: '📎 צירוף קובץ', att_uploading: 'מעלה…', att_failed: 'לא הועלה', att_remove: 'הסרת הקובץ', att_hint: 'PDF, תמונה, Word, Excel או TXT · עד {mb}MB לקובץ',
+      fc_head: '⚠️ ההודעה אומרת שמצורף קובץ («{p}»), אבל לא צורף שום קובץ — הלקוח לא יקבל כלום. ההודעה לא נשלחה.',
+      fc_email: 'צרפו את הקובץ ב-📎 ואז שלחו.',
+      fc_wa: 'בוואטסאפ אי אפשר לשלוח קבצים מהמערכת. מחקו את המשפט וכתבו ללקוח שאי אפשר לשלוח כאן קובץ (אפשר להציע לשלוח אותו במייל).',
+      fc_anyway: 'ההודעה לא אומרת שמצורף קובץ — לשלוח כך (יירשם)',
+      att_none_wa: '📎 בוואטסאפ אי אפשר לשלוח קבצים. לקוח שצריך מסמך: לכתוב לו שאי אפשר לשלוח כאן, ולהציע לשלוח במייל.',
       att_hint_wa: 'קובץ אחד: PDF, JPG, PNG, Word או Excel · עד {mb}MB', att_type: 'סוג קובץ לא נתמך: {name}', att_size: 'הקובץ גדול מדי: {name} (עד {mb}MB)',
       att_total: 'כל הקבצים יחד גדולים מדי (עד {mb}MB למייל). אפשר לשלוח את השאר במייל נוסף', att_heic: 'לא ניתן לקרוא את תמונת ה-HEIC {name} בדפדפן הזה. אפשר לשמור אותה כ-JPG ולצרף שוב', att_count: 'אפשר לצרף עד {n} קבצים', att_wa_one: 'בוואטסאפ אפשר לצרף קובץ אחד להודעה',
       att_wait: 'ממתינים לסיום ההעלאה או להסרת קובץ שנכשל', att_sent_chip: '📎 {name}',
@@ -517,6 +522,11 @@
       takeover_ok: 'The chat is yours — a draft will be written on the next engine run', photo_dondy: '📷 Photo — view in Dondy', photo_open: '📷 Photo — open',
       photo_wait: '📷 Photo — not arrived yet', photo_gone: '📷 Photo — removed after 7 days, view in Dondy', photo_mail: '📷 Photo — view in the email (Gmail)', photo_gone_mail: '📷 Photo — removed here after 7 days, still in the email (Gmail)', att_shrinking: 'Shrinking the image…', voice_wait: '🎤 Voice message — not arrived yet', voice_dondy: '🎤 Voice message — listen in Dondy', voice_gone: '🎤 Voice message — removed after 30 days', media_video: '🎬 Video — view in Dondy', media_file: '📎 File — view in Dondy',
       att_btn: '📎 Attach file', att_uploading: 'Uploading…', att_failed: 'Not uploaded', att_remove: 'Remove the file', att_hint: 'PDF, image, Word, Excel or TXT · up to {mb} MB a file',
+      fc_head: '⚠️ Your message says a file is attached («{p}»), but no file is attached — the customer will get nothing. It was not sent.',
+      fc_email: 'Attach the file with 📎, then send.',
+      fc_wa: 'WhatsApp cannot carry files from this system. Remove the sentence and tell the customer we cannot send a file here (you can offer to send it by email).',
+      fc_anyway: 'My message does not say a file is attached — send it as is (logged)',
+      att_none_wa: '📎 Files cannot be sent on WhatsApp. If the customer needs a document: tell them we cannot send it here, and offer email.',
       att_hint_wa: 'One file: PDF, JPG, PNG, Word or Excel · up to {mb} MB', att_type: 'File type not allowed: {name}', att_size: 'File too large: {name} (up to {mb} MB)',
       att_total: 'All files together are too large (up to {mb} MB an email). Send the rest in another email', att_heic: 'This browser cannot read the HEIC photo {name}. Save it as JPG and attach it again', att_count: 'Up to {n} files', att_wa_one: 'WhatsApp takes one file per message',
       att_wait: 'Waiting for an upload to finish, or for a failed file to be removed', att_sent_chip: '📎 {name}',
@@ -684,6 +694,44 @@
     return svg;
   }
   function isWA(x) { return String((x && x.channel) || '').toLowerCase() === 'whatsapp'; }
+  // "I attached a file" with no file (Owner, 2026-11-13). A COPY of engine/Safety.gs fileClaimIn_ (tests/test_file_claim.py checks they are the same):
+  // the agent is stopped here, before the send, with the way out; the engine refuses it anyway (file_claim_no_file).
+  var FILE_CLAIM_DOC_ = '(?:ה)?(?:קובץ|קבצים|מסמך|מסמכים|תעוד(?:ה|ת|ות)|אישור(?:ים)?|חשבוני(?:ת|ות)|קבל(?:ה|ות)|מדריך|צילום|תמונ(?:ה|ות)|PDF|פי די אף)';
+  var FILE_CLAIM_RES_ = [
+    /(^|[^א-ת])(?:ו|ה|כ)?(?:צירפתי|צירפנו|מצרפ(?:ת|ים|ות)?|מצורפ(?:ת|ים|ות)?|מצורף)(?![א-ת])/g,
+    new RegExp('(^|[^\\u05D0-\\u05EA])(?:ו)?(?:שלחתי|שלחנו)\\s+(?:(?:לך|לכם|לכן|אלייך|אליך|כאן|עכשיו|שוב|פה)\\s+)*(?:את\\s+)?' + FILE_CLAIM_DOC_ + '(?![\\u05D0-\\u05EA])', 'g'),
+    new RegExp('(^|[^\\u05D0-\\u05EA])הנה\\s+' + FILE_CLAIM_DOC_ + '(?![\\u05D0-\\u05EA])', 'g'),
+    /(^|\W)(?:i(?:'ve| have)? attached|we(?:'ve| have)? attached|(?:is|are) attached|attached (?:is|are|here|below|to this)|please (?:find|see) (?:the )?attached|see (?:the )?attached|(?:i'm|i am|we're|we are) (?:attaching|sending you the (?:file|document|certificate|invoice|receipt))|enclosed (?:is|are|please)|here is the (?:file|document|certificate|invoice|receipt))\b/gi
+  ];
+  var FILE_CLAIM_NEG_RE_ = /(?:^|[^א-ת])[שו]?(?:לא|ללא|בלי)\s+(?:\S+\s+)?$/;
+  var FILE_CLAIM_NOT_FILE_RE_ = /קישור|לינק|link|https?:\/\/|מנוי|subscription/i;
+  var FILE_CLAIM_EMAIL_RE_ = /^[^!?\n]{0,120}?(?:מייל|אימייל|e-?mail|לכתובת|@)/i;
+  /** The words that say a file goes with this message ('' = none). */
+  function fileClaim(text) {
+    var s = String(text || '');
+    if (!s) return '';
+    for (var i = 0; i < FILE_CLAIM_RES_.length; i++) {
+      var re = FILE_CLAIM_RES_[i], m;
+      re.lastIndex = 0;
+      while ((m = re.exec(s)) !== null) {
+        var start = m.index + (m[1] ? m[1].length : 0), end = m.index + m[0].length;
+        if (m[0].length === 0) { re.lastIndex++; continue; }
+        if (FILE_CLAIM_NEG_RE_.test(s.slice(Math.max(0, start - 30), start))) continue;                       // "לא צורף", "שלא צירפנו"
+        if (FILE_CLAIM_NOT_FILE_RE_.test(s.slice(Math.max(0, start - 25), end + 30))) continue;               // a link in the text, a subscription on an order
+        if ((i === 1 || i === 2) && FILE_CLAIM_EMAIL_RE_.test(s.slice(end))) continue;                        // "sent it to your email": another channel
+        re.lastIndex = 0;
+        return s.slice(start, end).trim();
+      }
+    }
+    return '';
+  }
+  /** The stop in the composer: what is wrong, what to do on this channel, and the one way past it for a sentence that is not about a file. */
+  function fileClaimBox(phrase, wa, onSendAnyway) {
+    return h('div', { class: 'err-box', role: 'alert', 'data-test': 'file-claim' },
+      h('div', { text: t('fc_head', { p: phrase }) }),
+      h('div', { class: 'small', text: t(wa ? 'fc_wa' : 'fc_email') }),
+      h('button', { class: 'btn small ghost', type: 'button', 'data-test': 'file-claim-anyway', text: t('fc_anyway'), onclick: onSendAnyway }));
+  }
   /** QA round 5 (double WhatsApp send): queued = status wa_queued, or (older engine) wa_send pending on an open ticket. */
   /** A failed WhatsApp send: wa_send failed | template_required | unknown (claim expired), the ticket back in "action".
    *  Engine @47/48: every WhatsApp list row carries wa_send (state) — it decides; the action line only when it is missing.
@@ -2473,7 +2521,10 @@
       return slot;
     }
     function build(brand, x, onChange) {
-      if (!allowed(brand, x)) return null;
+      if (!allowed(brand, x)) {
+        const i0 = info(brand);   // WhatsApp with the files switched off (2026-11-13: none ever reached a customer): say so, so nobody promises one
+        return isWA(x) && i0 && !i0.whatsapp && canWork() ? h('div', { class: 'muted small', 'data-test': 'attach-none-wa', text: t('att_none_wa') }) : null;
+      }
       const i = info(brand);
       const wa = isWA(x);
       const input = h('input', { type: 'file', hidden: true, 'data-test': 'attach-input', accept: (wa ? WA_EXT : EXT).map(function (e) { return '.' + e; }).join(',') });
@@ -2741,6 +2792,13 @@
         const args = { id: x.id, text: text, seen: String(tk.handled_at || '') };
         const files = Attach.ids(me.brand, x.id);            // ids of files already uploaded (attach.py): the send carries only these
         if (files.length) args.attachments = files;
+        const claim = files.length ? '' : fileClaim(text);   // "I attached a file" with no file (2026-11-13): stopped here, the text stays in the box
+        if (claim && me.fcOk !== text) {
+          errEl.append(fileClaimBox(claim, isWA(x), function () { me.fcOk = text; if (!sendDisabled() && ta.value === text) doSend(); }));
+          errEl.hidden = false;
+          return null;
+        }
+        if (claim) args.fileClaimOk = true;                  // the agent said this sentence is not about a file (audited by the engine)
         if (me.fu || OPEN.indexOf(tk.status) < 0) args.followup = true;      // answered / closed, OR this page already sent on it (its copy may lag)
         if (isWA(x)) args.channel = 'whatsapp';
         // Owner, 2026-10-05: the agent never waits for the engine — the outbox sends it in the background.
@@ -3171,6 +3229,14 @@
         const args = { id: x.id, text: me.translated.out, seen: String(tk.handled_at || '') };
         const files = Attach.ids(brand, x.id);              // the files go with the approved Hebrew text
         if (files.length) args.attachments = files;
+        const claim = files.length ? '' : (fileClaim(me.translated.out) || fileClaim(me.translated.en));   // 2026-11-13: the Hebrew that goes out, or the agent's English
+        if (claim && me.fcOk !== me.translated.out) {
+          const out = me.translated.out;
+          errEl.append(fileClaimBox(claim, isWA(x), function () { me.fcOk = out; if (me.translated && me.translated.out === out) send(); }));
+          me.busy = false; refresh();
+          return null;
+        }
+        if (claim) { args.fileClaimOk = true; me.fcOk = null; }
         if (me.fu || OPEN.indexOf(tk.status) < 0) args.followup = true;      // as in Draft: the page's own send counts before its copy says so
         if (isWA(x)) args.channel = 'whatsapp';
         let started = null;

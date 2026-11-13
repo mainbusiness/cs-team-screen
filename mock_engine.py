@@ -431,6 +431,10 @@ def build_ai_suggestions(brand, now):
     return out
 
 
+
+# engine/Safety.gs fileClaimIn_ (2026-11-13), the forms the screen tests use: "I attached" / "attached" / "here is the invoice", not after "לא"
+FILE_CLAIM_MOCK_RE = re.compile(r"(?<![\u05D0-\u05EA])(?<!לא )(?:ו|ה|כ)?(?:צירפתי|צירפנו|מצרפ(?:ת|ים|ות)?|מצורפ(?:ת|ים|ות)?|מצורף)(?![\u05D0-\u05EA])|הנה החשבונית|\bI've attached\b|\bplease find attached\b", re.I)
+
 class MockEngines:
     def __init__(self, secret, latency_ms=None):
         self.secret = secret
@@ -668,6 +672,8 @@ class MockEngines:
             return {"ok": False, "error": "busy"}
         if not text.strip():                               # engine 2026-10-06: only an EMPTY draft is refused; content
             return {"ok": False, "error": "draft_problem", "problem": "empty draft"}   # checks are an audit, never a block
+        if not a.get("attachments") and a.get("fileClaimOk") is not True and FILE_CLAIM_MOCK_RE.search(text):   # engine fileClaimIn_ (2026-11-13), the main forms
+            return {"ok": False, "error": "file_claim_no_file", "phrase": FILE_CLAIM_MOCK_RE.search(text).group(0).strip()}
         files, ferr = self._attach_resolve(brand, a.get("attachments"), t["channel"], c)
         if ferr:
             return ferr
