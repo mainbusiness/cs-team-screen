@@ -194,6 +194,21 @@ def test_a_runaway_page_hits_the_per_user_budget(make_app, transport, pw_hash):
         assert b.take("noa", 10)
     r = up(c, tok, pdf(), "a.pdf")
     assert r.status_code == 429 and r.get_json()["error"] == "attach_budget"
+    assert "דקות" in r.get_json()["msg"] and "{" not in r.get_json()["msg"], r.get_json()["msg"]     # says when it resets (2026-11-13)
+
+
+def test_the_budget_never_blocks_a_normal_shift(make_app, transport, pw_hash):
+    """Mark, 2026-11-13: "a limit of only 2 files and then it does not allow it for the whole shift". 60 files of 10 MB in ten minutes is far more than a shift's work."""
+    b = attach._Budget()
+    assert all(b.take("mark", 10 * 1024 * 1024) for _ in range(60))
+    assert b.wait("mark") >= 1
+
+
+def test_a_certificate_pdf_over_the_old_10mb_goes_through(make_app, transport, pw_hash):
+    transport.reply = attach_engine()
+    c, tok = logged_in(make_app(), pw_hash, "mark", ["agent"], ["rozela"])
+    r = up(c, tok, pdf(12 * 1000 * 1000), "FDA-certificate.pdf")
+    assert r.status_code == 200 and r.get_json()["ok"] is True, r.get_json()
 
 
 def test_apiSend_carries_attachment_ids_and_nothing_else():

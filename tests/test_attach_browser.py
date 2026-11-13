@@ -221,3 +221,31 @@ def test_whatsapp_photo_over_5mb_is_shrunk_in_the_browser_and_goes_up(server):
         pg.wait_for_selector("[data-test=attach-err]:not([hidden])")
         assert errors == []
         b.close()
+
+
+def test_certificates_over_10mb_two_big_files_and_a_photo_fit_the_email_and_a_failed_chip_takes_no_slot(server):
+    """Mark (CS team call 2026-11-13): FDA certificates were refused for size and "only 2 files". Now: a 12 MB PDF goes up; two 7 MB PDFs + a big photo
+    fit one email (the photo is shrunk to the room left); a failed upload never takes one of the 10 slots."""
+    base, pwd = server
+    with pw.sync_playwright() as p:
+        b, pg, errors = session(p, base, pwd)
+        open_ticket(pg, base, "t18f2a03")
+        pg.wait_for_selector("[data-test=attach-btn]")
+        pick(pg, [("FDA-certificate.pdf", pdf(12 * 1000 * 1000))])
+        pg.wait_for_selector("[data-test=attach-chip][data-status=ok]", timeout=30000)
+        pg.click("[data-test=attach-remove]")
+        pick(pg, [("cert-a.pdf", pdf(7 * 1000 * 1000)), ("cert-b.pdf", pdf(7 * 1000 * 1000))])
+        until(pg, lambda: pg.locator("[data-test=attach-chip][data-status=ok]").count() == 2, 30)
+        pick(pg, [("photo.png", noise_png(1700, 1700))])                                  # ~8.7 MB, 4 MB of room left: shrunk, not refused
+        until(pg, lambda: pg.locator("[data-test=attach-chip][data-status=ok]").count() == 3, 30)
+        total = sum(float(c.split("MB")[0].split()[-1]) for c in pg.locator("[data-test=attach-chip]").all_inner_texts() if "MB" in c)
+        assert total <= 18.1, total
+        for _ in range(3):
+            pg.click("[data-test=attach-remove]")
+        pick(pg, [("fake.pdf", b"\x89PNG\r\n\x1a\n" + b"0" * 100)])
+        pg.wait_for_selector("[data-test=attach-chip][data-status=err]")
+        pick(pg, [("s%d.pdf" % n, pdf(2000 + n)) for n in range(10)])                     # the red chip is not one of the ten
+        until(pg, lambda: pg.locator("[data-test=attach-chip][data-status=ok]").count() == 10, 30)
+        assert not pg.is_visible("[data-test=attach-err]")
+        assert errors == []
+        b.close()

@@ -224,7 +224,7 @@
       photo_wait: '📷 תמונה — עוד לא הגיעה', photo_gone: '📷 תמונה — נמחקה אחרי 7 ימים, לצפייה בדונדי', photo_mail: '📷 תמונה — לצפייה במייל (Gmail)', photo_gone_mail: '📷 תמונה — נמחקה מהמערכת אחרי 7 ימים, נמצאת במייל (Gmail)', att_shrinking: 'מקטין את התמונה…', voice_wait: '🎤 הודעה קולית — עוד לא הגיעה', voice_dondy: '🎤 הודעה קולית — לשמיעה בדונדי', voice_gone: '🎤 הודעה קולית — נמחקה אחרי 30 יום', media_video: '🎬 וידאו — לצפייה בדונדי', media_file: '📎 קובץ — לצפייה בדונדי',
       att_btn: '📎 צירוף קובץ', att_uploading: 'מעלה…', att_failed: 'לא הועלה', att_remove: 'הסרת הקובץ', att_hint: 'PDF, תמונה, Word, Excel או TXT · עד {mb}MB לקובץ',
       att_hint_wa: 'קובץ אחד: PDF, JPG, PNG, Word או Excel · עד {mb}MB', att_type: 'סוג קובץ לא נתמך: {name}', att_size: 'הקובץ גדול מדי: {name} (עד {mb}MB)',
-      att_total: 'כל הקבצים יחד גדולים מדי (עד {mb}MB למייל)', att_count: 'אפשר לצרף עד {n} קבצים', att_wa_one: 'בוואטסאפ אפשר לצרף קובץ אחד להודעה',
+      att_total: 'כל הקבצים יחד גדולים מדי (עד {mb}MB למייל). אפשר לשלוח את השאר במייל נוסף', att_heic: 'לא ניתן לקרוא את תמונת ה-HEIC {name} בדפדפן הזה. אפשר לשמור אותה כ-JPG ולצרף שוב', att_count: 'אפשר לצרף עד {n} קבצים', att_wa_one: 'בוואטסאפ אפשר לצרף קובץ אחד להודעה',
       att_wait: 'ממתינים לסיום ההעלאה או להסרת קובץ שנכשל', att_sent_chip: '📎 {name}',
       err_bad_engine: 'המנוע החזיר תשובה לא תקינה. נסו שוב בעוד רגע.',
       ob_flight_send: '⏳ נשלח ברקע…', ob_flight_close: '⏳ נסגר ברקע…', ob_ok_email: '✅ נשלח', ob_ok_wa: '✅ נשלח לוואטסאפ', ob_ok_queued: '📤 נכנס לתור',
@@ -290,7 +290,7 @@
       ain_s_saving: 'שומר…', ain_s_added: 'ההצעה נוספה כהערה ל-{b}. היא מופיעה ברשימת ההערות למטה ועוברת בדיקה.', ain_s_rejected: 'ההצעה סומנה כלא רלוונטית ({b})',
       ain_s_noop: 'ההצעה הזאת כבר טופלה קודם ({b})', ain_s_fail: 'לא נשמר — {m}',
       ain_s_empty: 'עדיין אין הצעות ב-{b} · {n} תיקונים נאספו', ain_s_load_err: 'ההצעות לא נטענו מ-{b}: {m}', ain_s_loading: 'טוען הצעות…',
-      ain_file_btn: '📎 צירוף קובץ (אישור / תעודה)', ain_file_clear: 'הסרת הקובץ', ain_file_big: 'הקובץ גדול מדי (עד 10MB).',
+      ain_file_btn: '📎 צירוף קובץ (אישור / תעודה)', ain_file_clear: 'הסרת הקובץ', ain_file_big: 'הקובץ גדול מדי (עד 18MB).',
       ain_doc_hint: 'ההערה מדברת על אישור או תעודה: צרפו גם את הקובץ, וההערה תיכנס למערכת מיד.',
       ain_r_needs: '📎 קיבלתי. כדי שהבוט יגיד את זה ללקוחות צריך גם את הקובץ של האישור. העלו אותו כאן, וברגע שהוא עולה ההערה נכנסת למערכת ואעדכן כאן.',
       ain_r_attach: '📎 העלאת הקובץ', ain_r_uploading: 'מעלה את הקובץ…', ain_r_up_fail: 'הקובץ לא עלה ל-{b}: {m}',
@@ -518,7 +518,7 @@
       photo_wait: '📷 Photo — not arrived yet', photo_gone: '📷 Photo — removed after 7 days, view in Dondy', photo_mail: '📷 Photo — view in the email (Gmail)', photo_gone_mail: '📷 Photo — removed here after 7 days, still in the email (Gmail)', att_shrinking: 'Shrinking the image…', voice_wait: '🎤 Voice message — not arrived yet', voice_dondy: '🎤 Voice message — listen in Dondy', voice_gone: '🎤 Voice message — removed after 30 days', media_video: '🎬 Video — view in Dondy', media_file: '📎 File — view in Dondy',
       att_btn: '📎 Attach file', att_uploading: 'Uploading…', att_failed: 'Not uploaded', att_remove: 'Remove the file', att_hint: 'PDF, image, Word, Excel or TXT · up to {mb} MB a file',
       att_hint_wa: 'One file: PDF, JPG, PNG, Word or Excel · up to {mb} MB', att_type: 'File type not allowed: {name}', att_size: 'File too large: {name} (up to {mb} MB)',
-      att_total: 'All files together are too large (up to {mb} MB an email)', att_count: 'Up to {n} files', att_wa_one: 'WhatsApp takes one file per message',
+      att_total: 'All files together are too large (up to {mb} MB an email). Send the rest in another email', att_heic: 'This browser cannot read the HEIC photo {name}. Save it as JPG and attach it again', att_count: 'Up to {n} files', att_wa_one: 'WhatsApp takes one file per message',
       att_wait: 'Waiting for an upload to finish, or for a failed file to be removed', att_sent_chip: '📎 {name}',
       err_bad_engine: 'The engine returned an invalid answer. Try again in a moment.',
       ob_flight_send: '⏳ Sending in the background…', ob_flight_close: '⏳ Closing in the background…', ob_ok_email: '✅ Sent', ob_ok_wa: '✅ Sent to WhatsApp', ob_ok_queued: '📤 Queued',
@@ -584,7 +584,7 @@
       ain_s_saving: 'Saving…', ain_s_added: 'The suggestion was added as a note for {b}. It is in the notes list below and is being checked.', ain_s_rejected: 'Marked not relevant ({b})',
       ain_s_noop: 'This suggestion was already decided ({b})', ain_s_fail: 'Not saved — {m}',
       ain_s_empty: '{b}: no suggestions yet · {n} corrections collected', ain_s_load_err: 'Suggestions not loaded from {b}: {m}', ain_s_loading: 'Loading suggestions…',
-      ain_file_btn: '📎 Attach a file (approval / certificate)', ain_file_clear: 'Remove the file', ain_file_big: 'The file is too big (up to 10MB).',
+      ain_file_btn: '📎 Attach a file (approval / certificate)', ain_file_clear: 'Remove the file', ain_file_big: 'The file is too big (up to 18MB).',
       ain_doc_hint: 'This note is about an approval or a certificate: attach the file too, and the note goes in at once.',
       ain_r_needs: '📎 Got it. For the bot to tell customers this, the approval document is needed too. Upload it here: as soon as it is up the note goes in and I will update here.',
       ain_r_attach: '📎 Upload the file', ain_r_uploading: 'Uploading the file…', ain_r_up_fail: 'The file was not uploaded to {b}: {m}',
@@ -604,7 +604,7 @@
       ain_not_conn: 'Brands not connected to the system get no notes: {b}', ain_too_long: 'Up to 600 characters',
       tr_loading: 'Translating…', tr_failed: 'Translation failed: {m}', show_orig: 'Show original', show_en: 'Show English', tr_from: 'translated from {l}',
       en_draft: 'Your reply (write in English)', en_draft_loading: 'Translating the AI draft into English…', en_draft_ai: 'Prefilled with the AI draft, translated to English. Edit freely.',
-      en_safety: 'Write in English. Customers receive only the approved Hebrew translation. If translation fails, nothing is sent.', en_invalid: 'A valid Hebrew translation is required. Nothing was sent. Please translate again.', en_review: 'Translate to Hebrew', en_reviewing: 'Translating…', en_side_en: 'Your English', en_side_out: 'What the customer gets ({l})',
+      en_safety: 'Write in English. Customers receive only the approved Hebrew translation. If translation fails, nothing is sent.', en_invalid: 'A valid Hebrew translation is required. Nothing was sent. Please translate again.', en_review: 'Translate to Hebrew', en_keep_latin: 'Keep these words as written and translate', en_reviewing: 'Translating…', en_side_en: 'Your English', en_side_out: 'What the customer gets ({l})',
       en_confirm: 'Confirm translation and send', en_edit: 'Back to edit', en_same: 'Customers receive the Hebrew translation only.',
       en_stale: 'You changed the English text — translate again before sending.', tr_retry: 'Retry translation', tr_incomplete: '{n} not translated (original shown)',
       lang_name_he: 'Hebrew', lang_name_ru: 'Russian', lang_name_en: 'English', lang_name_ar: 'Arabic', lang_name_fr: 'French',
@@ -2384,8 +2384,8 @@
   // A file is uploaded the moment it is picked; the send carries only its id, so the Outbox's retries never upload or send it twice.
   // Shown only where the engine says it can go (apiBoot.attach): email; WhatsApp only while the brand's switch is on and the 24 hours are open.
   const Attach = (function () {
-    const EXT = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'doc', 'docx', 'xls', 'xlsx', 'txt'];
-    const WA_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'];
+    const EXT = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif', 'doc', 'docx', 'xls', 'xlsx', 'txt'];   // heic/heif: a phone photo, turned into a JPEG here before it goes up
+    const WA_EXT = ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif', 'doc', 'docx', 'xls', 'xlsx'];
     const state = {};                 // 'brand|ticket' -> [{key, name, size, id, status: 'up'|'ok'|'err', msg}]
     const painters = {};              // 'brand|ticket' -> the open composer's repaint
     let seq = 0;
@@ -2398,17 +2398,21 @@
     }
     function items(brand, id) { return state[k(brand, id)] || (state[k(brand, id)] = []); }
     function ext(name) { const m = /\.([A-Za-z0-9]{1,5})$/.exec(String(name || '')); return m ? m[1].toLowerCase() : ''; }
-    function mb(n) { return Math.round(n / 1048576); }
+    function mb(n) { return Math.round(n / 1000000); }
     function size(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
     function ids(brand, id) { return (state[k(brand, id)] || []).filter(function (a) { return a.status === 'ok'; }).map(function (a) { return a.id; }); }
     function blocks(brand, id) { return (state[k(brand, id)] || []).some(function (a) { return a.status === 'up' || a.status === 'err'; }); }
     function sent(brand, id) { delete state[k(brand, id)]; const p = painters[k(brand, id)]; if (p) p(); }   // handed to the Outbox: the row empties
     /** A big photo is made smaller in the browser before it goes up (Owner, 2026-10-30: Dondy refused an 8.1 MB photo, its cap is 5 MB):
      *  JPEG, at most 3000 px, quality stepping down until it fits. Not an image, or the browser cannot read it -> the file as it is. */
-    const SHRINK_EXT = ['jpg', 'jpeg', 'png', 'webp'];
+    const SHRINK_EXT = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
     function shrinkable(name) { return SHRINK_EXT.indexOf(ext(name)) >= 0; }
+    function isHeic(name) { const e = ext(name); return e === 'heic' || e === 'heif'; }
+    /** An image that must not go up as it is: over the cap, or a HEIC (the engine takes JPEG/PNG/WEBP only). Anything else comes back untouched.
+     *  A HEIC this browser cannot decode also comes back untouched (still .heic): the caller says so. Also used by the managers' notes picker. */
+    function prepare(file, cap) { return shrink(file, cap); }
     async function shrink(file, cap) {
-      if (file.size <= cap || !shrinkable(file.name) || typeof createImageBitmap !== 'function') return file;
+      if ((file.size <= cap && !isHeic(file.name)) || !shrinkable(file.name) || typeof createImageBitmap !== 'function') return file;
       let bmp;
       try { bmp = await createImageBitmap(file); } catch (e) { return file; }
       let scale = Math.min(1, 3000 / Math.max(bmp.width, bmp.height)), q = 0.85;
@@ -2425,13 +2429,20 @@
       return file;
     }
     async function upload(brand, x, it, file, repaint) {
-      const i = info(brand), cap = isWA(x) ? i.waFileMax : i.fileMax;
-      if (file.size > cap) {
+      const i = info(brand);
+      let cap = isWA(x) ? i.waFileMax : i.fileMax;
+      // an email: what is left of the whole email's allowance after the other files (2026-11-13: two certificates used it all, an image now shrinks to the room that is left)
+      if (!isWA(x)) {
+        const used = items(brand, x.id).filter(function (a) { return a !== it && a.status !== 'err'; }).reduce(function (s, a) { return s + (a.size || 0); }, 0);
+        cap = Math.min(cap, Math.max(0, i.emailTotalMax - used));
+      }
+      if (file.size > cap || isHeic(file.name)) {
         it.msg = t('att_shrinking'); repaint();
         file = await shrink(file, cap);
         if (items(brand, x.id).indexOf(it) < 0) return;          // removed meanwhile
         it.msg = '';
-        if (file.size > cap) { it.status = 'err'; it.msg = t('att_size', { name: it.name, mb: mb(cap) }); repaint(); return; }
+        if (isHeic(file.name)) { it.status = 'err'; it.msg = t('att_heic', { name: it.name }); repaint(); return; }
+        if (file.size > cap) { it.status = 'err'; it.msg = isWA(x) || cap >= i.fileMax ? t('att_size', { name: it.name, mb: mb(isWA(x) ? i.waFileMax : i.fileMax) }) : t('att_total', { mb: Math.floor(i.emailTotalMax / 1000000) }); repaint(); return; }
         it.name = file.name; it.size = file.size;
       }
       const fd = new FormData();
@@ -2493,15 +2504,17 @@
         input.value = '';
         say('');
         const list = items(brand, x.id);
-        const room = wa ? 1 - list.length : (i.emailFilesMax || 10) - list.length;
+        // a failed upload is only a red chip: it never takes a slot or a share of the size (it stays until the agent removes it, and blocks the send meanwhile)
+        const live = list.filter(function (a) { return a.status !== 'err'; });
+        const room = wa ? 1 - live.length : (i.emailFilesMax || 10) - live.length;
         if (files.length > room) { say(wa ? t('att_wa_one') : t('att_count', { n: i.emailFilesMax || 10 })); return; }
-        let total = list.reduce(function (s, a) { return s + (a.size || 0); }, 0);
+        let total = live.reduce(function (s, a) { return s + (a.size || 0); }, 0);
         for (let n = 0; n < files.length; n++) {
           const f = files[n];
           if ((wa ? WA_EXT : EXT).indexOf(ext(f.name)) < 0) { say(t('att_type', { name: f.name })); return; }
           const cap = wa ? i.waFileMax : i.fileMax;
           if ((f.size > cap && !shrinkable(f.name)) || f.size < 1) { say(t('att_size', { name: f.name, mb: mb(cap) })); return; }
-          total += Math.min(f.size, cap);                       // a bigger photo is shrunk to fit before it goes up
+          if (!shrinkable(f.name)) total += Math.min(f.size, cap);      // an image is shrunk to the room that is left before it goes up (upload())
         }
         if (!wa && total > i.emailTotalMax) { say(t('att_total', { mb: Math.floor(i.emailTotalMax / 1000000) })); return; }
         files.forEach(function (f) {
@@ -2522,7 +2535,7 @@
         return h('span', { class: 'chip file ok', dir: 'auto', text: t('att_sent_chip', { name: String(n) }) });
       }));
     }
-    return { box: box, ids: ids, blocks: blocks, sent: sent, fileChips: fileChips, allowed: allowed };
+    return { box: box, ids: ids, blocks: blocks, sent: sent, fileChips: fileChips, allowed: allowed, prepare: prepare, isHeic: isHeic };
   })();
   const ORIG = new WeakMap();
   function convCard(conv, outgoing) {
@@ -3124,18 +3137,31 @@
         if (me.translated) { me.translated = null; paintReview(); showErr({ msg: t('en_stale') }); }
         refresh();
       });
-      reviewBtn.addEventListener('click', async function () {
+      // keep = the words the gate stopped on, confirmed by the agent as "keep as written" (2026-11-13: a refusal used to say only "try
+      // again", and trying again gave the same refusal; now it names the words and this button is the way out)
+      async function runReview(keep) {
         if (!ta.value.trim()) return;
         me.busy = true; reviewBtn.textContent = t('en_reviewing'); clear(errEl); refresh();
         const sourceText = ta.value;
-        const r = await api('/api/' + encodeURIComponent(brand) + '/translate-out', { ticketId: x.id, text: sourceText, lang: LANG });
+        const body = { ticketId: x.id, text: sourceText, lang: LANG };
+        if (keep && keep.length) body.keep_latin = keep;
+        const r = await api('/api/' + encodeURIComponent(brand) + '/translate-out', body);
         me.busy = false; reviewBtn.textContent = t('en_review');
-        if (!r.ok) { refresh(); showErr(r); return; }
+        if (!r.ok) {
+          refresh(); showErr(r);
+          if (Array.isArray(r.blocked) && r.blocked.length && errEl.firstChild) {
+            const words = r.blocked.slice();
+            errEl.firstChild.append(h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', 'data-test': 'en-keep-latin', text: t('en_keep_latin'),
+              onclick: function () { if (!me.busy) runReview(words); } })));
+          }
+          return;
+        }
         if (ta.value !== sourceText) { refresh(); showErr({ msg: t('en_stale') }); return; }
         if (normLang(r.target) !== 'he' || !/[\u0590-\u05ff]/.test(r.text || '') || r.same) { refresh(); showErr({ msg: t('en_invalid') }); return; }
         me.translated = { en: sourceText, out: r.text, target: r.target, same: false };
         paintReview();
-      });
+      }
+      reviewBtn.addEventListener('click', function () { runReview(null); });
       editBtn.addEventListener('click', function () { me.translated = null; paintReview(); ta.focus(); });
       async function send() {
         if (!me.translated || isDry() || me.busy) return;
@@ -5566,8 +5592,8 @@
     const st = { lists: {}, errs: {}, loaded: false, seq: 0, busy: false, pending: null, status: null, checking: {}, tried: {}, uploading: {}, upErr: {}, file: null, replace: null };
     // Mirror of the engine's AI_NOTE_DOC_RE (AiNotes.gs): only for the hint under the text box. The engine's answer (note.status) decides.
     const DOC_RE = /(^|[^A-Za-z])(FDA|MHRA|EMA|CE|ISO|GMP|HACCP|USDA|NSF)([^A-Za-z]|$)|משרד ה?בריאות|מכון ה?תקנים|תו[ -]?ה?תקן|כשרות|בהשגחת|תעוד[הת]|מאושר(?:ת|ים|ות)?\s+(?:ע["״]?י|על[ -]ידי|מטעם|ב)|אישור\s+(?:של\s+|מ|מטעם\s+|ה)?(?:רשות|משרד|מכון|ה?-?FDA)|רישיון\s+יצרן|מוכח(?:ת|ים)?\s+קלינית|נבדק(?:ה|ו)?\s+קלינית|מחקר(?:ים)?\s+קליני|certif|approved\s+by|registered\s+with|clinically\s+(?:proven|tested)/i;
-    const FILE_MAX = 10 * 1024 * 1024;
-    const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.doc,.docx';
+    const FILE_MAX = 18000000;      // = the engine's ATTACH_FILE_MAX
+    const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,.doc,.docx';   // a photo of a certificate: shrunk / HEIC -> JPEG in the browser (Attach.prepare)
     let el = null;
     function brands() { return S.me.brands.filter(function (b) { return b.connected; }).map(function (b) { return b.id; }); }
     function newId() {
@@ -5691,7 +5717,13 @@
     }
     function filePicker(onPick, label) {
       const inp = h('input', { type: 'file', accept: FILE_ACCEPT, hidden: true, 'data-test': 'ai-note-file-input' });
-      inp.addEventListener('change', function () { const f = inp.files && inp.files[0]; inp.value = ''; if (f) onPick(f); });
+      inp.addEventListener('change', async function () {
+        let f = inp.files && inp.files[0]; inp.value = '';
+        if (!f) return;
+        f = await Attach.prepare(f, FILE_MAX);        // a big photo of the certificate is shrunk; a HEIC becomes a JPEG
+        if (Attach.isHeic(f.name)) { setStatus('bad', t('att_heic', { name: f.name })); return; }
+        onPick(f);
+      });
       const btn = h('button', { type: 'button', class: 'btn small', 'data-test': 'ai-note-file-btn', text: label, onclick: function () { inp.click(); } });
       return h('span', { class: 'ain-file-pick' }, btn, inp);
     }

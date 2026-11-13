@@ -191,3 +191,35 @@ def test_english_rejected_outbox_handoff_does_not_latch_busy(english_page):
     assert page.is_enabled('[data-test=en-confirm]')
     assert page.input_value('[data-test=en-draft] textarea') == 'Check this for me'
     assert not sends
+
+
+def test_english_refusal_names_the_words_and_keep_as_written_is_the_way_out(english_page):
+    """2026-11-13 (Paula): a refusal said only "try again" and trying again gave the same refusal. Now it names the words, the box keeps
+    her text, and one click re-sends the translation with those words confirmed (only they)."""
+    page, base = english_page
+    calls, sends = [], []
+    hebrew = 'לחצו על Manage Subscription ואז על ביטול.'
+    def translation(route, req):
+        calls.append(json.loads(req.post_data))
+        if not calls[-1].get('keep_latin'):
+            route.fulfill(status=502, json={'ok': False, 'error': 'translate_failed', 'blocked': ['Manage', 'Subscription'],
+                                            'msg': 'The translation was stopped because these words stayed in English: Manage, Subscription.'})
+        else:
+            route.fulfill(json={'ok': True, 'target': 'he', 'text': hebrew, 'same': False})
+    page.route('**/api/rozela/translate-out', translation)
+    page.route('**/api/rozela/apiSend', lambda route, req: (sends.append(json.loads(req.post_data)), route.fulfill(json={'ok': True})))
+    text = 'Click Manage Subscription then Cancel.'
+    page.fill('[data-test=en-draft] textarea', text)
+    page.click('[data-test=en-review-btn]')
+    page.wait_for_selector('[data-test=en-keep-latin]')
+    assert 'Manage, Subscription' in page.inner_text('[data-test=en-draft] [role=alert]')
+    assert page.input_value('[data-test=en-draft] textarea') == text and page.is_enabled('[data-test=en-review-btn]')
+    assert not sends
+    page.click('[data-test=en-keep-latin]')
+    page.wait_for_selector('[data-test=en-confirm]:not([disabled])')
+    assert calls[1]['keep_latin'] == ['Manage', 'Subscription'] and calls[1]['text'] == text
+    assert hebrew in page.inner_text('[data-test=en-review]')
+    assert not page.locator('[data-test=en-keep-latin]').count()
+    page.click('[data-test=en-confirm]')
+    page.wait_for_timeout(500)
+    assert len(sends) == 1 and sends[0]['args']['text'] == hebrew

@@ -703,13 +703,13 @@ class MockEngines:
                 "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
     def _attach_info(self, brand):
-        return {"email": True, "whatsapp": brand in self.wa_attach, "fileMax": 10 * 1024 * 1024, "emailTotalMax": 18000000, "emailFilesMax": 10,
+        return {"email": True, "whatsapp": brand in self.wa_attach, "fileMax": 18000000, "emailTotalMax": 18000000, "emailFilesMax": 10,
                 "waFileMax": 5242880, "waTypes": list(self.WA_TYPES)}
 
     def apiAttachPut(self, brand, a, c):
         aid, size, parts, part = a.get("id"), a.get("size"), a.get("parts"), a.get("part")
-        if not re.match(r"^a[0-9a-f]{24}$", str(aid)) or not isinstance(size, int) or size < 1 or size > 10 * 1024 * 1024:
-            return {"ok": False, "error": "attach_too_big" if isinstance(size, int) and size > 10 * 1024 * 1024 else "bad_attach"}
+        if not re.match(r"^a[0-9a-f]{24}$", str(aid)) or not isinstance(size, int) or size < 1 or size > 18000000:
+            return {"ok": False, "error": "attach_too_big" if isinstance(size, int) and size > 18000000 else "bad_attach"}
         if parts != -(-size // self.ATTACH_PART) or not isinstance(part, int) or not 0 <= part < parts:
             return {"ok": False, "error": "bad_attach"}
         rec = self.attach[brand].setdefault(aid, {"id": aid, "name": a.get("name"), "mime": a.get("mime"), "size": size, "sha256": a.get("sha256"),

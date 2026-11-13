@@ -38,6 +38,7 @@ with pw.sync_playwright() as p:
             pg.route('**/' + fn, lambda r: (blocked.append(r.request.url.rsplit('/', 1)[-1]), r.abort()))
         pg.on('console', lambda m: errors.append(m.text) if m.type == 'error' and 'net::ERR_FAILED' not in m.text else None)
         pg.on('pageerror', lambda e: errors.append(str(e)))
+        pg.on('response', lambda r: errors.append('HTTP %d %s' % (r.status, r.url.split('?')[0].replace(BASE, ''))) if r.status >= 500 else None)
         pg.goto(BASE + '/cs/login'); pg.fill('input[name=username]', rd.BOT); pg.fill('input[name=password]', rd.kc_get('screen/claude-admin'))
         pg.click('button[type=submit]'); pg.wait_for_load_state('load')
         pg.goto(BASE + '/cs#/dash')
@@ -79,8 +80,10 @@ with pw.sync_playwright() as p:
         if SHOTS:
             pg.screenshot(path=os.path.join(SHOTS, 'live_dash_main_%d.png' % width), full_page=True)
         pg.click('[data-test=dash-tab-quality]')
-        pg.wait_for_selector('[data-test=quality-progress]', timeout=60000)
+        pg.wait_for_selector('[data-test=quality-progress]', state='attached', timeout=60000)   # empty on a day nobody answered yet
         n = pg.locator('[data-test=quality-item]').count()
+        if not n:
+            say(pg.locator('[data-test=quality-empty]').is_visible(), 'an empty day says so on the check', pg.inner_text('[data-test=quality-empty]'))
         if n:
             pg.wait_for_selector('[data-test=quality-item] .q-view .q-msg, [data-test=quality-item] .q-view .note-box, [data-test=q-item-err]', timeout=60000)
             item = pg.locator('[data-test=quality-item]').filter(has=pg.locator('[data-test=q-form]:visible')).first

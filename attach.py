@@ -9,12 +9,12 @@ Checked HERE before anything is stored, and again by the engine (engine/Attach.g
   - the type comes from the CONTENT (magic bytes) and must match the extension; .docx/.xlsx must really be Office files (zip with
     [Content_Types].xml and word/ or xl/, no macros); .txt must be UTF-8 text. The browser's Content-Type is never used.
   - the name: no path, no control or bidi characters (a right-to-left override can make "fdp.exe" look like "exe.pdf"), at most 120 characters.
-  - sizes: 10 MB a file (email), 5 MB on WhatsApp (Dondy's own cap); a per-user budget against a runaway page.
+  - sizes: 18 MB a file (email; the whole email's allowance), 5 MB on WhatsApp (Dondy's own cap); a per-user budget against a runaway page.
 Upload = the engine's apiAttachPut, part by part (1.5 MB raw = 2 MB base64 per call: the core takes 4 MB a request, the engine 2.1 MB,
 and the proxy's 3 MB reply cap is never near). A part is idempotent, so a lost reply is simply sent again.
 
 Limits, and why (Gmail: a message may be 25 MB including its encoding; base64 + a line break every 76 characters is x1.368):
-  10 MB a file, 18 MB all files of one email (18 x 1.368 = 24.6 MB), 10 files. WhatsApp: 1 file, 5 MB, pdf/jpg/png/doc(x)/xls(x).
+  18 MB a file and all files of one email (18 x 1.368 = 24.6 MB), 10 files. WhatsApp: 1 file, 5 MB, pdf/jpg/png/doc(x)/xls(x).
 """
 
 import base64
@@ -36,7 +36,7 @@ import messages
 log = logging.getLogger("cs_screen.attach")
 
 PART_BYTES = 1_500_000            # = engine/Attach.gs ATTACH_PART_BYTES
-FILE_MAX = 10 * 1024 * 1024       # = ATTACH_FILE_MAX
+FILE_MAX = 18_000_000              # = ATTACH_FILE_MAX (= the whole email's 18 MB: one big certificate PDF may use all of it)
 WA_FILE_MAX = 5_242_880           # = ATTACH_WA_FILE_MAX (Dondy)
 NAME_MAX = 120
 BODY_MAX = FILE_MAX + 256 * 1024  # one file per request + the multipart envelope
@@ -45,8 +45,8 @@ TYPES = {"pdf": "application/pdf", "jpg": "image/jpeg", "jpeg": "image/jpeg", "p
          "xls": "application/vnd.ms-excel", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "txt": "text/plain"}
 WA_EXTS = ("pdf", "jpg", "jpeg", "png", "doc", "docx", "xls", "xlsx")
 BUDGET_WINDOW_S = 600
-BUDGET_FILES = 60
-BUDGET_BYTES = 300 * 1024 * 1024
+BUDGET_FILES = 200               # a runaway page only: a shift's normal work is a few dozen files in an hour
+BUDGET_BYTES = 800 * 1024 * 1024
 RETRY_CODES = ("engine_timeout", "engine_bad_response", "engine_unreachable", "busy", "server_error")
 PATH_RE = re.compile(r"^/api/[a-z0-9][a-z0-9-]{1,29}/attach$")
 OLE = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"
@@ -138,6 +138,13 @@ class _Budget:
             self.seen[user] = q
             return True
 
+    def wait(self, user, now=None):
+        """Minutes until the oldest counted upload leaves the window (>= 1): what the refusal tells the agent."""
+        now = time.time() if now is None else now
+        with self.lock:
+            q = [x for x in self.seen.get(user, []) if now - x[0] < BUDGET_WINDOW_S]
+            return max(1, int((BUDGET_WINDOW_S - (now - q[0][0]) + 59) // 60)) if q else 1
+
 
 def register(app, ctx):
     """ctx: engines, transport, api_user, ui_lang, store."""
@@ -177,7 +184,7 @@ def register(app, ctx):
         if wa and name.rsplit(".", 1)[-1].lower() not in WA_EXTS:
             return fail("attach_wa_type", 400, lang)
         if not budget.take(u["username"], len(data)):
-            return fail("attach_budget", 429, lang)
+            return jsonify({"ok": False, "error": "attach_budget", "msg": messages.proxy_msg("attach_budget", lang, wait=budget.wait(u["username"]))}), 429
         sha = hashlib.sha256(data).hexdigest()
         aid = "a" + secrets.token_hex(12)
         parts = (len(data) + PART_BYTES - 1) // PART_BYTES
