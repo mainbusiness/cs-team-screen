@@ -980,7 +980,17 @@ class MockEngines:
         linked = bool(self._b(brand)["snaps"].get(t["id"], {}).get("linked"))
         return {"ok": True, "id": t["id"], "name": t.get("name", ""), "email": self._sub_email(brand, t), "emailFrom": "linked" if linked else "ticket",
                 "contracts": live, "ended": ended, "checkedAt": self._now(),
-                "cancelledHere": [x for x in str(t.get("cancelled", "")).split(",") if x], "writes": sw["writes"], "frozen": bool(sw["frozen"])}
+                "cancelledHere": [x for x in str(t.get("cancelled", "")).split(",") if x], "writes": sw["writes"], "frozen": bool(sw["frozen"]),
+                "advice": self._sub_advice(brand, t)}
+
+    # the engine's subCancelAdvice_ (Api.gs, 2026-11-15) reads the ticket's stored decision + conversation; the mock keeps it simple: a stored
+    # `advice` on the snapshot wins, the angry "never asked for a subscription" fixture (t18f2a03) is cancel_ok, everything else unknown
+    MOCK_ADVICE = {"t18f2a03": {"verdict": "cancel_ok", "why": "not_requested", "step": "", "percent": 0, "reason": None, "intent": "not_requested"}}
+
+    def _sub_advice(self, brand, t):
+        snap = self._b(brand)["snaps"].get(t["id"], {})
+        a = snap.get("advice") or self.MOCK_ADVICE.get(t["id"])
+        return copy.deepcopy(a) if a else {"verdict": "unknown", "why": "no_data", "step": "", "percent": 0, "reason": None, "intent": None}
 
     def apiSubCancel(self, brand, a, c):
         t, err = self._sub_pre(brand, a)
@@ -995,7 +1005,8 @@ class MockEngines:
         verified = bool(back and back["status"] == "CANCELLED")
         rec = {"state": "cancelled" if verified else "failed", "contractId": cid, "status": back["status"] if back else (r.get("status") or ""),
                "items": [{"title": l.get("title", ""), "quantity": l.get("quantity", 1)} for l in (back or {}).get("lines", [])],
-               "at": self._now(), "by": c["user"], "reason": "" if verified else str(r.get("message") or "not cancelled")[:200]}
+               "at": self._now(), "by": c["user"], "reason": "" if verified else str(r.get("message") or "not cancelled")[:200],
+               "advice": self._sub_advice(brand, t)["verdict"]}
         snap["subCancel"] = rec
         out = {"ok": verified, "verified": verified, "state": rec["state"], "status": rec["status"], "contractId": cid, "at": rec["at"],
                "message": str(r.get("message") or ""), "record": rec}

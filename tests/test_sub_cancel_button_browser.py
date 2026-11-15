@@ -172,7 +172,8 @@ def test_english_desk_has_the_same_button(srv):
         assert btn.inner_text() == "Cancel the subscription"
         btn.click()
         pg.locator("[data-test=subx-q]").wait_for()
-        assert "Cancel" in pg.inner_text("[data-test=subx-q]") and "יוסי מזרחי" in pg.inner_text("[data-test=subx-q]")
+        assert "Are you sure you want to cancel" in pg.inner_text("[data-test=subx-q]") and "יוסי מזרחי" in pg.inner_text("[data-test=subx-q]")
+        assert "From the chat: cancel it" in pg.inner_text("[data-test=subx-adv]")
         pg.click("[data-test=subx-go]")
         pg.locator("[data-test=subx-ok]").wait_for()
         assert "Subscription cancelled — verified" in pg.inner_text("[data-test=subx-ok]")
@@ -240,5 +241,139 @@ def test_unidentified_customer_link_the_order_number_then_cancel(srv):
         pg.locator("#orders-card [data-test=lk-box]").wait_for()                 # kept on the ticket
         pg.click("[data-test=lk-unlink]")
         pg.locator("#orders-card [data-test=lk-open]").wait_for()
+        assert not errors, errors
+        browser.close()
+
+
+# ---------- Owner, 2026-11-15: "בטוח/ה?" + the advice from the chat (engine Api.gs subCancelAdvice_). Advisory only: never blocks. ----------
+TRY_SAVE = {"verdict": "try_save", "why": "no_offer", "step": "discount", "percent": 50, "reason": "expensive", "intent": "regular"}
+
+
+def _with_advice(adv):
+    def handler(route):
+        r = route.fetch()
+        j = r.json()
+        if j.get("ok"):
+            j["advice"] = adv
+        route.fulfill(response=r, body=json.dumps(j))
+    return handler
+
+
+def _no_sideways(pg):
+    return pg.evaluate("""() => { const d = document.querySelector('#subx-dlg');
+        return { page: document.documentElement.scrollWidth <= window.innerWidth, dlg: d.scrollWidth <= d.clientWidth + 1 }; }""")
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_cancel_ok_advice_keeps_cancel_primary_and_asks_are_you_sure(srv, width):
+    base, pwd = srv
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd, width=width)
+        pg.goto(base + YOSSI)
+        pg.click("[data-test=subx-btn]")
+        card = pg.locator("#subx-dlg [data-test=subx-adv]")
+        card.wait_for()
+        assert card.get_attribute("data-verdict") == "cancel_ok"
+        assert "לפי הצ'אט צריך לבטל" in card.inner_text() and "לא ביקש מנוי" in card.inner_text()
+        assert "בטוח/ה שרוצה לבטל את המנוי של יוסי מזרחי?" in pg.inner_text("[data-test=subx-q]")
+        go = pg.locator("[data-test=subx-go]")
+        assert go.inner_text() == "כן, לבטל את המנוי" and "danger" in go.get_attribute("class").split()
+        assert pg.locator("[data-test=subx-save]").count() == 0
+        assert card.bounding_box()["y"] < go.bounding_box()["y"], "the advice sits above the confirm button"
+        assert _no_sideways(pg) == {"page": True, "dlg": True}
+        assert not errors, errors
+        browser.close()
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_try_save_primary_does_not_cancel_and_goes_back_to_the_reply(srv, width):
+    base, pwd = srv
+    sent = []
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd, width=width)
+        pg.route("**/api/rozela/apiSubCancelPreview", _with_advice(TRY_SAVE))
+        pg.on("request", lambda r: sent.append(r.url) if r.url.endswith("/apiSubCancel") else None)
+        pg.goto(base + YOSSI)
+        pg.click("[data-test=subx-btn]")
+        card = pg.locator("#subx-dlg [data-test=subx-adv]")
+        card.wait_for()
+        txt = card.inner_text()
+        assert card.get_attribute("data-verdict") == "try_save"
+        assert "לפני שמבטלים" in txt and "יקר לו" in txt
+        assert pg.inner_text("[data-test=subx-adv-step]") == "להציע קודם: הנחה 50% על ההזמנה הבאה במנוי."
+        keep = pg.locator("[data-test=subx-save]")
+        go = pg.locator("[data-test=subx-go]")
+        assert keep.inner_text() == "לא לבטל — לשלוח הצעה קודם" and "primary" in keep.get_attribute("class").split()
+        assert go.inner_text() == "לבטל בכל זאת" and "danger" not in go.get_attribute("class").split()
+        assert go.is_enabled(), "never blocked"
+        assert card.bounding_box()["y"] < go.bounding_box()["y"]
+        assert _no_sideways(pg) == {"page": True, "dlg": True}
+        keep.click()
+        pg.wait_for_function("() => !document.querySelector('#subx-dlg').open")
+        assert pg.evaluate("() => document.activeElement && document.activeElement.matches('[data-test=draft-card] textarea')"), "the reply editor has the focus"
+        pg.wait_for_timeout(300)
+        assert sent == [], "the primary button cancels nothing"
+        assert pg.locator("[data-test=subx-ok]").count() == 0
+        assert pg.locator("#tk-subcancel [data-test=subx-btn]").is_enabled(), "the cancel stays one click away"
+        assert not errors, errors
+        browser.close()
+
+
+def test_cancel_anyway_still_cancels_against_try_save(srv):
+    base, pwd = srv
+    sent = []
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd)
+        pg.route("**/api/rozela/apiSubCancelPreview", _with_advice(TRY_SAVE))
+        pg.on("request", lambda r: sent.append(json.loads(r.post_data or "{}")) if r.url.endswith("/apiSubCancel") else None)
+        pg.goto(base + YOSSI)
+        pg.click("[data-test=subx-btn]")
+        pg.locator("[data-test=subx-save]").wait_for()
+        pg.click("[data-test=subx-go]")
+        ok = pg.locator("[data-test=subx-ok]")
+        ok.wait_for()
+        assert re.search(r"המנוי בוטל — אומת \d{1,2}:\d{2}", ok.inner_text()), ok.inner_text()
+        assert [s["args"]["contractId"] for s in sent] == [CID]
+        assert "advice" not in sent[0]["args"], "the advice on the audit row is the engine's own, never sent by the screen"
+        assert not errors, errors
+        browser.close()
+
+
+def test_unknown_advice_is_neutral_and_english_desk_try_save(srv):
+    base, pwd = srv
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd)
+        pg.route("**/api/rozela/apiSubCancelPreview", _with_advice({"verdict": "unknown", "why": "no_data"}))
+        pg.goto(base + YOSSI)
+        pg.click("[data-test=subx-btn]")
+        card = pg.locator("#subx-dlg [data-test=subx-adv]")
+        card.wait_for()
+        assert card.get_attribute("data-verdict") == "unknown" and "אין המלצה" in card.inner_text()
+        assert pg.locator("[data-test=subx-adv-step]").count() == 0 and pg.locator("[data-test=subx-save]").count() == 0
+        assert pg.inner_text("[data-test=subx-go]") == "כן, לבטל את המנוי"
+        browser.close()
+
+        def no_advice(route):                       # an engine that sends no advice (older revision): neutral, never a verdict
+            r = route.fetch()
+            j = r.json()
+            j.pop("advice", None)
+            route.fulfill(response=r, body=json.dumps(j))
+        browser, pg, errors = _login(p, base, pwd)
+        pg.route("**/api/rozela/apiSubCancelPreview", no_advice)
+        pg.goto(base + YOSSI)
+        pg.click("[data-test=subx-btn]")
+        pg.locator("#subx-dlg [data-test=subx-adv]").wait_for()
+        assert pg.get_attribute("#subx-dlg [data-test=subx-adv]", "data-verdict") == "unknown"
+        browser.close()
+        browser, pg, errors = _login(p, base, pwd, user="agent-en", width=390)
+        pg.route("**/api/rozela/apiSubCancelPreview", _with_advice(dict(TRY_SAVE, why="no_reason", step="ask_why", percent=0, reason=None)))
+        pg.goto(base + "/cs/en#/b/rozela/t/t18f2a03")
+        pg.click("[data-test=subx-btn]")
+        pg.locator("[data-test=subx-adv]").wait_for()
+        assert "Before you cancel" in pg.inner_text("[data-test=subx-adv]")
+        assert pg.inner_text("[data-test=subx-adv-step]") == "First ask what made them want to cancel."
+        assert pg.inner_text("[data-test=subx-save]") == "Don't cancel — send an offer first"
+        assert pg.inner_text("[data-test=subx-go]") == "Cancel anyway"
+        assert _no_sideways(pg) == {"page": True, "dlg": True}
         assert not errors, errors
         browser.close()

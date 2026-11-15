@@ -766,6 +766,11 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 .subx-opts { display: grid; gap: 8px; }
 .subx-opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line, #e5e7eb); border-radius: var(--radius); padding: 8px 10px; cursor: pointer; }
 .subx-opt input { margin-top: 4px; }
+/* the advice card in the cancel dialog (2026-11-15): one quiet card, wraps on a phone */
+.subx-adv { display: grid; gap: 3px; padding: 8px 12px; overflow-wrap: anywhere; }
+.subx-adv .small { font-size: 13px; }
+.subx-adv .subx-adv-step { font-weight: 600; }
+.subx-adv-none { background: var(--bg-soft, #f6f7f9); border: 1px solid var(--line); border-radius: var(--radius); }
 
 /* order edit dialog (Owner, 2026-10-16) */
 .oe-row { align-items: center; flex-wrap: wrap; margin-top: 8px; }

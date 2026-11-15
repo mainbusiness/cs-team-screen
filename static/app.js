@@ -174,7 +174,7 @@
       // "לבטל את המנוי" in the send area (the owner's CS team, 2026-10-16)
       sx_btn: 'לבטל את המנוי', sx_off_token: 'אין חיבור לקאצ\'ינג במותג הזה — לבטל ידנית ב-Kaching.',
       sx_off_frozen: 'ביטולים מוקפאים כרגע במערכת — לבטל ידנית ב-Kaching.', sx_off_writes: 'ביטולים כבויים במערכת — לבטל ידנית ב-Kaching.',
-      sx_checking: 'בודק בקאצ\'ינג את המנויים של {name}…', sx_q_one: 'לבטל את המנוי של {name}?', sx_q_many: 'ל{name} יש {n} מנויים פעילים. איזה לבטל?',
+      sx_checking: 'בודק בקאצ\'ינג את המנויים של {name}…', sx_q_one: 'בטוח/ה שרוצה לבטל את המנוי של {name}?', sx_q_many: 'ל{name} יש {n} מנויים פעילים. איזה לבטל?',
       sx_none: 'לא נמצא בקאצ\'ינג מנוי למייל {email}. אם הלקוח הזמין עם מייל או טלפון אחר, לבקש ממנו את מספר ההזמנה או את המייל של ההזמנה ולקשר כאן:',
       sx_ended: '✅ המנוי של {name} כבר מבוטל בקאצ\'ינג (נבדק עכשיו, {t}). אין מה לבטל שוב.',
       sx_noemail: 'לא מזוהה מייל של הזמנה ללקוח הזה (למשל: בפנייה יש רק טלפון שלא תואם להזמנה), אז אי אפשר למצוא את המנוי. לבקש מהלקוח את מספר ההזמנה או את המייל שאיתו הזמין, ולקשר כאן:',
@@ -182,6 +182,25 @@
       lk_orders: 'הזמנות: {o}', lk_by: 'קישר: {by}, {t}', lk_unlink: 'ביטול הקישור', lk_other: '🔗 לא הלקוח הנכון? קישור לפי מספר הזמנה או מייל',
       lk_hint: 'הפרטים בפנייה לא מובילים להזמנה? לבקש מהלקוח את מספר ההזמנה או את המייל של ההזמנה, ולקשר כאן:', lk_done: 'הלקוח קושר לפנייה',
       sx_go: 'כן, לבטל את המנוי', sx_back: 'חזרה', sx_working: 'מבטל ובודק…',
+      // "בטוח/ה?" + the save advice in the cancel dialog (Owner, 2026-11-15); codes from engine Api.gs subCancelAdvice_
+      sx_adv_cancel_ok: 'לפי הצ\'אט צריך לבטל', sx_adv_try_save: 'לפני שמבטלים', sx_adv_unknown: 'אין המלצה',
+      sx_aw_angry: 'הלקוח מאיים (תביעה, ביטול חיוב בכרטיס, תלונה) — מבטלים מיד.', sx_aw_not_requested: 'הלקוח לא ביקש מנוי מלכתחילה — מבטלים מיד.',
+      sx_aw_health: 'סיבה בריאותית — מבטלים מיד, בלי לשכנע.', sx_aw_insists: 'כבר הוצעה לו הצעה בצ\'אט, והוא עדיין מבקש לבטל.',
+      sx_aw_annoyed_after: 'כבר קיבל את ההודעה עם ההטבות, והוא עדיין מבקש לבטל.', sx_aw_asked_no_reason: 'נשאל מה הסיבה ולא נתן סיבה — אין מה להציע.',
+      sx_aw_no_offer_left: 'ללקוח הזה כבר הוצעה הצעת שימור בעבר (או שאי אפשר לדעת) — אין הצעה שמותר לתת.',
+      sx_aw_no_reason: 'הלקוח רגוע, ועוד לא שאלו אותו למה הוא רוצה לבטל.', sx_aw_no_offer: 'הסיבה ידועה ({reason}), ועוד לא הוצעה לו הצעה.',
+      sx_aw_wait_reply: 'כבר נשלחה ללקוח שאלה או הצעה, והוא עוד לא ענה.', sx_aw_annoyed_first: 'הלקוח כועס (בלי איום), ועוד לא קיבל את ההטבות.',
+      sx_aw_payment_failed: 'החיוב נכשל — זו לא בקשת ביטול.', sx_aw_no_data: 'אין בפנייה מידע מה הלקוח ביקש. לקרוא את הצ\'אט ולהחליט.',
+      sx_as_ask_why: 'לשאול קודם מה גרם לו לרצות לבטל.', sx_as_discount: 'להציע קודם: הנחה {n}% על ההזמנה הבאה במנוי.',
+      sx_as_postpone: 'להציע קודם: לדחות את המשלוח הבא לתאריך מוגדר (שבועיים או חודש), בלי לבטל.',
+      sx_as_explain: 'להסביר קודם בקצרה מה המנוי נותן לו. אם עדיין רוצה — לבטל מיד.',
+      sx_as_benefits_discount: 'לשלוח קודם את ההטבות במנוי + אישור מיוחד של המנהל ל-{n}% הנחה על ההזמנה הבאה.', sx_as_benefits: 'לשלוח קודם את ההטבות במנוי.',
+      sx_as_wait: 'לחכות לתשובה שלו לפני שמבטלים.', sx_as_card_update: 'לשלוח ללקוח קישור לעדכון כרטיס מ-Kaching.',
+      sx_as_by_reason: 'להציע קודם את ההצעה לפי הסיבה (ב"מה לעשות").',
+      sx_r_no_results: 'לא ראה תוצאות', sx_r_too_much_stock: 'יש לו יותר מדי מלאי', sx_r_expensive: 'יקר לו', sx_r_not_aware: 'לא ידע שזה מנוי',
+      sx_r_try_first: 'רוצה לנסות קודם', sx_r_other: 'סיבה אחרת',
+      sx_save: 'לא לבטל — לשלוח הצעה קודם', sx_save_wait: 'לא לבטל — לחכות לתשובה', sx_save_card: 'לא לבטל — לשלוח קישור לעדכון כרטיס',
+      sx_go_anyway: 'לבטל בכל זאת',
       sx_note: 'אחרי הביטול המערכת קוראת את המנוי שוב (Kaching / Phoenix) ומאשרת שהוא באמת מבוטל.',
       sx_ok: '✅ המנוי בוטל — אומת {t}', sx_ok_old: '✅ המנוי בוטל דרך המערכת', sx_fail: '❌ המנוי לא בוטל',
       sx_manual: 'לבטל ידנית ב-Kaching.', sx_unknown: 'לא ידוע אם המנוי בוטל. לבדוק ב-Kaching לפני ניסיון נוסף.',
@@ -473,7 +492,7 @@
       afs_order_refund: 'Shopify shows no refund yet. Make the refund in Shopify.',
       sx_btn: 'Cancel the subscription', sx_off_token: 'This brand has no Kaching connection — cancel it manually in Kaching.',
       sx_off_frozen: 'Cancellations are frozen right now — cancel it manually in Kaching.', sx_off_writes: 'Cancellations are switched off — cancel it manually in Kaching.',
-      sx_checking: "Checking {name}'s subscriptions in Kaching…", sx_q_one: "Cancel {name}'s subscription?", sx_q_many: '{name} has {n} active subscriptions. Which one to cancel?',
+      sx_checking: "Checking {name}'s subscriptions in Kaching…", sx_q_one: "Are you sure you want to cancel {name}'s subscription?", sx_q_many: '{name} has {n} active subscriptions. Which one to cancel?',
       sx_none: 'No subscription in Kaching for {email}. If the customer ordered with another email or phone, ask them for the order number or the email of the order, and link it here:',
       sx_ended: "✅ {name}'s subscription is already cancelled in Kaching (checked just now, {t}). Nothing to cancel again.",
       sx_noemail: "This customer has no known order email (e.g. the ticket only has a phone that does not match an order), so the subscription cannot be found. Ask the customer for the order number or the email they ordered with, and link it here:",
@@ -481,6 +500,24 @@
       lk_orders: 'Orders: {o}', lk_by: 'Linked by {by}, {t}', lk_unlink: 'Remove the link', lk_other: '🔗 Wrong customer? Link by order number or email',
       lk_hint: "The ticket's details lead to no order? Ask the customer for the order number or the email of the order, and link it here:", lk_done: 'Customer linked to the ticket',
       sx_go: 'Yes, cancel the subscription', sx_back: 'Back', sx_working: 'Cancelling and checking…',
+      sx_adv_cancel_ok: 'From the chat: cancel it', sx_adv_try_save: 'Before you cancel', sx_adv_unknown: 'No recommendation',
+      sx_aw_angry: 'The customer threatens (lawsuit, chargeback, complaint) — cancel now.', sx_aw_not_requested: 'The customer never asked for a subscription — cancel now.',
+      sx_aw_health: 'A health reason — cancel now, no persuasion.', sx_aw_insists: 'An offer was already made in the chat and the customer still asks to cancel.',
+      sx_aw_annoyed_after: 'The customer already got the benefits message and still asks to cancel.', sx_aw_asked_no_reason: 'Asked for the reason and gave none — nothing to offer.',
+      sx_aw_no_offer_left: 'This customer was already offered a save before (or it cannot be told) — no offer is allowed.',
+      sx_aw_no_reason: 'The customer is calm and was not asked yet why they want to cancel.', sx_aw_no_offer: 'The reason is known ({reason}) and no offer was made yet.',
+      sx_aw_wait_reply: 'A question or an offer was already sent and the customer has not answered yet.', sx_aw_annoyed_first: 'The customer is upset (no threat) and has not got the benefits yet.',
+      sx_aw_payment_failed: 'The charge failed — this is not a cancel request.', sx_aw_no_data: 'The ticket holds no reading of what the customer asked. Read the chat and decide.',
+      sx_as_ask_why: 'First ask what made them want to cancel.', sx_as_discount: 'First offer: {n}% off the next subscription order.',
+      sx_as_postpone: 'First offer: move the next shipment to a set date (two weeks or a month), without cancelling.',
+      sx_as_explain: 'First explain briefly what the subscription gives them. If they still want out — cancel at once.',
+      sx_as_benefits_discount: "First send the subscription's benefits + the manager's special approval for {n}% off the next order.", sx_as_benefits: "First send the subscription's benefits.",
+      sx_as_wait: 'Wait for their answer before cancelling.', sx_as_card_update: 'Send the customer the Kaching card-update link.',
+      sx_as_by_reason: 'First make the offer for the reason (see "What to do").',
+      sx_r_no_results: 'no results', sx_r_too_much_stock: 'too much stock', sx_r_expensive: 'too expensive', sx_r_not_aware: 'did not know it is a subscription',
+      sx_r_try_first: 'wants to try first', sx_r_other: 'another reason',
+      sx_save: "Don't cancel — send an offer first", sx_save_wait: "Don't cancel — wait for the answer", sx_save_card: "Don't cancel — send the card-update link",
+      sx_go_anyway: 'Cancel anyway',
       sx_note: 'After the cancel the system reads the subscription again (Kaching / Phoenix) and confirms it really is cancelled.',
       sx_ok: '✅ Subscription cancelled — verified {t}', sx_ok_old: '✅ Subscription cancelled from this screen', sx_fail: '❌ The subscription was NOT cancelled',
       sx_manual: 'Cancel it manually in Kaching.', sx_unknown: 'Unknown whether it was cancelled. Check in Kaching before trying again.',
@@ -3713,6 +3750,32 @@
         h('div', { class: 'small muted' }, t('sub_id') + ': ', h('bdi', { class: 'ltr', text: contractNum(c.id) }), c.every ? ' · ' + everyText(c.every) : '',
           email ? ' · ' : '', email ? h('bdi', { class: 'ltr', text: email }) : null));
     }
+    /** The advice of engine Api.gs subCancelAdvice_ (Owner, 2026-11-15) -> one quiet card: the verdict, why, and for try_save the next step.
+     *  Advisory only: nothing here can stop the cancel. An unknown / missing advice shows the neutral line, never a recommendation. */
+    function adviceOf(pv) {
+      const a = pv && pv.advice && typeof pv.advice === 'object' ? pv.advice : {};
+      const verdict = a.verdict === 'cancel_ok' || a.verdict === 'try_save' ? a.verdict : 'unknown';
+      return { verdict: verdict, why: verdict === 'unknown' ? 'no_data' : String(a.why || ''), step: verdict === 'try_save' ? String(a.step || '') : '',
+        percent: Number(a.percent) > 0 && Number(a.percent) <= 100 ? Number(a.percent) : 0, reason: String(a.reason || '') };
+    }
+    function known(k) { return t(k) !== k; }
+    function adviceCard(a) {
+      const cls = a.verdict === 'cancel_ok' ? 'ok-box' : a.verdict === 'try_save' ? 'warn-box' : 'subx-adv-none';
+      const reason = a.reason && known('sx_r_' + a.reason) ? t('sx_r_' + a.reason) : t('sx_r_other');
+      const why = known('sx_aw_' + a.why) ? t('sx_aw_' + a.why, { reason: reason }) : '';
+      let step = a.step && known('sx_as_' + a.step) ? t('sx_as_' + a.step, { n: a.percent }) : '';
+      if ((a.step === 'discount' || a.step === 'benefits_discount') && !a.percent) step = t(a.step === 'discount' ? 'sx_as_by_reason' : 'sx_as_benefits');   // never "N%" without a number
+      return h('div', { class: cls + ' subx-adv', role: 'note', 'data-test': 'subx-adv', 'data-verdict': a.verdict },
+        h('b', { 'data-test': 'subx-adv-verdict', text: t('sx_adv_' + a.verdict) }),
+        why ? h('div', { class: 'small', 'data-test': 'subx-adv-why', text: why }) : null,
+        step ? h('div', { class: 'small subx-adv-step', 'data-test': 'subx-adv-step', text: step }) : null);
+    }
+    function focusReply() {
+      const s = document.getElementById('tk-subcancel');
+      const card = s && s.closest('.card');
+      const ta = card && card.querySelector('textarea');
+      if (ta) { ta.focus(); try { ta.scrollIntoView({ block: 'center' }); } catch (e) { /* old browsers */ } }
+    }
     /** Keeps the verdict on this page's copy of the ticket (the engine kept it on the ticket itself). */
     function keep(id, rec, cid) {
       if (!S.tk || S.tk.id !== id) return;
@@ -3772,8 +3835,17 @@
         return;
       }
       let pick = list.length === 1 ? list[0].id : null;          // one = that one; several = the agent picks
-      const go = h('button', { class: 'btn danger', type: 'button', 'data-test': 'subx-go', text: t('sx_go'), disabled: !pick });
+      // Owner, 2026-11-15: "בטוח/ה?" + the advice from the chat. try_save -> the primary button is "don't cancel" (closes, back to the reply);
+      // cancelling stays one click away ("לבטל בכל זאת"), never blocked, never typed digits.
+      const adv = adviceOf(pv);
+      const save = adv.verdict === 'try_save';
+      const goText = save ? t('sx_go_anyway') : t('sx_go');
+      const go = h('button', { class: save ? 'btn danger-outline' : 'btn danger', type: 'button', 'data-test': 'subx-go', text: goText, disabled: !pick });
+      const keepBtn = save ? h('button', { class: 'btn primary', type: 'button', 'data-test': 'subx-save',
+        text: t(adv.step === 'wait' ? 'sx_save_wait' : adv.step === 'card_update' ? 'sx_save_card' : 'sx_save'),
+        onclick: function () { if (busy) return; dlg.close(); focusReply(); } }) : null;
       const result = h('div', { 'aria-live': 'assertive' });
+      box.append(adviceCard(adv));
       box.append(h('div', { 'data-test': 'subx-q' }, h('b', { text: list.length === 1 ? t('sx_q_one', { name: name }) : t('sx_q_many', { name: name, n: list.length }) })));
       if (list.length === 1) box.append(contractLine(list[0], pv.email));
       else {
@@ -3785,13 +3857,13 @@
         });
         box.append(opts, pv.email ? h('div', { class: 'small muted' }, h('bdi', { class: 'ltr', text: pv.email })) : null);
       }
-      box.append(h('div', { class: 'small muted', text: t('sx_note') }), result, h('div', { class: 'row-btns' }, back, go));
+      box.append(h('div', { class: 'small muted', text: t('sx_note') }), result, h('div', { class: 'row-btns' }, save ? go : back, save ? keepBtn : go));
       go.addEventListener('click', async function () {
         if (busy || !pick) return;
-        busy = true; go.disabled = true; back.disabled = true; go.textContent = t('sx_working');
+        busy = true; go.disabled = true; back.disabled = true; if (keepBtn) keepBtn.disabled = true; go.textContent = t('sx_working');
         clear(result); paint();
         const r = await engine('apiSubCancel', { id: id, contractId: pick, draft: draft }, brand);
-        busy = false; back.disabled = false; go.textContent = t('sx_go');
+        busy = false; back.disabled = false; if (keepBtn) keepBtn.disabled = false; go.textContent = goText;
         const rec = r && r.record && typeof r.record === 'object' ? Object.assign({}, r.record) : null;
         if (rec && !r.verified) rec.reasonMsg = r.msg || '';
         keep(id, rec, r && r.verified === true ? pick : null);
