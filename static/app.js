@@ -240,12 +240,14 @@
       wa_fail_note: 'ההודעה לא יצאה. אפשר לשלוח שוב את אותו הטקסט.', wa_resend: 'שלח שוב', wa_resend_arm: 'לחצו שוב לשליחה חוזרת',
       bot_banner: 'הבוט של דונדי מטפל בשיחה הזאת. אין טיוטה — המנוע בודק אותה בכל ריצה.', takeover: 'לקחת את השיחה', takeover_arm: 'לחצו שוב כדי לקחת את השיחה',
       takeover_ok: 'השיחה אצלך — טיוטה תיכתב בריצה הבאה של המנוע', photo_dondy: '📷 תמונה — לצפייה בדונדי', photo_open: '📷 תמונה — פתיחה',
-      photo_wait: '📷 תמונה — עוד לא הגיעה', photo_gone: '📷 תמונה — נמחקה אחרי 7 ימים, לצפייה בדונדי', photo_mail: '📷 תמונה — לצפייה במייל (Gmail)', photo_gone_mail: '📷 תמונה — נמחקה מהמערכת אחרי 7 ימים, נמצאת במייל (Gmail)', att_shrinking: 'מקטין את התמונה…', voice_wait: '🎤 הודעה קולית — עוד לא הגיעה', voice_dondy: '🎤 הודעה קולית — לשמיעה בדונדי', voice_gone: '🎤 הודעה קולית — נמחקה אחרי 30 יום', media_video: '🎬 וידאו — לצפייה בדונדי', media_file: '📎 קובץ — לצפייה בדונדי',
+      photo_wait: '📷 תמונה — עוד לא הגיעה', photo_gone: '📷 תמונה — נמחקה אחרי 60 יום, לצפייה בדונדי', photo_mail: '📷 תמונה — לצפייה במייל (Gmail)', photo_gone_mail: '📷 תמונה — נמחקה מהמערכת אחרי 60 יום, נמצאת במייל (Gmail)', photo_retry: '📷 התמונה לא נטענה — לחצו לנסות שוב', voice_retry: '🎤 ההודעה הקולית לא נטענה — לחצו לנסות שוב', att_shrinking: 'מקטין את התמונה…', voice_wait: '🎤 הודעה קולית — עוד לא הגיעה', voice_dondy: '🎤 הודעה קולית — לשמיעה בדונדי', voice_gone: '🎤 הודעה קולית — נמחקה אחרי 30 יום', media_video: '🎬 וידאו — לצפייה בדונדי', media_file: '📎 קובץ — לצפייה בדונדי',
       att_btn: '📎 צירוף קובץ', att_uploading: 'מעלה…', att_failed: 'לא הועלה', att_remove: 'הסרת הקובץ', att_hint: 'PDF, תמונה, Word, Excel או TXT · עד {mb}MB לקובץ',
       fc_head: '⚠️ ההודעה אומרת שמצורף קובץ («{p}»), אבל לא צורף שום קובץ — הלקוח לא יקבל כלום. ההודעה לא נשלחה.',
       fc_email: 'צרפו את הקובץ ב-📎 ואז שלחו.',
       fc_wa: 'בוואטסאפ אי אפשר לשלוח קבצים מהמערכת. מחקו את המשפט וכתבו ללקוח שאי אפשר לשלוח כאן קובץ (אפשר להציע לשלוח אותו במייל).',
       fc_anyway: 'ההודעה לא אומרת שמצורף קובץ — לשלוח כך (יירשם)',
+      fc_nofile: '✍️ אין לי את הקובץ — לנסח מחדש בלי הקובץ', fc_nofile_none: 'אי אפשר לנסח מחדש כאן — מחקו את המשפט על הקובץ וכתבו ללקוח שאין אפשרות לשלוח אותו כרגע.',
+      fc_nofile_hint: 'הקובץ לא אצלי כרגע: בלי מצורף ובלי שלחתי. אם הידע אומר שיגיע בקרוב, לכתוב שנשלח אותו בימים הקרובים; אחרת שאין אפשרות לשלוח. ולענות על כל השאר.',
       att_none_wa: '📎 בוואטסאפ אי אפשר לשלוח קבצים. לקוח שצריך מסמך: לכתוב לו שאי אפשר לשלוח כאן, ולהציע לשלוח במייל.',
       att_hint_wa: 'קובץ אחד: PDF, JPG, PNG, Word או Excel · עד {mb}MB', att_type: 'סוג קובץ לא נתמך: {name}', att_size: 'הקובץ גדול מדי: {name} (עד {mb}MB)',
       att_total: 'כל הקבצים יחד גדולים מדי (עד {mb}MB למייל). אפשר לשלוח את השאר במייל נוסף', att_heic: 'לא ניתן לקרוא את תמונת ה-HEIC {name} בדפדפן הזה. אפשר לשמור אותה כ-JPG ולצרף שוב', att_count: 'אפשר לצרף עד {n} קבצים', att_wa_one: 'בוואטסאפ אפשר לצרף קובץ אחד להודעה',
@@ -557,12 +559,14 @@
       wa_fail_note: 'The message did not go out. You can send the same text again.', wa_resend: 'Send again', wa_resend_arm: 'Click again to resend',
       bot_banner: 'The Dondy bot is handling this chat. No draft — the engine re-checks it every run.', takeover: 'Take over', takeover_arm: 'Click again to take over',
       takeover_ok: 'The chat is yours — a draft will be written on the next engine run', photo_dondy: '📷 Photo — view in Dondy', photo_open: '📷 Photo — open',
-      photo_wait: '📷 Photo — not arrived yet', photo_gone: '📷 Photo — removed after 7 days, view in Dondy', photo_mail: '📷 Photo — view in the email (Gmail)', photo_gone_mail: '📷 Photo — removed here after 7 days, still in the email (Gmail)', att_shrinking: 'Shrinking the image…', voice_wait: '🎤 Voice message — not arrived yet', voice_dondy: '🎤 Voice message — listen in Dondy', voice_gone: '🎤 Voice message — removed after 30 days', media_video: '🎬 Video — view in Dondy', media_file: '📎 File — view in Dondy',
+      photo_wait: '📷 Photo — not arrived yet', photo_gone: '📷 Photo — removed after 60 days, view in Dondy', photo_mail: '📷 Photo — view in the email (Gmail)', photo_gone_mail: '📷 Photo — removed here after 60 days, still in the email (Gmail)', photo_retry: '📷 The photo did not load — click to try again', voice_retry: '🎤 The voice message did not load — click to try again', att_shrinking: 'Shrinking the image…', voice_wait: '🎤 Voice message — not arrived yet', voice_dondy: '🎤 Voice message — listen in Dondy', voice_gone: '🎤 Voice message — removed after 30 days', media_video: '🎬 Video — view in Dondy', media_file: '📎 File — view in Dondy',
       att_btn: '📎 Attach file', att_uploading: 'Uploading…', att_failed: 'Not uploaded', att_remove: 'Remove the file', att_hint: 'PDF, image, Word, Excel or TXT · up to {mb} MB a file',
       fc_head: '⚠️ Your message says a file is attached («{p}»), but no file is attached — the customer will get nothing. It was not sent.',
       fc_email: 'Attach the file with 📎, then send.',
       fc_wa: 'WhatsApp cannot carry files from this system. Remove the sentence and tell the customer we cannot send a file here (you can offer to send it by email).',
       fc_anyway: 'My message does not say a file is attached — send it as is (logged)',
+      fc_nofile: '✍️ I don\'t have the file — rewrite the answer without it', fc_nofile_none: 'A rewrite is not available here — delete the sentence about the file and tell the customer it cannot be sent right now.',
+      fc_nofile_hint: 'I do not have the file now: no attached, no sent. If the knowledge says it arrives soon, say we will send it in the coming days; else that it cannot be sent. Answer the rest.',
       att_none_wa: '📎 Files cannot be sent on WhatsApp. If the customer needs a document: tell them we cannot send it here, and offer email.',
       att_hint_wa: 'One file: PDF, JPG, PNG, Word or Excel · up to {mb} MB', att_type: 'File type not allowed: {name}', att_size: 'File too large: {name} (up to {mb} MB)',
       att_total: 'All files together are too large (up to {mb} MB an email). Send the rest in another email', att_heic: 'This browser cannot read the HEIC photo {name}. Save it as JPG and attach it again', att_count: 'Up to {n} files', att_wa_one: 'WhatsApp takes one file per message',
@@ -764,10 +768,23 @@
   }
   /** The stop in the composer: what is wrong, what to do on this channel, and the one way past it for a sentence that is not about a file. */
   function fileClaimBox(phrase, wa, onSendAnyway) {
-    return h('div', { class: 'err-box', role: 'alert', 'data-test': 'file-claim' },
+    // 2026-11-17 (the CS team: "the bot won't let me send, we don't have the lab report, and I can't close without answering"): the third
+    // way out — the AI writes the answer again WITHOUT the file ("תשובה אחרת" of this ticket, with a fixed wish). Nothing is sent by it.
+    const box = h('div', { class: 'err-box', role: 'alert', 'data-test': 'file-claim' },
       h('div', { text: t('fc_head', { p: phrase }) }),
-      h('div', { class: 'small', text: t(wa ? 'fc_wa' : 'fc_email') }),
-      h('button', { class: 'btn small ghost', type: 'button', 'data-test': 'file-claim-anyway', text: t('fc_anyway'), onclick: onSendAnyway }));
+      h('div', { class: 'small', text: t(wa ? 'fc_wa' : 'fc_email') }));
+    const noFile = h('button', { class: 'btn small', type: 'button', 'data-test': 'file-claim-nofile', text: t('fc_nofile') });
+    noFile.addEventListener('click', function () {
+      const near = function (sel) { for (let n = box; n; n = n.parentElement) { const f = n.querySelector && n.querySelector(sel); if (f) return f; } return null; };
+      const hint = near('[data-test="rd-hint"]'), btn = near('[data-test="rd-btn"]');
+      if (!hint || !btn || btn.disabled) { box.append(h('div', { class: 'small', 'data-test': 'file-claim-nofile-none', text: t('fc_nofile_none') })); noFile.disabled = true; return; }
+      hint.value = t('fc_nofile_hint');
+      btn.click();
+      box.remove();
+    });
+    box.append(h('div', { class: 'rd-line' }, noFile,
+      h('button', { class: 'btn small ghost', type: 'button', 'data-test': 'file-claim-anyway', text: t('fc_anyway'), onclick: onSendAnyway })));
+    return box;
   }
   /** QA round 5 (double WhatsApp send): queued = status wa_queued, or (older engine) wa_send pending on an open ticket. */
   /** A failed WhatsApp send: wa_send failed | template_required | unknown (claim expired), the ticket back in "action".
@@ -2432,6 +2449,24 @@
     return t('media_' + (kind === 'video' ? 'video' : 'file'));
   }
   function isVoiceSlot(p) { return !!p && (/^a\d/.test(String(p.ref || '')) || (!!p.file && (p.file.kind === 'audio' || /^audio\//.test(String(p.file.mime || ''))))); }
+  /** 2026-11-17 (the CS team: "pictures don't open, it says deleted after 7 days"): a load error used to be shown as "deleted" at once, but
+   *  measured 10-17.11, 161 failed loads were a busy server on a picture that WAS stored. Now: one quiet retry; then the server is asked
+   *  and only its 404 means "deleted"; anything else leaves a chip that loads it again on click. el = the <img>/<audio>, node = what is
+   *  replaced, gone() = the "deleted" chip, rebuild() = a fresh element. */
+  function mediaOnError(el, node, src, gone, retryKey, rebuild) {
+    let tries = 0;
+    el.addEventListener('error', function onErr() {
+      if (tries++ < 1) { setTimeout(function () { el.src = src + '?r=' + Date.now(); }, 1500); return; }
+      el.removeEventListener('error', onErr);
+      fetch(src + '?h=' + Date.now(), { method: 'HEAD', credentials: 'same-origin', cache: 'no-store' }).then(function (r) { return r.status; }, function () { return 0; }).then(function (st) {
+        if (!node.isConnected) return;
+        if (st === 404) { node.replaceWith(gone()); return; }
+        const b = h('button', { type: 'button', class: 'chip photo wait', text: t(retryKey), 'data-test': 'media-retry' });
+        b.addEventListener('click', function () { b.replaceWith(rebuild()); });
+        node.replaceWith(b);
+      });
+    });
+  }
   function photoChips(photos) {
     if (!Array.isArray(photos) || !photos.length) return null;
     const row = h('div', { class: 'photos' });
@@ -2440,18 +2475,25 @@
       const cm = p.file && /^core-media:(m[0-9a-f]{24})$/.exec(String(p.file.url || ''));
       if (isVoiceSlot(p)) {     // a voice message (2026-10-11): played right here
         if (cm && S.brand) {
-          const au = h('audio', { class: 'voice-player', controls: '', preload: 'none', src: '/api/' + encodeURIComponent(S.brand) + '/photo/' + cm[1], 'data-test': 'voice-player' });
-          au.addEventListener('error', function () { au.replaceWith(h('span', { class: 'chip photo dondy', text: t('voice_gone'), 'data-test': 'voice-gone' })); });
-          row.append(au);
+          const vsrc = '/api/' + encodeURIComponent(S.brand) + '/photo/' + cm[1];
+          const makeAu = function () {
+            const au = h('audio', { class: 'voice-player', controls: '', preload: 'none', src: vsrc, 'data-test': 'voice-player' });
+            mediaOnError(au, au, vsrc, function () { return h('span', { class: 'chip photo dondy', text: t('voice_gone'), 'data-test': 'voice-gone' }); }, 'voice_retry', makeAu);
+            return au;
+          };
+          row.append(makeAu());
         } else row.append(h('span', { class: 'chip photo ' + (p.unavailable ? 'dondy' : 'wait'), text: t(p.unavailable ? 'voice_dondy' : 'voice_wait'), 'data-test': 'voice-wait' }));
         return;
       }
       if (cm && S.brand) {      // stored on our server (2026-10-11): shown right here, a click opens it full size
         const src = '/api/' + encodeURIComponent(S.brand) + '/photo/' + cm[1];
-        const img = h('img', { class: 'photo-thumb', src: src, alt: t('photo_open'), loading: 'lazy' });
-        const a = h('a', { class: 'photo-link', href: src, target: '_blank', rel: 'noopener noreferrer', 'data-test': 'photo-img' }, img);
-        img.addEventListener('error', function () { a.replaceWith(h('span', { class: 'chip photo dondy', text: t(p.src === 'email' ? 'photo_gone_mail' : 'photo_gone'), 'data-test': 'photo-gone' })); });
-        row.append(a);
+        const makeImg = function () {
+          const img = h('img', { class: 'photo-thumb', src: src, alt: t('photo_open'), loading: 'lazy' });
+          const a = h('a', { class: 'photo-link', href: src, target: '_blank', rel: 'noopener noreferrer', 'data-test': 'photo-img' }, img);
+          mediaOnError(img, a, src, function () { return h('span', { class: 'chip photo dondy', text: t(p.src === 'email' ? 'photo_gone_mail' : 'photo_gone'), 'data-test': 'photo-gone' }); }, 'photo_retry', makeImg);
+          return a;
+        };
+        row.append(makeImg());
         return;
       }
       const url = p.file && safeUrl(p.file.url);

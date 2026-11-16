@@ -904,10 +904,9 @@ def _attempt(g, bg, transport, url, wire, kw, fn, clean, rid, brand, hedge=False
     return first[0], first[1], _clock() - t_start
 
 
-def call(engines, transport, secret, user, brand, fn, args, lang, now=None, internal=False, retry=True, bg=False, rid=None,
-         top=False):
-    """Returns (http_status, json). Raises nothing for expected failures.
-    internal=True is used ONLY by server code (assistant.py) to reach INTERNAL_FNS; the browser route never sets it."""
+def authorize(user, brand, fn, lang, internal=False):
+    """The walls before an engine call (fn table, the user's brands, role, viewer list) -> None when allowed, else (http_status, json).
+    2026-11-17: also used by the photo route, which reads a stored photo straight from Postgres without an engine slot."""
     roles = user.get("roles", [])
     table = dict(FN_TABLE, **INTERNAL_FNS) if internal else FN_TABLE
     if fn not in table:
@@ -920,6 +919,19 @@ def call(engines, transport, secret, user, brand, fn, args, lang, now=None, inte
         return 403, {"ok": False, "error": "forbidden_role", "msg": messages.proxy_msg("forbidden_role", lang)}
     if role not in table[fn][0] or (role == "viewer" and fn not in VIEWER_FNS):      # viewer: the table AND the literal list must both say yes
         return 403, {"ok": False, "error": "forbidden_role", "msg": messages.proxy_msg("forbidden_role", lang)}
+    return None
+
+
+def call(engines, transport, secret, user, brand, fn, args, lang, now=None, internal=False, retry=True, bg=False, rid=None,
+         top=False):
+    """Returns (http_status, json). Raises nothing for expected failures.
+    internal=True is used ONLY by server code (assistant.py) to reach INTERNAL_FNS; the browser route never sets it."""
+    denied = authorize(user, brand, fn, lang, internal)
+    if denied:
+        return denied
+    roles = user.get("roles", [])
+    table = dict(FN_TABLE, **INTERNAL_FNS) if internal else FN_TABLE
+    role = security.engine_role(roles)
     url = engines.get(brand)
     if not url:
         return 503, {"ok": False, "error": "brand_not_connected", "msg": messages.proxy_msg("brand_not_connected", lang)}

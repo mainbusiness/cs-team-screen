@@ -90,10 +90,12 @@ def create_app(overrides=None):
     # (local tests / preview) the file backends below are used exactly as before.
     db_url = o.get("DB_URL", os.environ.get("CORE_DB_URL", ""))
     pgdb = None
+    media_db = o.get("MEDIA_DB")      # tests inject a fake; production: the same pool (set below)
     if db_url:
         import pgstore
         pgdb = pgstore.DB(db_url)
         pgstore.init(pgdb)
+        media_db = media_db or pgdb
         # one-time: whole-disk backup row + import of users / audit / activity / snapshots / snoozes (idempotent)
         pgstore.backup_and_import(pgdb, o.get("IMPORT_DIR", os.environ.get("IMPORT_DIR", os.path.dirname(users_path))), users_path)
         # regenerable caches (ticket cache, dayStats files, zip fill) live in an ephemeral dir: gone on deploy, rebuilt in seconds
@@ -282,7 +284,7 @@ def create_app(overrides=None):
         resp.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         if cookie_secure:
             resp.headers["Strict-Transport-Security"] = "max-age=31536000"
-        if not request.path.startswith("/cs/static/") and not (resp.status_code == 200 and (resp.mimetype == "image/jpeg" or resp.mimetype.startswith("audio/"))
+        if not request.path.startswith("/cs/static/") and not (resp.status_code == 200 and (resp.mimetype.startswith("image/") or resp.mimetype.startswith("audio/"))
                                                                 and re.match(r"^/api/[a-z0-9]+/photo/m[0-9a-f]{24}$", request.path)):
             resp.headers["Cache-Control"] = "no-store"          # a customer photo may stay in THIS browser's private cache (1 day)
         if request.path.startswith("/api/") and hasattr(g, "t0"):
@@ -459,6 +461,32 @@ def create_app(overrides=None):
             return err
         if not PHOTO_ID_RE.match(str(fid)):
             return json_error("bad_request", 400)
+        brand = str(brand).lower()
+        # 2026-11-17 (the CS team: "most pictures don't open, it says deleted"): measured 10-17.11, 161 picture loads failed 502 "busy" on
+        # pictures that WERE stored: every part was an engine round-trip on one of the brand's 6 slots, competing with sends and opens.
+        # The picture lives in the same Postgres (cs_media): read it there, same walls as the engine call, no slot. The engine path stays
+        # as the fallback (no DB url, or a DB error).
+        denied = engine_proxy.authorize(u, brand, "apiWaPhotoGet", ui_lang(u), internal=True)
+        if denied:
+            return json_error(denied[1].get("error") or "forbidden", denied[0])
+        if media_db is not None:
+            try:
+                row = media_db.run(lambda c: c.execute("select mime, data from cs_media where brand = %s and id = %s", (brand, str(fid))).fetchone())
+            except Exception:   # noqa: BLE001 - any DB trouble: the engine path below answers instead
+                log.warning("photo %s %s: db read failed, engine fallback", brand, fid, exc_info=True)
+                row = False
+            if row is None:
+                return json_error("not_found", 404)
+            if row:
+                mime, b64 = row[0], row[1]
+                if mime not in MEDIA_MIMES:
+                    return json_error("bad_request", 400)
+                try:
+                    data = base64.b64decode(b64, validate=True)
+                except ValueError:
+                    log.error("photo %s %s: stored bytes are not valid base64", brand, fid)
+                    return json_error("media_corrupt", 500)
+                return photo_response(data, mime)
         chunks, part, parts, mime = [], 0, 1, None
         while part < parts:
             status, out = engine_proxy.call(engines, transport, app.config["TOKEN_SECRET"], u, str(brand).lower(), "apiWaPhotoGet",
@@ -477,7 +505,9 @@ def create_app(overrides=None):
             except ValueError:
                 return json_error("engine_error", 502)
             part += 1
-        data = b"".join(chunks)
+        return photo_response(b"".join(chunks), mime)
+
+    def photo_response(data, mime):
         resp = app.response_class(data, mimetype=mime)
         resp.headers["Cache-Control"] = "private, max-age=86400"
         resp.headers["X-Content-Type-Options"] = "nosniff"

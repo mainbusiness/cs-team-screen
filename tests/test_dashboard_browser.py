@@ -6,6 +6,18 @@ from test_resilience_browser import page, server  # noqa: F401
 pw = pytest.importorskip("playwright.sync_api")
 
 
+
+# 2026-11-17: the CS manager's daily quality reminder (2026-11-12) is a modal that the server turns on by the hour of the day; on those hours it
+# covered the dashboard link and these tests failed by the clock. They test the dashboard, not the reminder (test_quality_browser.py does):
+# every context here starts with the reminder snoozed.
+_NO_QREMIND = "(() => { const g = Storage.prototype.getItem; Storage.prototype.getItem = function (k) { return String(k).indexOf('cs-quality-later-') === 0 ? String(Date.now() + 864e5) : g.call(this, k); }; })();"
+
+
+def _ctx(b, **kw):
+    c = b.new_context(**kw)
+    c.add_init_script(_NO_QREMIND)
+    return c
+
 def test_agent_has_no_dashboard_tab_and_no_data(page):
     pg, base = page                                                  # agent1: role agent
     pg.goto(base + "/cs#/b/rozela/ready")
@@ -24,7 +36,7 @@ def test_admin_sees_live_numbers_from_real_actions(server):
     with pw.sync_playwright() as p:
         b = launch(p)
         # an agent works: opens a ticket, types, sends (mock engine, DRY_RUN off on rozela)
-        ag = b.new_context(viewport={"width": 1280, "height": 900}).new_page()
+        ag = _ctx(b, viewport={"width": 1280, "height": 900}).new_page()
         ag.goto(base + "/cs/login"); ag.fill("input[name=username]", "agent1"); ag.fill("input[name=password]", pwd)
         ag.click("button[type=submit]"); ag.wait_for_load_state("networkidle")
         ag.goto(base + "/cs#/b/rozela/t/t18f2a11")
@@ -32,7 +44,7 @@ def test_admin_sees_live_numbers_from_real_actions(server):
         ag.fill(".draft textarea", "היי אגי, ההזמנה בדרך — תגיע עד יום חמישי.")
         ag.click("[data-test=send-btn]"); ag.wait_for_timeout(600); ag.click("[data-test=send-btn]")
         ag.wait_for_timeout(2500)
-        ad = b.new_context(viewport={"width": 1280, "height": 900}).new_page()
+        ad = _ctx(b, viewport={"width": 1280, "height": 900}).new_page()
         ad.goto(base + "/cs/login"); ad.fill("input[name=username]", "admin1"); ad.fill("input[name=password]", pwd)
         ad.click("button[type=submit]"); ad.wait_for_load_state("networkidle")
         ad.goto(base + "/cs#/b/rozela/ready")
@@ -97,7 +109,7 @@ def test_service_hours_block_shows_who_got_no_answer_and_opens_the_ticket(server
     from pw_launch import launch
     with pw.sync_playwright() as p:
         b = launch(p)
-        ad = b.new_context(viewport={"width": 390, "height": 800}).new_page()
+        ad = _ctx(b, viewport={"width": 390, "height": 800}).new_page()
         ad.goto(base + "/cs/login"); ad.fill("input[name=username]", "admin1"); ad.fill("input[name=password]", pwd)
         ad.click("button[type=submit]"); ad.wait_for_load_state("networkidle")
         ad.goto(base + "/cs#/dash")
@@ -126,7 +138,7 @@ def test_service_hours_block_shows_who_got_no_answer_and_opens_the_ticket(server
 
 
 def _login(b, base, pwd, user, width=1280):
-    pg = b.new_context(viewport={"width": width, "height": 900}).new_page()
+    pg = _ctx(b, viewport={"width": width, "height": 900}).new_page()
     pg.goto(base + "/cs/login"); pg.fill("input[name=username]", user); pg.fill("input[name=password]", pwd)
     pg.click("button[type=submit]"); pg.wait_for_load_state("networkidle")
     return pg

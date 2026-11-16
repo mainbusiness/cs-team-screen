@@ -95,3 +95,58 @@ def test_a_part_with_another_type_or_too_many_parts_is_refused(make_app, transpo
     transport.reply = lambda url, body: ({"ok": True, "id": fid, "mime": "image/png", "data": "", "parts": 99}
                                          if body["fn"] == "apiWaPhotoGet" else valid_reply(url, body))
     assert c.get("/api/rozela/photo/" + fid).status_code == 502
+
+
+class FakeMediaDB:
+    """cs_media in the same Postgres (2026-11-17): the screen reads a stored photo there, no engine slot."""
+    def __init__(self, rows, fail=False):
+        self.rows, self.fail, self.queries = rows, fail, []
+
+    def run(self, fn):
+        if self.fail:
+            raise RuntimeError("db down")
+        db = self
+
+        class Cur:
+            def __init__(self, row):
+                self.row = row
+
+            def fetchone(self):
+                return self.row
+
+        class Conn:
+            def execute(self, sql, params):
+                db.queries.append(params)
+                return Cur(db.rows.get(params))
+        return fn(Conn())
+
+
+def test_photo_is_read_from_the_db_without_an_engine_call(make_app, transport, pw_hash):
+    transport.reply = photo_engine({})                       # the engine would say not_found: the bytes must come from the DB
+    big = JPEG + bytes(3 * 1024 * 1024)                      # 3 MB: used to be 2+ engine round-trips on the brand's slots
+    db = FakeMediaDB({("rozela", FID): ("image/jpeg", base64.b64encode(big).decode())})
+    c, _ = logged_in(make_app(MEDIA_DB=db), pw_hash, "noa", ["agent"], ["rozela"])
+    r = c.get("/api/rozela/photo/" + FID)
+    assert r.status_code == 200 and r.mimetype == "image/jpeg" and r.data == big
+    assert "private" in r.headers["Cache-Control"]
+    assert not [b for _, b in transport.calls if b["fn"] == "apiWaPhotoGet"]
+    assert c.get("/api/rozela/photo/" + "m" + "b2" * 12).status_code == 404      # not in the DB = really removed
+    png = FakeMediaDB({("rozela", FID): ("image/png", base64.b64encode(b"\x89PNG....").decode())})
+    c2, _ = logged_in(make_app(MEDIA_DB=png), pw_hash, "dana", ["agent"], ["rozela"])
+    r2 = c2.get("/api/rozela/photo/" + FID)
+    assert r2.status_code == 200 and "private" in r2.headers["Cache-Control"]          # png is cacheable too (was no-store)
+
+
+def test_db_photo_keeps_the_walls_and_falls_back_to_the_engine(make_app, transport, pw_hash):
+    db = FakeMediaDB({("rozela", FID): ("image/jpeg", base64.b64encode(JPEG).decode())})
+    c, _ = logged_in(make_app(MEDIA_DB=db), pw_hash, "noa", ["agent"], ["celesta"])
+    assert c.get("/api/rozela/photo/" + FID).status_code == 403                         # not her brand: never the bytes, DB not read
+    assert db.queries == []
+    bad = FakeMediaDB({("celesta", FID): ("text/html", base64.b64encode(b"<script>").decode())})
+    c2, _ = logged_in(make_app(MEDIA_DB=bad), pw_hash, "dana", ["agent"], ["celesta"])
+    assert c2.get("/api/celesta/photo/" + FID).status_code == 400                       # never serve a non-media type
+    transport.reply = photo_engine({FID: JPEG})
+    down = FakeMediaDB({}, fail=True)
+    c3, _ = logged_in(make_app(MEDIA_DB=down), pw_hash, "lia", ["agent"], ["rozela"])
+    r = c3.get("/api/rozela/photo/" + FID)
+    assert r.status_code == 200 and r.data == JPEG                                      # DB trouble: the engine answers
