@@ -3899,7 +3899,7 @@
       const result = h('div', { 'aria-live': 'assertive' });
       box.append(adviceCard(adv));
       box.append(h('div', { 'data-test': 'subx-q' }, h('b', { text: list.length === 1 ? t('sx_q_one', { name: name }) : t('sx_q_many', { name: name, n: list.length }) })));
-      if (list.length === 1) box.append(contractLine(list[0], pv.email), offLine(list[0]));
+      if (list.length === 1) { box.append(contractLine(list[0], pv.email)); const ol = offLine(list[0]); if (ol) box.append(ol); }   // native append prints null as "null"
       else {
         const opts = h('div', { class: 'subx-opts', role: 'radiogroup' });
         list.forEach(function (c) {

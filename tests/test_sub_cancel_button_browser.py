@@ -51,6 +51,7 @@ def test_one_click_cancel_is_verified_and_stays_on_the_ticket(srv):
         assert "יוסי מזרחי" in q.inner_text()                                # names the customer
         assert "רוזלה סלק" in dlg.inner_text()                                # names the product of the subscription
         assert "0123" in dlg.inner_text()                                     # and which subscription it will cancel
+        assert "null" not in dlg.inner_text() and "undefined" not in dlg.inner_text(), dlg.inner_text()   # 2026-11-18: a stray "null" line shipped
         assert dlg.locator("input.code, input[inputmode=numeric]").count() == 0, "no typed digits"
         pg.click("[data-test=subx-go]")
         ok = pg.locator("[data-test=subx-ok]")
@@ -512,6 +513,7 @@ def test_reign_interval_reads_like_kaching_never_object_object(srv_reign, every,
         opt.wait_for()
         txt = opt.inner_text()
         assert "object" not in txt.lower() and want in txt, txt
+        assert "null" not in pg.inner_text("#subx-dlg"), pg.inner_text("#subx-dlg")
         assert "כל חודש" in pg.locator("[data-test=subx-opt]", has_text="0123").inner_text()   # the Kaching line unchanged
         assert not errors, errors
         browser.close()
