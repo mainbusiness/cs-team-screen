@@ -341,6 +341,38 @@ def test_daystats_failure_keeps_the_not_final_banner(app, pw_hash, transport):
     assert o["stats_source"] == "list" and o["verify_note"] is None and o["brands"]["rozela"]["ds_error"] == "forbidden_fn"
 
 
+def test_list_probe_reports_each_brands_age_and_refreshes_a_stale_copy(app, pw_hash, transport):
+    # the owner 2026-11-18: the VPS watchdog alerts when a brand's list has not updated for over an hour; it reads this route (no login)
+    c = app.test_client()
+    r = c.get("/healthz/lists")
+    assert r.status_code == 200
+    j = r.get_json()
+    assert j["ok"] is True and set(j["ages"]) == set(app.extensions["cs"]["engines"]) and all(v is not None and v < 5 for v in j["ages"].values())
+    n = len(transport.calls)
+    for _ in range(20):                                      # a burst of callers: served from the probe cache
+        assert c.get("/healthz/lists").get_json()["cached"] is True
+    assert len(transport.calls) == n                         # the engine is not asked again
+    assert not any(k in r.get_data(as_text=True) for k in ("tickets", "email", "name"))   # ages only
+
+
+def test_list_probe_shows_a_list_that_cannot_update(app, pw_hash, transport):
+    cache = app.extensions["cs"]["ticket_cache"]
+    now = [1_800_000_000.0]
+    cache.clock = lambda: now[0]
+    app.extensions["cs"]["activity"]["log"].clock = lambda: now[0]
+    c = app.test_client()
+    first = c.get("/healthz/lists").get_json()["ages"]
+    assert all(v is not None and v < 5 for v in first.values())
+    transport.raise_ = OSError("engine unreachable")        # the engine stops answering
+    now[0] += 3700
+    app.extensions["cs"]["activity"]["log"].clock = lambda: now[0]   # the probe cache (30 s) runs on the activity clock                                           # an hour and a bit later
+    ages = c.get("/healthz/lists").get_json()["ages"]
+    assert all(v is not None and v >= 3600 for v in ages.values()), ages   # the probe tried, failed, and says the copy is over an hour old
+    transport.raise_ = None                                  # the engine answers again
+    now[0] += 31                                             # past the probe cache
+    assert all(v < 5 for v in c.get("/healthz/lists").get_json()["ages"].values())   # one probe brings it back
+
+
 def test_daystats_failure_is_not_retried_on_every_refresh(app, pw_hash, transport):
     # 2026-11-18: a failing dayStats was started again on every dashboard refresh; each try held a rozela engine thread for 6 minutes
     calls = []

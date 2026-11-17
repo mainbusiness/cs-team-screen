@@ -59,6 +59,9 @@ WARM_AT = (7, 20, 7, 40)   # Israel time window for the morning warm-up (the tea
 WARM_USER = {"username": "warmup", "roles": ["admin"], "brands": [], "lang": "he"}
 DS_MAX_CHUNKS = 40
 VERIFY_NOTE = "✓ אומת מול השיחות 15/15 (וואטסאפ 10/10 · מייל 5/5) · rozela 2026-10-05"   # final live reconciliation
+LIST_PROBE_MAX_AGE_S = 120   # /healthz/lists: a brand's copy older than this is refreshed first (one shared read)
+LIST_PROBE_CACHE_S = 30      # /healthz/lists: a probe this young is served as it is (public route: bounded work)
+LIST_PROBE_WAIT_S = 50       # /healthz/lists answers within this, whatever the engine does
 DS_RETRY_AFTER_FAIL_S = 900   # a failed dayStats is not asked again for 15 min (it may still be running in the engine)
 DS_FINAL_TTL_S = 6 * 3600   # a finished day is still re-read now and then: the engine can backfill (2026-10-06: 95 email replies)
 SOURCES = {"fromSystem": ("agent", "auto"), "fromDondy": ("human", "bot", "template", "close"), "fromEmail": ("direct",)}
@@ -1350,6 +1353,49 @@ def register(app, d):
             threads.append(th)
         ds_for(u, sorted(d["engines"]), il_day(log.clock()), log.clock())
         return threads
+
+    # the owner 2026-11-18: "alert when a brand's list has not updated for over an hour". The VPS watchdog (vps_watch/watch.js) reads this every
+    # 2 min. Each call first tries the same single-flight change-feed read an agent's poll makes (at most one per brand per
+    # LIST_PROBE_MAX_AGE_S), so the age says whether the list CAN update - not just whether somebody happened to look (quiet nights).
+    # No login: it shows only brand names and ages in seconds, and the engine is asked at most once per brand per 2 min however often it is called.
+    probe_pool = ThreadPoolExecutor(max_workers=6, thread_name_prefix="cs-listprobe")
+    probe_lock, probe_last = threading.Lock(), {"at": -1e18, "ages": None}
+
+    @app.get("/healthz/lists")
+    def healthz_lists():
+        # Codex 2026-11-18 (a public route): ONE probe at a time, and a probe younger than LIST_PROBE_CACHE_S is served as it is, so
+        # any number of callers costs at most one round of per-brand work (never a queue of them).
+        if probe_last["ages"] is not None and log.clock() - probe_last["at"] < LIST_PROBE_CACHE_S:
+            return jsonify({"ok": True, "ages": probe_last["ages"], "at": int(probe_last["at"]), "cached": True})
+        if not probe_lock.acquire(blocking=False):
+            if probe_last["ages"] is None:
+                return jsonify({"ok": False, "error": "busy"}), 503
+            return jsonify({"ok": True, "ages": probe_last["ages"], "at": int(probe_last["at"]), "cached": True})
+        try:
+            return probe_run()
+        finally:
+            probe_lock.release()
+
+    def probe_run():
+        u = dict(WARM_USER, brands=sorted(d["engines"]))
+
+        def one(b):
+            try:
+                age = cache.sync_if_older(u, b, LIST_PROBE_MAX_AGE_S)
+            except Exception:                             # noqa: BLE001 — a probe never fails the whole answer
+                app.logger.exception("list probe failed for %s", b)
+                age = cache.synced_age(b)
+            return None if age is None else int(age)
+
+        futs = {b: probe_pool.submit(one, b) for b in sorted(d["engines"])}
+        ages = {}
+        for b, f in futs.items():
+            try:
+                ages[b] = f.result(timeout=LIST_PROBE_WAIT_S)
+            except Exception:                             # noqa: BLE001 — still syncing: report the copy's age as it is now
+                ages[b] = None if cache.synced_age(b) is None else int(cache.synced_age(b))
+        probe_last.update(at=log.clock(), ages=ages)
+        return jsonify({"ok": True, "ages": ages, "at": int(log.clock())})
 
     @app.post("/api/dash/warm")
     def dash_warm():
