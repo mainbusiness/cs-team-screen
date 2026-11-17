@@ -59,6 +59,7 @@ WARM_AT = (7, 20, 7, 40)   # Israel time window for the morning warm-up (the tea
 WARM_USER = {"username": "warmup", "roles": ["admin"], "brands": [], "lang": "he"}
 DS_MAX_CHUNKS = 40
 VERIFY_NOTE = "✓ אומת מול השיחות 15/15 (וואטסאפ 10/10 · מייל 5/5) · rozela 2026-10-05"   # final live reconciliation
+DS_RETRY_AFTER_FAIL_S = 900   # a failed dayStats is not asked again for 15 min (it may still be running in the engine)
 DS_FINAL_TTL_S = 6 * 3600   # a finished day is still re-read now and then: the engine can backfill (2026-10-06: 95 email replies)
 SOURCES = {"fromSystem": ("agent", "auto"), "fromDondy": ("human", "bot", "template", "close"), "fromEmail": ("direct",)}
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -940,6 +941,8 @@ def register(app, d):
 
     ds_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="cs-daystats")
     ds_busy, ds_lock, ds_futs, ds_err = set(), threading.Lock(), [], {}
+    ds_failed_at = {}   # (brand, day) -> clock of the last failed fetch (2026-11-18: a failing dayStats was started again on EVERY dashboard
+                        # refresh; each try held an engine thread for 6 minutes and rozela's 4 threads filled up, so the ticket list froze)
 
     def ds_path(b, day):
         return os.path.join(log.root, "ds-%s-%s.json" % (b, day))
@@ -963,6 +966,7 @@ def register(app, d):
                 _, out = engine_proxy.call(d["engines"], cache.transport, cache.secret(), u, b, "apiDayStats", args, "he", internal=True)
                 if not out.get("ok"):
                     ds_err[(b, day)] = out.get("error") or "error"
+                    ds_failed_at[(b, day)] = log.clock()
                     return
                 data = out
                 if out.get("partial") and isinstance(out.get("next"), int) and not isinstance(out.get("next"), bool):
@@ -971,8 +975,10 @@ def register(app, d):
                 break
             if data is None or data.get("partial"):
                 ds_err[(b, day)] = "partial"
+                ds_failed_at[(b, day)] = log.clock()
                 return
             ds_err.pop((b, day), None)
+            ds_failed_at.pop((b, day), None)
             obj = {"at": started, "final": started >= day_start(next_day(day)), "data": {k: v for k, v in data.items() if not k.startswith("_")}}
             tmp = "%s.%d.tmp" % (ds_path(b, day), os.getpid())
             with open(tmp, "w", encoding="utf-8") as f:
@@ -989,6 +995,8 @@ def register(app, d):
             e = ds_read(b, day) or {}
             age = now - float(e.get("at", 0))
             stale = force or not e or age > (DS_FINAL_TTL_S if e.get("final") else DS_TTL_S)
+            if stale and not force and now - ds_failed_at.get((b, day), -1e18) < DS_RETRY_AFTER_FAIL_S:
+                stale = False                            # failed a moment ago: the engine is not asked again until the back-off ends
             with ds_lock:
                 start = stale and b not in ds_busy       # one dayStats per brand at a time (its state is one property)
                 if start:

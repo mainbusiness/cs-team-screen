@@ -173,7 +173,7 @@
       afs_order_refund: 'לפי שופיפיי עדיין לא בוצע החזר. לבצע את ההחזר בשופיפיי.',
       // "לבטל את המנוי" in the send area (the owner's CS team, 2026-10-16)
       sx_btn: 'לבטל את המנוי', sx_off_token: 'אין חיבור לקאצ\'ינג במותג הזה — לבטל ידנית ב-Kaching.',
-      sx_off_frozen: 'ביטולים מוקפאים כרגע במערכת — לבטל ידנית ב-Kaching.', sx_off_writes: 'ביטולים כבויים במערכת — לבטל ידנית ב-Kaching.',
+      sx_off_frozen: 'ביטולים מוקפאים כרגע במערכת — לבטל ידנית ב-Kaching.', sx_off_writes: 'ביטולים כבויים במערכת — לבטל ידנית ב-Kaching.', sx_off_reign: 'ביטולי Phoenix כבויים במערכת — לבטל ידנית ב-Reign.',
       sx_checking: 'בודק בקאצ\'ינג את המנויים של {name}…', sx_q_one: 'בטוח/ה שרוצה לבטל את המנוי של {name}?', sx_q_many: 'ל{name} יש {n} מנויים פעילים. איזה לבטל?',
       sx_none: 'לא נמצא בקאצ\'ינג מנוי למייל {email}. אם הלקוח הזמין עם מייל או טלפון אחר, לבקש ממנו את מספר ההזמנה או את המייל של ההזמנה ולקשר כאן:',
       sx_ended: '✅ המנוי של {name} כבר מבוטל בקאצ\'ינג (נבדק עכשיו, {t}). אין מה לבטל שוב.',
@@ -493,7 +493,7 @@
       afs_newer_message: 'The customer wrote again before your reply went out. Read it and make sure the reply covers it too.', afs_order_cancel: 'Shopify still shows the order as not cancelled. Cancel it in Shopify.',
       afs_order_refund: 'Shopify shows no refund yet. Make the refund in Shopify.',
       sx_btn: 'Cancel the subscription', sx_off_token: 'This brand has no Kaching connection — cancel it manually in Kaching.',
-      sx_off_frozen: 'Cancellations are frozen right now — cancel it manually in Kaching.', sx_off_writes: 'Cancellations are switched off — cancel it manually in Kaching.',
+      sx_off_frozen: 'Cancellations are frozen right now — cancel it manually in Kaching.', sx_off_writes: 'Cancellations are switched off — cancel it manually in Kaching.', sx_off_reign: 'Phoenix cancellations are switched off — cancel it manually in Reign.',
       sx_checking: "Checking {name}'s subscriptions in Kaching…", sx_q_one: "Are you sure you want to cancel {name}'s subscription?", sx_q_many: '{name} has {n} active subscriptions. Which one to cancel?',
       sx_none: 'No subscription in Kaching for {email}. If the customer ordered with another email or phone, ask them for the order number or the email of the order, and link it here:',
       sx_ended: "✅ {name}'s subscription is already cancelled in Kaching (checked just now, {t}). Nothing to cancel again.",
@@ -1592,7 +1592,7 @@
     const b = S.boots[brand];
     if (!b || !sw || typeof sw !== 'object') return;
     let changed = false;
-    ['dryRun', 'cancelEnabled', 'cancelFrozen', 'subscriptions', 'orderEdits'].forEach(function (k) {
+    ['dryRun', 'cancelEnabled', 'cancelFrozen', 'subscriptions', 'orderEdits', 'reignWrites'].forEach(function (k) {
       if (k in sw && sw[k] !== b[k]) { b[k] = sw[k]; changed = true; }
     });
     if (!changed || brand !== S.brand) return;
@@ -3773,7 +3773,8 @@
       if (done.length) { el.append(h('div', { class: 'ok-box', role: 'status', 'data-test': 'subx-ok' }, h('b', { text: t('sx_ok_old') }))); return; }
       if (rec && rec.state === 'failed') el.append(failBox(rec.reasonMsg || '', rec.reason));
       if (!canWork() || !asked(x, liveDraft())) return;
-      const why = b.kachingReady === false ? t('sx_off_token') : b.cancelFrozen ? t('sx_off_frozen') : b.cancelEnabled === false ? t('sx_off_writes') : '';
+      // 2026-11-18 (Owner, rozela): Kaching writes off, Phoenix / Reign cancels on -> the button stays on; the dialog decides per subscription
+      const why = b.reignWrites === true ? '' : b.kachingReady === false ? t('sx_off_token') : b.cancelFrozen ? t('sx_off_frozen') : b.cancelEnabled === false ? t('sx_off_writes') : '';
       el.append(h('div', { class: 'actions subx-row' },
         h('button', { class: 'btn danger-outline', type: 'button', 'data-test': 'subx-btn', text: t('sx_btn'), disabled: !!why || busy, onclick: open }),
         why ? h('span', { class: 'muted small', 'data-test': 'subx-why', text: why }) : null));
@@ -3876,7 +3877,14 @@
         box.append(h('div', { 'data-test': 'subx-none', text: t('sx_none', { name: name, email: pv.email || '' }) }), Link.form(x, brand, open), h('div', { class: 'row-btns' }, back));
         return;
       }
-      let pick = list.length === 1 ? list[0].id : null;          // one = that one; several = the agent picks
+      // 2026-11-18: each subscription is pickable only when the engine would cancel it: Kaching needs KACHING_WRITES on and not frozen,
+      // Reign (Phoenix) needs REIGN_WRITES on (engine apiSubCancel routes them to two separate gates). Off = shown, not pickable, with the reason.
+      function offWhy(c) {
+        if (c.provider === 'reign') return pv.reignWrites === false ? t('sx_off_reign') : '';
+        return pv.frozen ? t('sx_off_frozen') : pv.writes === false ? t('sx_off_writes') : '';
+      }
+      function offLine(c) { const w = offWhy(c); return w ? h('div', { class: 'muted small', 'data-test': 'subx-off', text: w }) : null; }
+      let pick = list.length === 1 && !offWhy(list[0]) ? list[0].id : null;   // one = that one; several = the agent picks
       // Owner, 2026-11-15: "בטוח/ה?" + the advice from the chat. try_save -> the primary button is "don't cancel" (closes, back to the reply);
       // cancelling stays one click away ("לבטל בכל זאת"), never blocked, never typed digits.
       const adv = adviceOf(pv);
@@ -3889,13 +3897,15 @@
       const result = h('div', { 'aria-live': 'assertive' });
       box.append(adviceCard(adv));
       box.append(h('div', { 'data-test': 'subx-q' }, h('b', { text: list.length === 1 ? t('sx_q_one', { name: name }) : t('sx_q_many', { name: name, n: list.length }) })));
-      if (list.length === 1) box.append(contractLine(list[0], pv.email));
+      if (list.length === 1) box.append(contractLine(list[0], pv.email), offLine(list[0]));
       else {
         const opts = h('div', { class: 'subx-opts', role: 'radiogroup' });
         list.forEach(function (c) {
-          const r = h('input', { type: 'radio', name: 'subx-pick', value: c.id });
-          r.addEventListener('change', function () { if (r.checked) { pick = c.id; go.disabled = busy; } });
-          opts.append(h('label', { class: 'subx-opt', 'data-test': 'subx-opt' }, r, contractLine(c, '')));
+          const off = !!offWhy(c);
+          const r = h('input', { type: 'radio', name: 'subx-pick', value: c.id, disabled: off });
+          r.addEventListener('change', function () { if (r.checked && !off) { pick = c.id; go.disabled = busy; } });
+          opts.append(h('label', { class: 'subx-opt' + (off ? ' is-off' : ''), 'data-test': 'subx-opt', 'data-off': off ? '1' : null },
+            r, h('div', null, contractLine(c, ''), offLine(c))));
         });
         box.append(opts, pv.email ? h('div', { class: 'small muted' }, h('bdi', { class: 'ltr', text: pv.email })) : null);
       }

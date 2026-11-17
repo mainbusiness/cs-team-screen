@@ -377,3 +377,122 @@ def test_unknown_advice_is_neutral_and_english_desk_try_save(srv):
         assert _no_sideways(pg) == {"page": True, "dlg": True}
         assert not errors, errors
         browser.close()
+
+
+# ---------- 2026-11-18 (Owner, rozela): Kaching subscription writes OFF, Phoenix / Reign cancels ON ----------
+# The button stays on; inside the dialog a Kaching subscription is shown but cannot be picked (the existing "off" reason), a Reign one can.
+REIGN_SUB = {"id": "sub_abcdefghijklmn987654", "status": "ACTIVE", "every": "1 month", "provider": "reign",
+             "items": [{"title": "Phoenix gummies", "quantity": 1}]}
+
+
+def _srv_with(switches):
+    return start(extra_env={"MOCK_SWITCHES": json.dumps({"rozela": switches})}, users=(("agent1", ["agent"], ["rozela"], "he"),))
+
+
+@pytest.fixture()
+def srv_reign():
+    base, pwd, proc = _srv_with({"writes": False, "reign": True})
+    yield base, pwd
+    proc.terminate()
+
+
+def _with_reign(extra=None):
+    def handler(route):
+        r = route.fetch()
+        j = r.json()
+        if j.get("ok"):
+            j["contracts"] = j["contracts"] + [REIGN_SUB]
+            j.update(extra or {})
+        route.fulfill(response=r, body=json.dumps(j))
+    return handler
+
+
+def _no_cancel_sent(pg):
+    """Every apiSubCancel is answered here with a refusal and recorded: a test never cancels anything."""
+    sent = []
+
+    def catch(route):
+        sent.append(json.loads(route.request.post_data or "{}"))
+        route.fulfill(content_type="application/json", body=json.dumps({"ok": False, "verified": False, "error": "test_stop", "msg": "test"}))
+    pg.route("**/api/rozela/apiSubCancel", catch)
+    return sent
+
+
+@pytest.mark.parametrize("width", [1280, 390])
+def test_kaching_off_reign_on_button_stays_on_only_reign_is_pickable(srv_reign, width):
+    base, pwd = srv_reign
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd, width=width)
+        pg.route("**/api/rozela/apiSubCancelPreview", _with_reign())
+        sent = _no_cancel_sent(pg)
+        pg.goto(base + YOSSI)
+        btn = pg.locator("[data-test=draft-card] [data-test=subx-btn]")
+        btn.wait_for()
+        assert btn.is_enabled(), "Reign cancels are on: the button must stay on"
+        assert pg.locator("[data-test=subx-why]").count() == 0
+        btn.click()
+        pg.locator("[data-test=subx-opt]").nth(1).wait_for()
+        k = pg.locator("[data-test=subx-opt]", has_text="0123")
+        r = pg.locator("[data-test=subx-opt]", has_text="Phoenix gummies")
+        assert k.get_attribute("data-off") == "1" and k.locator("input").is_disabled()
+        assert "ביטולים כבויים במערכת" in k.inner_text()
+        assert r.get_attribute("data-off") is None and r.locator("input").is_enabled()
+        assert pg.is_disabled("[data-test=subx-go]"), "nothing preselected"
+        k.click(force=True)                                                   # clicking the Kaching one picks nothing
+        assert pg.is_disabled("[data-test=subx-go]")
+        r.click()
+        assert pg.is_enabled("[data-test=subx-go]")
+        pg.click("[data-test=subx-go]")
+        pg.locator("[data-test=subx-fail]").wait_for()
+        assert [s["args"]["contractId"] for s in sent] == [REIGN_SUB["id"]], sent
+        assert pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "no sideways scroll"
+        assert not errors, errors
+        browser.close()
+
+
+def test_kaching_off_only_a_kaching_subscription_nothing_can_be_cancelled(srv_reign):
+    base, pwd = srv_reign
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd)
+        sent = _no_cancel_sent(pg)
+        pg.goto(base + YOSSI)
+        pg.click("[data-test=subx-btn]")
+        pg.locator("[data-test=subx-q]").wait_for()
+        assert "ביטולים כבויים במערכת" in pg.inner_text("[data-test=subx-off]")
+        assert pg.is_disabled("[data-test=subx-go]")
+        pg.locator("[data-test=subx-go]").click(force=True)
+        pg.wait_for_timeout(300)
+        assert sent == []
+        assert not errors, errors
+        browser.close()
+
+
+def test_kaching_frozen_and_reign_off_are_not_pickable_with_their_reason(srv_reign):
+    base, pwd = srv_reign
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd)
+        pg.route("**/api/rozela/apiSubCancelPreview", _with_reign({"writes": True, "frozen": True, "reignWrites": False}))
+        pg.goto(base + YOSSI)
+        pg.click("[data-test=subx-btn]")
+        pg.locator("[data-test=subx-opt]").nth(1).wait_for()
+        assert pg.locator("[data-test=subx-opt][data-off='1']").count() == 2
+        assert "מוקפאים" in pg.inner_text("[data-test=subx-opt] >> nth=0")
+        assert "ביטולי Phoenix כבויים" in pg.locator("[data-test=subx-opt]", has_text="Phoenix gummies").inner_text()
+        assert pg.is_disabled("[data-test=subx-go]")
+        assert not errors, errors
+        browser.close()
+
+
+def test_kaching_off_and_reign_off_the_button_is_off_as_before():
+    base, pwd, proc = _srv_with({"writes": False})
+    try:
+        with pw.sync_playwright() as p:
+            browser, pg, errors = _login(p, base, pwd)
+            pg.goto(base + YOSSI)
+            pg.locator("[data-test=subx-btn]").wait_for()
+            assert pg.is_disabled("[data-test=subx-btn]")
+            assert "ביטולים כבויים במערכת" in pg.inner_text("[data-test=subx-why]")
+            assert not errors, errors
+            browser.close()
+    finally:
+        proc.terminate()

@@ -341,6 +341,27 @@ def test_daystats_failure_keeps_the_not_final_banner(app, pw_hash, transport):
     assert o["stats_source"] == "list" and o["verify_note"] is None and o["brands"]["rozela"]["ds_error"] == "forbidden_fn"
 
 
+def test_daystats_failure_is_not_retried_on_every_refresh(app, pw_hash, transport):
+    # 2026-11-18: a failing dayStats was started again on every dashboard refresh; each try held a rozela engine thread for 6 minutes
+    calls = []
+    transport.reply = ds_reply(calls, err="engine_timeout")
+    now = [T0 + 17 * 3600]
+    act = dash_now(app, now)
+    a, _ = logged_in(app, pw_hash, "boss", ["admin"], ["rozela"])
+    a.get("/api/dash"); act["ds_drain"]()
+    assert len(calls) == 1
+    for _ in range(5):                                       # refreshes inside the back-off: the engine is not asked again
+        now[0] += 60
+        a.get("/api/dash"); act["ds_drain"]()
+    assert len(calls) == 1
+    assert a.get("/api/dash").get_json()["brands"]["rozela"]["ds_error"] == "engine_timeout"
+    a.get("/api/dash?refresh=1"); act["ds_drain"]()           # an explicit refresh by a manager still asks
+    assert len(calls) == 2
+    now[0] += D.DS_RETRY_AFTER_FAIL_S + 1                    # after the back-off: asked again
+    a.get("/api/dash"); act["ds_drain"]()
+    assert len(calls) == 3
+
+
 def test_daystats_is_never_reachable_from_the_browser_route(app, pw_hash, transport):
     a, tok = logged_in(app, pw_hash, "boss", ["admin"], ["rozela"])
     assert call(a, tok, "rozela", "apiDayStats", {"date": DAY}).status_code == 404 and transport.calls == []

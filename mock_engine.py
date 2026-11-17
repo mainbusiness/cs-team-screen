@@ -447,6 +447,9 @@ class MockEngines:
                          "celesta": {"dry": True, "writes": False, "frozen": "", "auto": "off"},
                          "selera": {"dry": True, "writes": False, "frozen": "", "auto": "off"},
                          "apexmen": {"dry": True, "writes": True, "frozen": "2026-10-05T09:00:00Z — daily limit of 100 cancellations reached", "auto": "off"}}
+        # MOCK_SWITCHES='{"rozela": {"writes": false, "reign": true}}' — start a brand on other switches (2026-11-18: rozela Kaching off, Reign on)
+        for b, over in json.loads(os.environ.get("MOCK_SWITCHES") or "{}").items():
+            self.switches[b].update(over)
         self.auto = {b: build_auto(b, now) for b in MOCK_BRANDS}
         self.autoreply = {b: build_auto_reply(b, now) for b in MOCK_BRANDS}
         self.results = {b: {} for b in MOCK_BRANDS}          # rid -> (fn, user, reply): like the live engine (30 min)
@@ -564,7 +567,7 @@ class MockEngines:
                 "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]), "orderEdits": sw.get("oe", "on"),
                 "subscriptions": "none" if brand == "selera" else "kaching", "version": self.version[brand],
                 "myshopify": MYSHOPIFY.get(brand, ""), "attach": self._attach_info(brand),
-                "kachingReady": brand != "selera"}
+                "kachingReady": brand != "selera", "reignWrites": bool(sw.get("reign"))}
 
     def apiStatus(self, brand, a, c):
         sw = self.switches[brand]
@@ -981,7 +984,7 @@ class MockEngines:
         return {"ok": True, "id": t["id"], "name": t.get("name", ""), "email": self._sub_email(brand, t), "emailFrom": "linked" if linked else "ticket",
                 "contracts": live, "ended": ended, "checkedAt": self._now(),
                 "cancelledHere": [x for x in str(t.get("cancelled", "")).split(",") if x], "writes": sw["writes"], "frozen": bool(sw["frozen"]),
-                "advice": self._sub_advice(brand, t)}
+                "reignWrites": bool(sw.get("reign")), "advice": self._sub_advice(brand, t)}
 
     # the engine's subCancelAdvice_ (Api.gs, 2026-11-15) reads the ticket's stored decision + conversation; the mock keeps it simple: a stored
     # `advice` on the snapshot wins, the angry "never asked for a subscription" fixture (t18f2a03) is cancel_ok, everything else unknown
@@ -1566,7 +1569,7 @@ class MockEngines:
         sw = self.switches[brand]                    # engine @35/36: the switches ride along with every feed reply
         return {"ok": True, "version": self.version[brand], "tickets": rows, "removed": [], "serverMs": 40, "serverTime": self._now(),
                 "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]), "orderEdits": sw.get("oe", "on"),
-                "subscriptions": "none" if brand == "selera" else "kaching"}
+                "reignWrites": bool(sw.get("reign")), "subscriptions": "none" if brand == "selera" else "kaching"}
 
     def apiDayStats(self, brand, a, c):
         """Engine 2026-10-06 shape (DayStats.gs dsReport_), small fixed numbers; rozela comes in two chunks."""
