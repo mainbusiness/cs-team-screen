@@ -3610,6 +3610,8 @@
 
   // ---- subscriptions + cancel
   function everyText(e) {
+    // Reign (Phoenix) sends {interval: 'DAY', count: 30} (engine Reign.gs), Kaching "1 month": both read the same; an unknown object is '—', never "[object Object]"
+    if (e && typeof e === 'object') e = Number(e.count) > 0 && /^(day|week|month|year)$/i.test(String(e.interval || '')) ? e.count + ' ' + e.interval : '';
     const m = /^(\d+)\s+(day|week|month|year)s?$/i.exec(String(e || '').trim());
     if (!m) return e || '—';
     const n = Number(m[1]);

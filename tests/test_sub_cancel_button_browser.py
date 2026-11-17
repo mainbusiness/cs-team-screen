@@ -496,3 +496,30 @@ def test_kaching_off_and_reign_off_the_button_is_off_as_before():
             browser.close()
     finally:
         proc.terminate()
+
+
+# 2026-11-18: a Reign line showed "[object Object]" — Reign's interval is {interval, count}, Kaching's is "1 month". Both read the same way.
+@pytest.mark.parametrize("every,want", [({"interval": "DAY", "count": 30}, "כל 30 ימים"), ({"interval": "MONTH", "count": 1}, "כל חודש"),
+                                        ({"weird": 1}, "—")])
+def test_reign_interval_reads_like_kaching_never_object_object(srv_reign, every, want):
+    base, pwd = srv_reign
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd)
+        pg.route("**/api/rozela/apiSubCancelPreview", lambda route: _reign_every(route, every))
+        pg.goto(base + YOSSI)
+        pg.click("[data-test=subx-btn]")
+        opt = pg.locator("[data-test=subx-opt]", has_text="Phoenix gummies")
+        opt.wait_for()
+        txt = opt.inner_text()
+        assert "object" not in txt.lower() and want in txt, txt
+        assert "כל חודש" in pg.locator("[data-test=subx-opt]", has_text="0123").inner_text()   # the Kaching line unchanged
+        assert not errors, errors
+        browser.close()
+
+
+def _reign_every(route, every):
+    r = route.fetch()
+    j = r.json()
+    if j.get("ok"):
+        j["contracts"] = j["contracts"] + [dict(REIGN_SUB, every=every)]
+    route.fulfill(response=r, body=json.dumps(j))
