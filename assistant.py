@@ -94,9 +94,80 @@ _CAPS_PROSE = {"THE", "AND", "YOU", "FOR", "NOT", "ARE", "WAS", "YES", "THANK", 
                "NOW", "TODAY", "ORDER", "FREE", "SALE", "NEW", "ALL", "OUR", "YOUR", "HAVE", "WILL", "THIS", "THAT", "WITH", "FROM"}
 
 
+# Owner, 2026-11-20: "the address is never translated into Hebrew for the Philippines desk, because then the post does not accept it". A return
+# address went out transliterated (חדר 201, בניין בי, ... in Hebrew letters) and customers wrote "לא הבנתי כלום, תכתבו את הכתובת באנגלית".
+# A postal-address block stays in Latin letters exactly as the agent wrote it: it is taken out before the model translates and put back
+# after, and the Latin gate does not count it. Mirror of engine/Safety.gs postalSpans_ (same rules). No address data lives here (public repo).
+POSTAL_LABEL_RE = re.compile(r"(?i)(?<![A-Za-z])(?:recipient|receiver|delivery address|return address|shipping address|address|mobile|phone|tel)\s*:")
+POSTAL_WORD_RE = re.compile(r"(?i)\b(?:road|rd|street|st|avenue|ave|district|province|city|town|village|building|bldg|room|floor|park|zone|county|zip|postcode|china)\b")
+POSTAL_MARK_RE = re.compile(r"\[\[ADDRESS_([A-Z])\]\]")
+
+
+def postal_spans(text):
+    """[(start, end)] of the postal-address parts of a text: a run of Latin-dominant lines, each holding a label (Recipient: / Address: /
+    Mobile:) or address words, where the run has a label AND a real address line (a digit and 3 address words). Prose before a label on
+    the same line is not part of it. Strict on purpose (Codex 2026-11-20): an English sentence such as "your parcel reached the city
+    sorting center in China on 12/11" is prose and must still be translated."""
+    text = str(text or "")
+    spans, pos = [], 0
+    for raw in text.split("\n"):
+        line = raw[:-1] if raw.endswith("\r") else raw
+        lead = len(line) - len(line.lstrip())
+        m = POSTAL_LABEL_RE.search(line)
+        if m and m.start() > lead and not line[m.end():].strip():
+            m = None                       # "... to this address:" ending a prose line is prose, not a label
+        start = m.start() if m else lead
+        part = line[start:]
+        words = {w.lower() for w in POSTAL_WORD_RE.findall(part)}
+        strong = bool(re.search(r"\d", part)) and len(words) >= 3
+        lat, heb = len(LATIN_RE.findall(part)), len(HEBREW_RE.findall(part))
+        if (m or strong) and lat >= 4 and lat > heb:
+            if spans and not text[spans[-1][1]:pos + start].strip():
+                spans[-1][1] = pos + len(line)
+                spans[-1][2] = spans[-1][2] or bool(m)
+                spans[-1][3] = spans[-1][3] or strong
+            else:
+                spans.append([pos + start, pos + len(line), bool(m), strong])
+        pos += len(raw) + 1
+    return [(a, b) for a, b, label, strong in spans if label and strong]
+
+
+def strip_postal(text):
+    """The text without its postal-address parts."""
+    text, out, at = str(text or ""), [], 0
+    for a, b in postal_spans(text):
+        out.append(text[at:a] + " ")
+        at = b
+    return "".join(out) + text[at:]
+
+
+def mask_postal(text):
+    """(text with each postal block replaced by [[ADDRESS_A]], [[ADDRESS_B]]..., {letter: the exact block}). A text that already holds a
+    marker-shaped token is not masked: the validator then refuses any marker in the translation (fails closed, Codex 2026-11-20)."""
+    text, out, blocks, at = str(text or ""), [], {}, 0
+    if POSTAL_MARK_RE.search(text):
+        return text, {}
+    for n, (a, b) in enumerate(postal_spans(text)[:26]):
+        letter = chr(ord("A") + n)
+        blocks[letter] = text[a:b]
+        out.append(text[at:a] + "[[ADDRESS_%s]]" % letter)
+        at = b
+    return "".join(out) + text[at:], blocks
+
+
+def unmask_postal(text, blocks):
+    """The blocks put back verbatim; None when a marker is missing, repeated or unknown (the translation is then refused)."""
+    if not isinstance(text, str):
+        return None
+    found = POSTAL_MARK_RE.findall(text)
+    if sorted(found) != sorted(blocks):
+        return None
+    return POSTAL_MARK_RE.sub(lambda m: blocks[m.group(1)], text)
+
+
 def latin_residue(text, brand):
     """The Latin words left in a Hebrew text once links, emails, addresses, tracking ids, the brand and fixed names are taken out."""
-    plain = LINK_RE.sub("", text)
+    plain = LINK_RE.sub("", strip_postal(text))
     plain = DELIVERY_ID_RE.sub("", plain)
     for name in (str(brand or ""),) + LATIN_NAMES + BRAND_ALIASES.get(str(brand or "").lower(), ()):
         if name:
@@ -1129,6 +1200,7 @@ def register(app, d):
             raise llm.LLMError("not_found", 404)
         recent = [{"who": m.get("who"), "text": str(m.get("text", ""))[:800]}
                   for m in ((x or {}).get("conversation") or [])[-6:] if isinstance(m, dict)]
+        text, postal = mask_postal(text)       # the model never sees a postal address, so it cannot translate it (Owner, 2026-11-20)
         note = ("This is the agent's reply to a customer (channel: %s). Write it like a warm real person in %s: natural, "
                 "no AI-sounding phrases, faithful to every fact. "
                 "Transliterate people's names into Hebrew. In Hebrew translate ALL English prose, including greetings "
@@ -1139,6 +1211,10 @@ def register(app, d):
                 % (t.get("channel") or "email", LANG_NAMES.get(target, target), brand, PAY_GLOSSARY, json.dumps(recent, ensure_ascii=False)))
         if target == "he":
             note += " " + HUMAN_HEBREW_STYLE + persona_style(brand)
+        if postal:
+            note += (" The text holds the marker(s) %s. Each stands for a postal address that is put back later in Latin letters. Copy every "
+                     "marker exactly once, unchanged, on its own line, where it is in the source. Do not write any address yourself."
+                     % ", ".join("[[ADDRESS_%s]]" % k for k in sorted(postal)))
         source_ids = source_delivery_ids(text)
         # Latin words the gate lets through: codes the agent's own English carries + what the agent confirmed ("keep as written").
         allowed = source_latin_ok(text) | {str(k).lower() for k in keep}
@@ -1155,6 +1231,10 @@ def register(app, d):
         def valid(value):
             r = []
             blocked[:] = []
+            if isinstance(value, str) and (postal or POSTAL_MARK_RE.search(value)):
+                if not postal or unmask_postal(value, postal) is None:
+                    r.append("address_marker")       # dropped, repeated, unknown, or a marker where there is no address
+                value = POSTAL_MARK_RE.sub("", value)          # the rest is checked as the Hebrew it is; the block itself is the agent's own
             if not isinstance(value, str) or len(value) > 8000:
                 r.append("empty_or_long")
             else:
@@ -1211,6 +1291,10 @@ def register(app, d):
                 result = res[0]
                 if not result or len(result) > 8000 or (target == "he" and not valid(result)):
                     raise llm.LLMError("translate_failed", 502)
+                if postal:
+                    result = unmask_postal(result, postal)
+                    if not result or len(result) > 8000:
+                        raise llm.LLMError("translate_failed", 502)
                 if target == "he":
                     extra = [w for w in latin_residue(delivery_without_ids(result, source_ids), brand) if w.lower() in allowed]
                     tcache.put(tkey("approved-hebrew-v1", brand, tid, result), {"text": result, "ids": source_ids + extra})
