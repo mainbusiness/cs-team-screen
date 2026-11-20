@@ -174,9 +174,9 @@
       // "לבטל את המנוי" in the send area (the owner's CS team, 2026-10-16)
       sx_btn: 'לבטל את המנוי', sx_off_token: 'אין חיבור לקאצ\'ינג במותג הזה — לבטל ידנית ב-Kaching.',
       sx_off_frozen: 'ביטולים מוקפאים כרגע במערכת — לבטל ידנית ב-Kaching.', sx_off_writes: 'ביטולים כבויים במערכת — לבטל ידנית ב-Kaching.', sx_off_reign: 'ביטולי Phoenix כבויים במערכת — לבטל ידנית ב-Reign.',
-      sx_checking: 'בודק בקאצ\'ינג את המנויים של {name}…', sx_q_one: 'בטוח/ה שרוצה לבטל את המנוי של {name}?', sx_q_many: 'ל{name} יש {n} מנויים פעילים. איזה לבטל?',
+      sx_checking: 'בודק את המנויים של {name}…', sx_q_one: 'בטוח/ה שרוצה לבטל את המנוי של {name}?', sx_q_many: 'ל{name} יש {n} מנויים פעילים. איזה לבטל?',
       sx_none: 'לא נמצא בקאצ\'ינג מנוי למייל {email}. אם הלקוח הזמין עם מייל או טלפון אחר, לבקש ממנו את מספר ההזמנה או את המייל של ההזמנה ולקשר כאן:',
-      sx_ended: '✅ המנוי של {name} כבר מבוטל בקאצ\'ינג (נבדק עכשיו, {t}). אין מה לבטל שוב.',
+      sx_ended: '✅ המנוי של {name} כבר מבוטל בקאצ\'ינג (נבדק עכשיו, {t}). אין מה לבטל שוב.', sx_ended_loop: '✅ המנוי של {name} כבר מבוטל ב-Loop (נבדק עכשיו, {t}). אין מה לבטל שוב.',
       sx_noemail: 'לא מזוהה מייל של הזמנה ללקוח הזה (למשל: בפנייה יש רק טלפון שלא תואם להזמנה), אז אי אפשר למצוא את המנוי. לבקש מהלקוח את מספר ההזמנה או את המייל שאיתו הזמין, ולקשר כאן:',
       lk_ph: 'מספר הזמנה (#12057) או מייל שהלקוח מסר', lk_go: 'מצא וקשר', lk_working: 'מחפש בחנות…', lk_ok: '🔗 מקושר ללקוח {email}',
       lk_orders: 'הזמנות: {o}', lk_by: 'קישר: {by}, {t}', lk_unlink: 'ביטול הקישור', lk_other: '🔗 לא הלקוח הנכון? קישור לפי מספר הזמנה או מייל',
@@ -201,9 +201,18 @@
       sx_r_try_first: 'רוצה לנסות קודם', sx_r_other: 'סיבה אחרת',
       sx_save: 'לא לבטל — לשלוח הצעה קודם', sx_save_wait: 'לא לבטל — לחכות לתשובה', sx_save_card: 'לא לבטל — לשלוח קישור לעדכון כרטיס',
       sx_go_anyway: 'לבטל בכל זאת',
-      sx_note: 'אחרי הביטול המערכת קוראת את המנוי שוב (Kaching / Phoenix) ומאשרת שהוא באמת מבוטל.',
+      sx_note: 'אחרי הביטול המערכת קוראת את המנוי שוב (Kaching / Phoenix / Loop) ומאשרת שהוא באמת מבוטל.',
       sx_ok: '✅ המנוי בוטל — אומת {t}', sx_ok_old: '✅ המנוי בוטל דרך המערכת', sx_fail: '❌ המנוי לא בוטל',
       sx_manual: 'לבטל ידנית ב-Kaching.', sx_unknown: 'לא ידוע אם המנוי בוטל. לבדוק ב-Kaching לפני ניסיון נוסף.',
+      sx_off_loop: 'ביטולים ב-Loop כבויים במערכת — לבטל ידנית ב-Loop.', sx_manual_loop: 'לבטל ידנית ב-Loop.',
+      sp_btn: 'להשהות את המנוי', sp_checking: 'בודק ב-Loop את המנויים של {name}…', sp_q_one: 'להשהות את המנוי של {name}?', sp_q_many: 'ל{name} יש {n} מנויים. איזה להשהות?',
+      sp_none: 'לא נמצא ב-Loop מנוי למייל {email}. אם הלקוח הזמין עם מייל או טלפון אחר, לבקש ממנו את מספר ההזמנה או את המייל של ההזמנה ולקשר כאן:',
+      sp_weeks: 'לכמה זמן להשהות?', sp_w2: 'שבועיים', sp_w4: '4 שבועות', sp_w6: '6 שבועות', sp_w8: '8 שבועות',
+      sp_paused_now: 'המנוי הזה כבר מושהה. אפשר להחזיר אותו לפעילות:', sp_go: 'כן, להשהות את המנוי', sp_go_resume: 'להחזיר את המנוי לפעילות',
+      sp_working: 'משהה ובודק…', sp_working_resume: 'מחזיר ובודק…', sp_off: 'השהיות ב-Loop כבויות במערכת — להשהות ידנית ב-Loop.',
+      sp_note: 'ההשהיה תמיד לתקופה מוגדרת, ובסיומה המנוי חוזר לפעול לבד. אחרי הפעולה המערכת קוראת את המנוי שוב ב-Loop ומאשרת.',
+      sp_ok: '✅ המנוי הושהה ל-{w} — אומת {t}', sp_ok_resume: '✅ המנוי הוחזר לפעילות — אומת {t}', sp_fail: '❌ המנוי לא הושהה', sp_fail_resume: '❌ המנוי לא הוחזר לפעילות',
+      sp_manual: 'להשהות ידנית ב-Loop.', sp_manual_resume: 'להחזיר ידנית ב-Loop.',
       afs_order_unknown: 'ההודעה מדברת על ביטול הזמנה או החזר, ולא הצלחנו לבדוק את זה בשופיפיי. לבדוק ידנית.',
       dlg_title: 'ביטול מנוי', dlg_type: 'כדי לאשר, הקלידו את 4 הספרות האחרונות של מספר המנוי',
       dlg_reason: 'סיבה', dlg_reason_opt: '(אופציונלי — הלקוח ביקש ביטול)', dlg_reason_req: '(חובה — הלקוח לא ביקש ביטול בפנייה: 10 תווים, שתי מילים)',
@@ -218,7 +227,7 @@
       mrg_ok: 'למזג', mrg_done: 'הפניות מוזגו ✓', mrg_done_redraft: 'הפניות מוזגו ✓ טיוטה חדשה מכל השיחה תיכתב בדקות הקרובות (או «תשובה אחרת» עכשיו).',
       mrg_done_reopened: 'הפניות מוזגו ✓ הפנייה נפתחה מחדש כי מוזגה אליה פנייה פתוחה.',
       mrg_other: 'מיזוג פנייה כפולה מכתובת אחרת', mrg_hint: 'הלקוח כתב מכתובת מייל אחרת או מטופס? לחפש לפי מייל, שם, מספר הזמנה או מזהה פנייה.',
-      mrg_ph: 'מייל / שם / #הזמנה / מזהה פנייה', mrg_find: 'חיפוש', mrg_none: 'לא נמצאה פנייה מייל שאפשר למזג לכאן.',
+      mrg_guide: '❓ מדריך איחוד פניות', mrg_ph: 'מייל / שם / #הזמנה / מזהה פנייה', mrg_find: 'חיפוש', mrg_none: 'לא נמצאה פנייה מייל שאפשר למזג לכאן.',
       stale: 'הפנייה התעדכנה בשרת ({what}).', stale_new: 'הלקוח כתב שוב', stale_status: 'הסטטוס השתנה', refresh: 'רענון',
       pick_ticket: 'בחרו פנייה מהרשימה',
       menu: 'תפריט', users: 'ניהול משתמשים', change_pw: 'החלפת סיסמה', logout: 'יציאה', to_en: 'English UI', to_he: 'ממשק בעברית', to_tickets: 'חזרה לפניות',
@@ -494,9 +503,9 @@
       afs_order_refund: 'Shopify shows no refund yet. Make the refund in Shopify.',
       sx_btn: 'Cancel the subscription', sx_off_token: 'This brand has no Kaching connection — cancel it manually in Kaching.',
       sx_off_frozen: 'Cancellations are frozen right now — cancel it manually in Kaching.', sx_off_writes: 'Cancellations are switched off — cancel it manually in Kaching.', sx_off_reign: 'Phoenix cancellations are switched off — cancel it manually in Reign.',
-      sx_checking: "Checking {name}'s subscriptions in Kaching…", sx_q_one: "Are you sure you want to cancel {name}'s subscription?", sx_q_many: '{name} has {n} active subscriptions. Which one to cancel?',
+      sx_checking: "Checking {name}'s subscriptions…", sx_q_one: "Are you sure you want to cancel {name}'s subscription?", sx_q_many: '{name} has {n} active subscriptions. Which one to cancel?',
       sx_none: 'No subscription in Kaching for {email}. If the customer ordered with another email or phone, ask them for the order number or the email of the order, and link it here:',
-      sx_ended: "✅ {name}'s subscription is already cancelled in Kaching (checked just now, {t}). Nothing to cancel again.",
+      sx_ended: "✅ {name}'s subscription is already cancelled in Kaching (checked just now, {t}). Nothing to cancel again.", sx_ended_loop: "✅ {name}'s subscription is already cancelled in Loop (checked just now, {t}). Nothing to cancel again.",
       sx_noemail: "This customer has no known order email (e.g. the ticket only has a phone that does not match an order), so the subscription cannot be found. Ask the customer for the order number or the email they ordered with, and link it here:",
       lk_ph: 'Order number (#12057) or email the customer gave', lk_go: 'Find and link', lk_working: 'Searching the store…', lk_ok: '🔗 Linked to customer {email}',
       lk_orders: 'Orders: {o}', lk_by: 'Linked by {by}, {t}', lk_unlink: 'Remove the link', lk_other: '🔗 Wrong customer? Link by order number or email',
@@ -520,9 +529,18 @@
       sx_r_try_first: 'wants to try first', sx_r_other: 'another reason',
       sx_save: "Don't cancel — send an offer first", sx_save_wait: "Don't cancel — wait for the answer", sx_save_card: "Don't cancel — send the card-update link",
       sx_go_anyway: 'Cancel anyway',
-      sx_note: 'After the cancel the system reads the subscription again (Kaching / Phoenix) and confirms it really is cancelled.',
+      sx_note: 'After the cancel the system reads the subscription again (Kaching / Phoenix / Loop) and confirms it really is cancelled.',
       sx_ok: '✅ Subscription cancelled — verified {t}', sx_ok_old: '✅ Subscription cancelled from this screen', sx_fail: '❌ The subscription was NOT cancelled',
       sx_manual: 'Cancel it manually in Kaching.', sx_unknown: 'Unknown whether it was cancelled. Check in Kaching before trying again.',
+      sx_off_loop: 'Loop cancellations are switched off — cancel it manually in Loop.', sx_manual_loop: 'Cancel it manually in Loop.',
+      sp_btn: 'Pause the subscription', sp_checking: "Checking {name}'s subscriptions in Loop…", sp_q_one: "Pause {name}'s subscription?", sp_q_many: '{name} has {n} subscriptions. Which one to pause?',
+      sp_none: 'No subscription in Loop for {email}. If the customer ordered with another email or phone, ask them for the order number or the email of the order, and link it here:',
+      sp_weeks: 'Pause for how long?', sp_w2: '2 weeks', sp_w4: '4 weeks', sp_w6: '6 weeks', sp_w8: '8 weeks',
+      sp_paused_now: 'This subscription is already paused. You can put it back to active:', sp_go: 'Yes, pause the subscription', sp_go_resume: 'Resume the subscription',
+      sp_working: 'Pausing and checking…', sp_working_resume: 'Resuming and checking…', sp_off: 'Loop pauses are switched off — pause it manually in Loop.',
+      sp_note: 'A pause is always for a set period, and when it ends the subscription starts again by itself. After the action the system reads the subscription again in Loop and confirms.',
+      sp_ok: '✅ Subscription paused for {w} — verified {t}', sp_ok_resume: '✅ Subscription resumed — verified {t}', sp_fail: '❌ The subscription was NOT paused', sp_fail_resume: '❌ The subscription was NOT resumed',
+      sp_manual: 'Pause it manually in Loop.', sp_manual_resume: 'Resume it manually in Loop.',
       afs_order_unknown: 'The message mentions an order cancellation or a refund and it could not be checked in Shopify. Check manually.',
       dlg_title: 'Cancel subscription', dlg_type: 'To confirm, type the last 4 digits of the contract number',
       dlg_reason: 'Reason', dlg_reason_opt: '(optional — the customer asked to cancel)', dlg_reason_req: '(required — the customer did not ask: 10+ characters, two words)',
@@ -537,7 +555,7 @@
       mrg_ok: 'Merge', mrg_done: 'Tickets merged ✓', mrg_done_redraft: 'Tickets merged ✓ A new draft from the whole conversation is written in the next few minutes (or "Different answer" now).',
       mrg_done_reopened: 'Tickets merged ✓ This ticket was reopened because an open ticket was merged into it.',
       mrg_other: 'Merge a duplicate from another address', mrg_hint: 'Did the customer write from another email or a form? Search by email, name, order number or ticket id.',
-      mrg_ph: 'Email / name / #order / ticket id', mrg_find: 'Search', mrg_none: 'No email ticket that can be merged here.',
+      mrg_guide: '❓ How to merge tickets', mrg_ph: 'Email / name / #order / ticket id', mrg_find: 'Search', mrg_none: 'No email ticket that can be merged here.',
       stale: 'This ticket changed on the server ({what}).', stale_new: 'the customer wrote again', stale_status: 'the status changed', refresh: 'Refresh',
       pick_ticket: 'Pick a ticket from the list',
       menu: 'Menu', users: 'Users', change_pw: 'Change password', logout: 'Sign out', to_en: 'English UI', to_he: 'Hebrew UI', to_tickets: 'Back to tickets',
@@ -1592,7 +1610,7 @@
     const b = S.boots[brand];
     if (!b || !sw || typeof sw !== 'object') return;
     let changed = false;
-    ['dryRun', 'cancelEnabled', 'cancelFrozen', 'subscriptions', 'orderEdits', 'reignWrites'].forEach(function (k) {
+    ['dryRun', 'cancelEnabled', 'cancelFrozen', 'subscriptions', 'orderEdits', 'reignWrites', 'loopWrites'].forEach(function (k) {
       if (k in sw && sw[k] !== b[k]) { b[k] = sw[k]; changed = true; }
     });
     if (!changed || brand !== S.brand) return;
@@ -3619,7 +3637,7 @@
     return n === 1 ? t('every_' + u) : t('every_n', { n: n, u: t('unit_' + u) });
   }
   function payText(v) { const k = 'pay_' + String(v || '').toUpperCase(); const x = t(k); return x === k ? String(v) : x; }
-  function contractNum(id) { return String(id || '').split('/').pop(); }
+  function contractNum(id) { return String(id || '').split('/').pop().replace(/^loop-/, ''); }   // Loop ids travel as 'loop-<n>' (engine Loop.gs); the agent sees the number
   function subsCard(ex, x) {
     const c = h('div', { class: 'card' }, h('h3', { text: t('subs') }));
     const subs = Array.isArray(ex.subscriptions) ? ex.subscriptions : [];
@@ -3754,9 +3772,24 @@
         || CLAIM_RE.test(String(x.draft_text || '')) || CLAIM_RE.test(String(draft || ''));
     }
     function itemsText(items) { return (items || []).map(function (l) { return (l.quantity > 1 ? l.quantity + ' × ' : '') + l.title; }).join(', '); }
-    function failBox(msg, raw) {
+    function kachingPausable(b, ex) {
+      if (!b || b.cancelEnabled !== true || b.cancelFrozen || b.kachingReady === false) return [];
+      return (Array.isArray(ex.subscriptions) ? ex.subscriptions : []).filter(function (c) { return c && (c.status === 'ACTIVE' || c.status === 'FAILED'); });
+    }
+    function failBox(msg, raw, provider) {
       return h('div', { class: 'err-box', role: 'alert', 'data-test': 'subx-fail' }, h('b', { text: t('sx_fail') }),
-        msg ? h('div', { text: msg }) : null, raw && raw !== msg ? h('bdi', { class: 'raw', text: raw }) : null, h('div', { text: t('sx_manual') }));
+        msg ? h('div', { text: msg }) : null, raw && raw !== msg ? h('bdi', { class: 'raw', text: raw }) : null, h('div', { text: t(provider === 'loop' ? 'sx_manual_loop' : 'sx_manual') }));
+    }
+    /** The last pause / resume on this ticket (engine Api.gs apiSubPause, snapshot.subPause) -> the green line or the red failure. */
+    function pauseBox(rec, extra) {
+      const resume = rec.op === 'resume';
+      if (rec.state === 'paused' || rec.state === 'resumed') {
+        return h('div', { class: 'ok-box', role: 'status', 'data-test': 'subp-ok' },
+          h('b', { text: rec.state === 'paused' ? t('sp_ok', { w: t('sp_w' + Number(rec.weeks)), t: whenShort(rec.at) }) : t('sp_ok_resume', { t: whenShort(rec.at) }) }),
+          rec.items && rec.items.length ? h('div', { class: 'small', dir: 'auto', text: itemsText(rec.items) }) : null);
+      }
+      return h('div', { class: 'err-box', role: 'alert', 'data-test': 'subp-fail' }, h('b', { text: t(resume ? 'sp_fail_resume' : 'sp_fail') }),
+        extra ? h('div', { text: extra }) : null, rec.reason && rec.reason !== extra ? h('bdi', { class: 'raw', text: rec.reason }) : null, h('div', { text: t(resume ? 'sp_manual_resume' : 'sp_manual') }));
     }
     function paint() {
       const el = document.getElementById('tk-subcancel');
@@ -3773,13 +3806,20 @@
         return;
       }
       if (done.length) { el.append(h('div', { class: 'ok-box', role: 'status', 'data-test': 'subx-ok' }, h('b', { text: t('sx_ok_old') }))); return; }
-      if (rec && rec.state === 'failed') el.append(failBox(rec.reasonMsg || '', rec.reason));
-      if (!canWork() || !asked(x, liveDraft())) return;
+      if (rec && rec.state === 'failed') el.append(failBox(rec.reasonMsg || '', rec.reason, rec.provider));
+      const pr = ex.subPause && typeof ex.subPause === 'object' ? ex.subPause : null;       // Loop pause / resume (Owner, 2026-11-20)
+      if (pr) el.append(pauseBox(pr, pr.reasonMsg || ''));
+      const showCancel = canWork() && asked(x, liveDraft());
+      // Owner, 2026-11-20: the same "להשהות את המנוי" button for every brand - Loop (rozela) opens the Loop dialog, a Kaching brand opens Kaching's own
+      // pause-for-a-period form for the subscription (only when its Kaching writes are on and not frozen; the engine gate still decides)
+      const showPause = canWork() && (b.loopWrites === true || kachingPausable(b, ex).length > 0);
+      if (!showCancel && !showPause) return;
       // 2026-11-18 (Owner, rozela): Kaching writes off, Phoenix / Reign cancels on -> the button stays on; the dialog decides per subscription
-      const why = b.reignWrites === true ? '' : b.kachingReady === false ? t('sx_off_token') : b.cancelFrozen ? t('sx_off_frozen') : b.cancelEnabled === false ? t('sx_off_writes') : '';
+      const why = b.reignWrites === true || b.loopWrites === true ? '' : b.kachingReady === false ? t('sx_off_token') : b.cancelFrozen ? t('sx_off_frozen') : b.cancelEnabled === false ? t('sx_off_writes') : '';
       el.append(h('div', { class: 'actions subx-row' },
-        h('button', { class: 'btn danger-outline', type: 'button', 'data-test': 'subx-btn', text: t('sx_btn'), disabled: !!why || busy, onclick: open }),
-        why ? h('span', { class: 'muted small', 'data-test': 'subx-why', text: why }) : null));
+        showCancel ? h('button', { class: 'btn danger-outline', type: 'button', 'data-test': 'subx-btn', text: t('sx_btn'), disabled: !!why || busy, onclick: open }) : null,
+        showPause ? h('button', { class: 'btn', type: 'button', 'data-test': 'subp-btn', text: t('sp_btn'), disabled: busy, onclick: openPause }) : null,
+        showCancel && why ? h('span', { class: 'muted small', 'data-test': 'subx-why', text: why }) : null));
     }
     function dlgEl() {
       let d = document.getElementById('subx-dlg');
@@ -3835,10 +3875,11 @@
     async function refresh(brand, id) {                         // the subscriptions panel shows the new status too; the draft is untouched
       const fr = await fetchTicket(brand, id, true);
       if (!S.tk || S.tk.id !== id || !fr.ok) return;
-      const mine = (S.tk.extras || {}).subCancel;
+      const mine = (S.tk.extras || {}).subCancel, mineP = (S.tk.extras || {}).subPause;
       S.tk.ticket.cancelled = fr.ticket.cancelled;
       S.tk.extras = Object.assign({}, fr.extras || {});
       if (!S.tk.extras.subCancel && mine) S.tk.extras.subCancel = mine;
+      if (!S.tk.extras.subPause && mineP) S.tk.extras.subPause = mineP;      // Loop pause / resume: the proxy's cached copy may not carry it yet
       const sc = document.getElementById('subs-card');
       if (sc) { clear(sc); sc.append(subsCard(S.tk.extras, S.tk.ticket)); }
       paint();
@@ -3871,7 +3912,7 @@
       const ended = Array.isArray(pv.ended) ? pv.ended : [];
       // Already cancelled (in Kaching itself, or earlier): say so, verified live now. Never "nothing to cancel", which reads as "not done".
       if (!list.length && ended.length) {
-        box.append(h('div', { class: 'ok-box', role: 'status', 'data-test': 'subx-ended' }, h('b', { text: t('sx_ended', { name: name, t: whenShort(pv.checkedAt) }) })),
+        box.append(h('div', { class: 'ok-box', role: 'status', 'data-test': 'subx-ended' }, h('b', { text: t(ended.every(function (c) { return c.provider === 'loop'; }) ? 'sx_ended_loop' : 'sx_ended', { name: name, t: whenShort(pv.checkedAt) }) })),
           h('div', { class: 'subx-ended-list' }, ended.map(function (c) { return contractLine(c, pv.email); })), h('div', { class: 'row-btns' }, back));
         return;
       }
@@ -3883,6 +3924,7 @@
       // Reign (Phoenix) needs REIGN_WRITES on (engine apiSubCancel routes them to two separate gates). Off = shown, not pickable, with the reason.
       function offWhy(c) {
         if (c.provider === 'reign') return pv.reignWrites === false ? t('sx_off_reign') : '';
+        if (c.provider === 'loop') return pv.loopWrites === false ? t('sx_off_loop') : '';   // Loop has its own switch (Owner, 2026-11-20)
         return pv.frozen ? t('sx_off_frozen') : pv.writes === false ? t('sx_off_writes') : '';
       }
       function offLine(c) { const w = offWhy(c); return w ? h('div', { class: 'muted small', 'data-test': 'subx-off', text: w }) : null; }
@@ -3928,7 +3970,126 @@
           return;
         }
         go.hidden = true;                                       // a failure is read, not clicked again on reflex
-        result.append(failBox(r && r.error === 'write_unknown' ? t('sx_unknown') : (r && (r.msg || r.error)) || '', r && r.message));
+        result.append(failBox(r && r.error === 'write_unknown' ? t('sx_unknown') : (r && (r.msg || r.error)) || '', r && r.message, /^loop-/.test(String(pick)) ? 'loop' : ''));
+      });
+    }
+
+    /** Owner, 2026-11-20 (rozela, Loop): "להשהות את המנוי". A DATED pause (2 / 4 / 6 / 8 weeks, never open-ended), by the ticket's own customer; the
+     *  engine (Api.gs apiSubPause) re-checks the gate and reads Loop back. A paused subscription offers "resume" instead. Same dialog shell as the cancel. */
+    function keepPause(id, rec) {
+      if (!S.tk || S.tk.id !== id || !rec) return;
+      S.tk.extras = Object.assign({}, S.tk.extras || {}, { subPause: rec });
+      paint();
+    }
+    /** A Kaching brand: the pause is Kaching's own "pause for a period" form (Manage, pause_until) - one subscription opens it, several ask which. */
+    function openKachingPause() {
+      const x = S.tk.ticket, b = S.boots[S.tk.brand || S.brand], list = kachingPausable(b, S.tk.extras || {});
+      if (!list.length) return;
+      if (list.length === 1) { Manage.open(x, list[0], 'pause_until'); return; }
+      const dlg = dlgEl();
+      clear(dlg);
+      const name = x.name || x.email || x.phone || t('no_name');
+      const box = h('div', { class: 'in', 'data-test': 'subp-dlg' });
+      const back = h('button', { class: 'btn ghost', type: 'button', text: t('sx_back'), onclick: function () { dlg.close(); } });
+      let pick = null;
+      const go = h('button', { class: 'btn primary', type: 'button', 'data-test': 'subp-go', disabled: true, text: t('mg_next') });
+      const opts = h('div', { class: 'subx-opts', role: 'radiogroup' });
+      list.forEach(function (c) {
+        const r = h('input', { type: 'radio', name: 'subp-pick', value: c.id });
+        r.addEventListener('change', function () { if (r.checked) { pick = c; go.disabled = false; } });
+        opts.append(h('label', { class: 'subx-opt', 'data-test': 'subp-opt' }, r, h('div', null, contractLine({ id: c.id, status: c.status, every: c.every, items: c.lines || [] }, ''))));
+      });
+      go.addEventListener('click', function () { if (!pick) return; dlg.close(); Manage.open(x, pick, 'pause_until'); });
+      box.append(h('h3', { text: t('sp_btn') }), h('div', { 'data-test': 'subp-q' }, h('b', { text: t('sp_q_many', { name: name, n: list.length }) })), opts, h('div', { class: 'row-btns' }, back, go));
+      dlg.append(box);
+      if (!dlg.open) dlg.showModal();
+    }
+    async function openPause() {
+      if (busy || !S.tk || !S.tk.ticket) return;
+      if ((S.boots[S.tk.brand || S.brand] || {}).loopWrites !== true) { openKachingPause(); return; }
+      const x = S.tk.ticket, brand = S.tk.brand || S.brand, id = x.id;
+      const name = x.name || x.email || x.phone || t('no_name');
+      const dlg = dlgEl();
+      clear(dlg);
+      const box = h('div', { class: 'in', 'data-test': 'subp-dlg' });
+      const back = h('button', { class: 'btn ghost', type: 'button', text: t('sx_back'), onclick: function () { if (!busy) dlg.close(); } });
+      box.append(h('h3', { text: t('sp_btn') }),
+        h('div', { class: 'muted', 'data-test': 'subx-loading' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' ', t('sp_checking', { name: name })),
+        h('div', { class: 'row-btns' }, back));
+      dlg.append(box);
+      if (!dlg.open) dlg.showModal();
+      const pv = await engine('apiSubPausePreview', { id: id }, brand);
+      if (!dlg.open || !S.tk || S.tk.id !== id) return;
+      clear(box);
+      box.append(h('h3', { text: t('sp_btn') }));
+      if (!pv.ok && pv.error === 'no_email') {
+        box.append(h('div', { class: 'warn-box', role: 'note', 'data-test': 'subx-noemail', text: t('sx_noemail') }), Link.form(x, brand, openPause), h('div', { class: 'row-btns' }, back));
+        return;
+      }
+      if (!pv.ok) { box.append(h('div', { class: 'err-box', role: 'alert', 'data-test': 'subp-err', text: pv.msg || pv.error }), h('div', { class: 'row-btns' }, back)); return; }
+      const list = Array.isArray(pv.contracts) ? pv.contracts : [];
+      if (!list.length) {
+        box.append(h('div', { 'data-test': 'subp-none', text: t('sp_none', { name: name, email: pv.email || '' }) }), Link.form(x, brand, openPause), h('div', { class: 'row-btns' }, back));
+        return;
+      }
+      const off = pv.loopWrites === false;
+      const options = (Array.isArray(pv.weeks) ? pv.weeks : [2, 4, 6, 8]).filter(function (w) { return [2, 4, 6, 8].indexOf(Number(w)) >= 0; });
+      let pick = list.length === 1 ? list[0].id : null, weeks = '';
+      const go = h('button', { class: 'btn primary', type: 'button', 'data-test': 'subp-go', disabled: true });
+      const result = h('div', { 'aria-live': 'assertive' });
+      const weeksBox = h('div', { 'data-test': 'subp-weeks' }, h('b', { text: t('sp_weeks') }));
+      const wOpts = h('div', { class: 'subx-opts', role: 'radiogroup' });
+      options.forEach(function (w) {
+        const r = h('input', { type: 'radio', name: 'subp-weeks', value: String(w), disabled: off });
+        r.addEventListener('change', function () { if (r.checked) { weeks = String(w); sync(); } });
+        wOpts.append(h('label', { class: 'subx-opt', 'data-test': 'subp-w' }, r, h('div', null, h('b', { text: t('sp_w' + Number(w)) }))));
+      });
+      weeksBox.append(wOpts);
+      const pausedLine = h('div', { class: 'warn-box', role: 'note', 'data-test': 'subp-paused', text: t('sp_paused_now') });
+      function chosen() { return list.filter(function (c) { return c.id === pick; })[0] || null; }
+      function sync() {
+        const s = chosen();
+        const resume = !!s && s.status === 'PAUSED';
+        weeksBox.hidden = !s || resume;
+        pausedLine.hidden = !resume;
+        go.textContent = busy ? go.textContent : t(resume ? 'sp_go_resume' : 'sp_go');
+        go.disabled = busy || off || !s || (!resume && !weeks);
+      }
+      box.append(h('div', { 'data-test': 'subp-q' }, h('b', { text: list.length === 1 ? t('sp_q_one', { name: name }) : t('sp_q_many', { name: name, n: list.length }) })));
+      if (off) box.append(h('div', { class: 'warn-box', role: 'note', 'data-test': 'subp-off', text: t('sp_off') }));
+      if (list.length === 1) box.append(contractLine(list[0], pv.email));
+      else {
+        const opts = h('div', { class: 'subx-opts', role: 'radiogroup' });
+        list.forEach(function (c) {
+          const r = h('input', { type: 'radio', name: 'subp-pick', value: c.id });
+          r.addEventListener('change', function () { if (r.checked) { pick = c.id; sync(); } });
+          opts.append(h('label', { class: 'subx-opt', 'data-test': 'subp-opt' }, r, h('div', null, contractLine(c, ''))));
+        });
+        box.append(opts, pv.email ? h('div', { class: 'small muted' }, h('bdi', { class: 'ltr', text: pv.email })) : null);
+      }
+      box.append(pausedLine, weeksBox, h('div', { class: 'small muted', text: t('sp_note') }), result, h('div', { class: 'row-btns' }, back, go));
+      sync();
+      go.addEventListener('click', async function () {
+        const s = chosen();
+        if (busy || !s || off) return;
+        const resume = s.status === 'PAUSED';
+        if (!resume && !weeks) return;
+        busy = true; go.disabled = true; back.disabled = true; go.textContent = t(resume ? 'sp_working_resume' : 'sp_working');
+        clear(result); paint();
+        const r = await engine(resume ? 'apiSubResume' : 'apiSubPause', resume ? { id: id, contractId: s.id } : { id: id, contractId: s.id, weeks: weeks }, brand);
+        busy = false; back.disabled = false;
+        go.textContent = t(resume ? 'sp_go_resume' : 'sp_go');
+        const rec = r && r.record && typeof r.record === 'object' ? Object.assign({}, r.record) : null;
+        if (rec && !r.verified) rec.reasonMsg = r.msg || '';
+        keepPause(id, rec);
+        refresh(brand, id);                                     // the proxy's cached copy of the ticket learns the new state too (a reload shows it)
+        if (r && r.verified === true) {
+          dlg.close();
+          toast(resume ? t('sp_ok_resume', { t: whenShort(r.at) }) : t('sp_ok', { w: t('sp_w' + Number(weeks)), t: whenShort(r.at) }));
+          return;
+        }
+        go.hidden = true;                                       // a failure is read, not clicked again on reflex
+        result.append(pauseBox(rec || { op: resume ? 'resume' : 'pause', state: 'failed', reason: (r && r.message) || '' }, (r && (r.msg || r.error)) || ''));
       });
     }
     return { slot: slot, paint: paint };
@@ -4835,7 +4996,14 @@
     else if (k.relatedErr) c.append(h('div', { class: 'err-box', text: k.relatedErr }));
     else if (!k.related.length) c.append(h('div', { class: 'muted small', text: t('no_related') }));
     else k.related.forEach(function (x) { c.append(Merge.row(k.ticket, x)); });
-    if (k && k.ticket) { const f = Merge.finder(k.ticket); if (f) c.append(f); }
+    if (k && k.ticket) {
+      const f = Merge.finder(k.ticket);
+      if (f) {
+        c.append(f);
+        // Owner, 2026-11-20: the agents did not understand how to merge -> a guide, shown once on its own and reopened from here (and the ☰ menu)
+        c.append(h('button', { class: 'btn ghost small mg-guide', type: 'button', 'data-test': 'mrg-guide', text: t('mrg_guide'), onclick: function () { Notice.openById('merge-guide-2026-11-20'); } }));
+      }
+    }
     return c;
   }
   function paintRelated() {
@@ -9062,6 +9230,8 @@
     function open(n) {
       const d = dlgEl();
       clear(d);
+      const en = n.lang === 'en';                                          // the English desk gets an English notice (merge guide, 2026-11-20)
+      d.dir = en ? 'ltr' : 'rtl'; d.lang = en ? 'en' : 'he';
       d.dataset.must = n.acked ? '0' : '1';
       const box = h('div', { class: 'in notice-in' });
       box.append(h('h3', { 'data-test': 'notice-title', text: n.title }), h('p', { class: 'notice-p' }, rich(n.intro)));
@@ -9080,8 +9250,8 @@
       const msg = h('div', { role: 'alert' });
       const btns = h('div', { class: 'row-btns' });
       if (n.acked) {
-        box.append(h('p', { class: 'muted', 'data-test': 'notice-acked', text: '✓ אישרת שקראת ב-' + fmt(n.acked_at) }));
-        btns.append(h('button', { class: 'btn', type: 'button', 'data-test': 'notice-close', text: 'סגירה', onclick: function () { d.close(); } }));
+        box.append(h('p', { class: 'muted', 'data-test': 'notice-acked', text: (en ? '✓ You confirmed you read this: ' : '✓ אישרת שקראת ב-') + fmt(n.acked_at) }));
+        btns.append(h('button', { class: 'btn', type: 'button', 'data-test': 'notice-close', text: en ? 'Close' : 'סגירה', onclick: function () { d.close(); } }));
       } else {
         const ok = h('button', { class: 'btn primary', type: 'button', 'data-test': 'notice-ack', text: n.ack });
         ok.addEventListener('click', async function () {
@@ -9091,7 +9261,7 @@
           try { r = await api('/api/notice/ack', { id: n.id }); } catch (e) { r = null; }    // Codex: a throw must never lock the modal
           if (!r || !r.ok) {
             ok.disabled = false;
-            msg.append(h('div', { class: 'err-box', 'data-test': 'notice-err', text: (r && (r.msg || r.error)) || 'שגיאה — נסו שוב' }));
+            msg.append(h('div', { class: 'err-box', 'data-test': 'notice-err', text: (r && (r.msg || r.error)) || (en ? 'Error — try again' : 'שגיאה — נסו שוב') }));
             return;
           }
           n.acked = true; n.acked_at = r.acked_at;
@@ -9122,7 +9292,8 @@
         return h('button', { type: 'button', 'data-test': 'notice-menu', text: n.menu, onclick: function () { S.menuOpen = false; renderTop(); open(n); } });
       });
     }
-    return { load: load, menuLinks: menuLinks, open: open };
+    function openById(id) { const n = items.filter(function (x) { return x.id === id; })[0]; if (n) open(n); return !!n; }
+    return { load: load, menuLinks: menuLinks, open: open, openById: openById };
   })();
 
   // ---------------------------------------------------------------- start

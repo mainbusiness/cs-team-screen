@@ -142,6 +142,12 @@ ENGINE = {
     "bad_contract": ("צריך לבחור מנוי אחד לביטול.", "Choose one subscription to cancel."),
     "not_cancelled": ("המנוי לא בוטל. לבטל ידנית ב-Kaching.", "The subscription was NOT cancelled. Cancel it manually in Kaching."),
     "kaching_unavailable": ("אין חיבור למערכת המנויים (קצ'ינג) כרגע. נסו שוב בעוד רגע.", "Cannot reach the subscription system (Kaching). Try again shortly."),
+    # Loop (Rozela's subscription app, 2026-11-20)
+    "no_loop": ("למותג הזה אין חיבור ל-Loop.", "This brand has no Loop connection."),
+    "loop_unavailable": ("אין חיבור ל-Loop כרגע. נסו שוב בעוד רגע.", "Cannot reach Loop right now. Try again shortly."),
+    "bad_weeks": ("ההשהיה היא תמיד לתקופה מוגדרת: שבועיים, 4, 6 או 8 שבועות.", "A pause is always for a set period: 2, 4, 6 or 8 weeks."),
+    "not_paused": ("המנוי לא הושהה. להשהות ידנית ב-Loop.", "The subscription was NOT paused. Pause it manually in Loop."),
+    "not_resumed": ("המנוי לא הוחזר לפעילות. להחזיר ידנית ב-Loop.", "The subscription was NOT resumed. Resume it manually in Loop."),
     "shopify_unavailable": ("אין חיבור לחנות כרגע (רשימת המוצרים). נסו שוב בעוד רגע.", "Cannot reach the store right now (product list). Try again shortly."),
     "unauthorized": ("המנוע סירב להרשאה (פג תוקף, תפקיד או מותג לא תואם). רעננו את הדף.",
                      "The engine refused the credentials (expired, role or brand mismatch). Refresh."),

@@ -67,6 +67,10 @@ FN_TABLE = {
     # cancel gate re-checks everything and reads the contract back. draft = the reply on the agent's screen (does it say "cancelled"?).
     "apiSubCancelPreview": (WORK_ROLES, ("id", "draft")),
     "apiSubCancel": (WORK_ROLES, ("id", "contractId", "draft")),
+    # Loop (Owner, 2026-11-20; engine/Loop.gs): "להשהות את המנוי" - a dated pause (weeks: "2" | "4" | "6" | "8"), resume, and the live list they pick from
+    "apiSubPausePreview": (WORK_ROLES, ("id",)),
+    "apiSubPause": (WORK_ROLES, ("id", "contractId", "weeks")),
+    "apiSubResume": (WORK_ROLES, ("id", "contractId")),
     # "קישור לקוח" (2026-10-20): the order number / email the customer gave -> the ticket; unlink removes it. The engine reads the store live.
     "apiLinkCustomer": (WORK_ROLES, ("id", "q", "unlink")),
     # "מיזוג פניות" (the CS team, 2026-10-31): email ticket `from` is merged INTO ticket `id` (engine Jobs.gs mergeTickets_)
@@ -194,7 +198,7 @@ log = logging.getLogger("cs_screen.engine")
 READ_FNS = frozenset(("apiBoot", "apiChanges", "apiTicket", "apiTicketFull", "apiTicketExtras", "apiTickets", "apiSearch",
                       "apiStatus", "apiAutoReplyList", "apiAutoCancelList", "apiKnowledge", "apiCustomerLookup",
                       "apiResult", "apiTicketLite", "apiDayStats", "apiTemplates", "apiAiNotes", "apiWaPhotoGet",
-                      "apiKachingContract", "apiKachingVariants", "apiOrderEditState", "apiSubCancelPreview", "apiSaleCandidates", "apiSaleMine", "apiSaleProof", "apiSaleList",
+                      "apiKachingContract", "apiKachingVariants", "apiOrderEditState", "apiSubCancelPreview", "apiSubPausePreview", "apiSaleCandidates", "apiSaleMine", "apiSaleProof", "apiSaleList",
                       "apiSaleSuggestions", "apiAiNoteSuggestions", "apiCancelStats", "apiCancelReasons", "apiBillingHealth"))   # apiResult is a read: it must NEVER enter write resolution (that recursed)
 READ_RETRY_DELAYS_S = (1.5, 3.0)
 # Measured live (2026-10-05): many of these HTML answers come after 9-44 s of engine work. Retrying THOSE tripled
@@ -504,6 +508,10 @@ def clean_args(fn, args, table=None):
         raise ProxyError("bad_request", 400)
     if fn in ("apiSubCancelPreview", "apiSubCancel") and (len(out.get("contractId", "")) > 200 or len(out.get("draft", "")) > 8000):
         raise ProxyError("bad_request", 400)
+    if fn in ("apiSubPausePreview", "apiSubPause", "apiSubResume") and len(out.get("contractId", "")) > 200:
+        raise ProxyError("bad_request", 400)
+    if fn == "apiSubPause" and out.get("weeks") not in ("2", "4", "6", "8"):
+        raise ProxyError("bad_request", 400)       # never an open-ended pause: the engine says the same
     if fn in SALE_WRITE_FNS:
         # Sales log (Sales.gs): short fields only; the engine validates the shapes again
         if (len(out.get("orderNo", "")) > 20 or len(out.get("note", "")) > 300 or len(out.get("agent", "")) > 60 or len(out.get("id", "")) > 80
@@ -650,6 +658,10 @@ SCHEMAS = {
     "apiOrderEditState": lambda r, a: isinstance(r.get("order"), dict) and r["order"].get("id") == a.get("orderId"),
     "apiOrderEdit": lambda r, a: r.get("kind") == a.get("kind") and ("message" in r or r.get("mode") == "preview"),
     "apiSubCancelPreview": lambda r, a: isinstance(r.get("contracts"), list) and r.get("id") == a.get("id"),
+    "apiSubPausePreview": lambda r, a: isinstance(r.get("contracts"), list) and r.get("id") == a.get("id"),
+    # never "paused" / "resumed" without the read-back verdict for THIS contract
+    "apiSubPause": lambda r, a: isinstance(r.get("verified"), bool) and r.get("contractId") == a.get("contractId"),
+    "apiSubResume": lambda r, a: isinstance(r.get("verified"), bool) and r.get("contractId") == a.get("contractId"),
     "apiLinkCustomer": lambda r, a: r.get("id") == a.get("id") and "linked" in r and isinstance(r.get("extras"), dict),
     "apiMergeTickets": lambda r, a: r.get("id") == a.get("id") and r.get("from") == a.get("from") and isinstance(r.get("threads"), int),
     # never "cancelled" without the read-back verdict for THIS contract

@@ -60,7 +60,7 @@ def test_ack_is_per_user(app, pw_hash):
 
 def test_agent_of_other_brands_does_not_get_it(app, pw_hash):
     c, tok = logged_in(app, pw_hash, "vel1", ["agent"], ["velora"])
-    assert notices(c) == {}
+    assert set(notices(c)) == {notice.MERGE_GUIDE["id"]}, "the merge guide is for every brand (2026-11-20); the Kaching procedure is not for velora"
     assert ack(c, tok).status_code == 400
 
 

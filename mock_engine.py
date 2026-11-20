@@ -20,6 +20,7 @@ import random
 import re
 import threading
 import time
+import zlib
 from datetime import datetime, timedelta, timezone
 
 MOCK_BRANDS = ("rozela", "celesta", "apexmen", "selera")      # velora on purpose has NO engine: it previews "not connected"
@@ -37,7 +38,7 @@ READ = ("agent", "admin", "viewer")     # the read-only viewer (the owner 2026-1
 TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": READ, "apiTicketExtras": READ, "apiTickets": READ,
          "apiSearch": READ, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
          "apiNote": WORK, "apiKachingCancel": WORK, "apiKachingContract": WORK, "apiKachingAction": WORK, "apiKachingVariants": WORK, "apiOrderEditState": WORK, "apiOrderEdit": WORK,
-         "apiSubCancelPreview": WORK, "apiSubCancel": WORK, "apiLinkCustomer": WORK, "apiMergeTickets": WORK,
+         "apiSubCancelPreview": WORK, "apiSubCancel": WORK, "apiSubPausePreview": WORK, "apiSubPause": WORK, "apiSubResume": WORK, "apiLinkCustomer": WORK, "apiMergeTickets": WORK,
          "apiAutoCancelList": READ, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
          "apiTicketFull": READ, "apiChanges": READ, "apiAutoReplyList": READ, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK, "apiRedraftOne": WORK,
@@ -54,7 +55,7 @@ VIEWER_FNS = ("apiBoot", "apiStatus", "apiTicket", "apiTicketExtras", "apiTicket
 # celesta:error" overrides a brand's Kaching state (velora has no mock engine, so its "no_kaching" is shown through another brand).
 if os.environ.get("MOCK_CANCEL_STATS") == "absent":
     TABLE.pop("apiCancelStats")
-MOCK_WRITES = ("apiRedraftOne", "apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiSubCancel", "apiOrderEdit", "apiWaTakeOver",
+MOCK_WRITES = ("apiSubPause", "apiSubResume", "apiRedraftOne", "apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiSubCancel", "apiOrderEdit", "apiWaTakeOver",
                "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate", "apiAiNoteAdd", "apiAiNoteDelete", "apiAiNoteSuggestDecide",
                "apiSaleLog", "apiSaleDecide", "apiSaleSuggestCredit", "apiSaleSuggestDismiss")
 # engine 2026-10-11: apiBoot.myshopify (the store's admin handle) and extras.mailbox (the support address an email ticket came to).
@@ -567,7 +568,7 @@ class MockEngines:
                 "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]), "orderEdits": sw.get("oe", "on"),
                 "subscriptions": "none" if brand == "selera" else "kaching", "version": self.version[brand],
                 "myshopify": MYSHOPIFY.get(brand, ""), "attach": self._attach_info(brand),
-                "kachingReady": brand != "selera", "reignWrites": bool(sw.get("reign"))}
+                "kachingReady": brand != "selera", "reignWrites": bool(sw.get("reign")), "loopWrites": bool(sw.get("loop"))}
 
     def apiStatus(self, brand, a, c):
         sw = self.switches[brand]
@@ -979,12 +980,90 @@ class MockEngines:
                     "items": [{"title": l.get("title", ""), "quantity": l.get("quantity", 1)} for l in s.get("lines", [])]}
         live = [one(s) for s in subs if s["status"] in ("ACTIVE", "PAUSED", "FAILED")]
         ended = [one(s) for s in subs if s["status"] not in ("ACTIVE", "PAUSED", "FAILED")]
+        ls = self._loop_subs(brand, t)                                                    # engine Loop.gs: Loop subscriptions join the list
+        live += [dict(s, provider="loop") for s in ls if s["status"] in ("ACTIVE", "PAUSED")]
+        ended += [dict(s, provider="loop") for s in ls if s["status"] not in ("ACTIVE", "PAUSED")]
         sw = self.switches[brand]
         linked = bool(self._b(brand)["snaps"].get(t["id"], {}).get("linked"))
         return {"ok": True, "id": t["id"], "name": t.get("name", ""), "email": self._sub_email(brand, t), "emailFrom": "linked" if linked else "ticket",
                 "contracts": live, "ended": ended, "checkedAt": self._now(),
                 "cancelledHere": [x for x in str(t.get("cancelled", "")).split(",") if x], "writes": sw["writes"], "frozen": bool(sw["frozen"]),
-                "reignWrites": bool(sw.get("reign")), "advice": self._sub_advice(brand, t)}
+                "reignWrites": bool(sw.get("reign")), "loopWrites": bool(sw.get("loop")), "advice": self._sub_advice(brand, t)}
+
+    # ---------- Loop (engine Loop.gs / Api.gs apiSubPausePreview, apiSubPause, apiSubResume, 2026-11-20) ----------
+    # A brand started with MOCK_SWITCHES '{"rozela": {"loop": true}}' has Loop on: every ticket customer (by email) gets ONE ACTIVE Loop subscription,
+    # kept per email like the real Loop; the mock never writes anywhere else.
+    LOOP_RE = re.compile(r"^loop-[1-9][0-9]{0,11}$")
+
+    def _loop_subs(self, brand, t):
+        if not self.switches[brand].get("loop"):
+            return []
+        em = self._sub_email(brand, t)
+        if not em:
+            return []
+        store = self.__dict__.setdefault("loop", {}).setdefault(brand, {})
+        if em not in store:
+            store[em] = [{"id": "loop-%d" % (40000000 + zlib.crc32(em.encode()) % 9000000), "status": "ACTIVE", "every": {"interval": "MONTH", "count": 3},
+                          "items": [{"title": "פורמולת הסלק של רוזלה", "quantity": 3}], "nextBillingAt": "2027-02-10T10:00:00.000Z", "pausedAt": None}]
+        return store[em]
+
+    def _loop_pre(self, brand, a):
+        if not self.switches[brand].get("loop"):
+            return None, {"ok": False, "error": "no_loop"}
+        t = self._find(brand, a.get("id"))
+        if not t:
+            return None, {"ok": False, "error": "not_found"}
+        if not self._sub_email(brand, t):
+            return None, {"ok": False, "error": "no_email", "why": "none"}
+        return t, None
+
+    def apiSubPausePreview(self, brand, a, c):
+        t, err = self._loop_pre(brand, a)
+        if err:
+            return err
+        ls = self._loop_subs(brand, t)
+        shape = lambda s: dict(s, provider="loop")
+        return {"ok": True, "id": t["id"], "name": t.get("name", ""), "email": self._sub_email(brand, t), "emailFrom": "ticket", "checkedAt": self._now(),
+                "contracts": [shape(s) for s in ls if s["status"] in ("ACTIVE", "PAUSED")], "ended": [shape(s) for s in ls if s["status"] not in ("ACTIVE", "PAUSED")],
+                "weeks": [2, 4, 6, 8], "loopWrites": True}
+
+    def _loop_write(self, brand, a, c, op):
+        t, err = self._loop_pre(brand, a)
+        if err:
+            return err
+        cid = a.get("contractId")
+        if not isinstance(cid, str) or not self.LOOP_RE.match(cid):
+            return {"ok": False, "error": "bad_contract"}
+        weeks = 0
+        if op == "pause":
+            try:
+                weeks = int(a.get("weeks"))
+            except (TypeError, ValueError):
+                weeks = 0
+            if weeks not in (2, 4, 6, 8):
+                return {"ok": False, "error": "bad_weeks"}
+        sub = next((s for s in self._loop_subs(brand, t) if s["id"] == cid), None)
+        accepted = bool(sub) and sub["status"] == ("ACTIVE" if op == "pause" else "PAUSED")
+        if accepted:
+            sub["status"] = "PAUSED" if op == "pause" else "ACTIVE"
+            sub["pausedAt"] = self._now() if op == "pause" else None
+        verified = bool(sub) and accepted and sub["status"] == ("PAUSED" if op == "pause" else "ACTIVE")
+        rec = {"op": op, "state": ("paused" if op == "pause" else "resumed") if verified else "failed", "contractId": cid, "provider": "loop", "weeks": weeks,
+               "items": copy.deepcopy(sub["items"]) if sub else [], "status": sub["status"] if sub else "", "nextBillingAt": sub["nextBillingAt"] if sub else None,
+               "at": self._now(), "by": c["user"], "reason": "" if verified else "not " + ("paused" if op == "pause" else "resumed")}
+        self._b(brand)["snaps"].setdefault(t["id"], {})["subPause"] = rec
+        out = {"ok": verified, "verified": verified, "state": rec["state"], "status": rec["status"], "contractId": cid, "at": rec["at"], "message": "", "record": rec}
+        if op == "pause":
+            out["weeks"] = weeks
+        if not verified:
+            out["error"] = "not_paused" if op == "pause" else "not_resumed"
+        return out
+
+    def apiSubPause(self, brand, a, c):
+        return self._loop_write(brand, a, c, "pause")
+
+    def apiSubResume(self, brand, a, c):
+        return self._loop_write(brand, a, c, "resume")
 
     # the engine's subCancelAdvice_ (Api.gs, 2026-11-15) reads the ticket's stored decision + conversation; the mock keeps it simple: a stored
     # `advice` on the snapshot wins, the angry "never asked for a subscription" fixture (t18f2a03) is cancel_ok, everything else unknown
@@ -1000,6 +1079,8 @@ class MockEngines:
         if err:
             return err
         cid = a.get("contractId")
+        if isinstance(cid, str) and self.LOOP_RE.match(cid):                            # a Loop subscription: its own gate, read back from Loop
+            return self._loop_cancel(brand, t, cid, c)
         if not isinstance(cid, str) or not cid.startswith(CONTRACT_RE_PREFIX) or not cid[len(CONTRACT_RE_PREFIX):].isdigit():
             return {"ok": False, "error": "bad_contract"}
         r = self.apiKachingCancel(brand, dict(a, confirm=cid[-4:], reason="the agent pressed the cancel button"), c)   # the same gate
@@ -1013,6 +1094,26 @@ class MockEngines:
         snap["subCancel"] = rec
         out = {"ok": verified, "verified": verified, "state": rec["state"], "status": rec["status"], "contractId": cid, "at": rec["at"],
                "message": str(r.get("message") or ""), "record": rec}
+        if not verified:
+            out["error"] = "not_cancelled"
+        return out
+
+    def _loop_cancel(self, brand, t, cid, c):
+        sub = next((s for s in self._loop_subs(brand, t) if s["id"] == cid), None)
+        if sub and self.switches[brand].get("loop") and sub["status"] in ("ACTIVE", "PAUSED"):
+            sub["status"] = "CANCELLED"
+        verified = bool(sub) and sub["status"] == "CANCELLED"
+        snap = self._b(brand)["snaps"].setdefault(t["id"], {})
+        rec = {"state": "cancelled" if verified else "failed", "contractId": cid, "provider": "loop", "status": sub["status"] if sub else "",
+               "items": copy.deepcopy(sub["items"]) if sub else [], "at": self._now(), "by": c["user"], "reason": "" if verified else "not cancelled",
+               "advice": self._sub_advice(brand, t)["verdict"]}
+        if verified:
+            done = [x for x in str(t.get("cancelled", "")).split(",") if x]
+            if cid not in done:
+                done.append(cid)
+            t["cancelled"] = ",".join(done)
+        snap["subCancel"] = rec
+        out = {"ok": verified, "verified": verified, "state": rec["state"], "status": rec["status"], "contractId": cid, "at": rec["at"], "message": "", "record": rec}
         if not verified:
             out["error"] = "not_cancelled"
         return out
@@ -1569,7 +1670,7 @@ class MockEngines:
         sw = self.switches[brand]                    # engine @35/36: the switches ride along with every feed reply
         return {"ok": True, "version": self.version[brand], "tickets": rows, "removed": [], "serverMs": 40, "serverTime": self._now(),
                 "dryRun": sw["dry"], "cancelEnabled": sw["writes"], "cancelFrozen": bool(sw["frozen"]), "orderEdits": sw.get("oe", "on"),
-                "reignWrites": bool(sw.get("reign")), "subscriptions": "none" if brand == "selera" else "kaching"}
+                "reignWrites": bool(sw.get("reign")), "loopWrites": bool(sw.get("loop")), "subscriptions": "none" if brand == "selera" else "kaching"}
 
     def apiDayStats(self, brand, a, c):
         """Engine 2026-10-06 shape (DayStats.gs dsReport_), small fixed numbers; rozela comes in two chunks."""

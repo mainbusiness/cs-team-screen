@@ -26,6 +26,9 @@ def p():
 def server():
     d = tempfile.mkdtemp(prefix="cs-notice-")
     path = os.path.join(d, "notice-acks.json")
+    import json, notice
+    with open(path, "w") as f:                       # the merge guide (2026-11-20) has its own test file: acknowledged here so these tests keep to the Kaching procedure
+        json.dump({"acks": {u: {notice.MERGE_GUIDE["id"]: 1.0} for u in ("manager", "agent-two", "vel1")}}, f)
     base, pwd, proc = browser_server.start(extra_env={"NOTICE_PATH": path},
                                            users=(("manager", ["admin", "user-manager"], ALL, "he"), ("agent-two", ["agent"], ["celesta", "apexmen"], "he"),
                                                   ("vel1", ["agent"], ["velora"], "he")))
@@ -117,7 +120,7 @@ def test_other_users(p, server):
     pg.wait_for_timeout(1200)
     assert not dlg_open(pg)
     pg.click(".menu-btn")
-    assert pg.locator("[data-test=notice-menu]").count() == 0
+    assert pg.locator("[data-test=notice-menu]", has_text="נוהל מנויים").count() == 0
     browser.close()
 
 

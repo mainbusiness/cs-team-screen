@@ -36,14 +36,14 @@ def test_the_viewer_fn_list_is_exactly_the_reads_and_mirrors_the_engine():
 
 
 def test_no_write_fn_is_open_to_the_viewer():
-    writes = {"apiSend", "apiSaveDraft", "apiNote", "apiClose", "apiMarkHandled", "apiKachingCancel", "apiKachingAction", "apiOrderEdit", "apiSubCancel", "apiLinkCustomer",
+    writes = {"apiSend", "apiSaveDraft", "apiNote", "apiClose", "apiMarkHandled", "apiKachingCancel", "apiKachingAction", "apiOrderEdit", "apiSubCancel", "apiSubPause", "apiSubResume", "apiLinkCustomer",
               "apiMergeTickets", "apiAutoCancelApprove", "apiAutoCancelReject", "apiAutoReplyReview", "apiWaTakeOver", "apiRedraftOne", "apiSendTemplate", "apiSettings",
               "apiAttachPut", "apiAiNoteAdd", "apiAiNoteDelete", "apiSaleLog", "apiSaleDecide"}
     assert writes <= set(ALL_FNS) and not (writes & READS)
     for fn in writes:
         assert "viewer" not in ALL_FNS[fn][0], fn
     # reads that still cost a live Kaching / Shopify call or only serve a write screen stay closed too
-    for fn in ("apiTemplates", "apiKachingContract", "apiKachingVariants", "apiOrderEditState", "apiSubCancelPreview", "apiKnowledge", "apiCustomerLookup", "apiResult"):
+    for fn in ("apiTemplates", "apiKachingContract", "apiKachingVariants", "apiOrderEditState", "apiSubCancelPreview", "apiSubPausePreview", "apiKnowledge", "apiCustomerLookup", "apiResult"):
         assert "viewer" not in ALL_FNS[fn][0], fn
 
 

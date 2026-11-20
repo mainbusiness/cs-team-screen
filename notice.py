@@ -54,7 +54,45 @@ KACHING_SUBS = {
     "brand_names": {"rozela": "Rozela", "celesta": "Celesta", "apexmen": "Apexmen"},
     "ack": "✅ קראתי והבנתי",
 }
-NOTICES = [KACHING_SUBS]
+# Owner, 2026-11-20: "the agents did not understand how to merge tickets": a short guide, shown ONCE per agent (the ack is the "seen once", stored per user
+# like every notice) and reopened from the ☰ menu and from the "?" next to the merge control. The words are the screen's own (app.js mrg_* / related).
+MERGE_GUIDE = {
+    "id": "merge-guide-2026-11-20",
+    "brands": ["rozela", "celesta", "apexmen", "velora", "selera"],
+    "menu": "🔗 איך מאחדים פניות",
+    "title": "🔗 איך מאחדים פניות (מיזוג)",
+    "intro": "**מתי:** אותו לקוח כתב כמה פעמים (גם ממייל אחר או מטופס) ויש לו כמה פניות. מאחדים לפנייה אחת ועונים עליה פעם אחת. "
+             "⛔ אפשר למזג רק פניות מייל, לא וואטסאפ. אי אפשר לבטל מיזוג.",
+    "sections": [
+        {"head": "1. פותחים את הפנייה שנשארת", "lines": ["זו הפנייה שממנה עונים ללקוח. הפנייה הכפולה תיסגר ותיכנס לתוכה."]},
+        {"head": "2. מוצאים את הפנייה הכפולה",
+         "lines": ["בכרטיס **פניות קודמות של הלקוח**: ליד הפנייה הכפולה לוחצים **⤵ מיזוג לפנייה הזו**.",
+                   "הלקוח כתב מכתובת אחרת או מטופס? פותחים **מיזוג פנייה כפולה מכתובת אחרת**, מחפשים לפי מייל, שם, #מספר הזמנה או מזהה פנייה, "
+                   "לוחצים **חיפוש**, ואז **⤵ מיזוג לפנייה הזו** ליד התוצאה הנכונה."]},
+        {"head": "3. מאשרים", "lines": ["נפתח חלון עם שם הלקוח ונושא הפנייה הכפולה. זו הפנייה הנכונה? לוחצים **למזג**. לא בטוחים? סוגרים את החלון, לא קרה כלום."]},
+        {"head": "4. מה קורה אחרי", "lines": ["כל המיילים של הפנייה הכפולה מופיעים בפנייה הזו, והיא נסגרת כ\"מוזגה\". מייל חדש שלה יגיע לכאן.",
+                                              "התשובה ללקוח יוצאת מהפנייה הזו. טיוטה חדשה מכל השיחה נכתבת בתוך כמה דקות (או לוחצים «תשובה אחרת» עכשיו)."]},
+    ],
+    "ack": "✅ הבנתי",
+    "en": {
+        "menu": "🔗 How to merge tickets",
+        "title": "🔗 How to merge tickets",
+        "intro": "**When:** the same customer wrote more than once (also from another email or a form) and has several tickets. Merge them into ONE ticket and answer it once. "
+                 "⛔ Only EMAIL tickets can be merged, not WhatsApp. A merge cannot be undone.",
+        "sections": [
+            {"head": "1. Open the ticket that stays", "lines": ["This is the ticket you answer the customer from. The duplicate closes and goes into it."]},
+            {"head": "2. Find the duplicate",
+             "lines": ["In the card **Customer's other tickets**: next to the duplicate click **⤵ Merge into this ticket**.",
+                       "Did the customer write from another address or a form? Open **Merge a duplicate from another address**, search by email, name, #order number or ticket id, "
+                       "click **Search**, then **⤵ Merge into this ticket** next to the right hit."]},
+            {"head": "3. Confirm", "lines": ["A window shows the customer and the subject of the duplicate. Is it the right one? Click **Merge**. Not sure? Close the window, nothing happened."]},
+            {"head": "4. What happens next", "lines": ["All the emails of the duplicate show in this ticket and it closes as \"merged\". New mail on it comes here.",
+                                                       "The reply goes out from this ticket. A new draft from the whole conversation is written within a few minutes (or click \"Different answer\" now)."]},
+        ],
+        "ack": "✅ Got it",
+    },
+}
+NOTICES = [KACHING_SUBS, MERGE_GUIDE]
 BY_ID = {n["id"]: n for n in NOTICES}
 
 
@@ -66,13 +104,15 @@ def applies(notice, user):
     return any(b in (user.get("brands") or []) for b in notice["brands"])
 
 
-def view(notice, user, acked_at):
-    """What one user's screen gets: the brand notes of HIS brands (an admin with none of them sees all three)."""
+def view(notice, user, acked_at, lang="he"):
+    """What one user's screen gets: the brand notes of HIS brands (an admin with none of them sees all three). A notice with an `en` text
+    is served in English to the English desk."""
     mine = [b for b in notice["brands"] if b in (user.get("brands") or [])] or list(notice["brands"])
-    return {"id": notice["id"], "menu": notice["menu"], "title": notice["title"], "intro": notice["intro"],
-            "sections": notice["sections"], "brand_head": notice["brand_head"],
-            "brand_notes": [{"brand": b, "name": notice["brand_names"][b], "text": notice["brand_notes"][b]} for b in mine],
-            "ack": notice["ack"], "acked": acked_at is not None, "acked_at": acked_at}
+    t = notice.get("en") if lang == "en" and notice.get("en") else notice
+    return {"id": notice["id"], "menu": t["menu"] if "menu" in t else notice["menu"], "title": t["title"], "intro": t["intro"],
+            "sections": t["sections"], "brand_head": notice.get("brand_head", ""),
+            "brand_notes": [{"brand": b, "name": notice["brand_names"][b], "text": notice["brand_notes"][b]} for b in mine] if notice.get("brand_notes") else [],
+            "ack": t["ack"], "acked": acked_at is not None, "acked_at": acked_at, "lang": "en" if t is not notice else "he"}
 
 
 class AckStore:
@@ -166,7 +206,7 @@ def register(app, d):
         if err:
             return err
         mine = acks.acks_of(u["username"])
-        resp = jsonify({"ok": True, "notices": [view(n, u, mine.get(n["id"])) for n in NOTICES if applies(n, u)]})
+        resp = jsonify({"ok": True, "notices": [view(n, u, mine.get(n["id"]), d["ui_lang"](u)) for n in NOTICES if applies(n, u)]})
         resp.headers["Cache-Control"] = "no-store, private"
         return resp
 
