@@ -38,7 +38,7 @@ READ = ("agent", "admin", "viewer")     # the read-only viewer (the owner 2026-1
 TABLE = {"apiBoot": CS_ROLES, "apiStatus": CS_ROLES, "apiTicket": READ, "apiTicketExtras": READ, "apiTickets": READ,
          "apiSearch": READ, "apiSaveDraft": WORK, "apiSend": WORK, "apiMarkHandled": WORK, "apiClose": WORK,
          "apiNote": WORK, "apiKachingCancel": WORK, "apiKachingContract": WORK, "apiKachingAction": WORK, "apiKachingVariants": WORK, "apiOrderEditState": WORK, "apiOrderEdit": WORK,
-         "apiSubCancelPreview": WORK, "apiSubCancel": WORK, "apiSubPausePreview": WORK, "apiSubPause": WORK, "apiSubResume": WORK, "apiLinkCustomer": WORK, "apiMergeTickets": WORK,
+         "apiSubCancelPreview": WORK, "apiSubCancel": WORK, "apiSubPausePreview": WORK, "apiSubPause": WORK, "apiSubResume": WORK, "apiSubPostpone": WORK, "apiLinkCustomer": WORK, "apiMergeTickets": WORK,
          "apiAutoCancelList": READ, "apiAutoCancelApprove": WORK,
          "apiAutoCancelReject": WORK, "apiSettings": ("admin",), "apiKnowledge": WORK, "apiCustomerLookup": WORK,
          "apiTicketFull": READ, "apiChanges": READ, "apiAutoReplyList": READ, "apiAutoReplyReview": WORK, "apiWaTakeOver": WORK, "apiRedraftOne": WORK,
@@ -55,7 +55,7 @@ VIEWER_FNS = ("apiBoot", "apiStatus", "apiTicket", "apiTicketExtras", "apiTicket
 # celesta:error" overrides a brand's Kaching state (velora has no mock engine, so its "no_kaching" is shown through another brand).
 if os.environ.get("MOCK_CANCEL_STATS") == "absent":
     TABLE.pop("apiCancelStats")
-MOCK_WRITES = ("apiSubPause", "apiSubResume", "apiRedraftOne", "apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiSubCancel", "apiOrderEdit", "apiWaTakeOver",
+MOCK_WRITES = ("apiSubPause", "apiSubResume", "apiSubPostpone", "apiRedraftOne", "apiSend", "apiSaveDraft", "apiMarkHandled", "apiClose", "apiNote", "apiKachingCancel", "apiKachingAction", "apiSubCancel", "apiOrderEdit", "apiWaTakeOver",
                "apiAutoReplyReview", "apiAutoCancelApprove", "apiAutoCancelReject", "apiSendTemplate", "apiAiNoteAdd", "apiAiNoteDelete", "apiAiNoteSuggestDecide",
                "apiSaleLog", "apiSaleDecide", "apiSaleSuggestCredit", "apiSaleSuggestDismiss")
 # engine 2026-10-11: apiBoot.myshopify (the store's admin handle) and extras.mailbox (the support address an email ticket came to).
@@ -1025,7 +1025,7 @@ class MockEngines:
         shape = lambda s: dict(s, provider="loop")
         return {"ok": True, "id": t["id"], "name": t.get("name", ""), "email": self._sub_email(brand, t), "emailFrom": "ticket", "checkedAt": self._now(),
                 "contracts": [shape(s) for s in ls if s["status"] in ("ACTIVE", "PAUSED")], "ended": [shape(s) for s in ls if s["status"] not in ("ACTIVE", "PAUSED")],
-                "weeks": [2, 4, 6, 8], "loopWrites": True}
+                "weeks": [2, 4, 6, 8], "delayDays": [7, 15, 30, 45, 60], "loopWrites": True}
 
     def _loop_write(self, brand, a, c, op):
         t, err = self._loop_pre(brand, a)
@@ -1064,6 +1064,35 @@ class MockEngines:
 
     def apiSubResume(self, brand, a, c):
         return self._loop_write(brand, a, c, "resume")
+
+    def apiSubPostpone(self, brand, a, c):
+        """Loop "⏭ לדחות משלוח" (engine Api.gs apiSubPostpone, 2026-11-23): the next charge of an ACTIVE subscription moves `days` later."""
+        t, err = self._loop_pre(brand, a)
+        if err:
+            return err
+        cid = a.get("contractId")
+        if not isinstance(cid, str) or not self.LOOP_RE.match(cid):
+            return {"ok": False, "error": "bad_contract"}
+        try:
+            days = int(a.get("days"))
+        except (TypeError, ValueError):
+            days = 0
+        if days not in (7, 15, 30, 45, 60):
+            return {"ok": False, "error": "bad_days"}
+        sub = next((s for s in self._loop_subs(brand, t) if s["id"] == cid), None)
+        ok = bool(sub) and sub["status"] == "ACTIVE" and bool(sub.get("nextBillingAt"))
+        if ok:
+            nxt = datetime.fromisoformat(sub["nextBillingAt"].replace("Z", "+00:00")) + timedelta(days=days)
+            sub["nextBillingAt"] = nxt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        rec = {"op": "postpone", "state": "postponed" if ok else "failed", "contractId": cid, "provider": "loop", "weeks": 0, "days": days,
+               "items": copy.deepcopy(sub["items"]) if sub else [], "status": sub["status"] if sub else "", "nextBillingAt": sub["nextBillingAt"] if sub else None,
+               "at": self._now(), "by": c["user"], "reason": "" if ok else "not postponed"}
+        self._b(brand)["snaps"].setdefault(t["id"], {})["subPause"] = rec
+        out = {"ok": ok, "verified": ok, "state": rec["state"], "status": rec["status"], "contractId": cid, "days": days, "nextBillingAt": rec["nextBillingAt"],
+               "at": rec["at"], "message": "", "record": rec}
+        if not ok:
+            out["error"] = "not_postponed"
+        return out
 
     # the engine's subCancelAdvice_ (Api.gs, 2026-11-15) reads the ticket's stored decision + conversation; the mock keeps it simple: a stored
     # `advice` on the snapshot wins, the angry "never asked for a subscription" fixture (t18f2a03) is cancel_ok, everything else unknown

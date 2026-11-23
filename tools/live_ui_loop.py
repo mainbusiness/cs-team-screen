@@ -44,6 +44,7 @@ with pw.sync_playwright() as p:
         pg = b.new_page(viewport={'width': width, 'height': 900})
         for fn in ('apiSubCancel', 'apiSubPause', 'apiSubResume', 'apiKachingAction'):
             pg.route('**/' + fn, block)
+        pg.add_locator_handler(pg.locator('[data-test=quality-remind]'), lambda: pg.click('[data-test=quality-remind-later]'))   # the quality board's reminder is not under test
         pg.goto(BASE + '/cs/login'); pg.fill('input[name=username]', rd.BOT); pg.fill('input[name=password]', rd.kc_get('screen/claude-admin'))
         pg.click('button[type=submit]'); pg.wait_for_load_state('load')
         if width == 1280:

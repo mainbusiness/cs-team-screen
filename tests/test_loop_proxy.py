@@ -49,3 +49,30 @@ def test_only_agents_and_admins_pause(app, pw_hash, transport, fn):
         n = len(transport.calls)
         assert call(c, tok, "rozela", fn, {"id": "t1", "contractId": CID, "weeks": "4"}).status_code == 403
         assert len(transport.calls) == n
+
+
+@pytest.mark.parametrize("days", [None, "", "0", "1", "14", "90", "-7", "30 ", 30, True, "30; drop"])
+def test_postpone_without_one_of_loops_delay_options_never_reaches_the_engine(app, pw_hash, transport, days):
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    args = {"id": "t1", "contractId": CID}
+    if days is not None:
+        args["days"] = days
+    n = len(transport.calls)
+    assert call(c, tok, "rozela", "apiSubPostpone", args).status_code == 400
+    assert len(transport.calls) == n
+
+
+def test_postpone_shapes_stripping_the_verdict_check_and_roles(app, pw_hash, transport):
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    transport.reply = {"ok": True, "verified": True, "state": "postponed", "status": "ACTIVE", "contractId": CID, "days": 30, "record": {"state": "postponed"}}
+    j = call(c, tok, "rozela", "apiSubPostpone", {"id": "t1", "contractId": CID, "days": "30", "newBillingDateEpoch": "1", "email": "victim@x.com"}).get_json()
+    assert j["ok"] and j["verified"] is True
+    sent = [b for _, b in transport.calls if b["fn"] == "apiSubPostpone"][-1]["args"]
+    assert sent == {"id": "t1", "contractId": CID, "days": "30", "brand": "rozela"}, "the new date is computed by the engine from Loop, never sent by the browser"
+    transport.reply = {"ok": True, "state": "postponed", "contractId": CID}
+    assert call(c, tok, "rozela", "apiSubPostpone", {"id": "t1", "contractId": CID, "days": "30"}).get_json().get("ok") is not True
+    for roles in (["user-manager"], ["viewer"]):
+        c2, tok2 = logged_in(app, pw_hash, "u" + roles[0], roles, ["rozela"])
+        n = len(transport.calls)
+        assert call(c2, tok2, "rozela", "apiSubPostpone", {"id": "t1", "contractId": CID, "days": "30"}).status_code == 403
+        assert len(transport.calls) == n

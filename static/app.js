@@ -213,6 +213,12 @@
       sp_note: 'ההשהיה תמיד לתקופה מוגדרת, ובסיומה המנוי חוזר לפעול לבד. אחרי הפעולה המערכת קוראת את המנוי שוב ב-Loop ומאשרת.',
       sp_ok: '✅ המנוי הושהה ל-{w} — אומת {t}', sp_ok_resume: '✅ המנוי הוחזר לפעילות — אומת {t}', sp_fail: '❌ המנוי לא הושהה', sp_fail_resume: '❌ המנוי לא הוחזר לפעילות',
       sp_manual: 'להשהות ידנית ב-Loop.', sp_manual_resume: 'להחזיר ידנית ב-Loop.',
+      spd_btn: '⏭ לדחות משלוח', spd_q_one: 'לדחות את המשלוח הבא של {name}?', spd_q_many: 'ל{name} יש {n} מנויים. של איזה לדחות את המשלוח?',
+      spd_days: 'בכמה ימים לדחות את החיוב והמשלוח הבא?', spd_d: '{n} ימים', spd_next: 'החיוב והמשלוח הבא כרגע: {d}', spd_after: 'אחרי הדחייה: {d}',
+      spd_go: 'כן, לדחות את המשלוח', spd_working: 'דוחה ובודק…', spd_off: 'דחיות ב-Loop כבויות במערכת — לדחות ידנית ב-Loop.',
+      spd_paused: 'המנוי הזה מושהה, אז אין משלוח לדחות. אפשר להחזיר אותו לפעילות בכפתור «להשהות את המנוי».',
+      spd_note: 'רק החיוב והמשלוח הבא זזים קדימה, והמנוי ממשיך כרגיל אחריהם. אחרי הפעולה המערכת קוראת את המנוי שוב ב-Loop ומאשרת.',
+      spd_ok: '✅ המשלוח הבא נדחה ב-{n} ימים, ל-{d} — אומת {t}', spd_fail: '❌ המשלוח לא נדחה', spd_manual: 'לדחות ידנית ב-Loop.',
       afs_order_unknown: 'ההודעה מדברת על ביטול הזמנה או החזר, ולא הצלחנו לבדוק את זה בשופיפיי. לבדוק ידנית.',
       dlg_title: 'ביטול מנוי', dlg_type: 'כדי לאשר, הקלידו את 4 הספרות האחרונות של מספר המנוי',
       dlg_reason: 'סיבה', dlg_reason_opt: '(אופציונלי — הלקוח ביקש ביטול)', dlg_reason_req: '(חובה — הלקוח לא ביקש ביטול בפנייה: 10 תווים, שתי מילים)',
@@ -539,6 +545,12 @@
       sp_paused_now: 'This subscription is already paused. You can put it back to active:', sp_go: 'Yes, pause the subscription', sp_go_resume: 'Resume the subscription',
       sp_working: 'Pausing and checking…', sp_working_resume: 'Resuming and checking…', sp_off: 'Loop pauses are switched off — pause it manually in Loop.',
       sp_note: 'A pause is always for a set period, and when it ends the subscription starts again by itself. After the action the system reads the subscription again in Loop and confirms.',
+      spd_btn: '⏭ Postpone delivery', spd_q_one: "Postpone {name}'s next delivery?", spd_q_many: '{name} has {n} subscriptions. Which delivery to postpone?',
+      spd_days: 'Postpone the next charge and delivery by how many days?', spd_d: '{n} days', spd_next: 'Next charge and delivery now: {d}', spd_after: 'After postponing: {d}',
+      spd_go: 'Yes, postpone the delivery', spd_working: 'Postponing and checking…', spd_off: 'Postponing in Loop is switched off in the system — postpone it manually in Loop.',
+      spd_paused: 'This subscription is paused, so there is no delivery to postpone. You can put it back to active with "Pause the subscription".',
+      spd_note: 'Only the next charge and delivery move later; the subscription carries on as usual after them. After the action the system reads the subscription again in Loop and confirms.',
+      spd_ok: '✅ Next delivery postponed by {n} days, to {d} — verified {t}', spd_fail: '❌ The delivery was NOT postponed', spd_manual: 'Postpone it manually in Loop.',
       sp_ok: '✅ Subscription paused for {w} — verified {t}', sp_ok_resume: '✅ Subscription resumed — verified {t}', sp_fail: '❌ The subscription was NOT paused', sp_fail_resume: '❌ The subscription was NOT resumed',
       sp_manual: 'Pause it manually in Loop.', sp_manual_resume: 'Resume it manually in Loop.',
       afs_order_unknown: 'The message mentions an order cancellation or a refund and it could not be checked in Shopify. Check manually.',
@@ -3783,6 +3795,15 @@
     /** The last pause / resume on this ticket (engine Api.gs apiSubPause, snapshot.subPause) -> the green line or the red failure. */
     function pauseBox(rec, extra) {
       const resume = rec.op === 'resume';
+      if (rec.op === 'postpone') {                               // Loop "⏭ לדחות משלוח" (2026-11-23), kept on the same snapshot.subPause
+        if (rec.state === 'postponed') {
+          return h('div', { class: 'ok-box', role: 'status', 'data-test': 'subd-ok' },
+            h('b', { text: t('spd_ok', { n: Number(rec.days), d: fmtDate(rec.nextBillingAt), t: whenShort(rec.at) }) }),
+            rec.items && rec.items.length ? h('div', { class: 'small', dir: 'auto', text: itemsText(rec.items) }) : null);
+        }
+        return h('div', { class: 'err-box', role: 'alert', 'data-test': 'subd-fail' }, h('b', { text: t('spd_fail') }),
+          extra ? h('div', { text: extra }) : null, rec.reason && rec.reason !== extra ? h('bdi', { class: 'raw', text: rec.reason }) : null, h('div', { text: t('spd_manual') }));
+      }
       if (rec.state === 'paused' || rec.state === 'resumed') {
         return h('div', { class: 'ok-box', role: 'status', 'data-test': 'subp-ok' },
           h('b', { text: rec.state === 'paused' ? t('sp_ok', { w: t('sp_w' + Number(rec.weeks)), t: whenShort(rec.at) }) : t('sp_ok_resume', { t: whenShort(rec.at) }) }),
@@ -3818,7 +3839,8 @@
       const why = b.reignWrites === true || b.loopWrites === true ? '' : b.kachingReady === false ? t('sx_off_token') : b.cancelFrozen ? t('sx_off_frozen') : b.cancelEnabled === false ? t('sx_off_writes') : '';
       el.append(h('div', { class: 'actions subx-row' },
         showCancel ? h('button', { class: 'btn danger-outline', type: 'button', 'data-test': 'subx-btn', text: t('sx_btn'), disabled: !!why || busy, onclick: open }) : null,
-        showPause ? h('button', { class: 'btn', type: 'button', 'data-test': 'subp-btn', text: t('sp_btn'), disabled: busy, onclick: openPause }) : null,
+        showPause ? h('button', { class: 'btn', type: 'button', 'data-test': 'subp-btn', text: t('sp_btn'), disabled: busy, onclick: function () { openPause('pause'); } }) : null,
+        showPause && b.loopWrites === true ? h('button', { class: 'btn', type: 'button', 'data-test': 'subd-btn', text: t('spd_btn'), disabled: busy, onclick: function () { openPause('postpone'); } }) : null,
         showCancel && why ? h('span', { class: 'muted small', 'data-test': 'subx-why', text: why }) : null));
     }
     function dlgEl() {
@@ -4004,16 +4026,19 @@
       dlg.append(box);
       if (!dlg.open) dlg.showModal();
     }
-    async function openPause() {
+    /** mode 'pause' (2 / 4 / 6 / 8 weeks, or resume) | 'postpone' (the owner 2026-11-23: the next charge + delivery 7 / 15 / 30 / 45 / 60 days later, Loop's own options). */
+    async function openPause(mode) {
       if (busy || !S.tk || !S.tk.ticket) return;
-      if ((S.boots[S.tk.brand || S.brand] || {}).loopWrites !== true) { openKachingPause(); return; }
+      const post = mode === 'postpone';
+      if ((S.boots[S.tk.brand || S.brand] || {}).loopWrites !== true) { if (!post) openKachingPause(); return; }
+      const again = function () { openPause(mode); };
       const x = S.tk.ticket, brand = S.tk.brand || S.brand, id = x.id;
       const name = x.name || x.email || x.phone || t('no_name');
       const dlg = dlgEl();
       clear(dlg);
       const box = h('div', { class: 'in', 'data-test': 'subp-dlg' });
       const back = h('button', { class: 'btn ghost', type: 'button', text: t('sx_back'), onclick: function () { if (!busy) dlg.close(); } });
-      box.append(h('h3', { text: t('sp_btn') }),
+      box.append(h('h3', { text: t(post ? 'spd_btn' : 'sp_btn') }),
         h('div', { class: 'muted', 'data-test': 'subx-loading' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' ', t('sp_checking', { name: name })),
         h('div', { class: 'row-btns' }, back));
       dlg.append(box);
@@ -4021,42 +4046,57 @@
       const pv = await engine('apiSubPausePreview', { id: id }, brand);
       if (!dlg.open || !S.tk || S.tk.id !== id) return;
       clear(box);
-      box.append(h('h3', { text: t('sp_btn') }));
+      box.append(h('h3', { text: t(post ? 'spd_btn' : 'sp_btn') }));
       if (!pv.ok && pv.error === 'no_email') {
-        box.append(h('div', { class: 'warn-box', role: 'note', 'data-test': 'subx-noemail', text: t('sx_noemail') }), Link.form(x, brand, openPause), h('div', { class: 'row-btns' }, back));
+        box.append(h('div', { class: 'warn-box', role: 'note', 'data-test': 'subx-noemail', text: t('sx_noemail') }), Link.form(x, brand, again), h('div', { class: 'row-btns' }, back));
         return;
       }
       if (!pv.ok) { box.append(h('div', { class: 'err-box', role: 'alert', 'data-test': 'subp-err', text: pv.msg || pv.error }), h('div', { class: 'row-btns' }, back)); return; }
       const list = Array.isArray(pv.contracts) ? pv.contracts : [];
       if (!list.length) {
-        box.append(h('div', { 'data-test': 'subp-none', text: t('sp_none', { name: name, email: pv.email || '' }) }), Link.form(x, brand, openPause), h('div', { class: 'row-btns' }, back));
+        box.append(h('div', { 'data-test': 'subp-none', text: t('sp_none', { name: name, email: pv.email || '' }) }), Link.form(x, brand, again), h('div', { class: 'row-btns' }, back));
         return;
       }
       const off = pv.loopWrites === false;
-      const options = (Array.isArray(pv.weeks) ? pv.weeks : [2, 4, 6, 8]).filter(function (w) { return [2, 4, 6, 8].indexOf(Number(w)) >= 0; });
+      const ALLOWED = post ? [7, 15, 30, 45, 60] : [2, 4, 6, 8];
+      const options = (Array.isArray(post ? pv.delayDays : pv.weeks) ? (post ? pv.delayDays : pv.weeks) : ALLOWED).filter(function (w) { return ALLOWED.indexOf(Number(w)) >= 0; });
       let pick = list.length === 1 ? list[0].id : null, weeks = '';
       const go = h('button', { class: 'btn primary', type: 'button', 'data-test': 'subp-go', disabled: true });
       const result = h('div', { 'aria-live': 'assertive' });
-      const weeksBox = h('div', { 'data-test': 'subp-weeks' }, h('b', { text: t('sp_weeks') }));
+      const weeksBox = h('div', { 'data-test': post ? 'subd-days' : 'subp-weeks' }, h('b', { text: t(post ? 'spd_days' : 'sp_weeks') }));
+      const dates = h('div', { class: 'small', 'data-test': 'subd-dates' });
       const wOpts = h('div', { class: 'subx-opts', role: 'radiogroup' });
       options.forEach(function (w) {
         const r = h('input', { type: 'radio', name: 'subp-weeks', value: String(w), disabled: off });
         r.addEventListener('change', function () { if (r.checked) { weeks = String(w); sync(); } });
-        wOpts.append(h('label', { class: 'subx-opt', 'data-test': 'subp-w' }, r, h('div', null, h('b', { text: t('sp_w' + Number(w)) }))));
+        wOpts.append(h('label', { class: 'subx-opt', 'data-test': post ? 'subd-d' : 'subp-w' }, r, h('div', null, h('b', { text: post ? t('spd_d', { n: Number(w) }) : t('sp_w' + Number(w)) }))));
       });
       weeksBox.append(wOpts);
-      const pausedLine = h('div', { class: 'warn-box', role: 'note', 'data-test': 'subp-paused', text: t('sp_paused_now') });
+      if (post) weeksBox.append(dates);
+      const pausedLine = h('div', { class: 'warn-box', role: 'note', 'data-test': post ? 'subd-paused' : 'subp-paused', text: t(post ? 'spd_paused' : 'sp_paused_now') });
       function chosen() { return list.filter(function (c) { return c.id === pick; })[0] || null; }
       function sync() {
         const s = chosen();
         const resume = !!s && s.status === 'PAUSED';
         weeksBox.hidden = !s || resume;
         pausedLine.hidden = !resume;
+        if (post) {                                             // a paused subscription has no delivery to postpone: nothing to press here
+          clear(dates);
+          const cur = s && s.nextBillingAt ? Date.parse(s.nextBillingAt) : NaN;
+          if (s && !resume && !isNaN(cur)) {
+            dates.append(h('div', { text: t('spd_next', { d: fmtDate(s.nextBillingAt) }) }));
+            if (weeks) dates.append(h('b', { text: t('spd_after', { d: fmtDate(new Date(cur + Number(weeks) * 86400000).toISOString()) }) }));
+          }
+          go.textContent = busy ? go.textContent : t('spd_go');
+          go.hidden = resume;
+          go.disabled = busy || off || !s || resume || !weeks;
+          return;
+        }
         go.textContent = busy ? go.textContent : t(resume ? 'sp_go_resume' : 'sp_go');
         go.disabled = busy || off || !s || (!resume && !weeks);
       }
-      box.append(h('div', { 'data-test': 'subp-q' }, h('b', { text: list.length === 1 ? t('sp_q_one', { name: name }) : t('sp_q_many', { name: name, n: list.length }) })));
-      if (off) box.append(h('div', { class: 'warn-box', role: 'note', 'data-test': 'subp-off', text: t('sp_off') }));
+      box.append(h('div', { 'data-test': 'subp-q' }, h('b', { text: list.length === 1 ? t(post ? 'spd_q_one' : 'sp_q_one', { name: name }) : t(post ? 'spd_q_many' : 'sp_q_many', { name: name, n: list.length }) })));
+      if (off) box.append(h('div', { class: 'warn-box', role: 'note', 'data-test': 'subp-off', text: t(post ? 'spd_off' : 'sp_off') }));
       if (list.length === 1) box.append(contractLine(list[0], pv.email));
       else {
         const opts = h('div', { class: 'subx-opts', role: 'radiogroup' });
@@ -4067,29 +4107,32 @@
         });
         box.append(opts, pv.email ? h('div', { class: 'small muted' }, h('bdi', { class: 'ltr', text: pv.email })) : null);
       }
-      box.append(pausedLine, weeksBox, h('div', { class: 'small muted', text: t('sp_note') }), result, h('div', { class: 'row-btns' }, back, go));
+      box.append(pausedLine, weeksBox, h('div', { class: 'small muted', text: t(post ? 'spd_note' : 'sp_note') }), result, h('div', { class: 'row-btns' }, back, go));
       sync();
       go.addEventListener('click', async function () {
         const s = chosen();
         if (busy || !s || off) return;
-        const resume = s.status === 'PAUSED';
+        const resume = !post && s.status === 'PAUSED';
+        if (post && s.status !== 'ACTIVE') return;
         if (!resume && !weeks) return;
-        busy = true; go.disabled = true; back.disabled = true; go.textContent = t(resume ? 'sp_working_resume' : 'sp_working');
+        busy = true; go.disabled = true; back.disabled = true; go.textContent = t(post ? 'spd_working' : resume ? 'sp_working_resume' : 'sp_working');
         clear(result); paint();
-        const r = await engine(resume ? 'apiSubResume' : 'apiSubPause', resume ? { id: id, contractId: s.id } : { id: id, contractId: s.id, weeks: weeks }, brand);
+        const r = post ? await engine('apiSubPostpone', { id: id, contractId: s.id, days: weeks }, brand)
+          : await engine(resume ? 'apiSubResume' : 'apiSubPause', resume ? { id: id, contractId: s.id } : { id: id, contractId: s.id, weeks: weeks }, brand);
         busy = false; back.disabled = false;
-        go.textContent = t(resume ? 'sp_go_resume' : 'sp_go');
+        go.textContent = t(post ? 'spd_go' : resume ? 'sp_go_resume' : 'sp_go');
         const rec = r && r.record && typeof r.record === 'object' ? Object.assign({}, r.record) : null;
         if (rec && !r.verified) rec.reasonMsg = r.msg || '';
         keepPause(id, rec);
         refresh(brand, id);                                     // the proxy's cached copy of the ticket learns the new state too (a reload shows it)
         if (r && r.verified === true) {
           dlg.close();
-          toast(resume ? t('sp_ok_resume', { t: whenShort(r.at) }) : t('sp_ok', { w: t('sp_w' + Number(weeks)), t: whenShort(r.at) }));
+          toast(post ? t('spd_ok', { n: Number(weeks), d: fmtDate(r.nextBillingAt), t: whenShort(r.at) })
+            : resume ? t('sp_ok_resume', { t: whenShort(r.at) }) : t('sp_ok', { w: t('sp_w' + Number(weeks)), t: whenShort(r.at) }));
           return;
         }
         go.hidden = true;                                       // a failure is read, not clicked again on reflex
-        result.append(pauseBox(rec || { op: resume ? 'resume' : 'pause', state: 'failed', reason: (r && r.message) || '' }, (r && (r.msg || r.error)) || ''));
+        result.append(pauseBox(rec || { op: post ? 'postpone' : resume ? 'resume' : 'pause', state: 'failed', reason: (r && r.message) || '' }, (r && (r.msg || r.error)) || ''));
       });
     }
     return { slot: slot, paint: paint };

@@ -50,7 +50,7 @@ BENCH = {"frt_email_s": 24 * 3600, "frt_wa_s": 90, "aht_s": [240, 360], "occupan
          "sla_wa_s": 3600, "sla_email_s": 24 * 3600}
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 # the Google Sheet the Mini mirrors the sales log into (Systems/CS_Engine/sales_sync); a link only: the sheet is shared with Owner, not public
-SALES_SHEET_URL = os.environ.get("SALES_SHEET_URL", "https://docs.google.com/spreadsheets/d/1rSeuMFyTOo6RiX-1pB3zy03J1qotcusPa8IX39_EFEE/edit")
+SALES_SHEET_URL = os.environ.get("SALES_SHEET_URL", "https://docs.google.com/spreadsheets/d/1UcWpDpXo1vl0qIFN-JxBDoj6tF9pS-oM9jbWYOkK3eQ/edit")
 # Owner, 2026-10-06: received / answered / closed / awaiting / FRT come from the engine's dayStats (computed from the
 # conversations: our screen, Dondy directly, Gmail directly, bots, templates). The screen's own log is only "on-screen
 # activity" (work time, AHT, hours). Read in the background, cached on disk; a running day is re-read every DS_TTL_S.

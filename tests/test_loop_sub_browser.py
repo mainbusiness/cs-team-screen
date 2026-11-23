@@ -284,3 +284,82 @@ def test_english_desk_pause_and_cancel_dialogs(srv):
         assert pg.inner_text("[data-test=subx-go]") == "Cancel anyway"
         assert not errors, errors
         browser.close()
+
+
+@pytest.mark.parametrize("width", [1280, 390])
+def test_postpone_the_next_delivery_by_loops_own_options_verified_and_kept_on_the_ticket(srv, width):
+    """Owner, 2026-11-23 (rozela on Loop): "אי אפשר לדחות מנוי ... בכפתור במערכת". The "⏭ לדחות משלוח" button next to pause: 7 / 15 / 30 / 45 / 60 days
+    (Loop's own delay options), no default, the current and the new date shown, the verdict read back and kept on the ticket."""
+    base, pwd = srv
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd, width=width)
+        sent = _spy(pg, "apiSubPostpone")
+        pg.goto(base + RONIT)
+        btn = pg.locator("[data-test=draft-card] [data-test=subd-btn]")
+        btn.wait_for()
+        assert btn.inner_text() == "⏭ לדחות משלוח" and btn.is_enabled()
+        btn.click()
+        pg.locator("[data-test=subp-q]").wait_for()
+        assert "לדחות את המשלוח הבא של רונית אברהם?" in pg.inner_text("[data-test=subp-q]")
+        opts = pg.locator("[data-test=subd-d]")
+        assert [opts.nth(i).inner_text() for i in range(opts.count())] == ["7 ימים", "15 ימים", "30 ימים", "45 ימים", "60 ימים"]
+        assert not any(pg.locator("[data-test=subd-d] input").nth(i).is_checked() for i in range(5)), "no preselected length"
+        go = pg.locator("[data-test=subp-go]")
+        assert go.is_disabled() and go.inner_text() == "כן, לדחות את המשלוח"
+        assert "החיוב והמשלוח הבא כרגע: 10.2.27" in pg.inner_text("[data-test=subd-dates]")
+        opts.nth(2).click()
+        assert "אחרי הדחייה: 12.3.27" in pg.inner_text("[data-test=subd-dates]")
+        assert _no_sideways(pg) == {"page": True, "dlg": True}
+        go.click()
+        ok = pg.locator("[data-test=subd-ok]")
+        ok.wait_for()
+        assert re.search(r"המשלוח הבא נדחה ב-30 ימים, ל-12\.3\.27 — אומת \d{1,2}:\d{2}", ok.inner_text()), ok.inner_text()
+        assert len(sent) == 1 and sent[0]["args"]["days"] == "30" and re.match(r"^loop-\d{8}$", sent[0]["args"]["contractId"]), sent
+        pg.wait_for_load_state("networkidle")
+        pg.reload()
+        pg.locator("[data-test=subd-ok]").wait_for()
+        assert pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+        assert not errors, errors
+        browser.close()
+
+
+def test_postpone_failure_is_red_with_the_manual_line_and_a_paused_subscription_has_nothing_to_postpone(srv):
+    base, pwd = srv
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd)
+        pg.route("**/api/rozela/apiSubPostpone", lambda route: route.fulfill(content_type="application/json", body=json.dumps(
+            {"ok": False, "verified": False, "error": "not_postponed", "msg": "הודעת-בדיקה-ייחודית", "contractId": json.loads(route.request.post_data)["args"]["contractId"],
+             "record": {"op": "postpone", "state": "failed", "reason": "Loop answered 400: newBillingDateEpoch is required", "provider": "loop"}})))
+        pg.goto(base + RONIT)
+        pg.click("[data-test=subd-btn]")
+        pg.locator("[data-test=subd-d]").nth(0).click()
+        pg.click("[data-test=subp-go]")
+        fail = pg.locator("#subx-dlg [data-test=subd-fail]")
+        fail.wait_for()
+        assert "המשלוח לא נדחה" in fail.inner_text() and "לדחות ידנית ב-Loop" in fail.inner_text() and "הודעת-בדיקה-ייחודית" in fail.inner_text()
+        assert pg.locator("[data-test=subp-go]").is_hidden()
+        pg.keyboard.press("Escape")
+        # pause it, then the postpone dialog says there is nothing to postpone and offers no button
+        pg.click("[data-test=subp-btn]")
+        pg.locator("[data-test=subp-w]").nth(0).click()
+        pg.click("[data-test=subp-go]")
+        pg.locator("[data-test=subp-ok]").first.wait_for()
+        pg.click("[data-test=subd-btn]")
+        pg.locator("[data-test=subd-paused]").wait_for()
+        assert pg.locator("[data-test=subd-days]").is_hidden() and pg.locator("[data-test=subp-go]").is_hidden()
+        assert not errors, errors
+        browser.close()
+
+
+def test_kaching_brand_has_no_loop_postpone_button():
+    base, pwd, proc = start(users=(("agent1", ["agent"], ["rozela"], "he"),))
+    try:
+        with pw.sync_playwright() as p:
+            browser, pg, errors = _login(p, base, pwd)
+            pg.goto(base + RONIT)
+            pg.locator("[data-test=draft-card]").wait_for()
+            pg.wait_for_load_state("networkidle")
+            assert pg.locator("[data-test=subd-btn]").count() == 0
+            browser.close()
+    finally:
+        proc.terminate()

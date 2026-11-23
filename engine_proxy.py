@@ -71,6 +71,7 @@ FN_TABLE = {
     "apiSubPausePreview": (WORK_ROLES, ("id",)),
     "apiSubPause": (WORK_ROLES, ("id", "contractId", "weeks")),
     "apiSubResume": (WORK_ROLES, ("id", "contractId")),
+    "apiSubPostpone": (WORK_ROLES, ("id", "contractId", "days")),   # Loop: "⏭ לדחות משלוח" (the owner 2026-11-23)
     # "קישור לקוח" (2026-10-20): the order number / email the customer gave -> the ticket; unlink removes it. The engine reads the store live.
     "apiLinkCustomer": (WORK_ROLES, ("id", "q", "unlink")),
     # "מיזוג פניות" (the CS team, 2026-10-31): email ticket `from` is merged INTO ticket `id` (engine Jobs.gs mergeTickets_)
@@ -508,10 +509,12 @@ def clean_args(fn, args, table=None):
         raise ProxyError("bad_request", 400)
     if fn in ("apiSubCancelPreview", "apiSubCancel") and (len(out.get("contractId", "")) > 200 or len(out.get("draft", "")) > 8000):
         raise ProxyError("bad_request", 400)
-    if fn in ("apiSubPausePreview", "apiSubPause", "apiSubResume") and len(out.get("contractId", "")) > 200:
+    if fn in ("apiSubPausePreview", "apiSubPause", "apiSubResume", "apiSubPostpone") and len(out.get("contractId", "")) > 200:
         raise ProxyError("bad_request", 400)
     if fn == "apiSubPause" and out.get("weeks") not in ("2", "4", "6", "8"):
         raise ProxyError("bad_request", 400)       # never an open-ended pause: the engine says the same
+    if fn == "apiSubPostpone" and out.get("days") not in ("7", "15", "30", "45", "60"):
+        raise ProxyError("bad_request", 400)       # only Loop's own delay options: the engine says the same
     if fn in SALE_WRITE_FNS:
         # Sales log (Sales.gs): short fields only; the engine validates the shapes again
         if (len(out.get("orderNo", "")) > 20 or len(out.get("note", "")) > 300 or len(out.get("agent", "")) > 60 or len(out.get("id", "")) > 80
@@ -662,6 +665,7 @@ SCHEMAS = {
     # never "paused" / "resumed" without the read-back verdict for THIS contract
     "apiSubPause": lambda r, a: isinstance(r.get("verified"), bool) and r.get("contractId") == a.get("contractId"),
     "apiSubResume": lambda r, a: isinstance(r.get("verified"), bool) and r.get("contractId") == a.get("contractId"),
+    "apiSubPostpone": lambda r, a: isinstance(r.get("verified"), bool) and r.get("contractId") == a.get("contractId"),
     "apiLinkCustomer": lambda r, a: r.get("id") == a.get("id") and "linked" in r and isinstance(r.get("extras"), dict),
     "apiMergeTickets": lambda r, a: r.get("id") == a.get("id") and r.get("from") == a.get("from") and isinstance(r.get("threads"), int),
     # never "cancelled" without the read-back verdict for THIS contract

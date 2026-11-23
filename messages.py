@@ -147,6 +147,8 @@ ENGINE = {
     "loop_unavailable": ("אין חיבור ל-Loop כרגע. נסו שוב בעוד רגע.", "Cannot reach Loop right now. Try again shortly."),
     "bad_weeks": ("ההשהיה היא תמיד לתקופה מוגדרת: שבועיים, 4, 6 או 8 שבועות.", "A pause is always for a set period: 2, 4, 6 or 8 weeks."),
     "not_paused": ("המנוי לא הושהה. להשהות ידנית ב-Loop.", "The subscription was NOT paused. Pause it manually in Loop."),
+    "bad_days": ("הדחייה היא רק ל-7, 15, 30, 45 או 60 יום (האפשרויות של Loop).", "A postponement is 7, 15, 30, 45 or 60 days only (Loop's options)."),
+    "not_postponed": ("המשלוח לא נדחה. לדחות ידנית ב-Loop.", "The delivery was NOT postponed. Postpone it manually in Loop."),
     "not_resumed": ("המנוי לא הוחזר לפעילות. להחזיר ידנית ב-Loop.", "The subscription was NOT resumed. Resume it manually in Loop."),
     "shopify_unavailable": ("אין חיבור לחנות כרגע (רשימת המוצרים). נסו שוב בעוד רגע.", "Cannot reach the store right now (product list). Try again shortly."),
     "unauthorized": ("המנוע סירב להרשאה (פג תוקף, תפקיד או מותג לא תואם). רעננו את הדף.",
