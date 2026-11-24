@@ -363,3 +363,68 @@ def test_kaching_brand_has_no_loop_postpone_button():
             browser.close()
     finally:
         proc.terminate()
+
+
+def _patch_ticket(pg, tid, category=None, subs=None):
+    """The ticket answer as served, with a category / a subscriptions list put in (what a real rozela ticket looked like on 2026-11-24)."""
+    def handler(route):
+        r = route.fetch()
+        j = r.json()
+        if j.get("ticket", {}).get("id") == tid:
+            if category is not None:
+                j["ticket"]["category"] = category
+                j["ticket"]["action"] = ""
+            if subs is not None:
+                j.setdefault("extras", {})["subscriptions"] = subs
+        route.fulfill(response=r, body=json.dumps(j))
+    pg.route("**/api/rozela/ticket", handler)
+
+
+@pytest.mark.parametrize("width", [1280, 390])
+def test_billing_ticket_i_did_not_order_gets_the_cancel_button_and_the_dialog_opens(srv, width):
+    """the owner 2026-11-24: "the button does not appear in some tickets" - live: "I did not order, stop charging me" filed as billing / refund had no button."""
+    base, pwd = srv
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd, width=width)
+        pg.goto(base + "/cs#/b/rozela/t/t18f2a04")          # a return_refund ticket in the mock (its action is not "cancel:")
+        btn = pg.locator("[data-test=draft-card] [data-test=subx-btn]")
+        btn.wait_for(timeout=15000)
+        assert btn.is_enabled()
+        btn.click()
+        pg.wait_for_selector("#subx-dlg [data-test=subx-q], #subx-dlg [data-test=subx-none], #subx-dlg [data-test=subx-noemail], #subx-dlg [data-test=subx-ended], #subx-dlg [data-test=subx-dlg-err]", timeout=15000)
+        assert not pg.locator("#subx-dlg [data-test=subx-dlg-err]").count(), pg.inner_text("#subx-dlg")
+        assert pg.locator("#subx-dlg [data-test=subx-q], #subx-dlg [data-test=subx-ended], #subx-dlg [data-test=subx-none]").count(), pg.inner_text("#subx-dlg")
+        _no_sideways(pg)
+        assert not errors, errors
+        browser.close()
+
+
+def test_shipping_ticket_still_has_no_cancel_button(srv):
+    base, pwd = srv
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd, width=1280)
+        _patch_ticket(pg, "t18f2a02", category="shipping")
+        pg.goto(base + RONIT)
+        pg.wait_for_selector("[data-test=draft-card]", timeout=15000)
+        pg.wait_for_timeout(800)
+        assert pg.locator("[data-test=draft-card] [data-test=subx-btn]").count() == 0
+        browser.close()
+
+
+def test_loop_subscription_in_the_panel_is_shown_live_without_the_kaching_action_buttons(srv):
+    """A Loop row in the subscriptions panel: status + note, never Kaching's manage / pause / cancel (they would call Kaching with a Loop id)."""
+    base, pwd = srv
+    loop = {"id": "loop-48597382", "provider": "loop", "status": "ACTIVE", "every": {"interval": "MONTH", "count": 1}, "createdAt": "2026-11-01T10:00:00Z",
+            "nextBillingDate": "2026-12-01T10:00:00Z", "lines": [{"title": "פורמולת הסלק של רוזלה", "quantity": 2}]}
+    with pw.sync_playwright() as p:
+        browser, pg, errors = _login(p, base, pwd, width=1280)
+        _patch_ticket(pg, "t18f2a02", subs=[loop])
+        pg.goto(base + RONIT)
+        note = pg.locator("[data-test=sub-loop-note]")
+        note.wait_for(timeout=15000)
+        card = pg.locator("#subs-card")
+        assert "פורמולת הסלק" in card.inner_text() and "48597382" in card.inner_text()
+        assert card.locator("[data-test=manage-sub]").count() == 0 and card.locator("[data-test=sub-pause]").count() == 0
+        assert "null" not in card.inner_text() and "[object Object]" not in card.inner_text()
+        assert not errors, errors
+        browser.close()

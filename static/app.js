@@ -143,6 +143,7 @@
       mg_w_qty: 'כמות {q}', mg_w_swap: 'החלפה ל{p}', mg_w_price: 'מחיר {pr} ליחידה',
       // pause for a period / postpone to a date (Owner, 2026-11-01)
       sub_pause_btn: '⏸ השהיית מנוי', sub_postpone_btn: '⏭ דחיית משלוח',
+      sub_loop_note: 'מנוי {p}: ביטול (והשהיה / דחייה ב-Loop) בכפתורים שמתחת לתשובה.',
       sub_paused_note: 'המנוי מושהה בלי תאריך חזרה. כדי להשהות לתקופה או לדחות משלוח: קודם «חידוש מנוי» בניהול המנוי.',
       pp_title_pause_until: '⏸ השהיית מנוי לתקופה', pp_title_postpone: '⏭ דחיית המשלוח הבא',
       pp_next_cur: 'המשלוח הבא כרגע: {d}', pp_for_pause: 'לכמה זמן להשהות?', pp_for_postpone: 'בכמה לדחות?',
@@ -178,7 +179,7 @@
       sx_btn: 'לבטל את המנוי', sx_off_token: 'אין חיבור לקאצ\'ינג במותג הזה — לבטל ידנית ב-Kaching.',
       sx_off_frozen: 'ביטולים מוקפאים כרגע במערכת — לבטל ידנית ב-Kaching.', sx_off_writes: 'ביטולים כבויים במערכת — לבטל ידנית ב-Kaching.', sx_off_reign: 'ביטולי Phoenix כבויים במערכת — לבטל ידנית ב-Reign.',
       sx_checking: 'בודק את המנויים של {name}…', sx_q_one: 'בטוח/ה שרוצה לבטל את המנוי של {name}?', sx_q_many: 'ל{name} יש {n} מנויים פעילים. איזה לבטל?',
-      sx_none: 'לא נמצא בקאצ\'ינג מנוי למייל {email}. אם הלקוח הזמין עם מייל או טלפון אחר, לבקש ממנו את מספר ההזמנה או את המייל של ההזמנה ולקשר כאן:',
+      sx_none: 'לא נמצא מנוי למייל {email}. אם הלקוח הזמין עם מייל או טלפון אחר, לבקש ממנו את מספר ההזמנה או את המייל של ההזמנה ולקשר כאן:',
       sx_ended: '✅ המנוי של {name} כבר מבוטל בקאצ\'ינג (נבדק עכשיו, {t}). אין מה לבטל שוב.', sx_ended_loop: '✅ המנוי של {name} כבר מבוטל ב-Loop (נבדק עכשיו, {t}). אין מה לבטל שוב.',
       sx_noemail: 'לא מזוהה מייל של הזמנה ללקוח הזה (למשל: בפנייה יש רק טלפון שלא תואם להזמנה), אז אי אפשר למצוא את המנוי. לבקש מהלקוח את מספר ההזמנה או את המייל שאיתו הזמין, ולקשר כאן:',
       lk_ph: 'מספר הזמנה (#12057) או מייל שהלקוח מסר', lk_go: 'מצא וקשר', lk_working: 'מחפש בחנות…', lk_ok: '🔗 מקושר ללקוח {email}',
@@ -482,6 +483,7 @@
       mg_do_update_line: 'Change “{p}”: {what}.', mg_do_remove_line: 'Remove “{p}” from the subscription.',
       mg_w_qty: 'quantity {q}', mg_w_swap: 'swap to {p}', mg_w_price: 'price {pr} each',
       sub_pause_btn: '⏸ Pause subscription', sub_postpone_btn: '⏭ Postpone delivery',
+      sub_loop_note: '{p} subscription: cancel (and pause / postpone in Loop) with the buttons under the reply.',
       sub_paused_note: 'Paused with no return date. To pause for a period or postpone a delivery: first "Resume" in Manage subscription.',
       pp_title_pause_until: '⏸ Pause the subscription for a period', pp_title_postpone: '⏭ Postpone the next delivery',
       pp_next_cur: 'Next delivery now: {d}', pp_for_pause: 'Pause for how long?', pp_for_postpone: 'Postpone by how much?',
@@ -516,7 +518,7 @@
       sx_btn: 'Cancel the subscription', sx_off_token: 'This brand has no Kaching connection — cancel it manually in Kaching.',
       sx_off_frozen: 'Cancellations are frozen right now — cancel it manually in Kaching.', sx_off_writes: 'Cancellations are switched off — cancel it manually in Kaching.', sx_off_reign: 'Phoenix cancellations are switched off — cancel it manually in Reign.',
       sx_checking: "Checking {name}'s subscriptions…", sx_q_one: "Are you sure you want to cancel {name}'s subscription?", sx_q_many: '{name} has {n} active subscriptions. Which one to cancel?',
-      sx_none: 'No subscription in Kaching for {email}. If the customer ordered with another email or phone, ask them for the order number or the email of the order, and link it here:',
+      sx_none: 'No subscription found for {email}. If the customer ordered with another email or phone, ask them for the order number or the email of the order, and link it here:',
       sx_ended: "✅ {name}'s subscription is already cancelled in Kaching (checked just now, {t}). Nothing to cancel again.", sx_ended_loop: "✅ {name}'s subscription is already cancelled in Loop (checked just now, {t}). Nothing to cancel again.",
       sx_noemail: "This customer has no known order email (e.g. the ticket only has a phone that does not match an order), so the subscription cannot be found. Ask the customer for the order number or the email they ordered with, and link it here:",
       lk_ph: 'Order number (#12057) or email the customer gave', lk_go: 'Find and link', lk_working: 'Searching the store…', lk_ok: '🔗 Linked to customer {email}',
@@ -2272,7 +2274,8 @@
   function statusChip(st) { return h('span', { class: 'chip st-' + String(st || '').replace(/[^a-z_]/g, ''), text: label('st_', st, 'st_unknown') }); }
 
   const ACTION_HE = [
-    [/^cancel: contract lookup failed/i, 'הלקוח מבקש לבטל מנוי, אבל בדיקת המנויים נכשלה — לבדוק בקצ׳ינג ידנית.'],
+    [/^cancel: contract lookup failed/i, 'הלקוח מבקש לבטל מנוי, אבל בדיקת המנויים נכשלה — לבדוק ידנית במערכת המנויים.'],
+    [/^cancel: no active contract, already cancelled/i, 'הלקוח מבקש לבטל מנוי — בבדיקה כל המנויים שלו כבר מבוטלים. לפתוח "לבטל את המנוי" כדי לבדוק שוב לפני שכותבים לו.'],
     [/^cancel: no active contract found/i, 'הלקוח מבקש לבטל מנוי, אבל לא נמצא מנוי פעיל במייל הזה — אולי מייל אחר.'],
     [/^cancel: /i, 'הלקוח מבקש לבטל מנוי — הביטול נעשה בכפתור בפאנל המנויים.'],
     [/^health/i, 'נושא בריאותי — תשובה של אדם בלבד.'],
@@ -3685,7 +3688,9 @@
           h('dt', { text: t('sub_since') }), h('dd', { text: fmtDate(s.createdAt) }),
           s.lastPaymentStatus ? h('dt', { text: t('sub_lastpay') }) : null, s.lastPaymentStatus ? h('dd', { text: payText(s.lastPaymentStatus) }) : null,
           h('dt', { text: t('sub_id') }), h('dd', null, h('bdi', { class: 'ltr', text: contractNum(s.id) }))));
-      if (canWork()) {
+      const ext = s.provider === 'loop' || s.provider === 'reign';   // not Kaching (2026-11-24): Kaching's actions below would call Kaching with a Loop / Phoenix id
+      if (ext) card.append(h('div', { class: 'muted small', 'data-test': 'sub-loop-note', text: t('sub_loop_note', { p: s.provider === 'loop' ? 'Loop' : 'Phoenix' }) }));
+      if (canWork() && !ext) {        // a Loop subscription (2026-11-24): the Kaching actions below cannot touch it; Loop has the buttons under the reply
         // Owner, 2026-10-14: every Kaching action (pause, resume, skip, date, products, discount, reactivate) from here
         // Owner, 2026-11-01: pause FOR A PERIOD and postpone TO A DATE, next to the cancel (a freeze is always a set date, never an open pause)
         const plannable = s.status === 'ACTIVE' || s.status === 'FAILED';
@@ -3785,8 +3790,10 @@
       const ta = card && card.querySelector('textarea');
       return ta ? ta.value : '';
     }
+    // = engine Api.gs subCancelAsked_ (2026-11-24): billing / refund / complaint / legal tickets ("I did not order / stop charging me") and a threat too
     function asked(x, draft) {
       return /^cancel:/i.test(String(x.action || '')) || String(x.category || '') === 'cancel_subscription'
+        || ['billing', 'return_refund', 'legal', 'complaint'].indexOf(String(x.category || '')) >= 0 || /(?:^|\|\s*)threat:/.test(String(x.action || ''))
         || CLAIM_RE.test(String(x.draft_text || '')) || CLAIM_RE.test(String(draft || ''));
     }
     function itemsText(items) { return (items || []).map(function (l) { return (l.quantity > 1 ? l.quantity + ' × ' : '') + l.title; }).join(', '); }

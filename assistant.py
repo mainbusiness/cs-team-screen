@@ -262,9 +262,15 @@ def persona_style(brand):
     return out
 
 
+def id_re(token):
+    """One identifier as a whole token. Hebrew glues a prefix letter to it with a hyphen (ב-LP0012..., ל-RZ-1023): that hyphen
+    is not part of the id (Owner, 2026-11-24: 33 English-desk replies refused as "identifiers" because ב-<tracking> counted 0)."""
+    return re.compile(r"(?<![A-Za-z0-9_])(?<![A-Za-z0-9_]-)" + re.escape(token) + r"(?![A-Za-z0-9_-])")
+
+
 def delivery_without_ids(text, ids):
     for token in sorted(ids, key=len, reverse=True):
-        text = re.sub(r"(?<![A-Za-z0-9_-])" + re.escape(token) + r"(?![A-Za-z0-9_-])", "", text)
+        text = id_re(token).sub("", text)
     return text
 
 
@@ -1245,9 +1251,8 @@ def register(app, d):
                     left = [w for w in latin_residue(bare, brand) if w.lower() not in allowed]
                     blocked[:] = left[:10]
                     r.append("latin:" + ",".join(left[:6]) if left else "no_hebrew")
-                if not all(len(re.findall(r"(?<![A-Za-z0-9_-])" + re.escape(token) + r"(?![A-Za-z0-9_-])", value))
-                           == len(re.findall(r"(?<![A-Za-z0-9_-])" + re.escape(token) + r"(?![A-Za-z0-9_-])", text))
-                           for token in source_ids):
+                # every id of the source is kept (a repeated tracking number is harmless; a dropped or altered one is not)
+                if not all(len(id_re(token).findall(value)) >= len(id_re(token).findall(text)) for token in source_ids):
                     r.append("identifiers")
                 got = delivery_numbers(value)
                 if got != source_numbers:

@@ -23,6 +23,7 @@ import time
 from urllib.parse import urlparse
 
 import requests
+import requests.adapters
 
 import messages
 import security
@@ -537,9 +538,20 @@ def clean_args(fn, args, table=None):
     return out
 
 
+def pooled_session():
+    """16 gunicorn threads + prefetch/hedged calls share one Session; requests' default pool keeps 10 connections per host, so the
+    rest were opened and thrown away on every call ("Connection pool is full, discarding connection: cs-core", 2,117 times in
+    7 days, the owner 2026-11-24): a new TLS handshake per engine call. Keep up to 48 alive."""
+    s = requests.Session()
+    adapter = requests.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=48)
+    s.mount("https://", adapter)
+    s.mount("http://", adapter)
+    return s
+
+
 def http_transport(session=None):
     """Real engine call: POST, follow Apps Script's 302 to googleusercontent (requests turns it into GET)."""
-    s = session or requests.Session()
+    s = session or pooled_session()
 
     def call(url, body, timeout=None):
         try:

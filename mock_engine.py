@@ -894,6 +894,8 @@ class MockEngines:
             return None, {"ok": False, "error": "not_found"}
         draft = a.get("draft") if isinstance(a.get("draft"), str) else ""
         asked = (str(t.get("action", "")).startswith("cancel:") or t.get("category") == "cancel_subscription"
+                 or t.get("category") in ("billing", "return_refund", "legal", "complaint")          # = engine subCancelAsked_ (2026-11-24)
+                 or bool(re.search(r"(?:^|\|\s*)threat:", str(t.get("action", ""))))
                  or bool(self.SUB_CLAIM_RE.search(t.get("draft_text") or "")) or bool(self.SUB_CLAIM_RE.search(draft)))
         if not asked:
             return None, {"ok": False, "error": "not_cancel_request"}
