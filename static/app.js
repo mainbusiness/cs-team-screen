@@ -7385,14 +7385,15 @@
     function fill(s, brand) { return String(s).split('{track}').join(TRACK[brand] || '/pages/track').split('{mgr}').join(L.pb_manager); }
     function playbooks(x, brand) {
       const list = LANG === 'en' ? PB.en : PB.he, ret = LANG === 'en' ? PB.ren : PB.ret;
-      const isCancel = /^cancel:/i.test(String(x.action || '')) || String(x.category || '') === 'cancel_subscription';
+      const subsNone = noSubs(brand);                            // selera (no subscriptions, the owner 2026-11-24): no subscription-retention card at all
+      const isCancel = !subsNone && (/^cancel:/i.test(String(x.action || '')) || String(x.category || '') === 'cancel_subscription');
       const det = h('details', { class: 'card playbooks', 'data-test': 'playbooks', 'data-cancel': isCancel ? '1' : null, open: isCancel });
       det.append(h('summary', null, h('b', { text: '📋 ' + L.pb_title }), ' ', h('span', { class: 'muted small', text: L.pb_sub })));
       const ul = function (lines) { return h('ul', { class: 'pb-lines' }, lines.map(function (l) { return h('li', { dir: 'auto', text: fill(l, brand) }); })); };
       const retCard = h('div', { class: 'pb-item pb-ret' + (isCancel ? ' hot' : ''), 'data-test': 'pb-retention' }, h('h4', { text: ret.t }), isCancel ? h('div', { class: 'muted small', text: L.pb_open_hint }) : null, ul(ret.lines));
       if (isCancel) det.append(retCard);
       list.forEach(function (p) { det.append(h('div', { class: 'pb-item', 'data-test': 'pb-' + p.k }, h('h4', { text: p.t }), ul(p.lines))); });
-      if (!isCancel) det.append(retCard);
+      if (!isCancel && !subsNone) det.append(retCard);
       return det;
     }
     return { banner: banner, section: section, start: start, load: load, playbooks: playbooks, setDash: setDash };
@@ -9056,7 +9057,7 @@
       else S.settings[brand] = { values: cur.values || null, err: r.msg || r.error, refusal: cur.refusal };
       if (S.view === 'settings' && S.brand === brand) render();
     }
-    function show() { $('settings-pane').hidden = false; render(); load(S.brand); if (!S.boots[S.brand]) loadBoot(S.brand); }
+    function show() { $('settings-pane').hidden = false; render(); load(S.brand); if (!S.boots[S.brand]) loadBoot(S.brand).then(function () { if (S.view === 'settings') render(); }); }   // re-render once the boot says whether the brand has subscriptions
     function render() {
       const p = $('settings-pane');
       clear(p);
@@ -9069,6 +9070,7 @@
       if (!st || !st.values) { p.append(h('div', { class: 'skeleton' }), h('div', { class: 'skeleton' })); return; }
       KEYS.forEach(function (kv) {
         const k = kv[0];
+        if ((k === 'KACHING_WRITES' || k === 'AUTO_CANCEL') && noSubs(brand)) return;   // selera (no subscriptions, the owner 2026-11-24): no subscription-cancel switch offered
         const cur = norm(k, st.values[k]);
         const seg = h('div', { class: 'seg', role: 'group', 'aria-label': t('set_' + k) });
         kv[1].forEach(function (v) {
