@@ -172,3 +172,59 @@ def test_english_desk(server):
         assert card.locator("[data-test=sysreq-send]").inner_text() == "Send"
         assert pg.evaluate("document.documentElement.scrollWidth <= innerWidth")
         browser.close()
+
+
+@pytest.mark.parametrize("width", [1280, 390])
+def test_data_request_toggle_chip_and_a_long_answer_with_line_breaks(server, width):
+    """2026-11-25: the type toggle (change | data) at the top of the card, the kind chip in the list, a data answer > 1000 characters."""
+    base, pwd, path = server
+    with pw.sync_playwright() as p:
+        browser, pg, errors = login(p, base, pwd, "admin1", width=width)
+        open_board(pg, base)
+        card = pg.locator("[data-test=sysreq]")
+        assert card.get_attribute("data-kind") == "change"                       # the default stays the existing behaviour
+        assert pg.get_attribute("[data-test=sysreq-k-change]", "aria-pressed") == "true"
+        assert "לשנות משהו במערכת" in pg.inner_text("[data-test=sysreq-k-change]") and "לבקש נתונים" in pg.inner_text("[data-test=sysreq-k-data]")
+        pg.click("[data-test=sysreq-k-data]")
+        assert card.get_attribute("data-kind") == "data" and pg.get_attribute("[data-test=sysreq-k-data]", "aria-pressed") == "true"
+        assert "נתון או פילוח" in pg.inner_text("[data-test=sysreq-help]")
+        assert "הנחת 50% ונשארו" in pg.get_attribute("[data-test=sysreq-text-input]", "placeholder")
+        q = "כמה ביטולי מנוי ברוזלה ב-7 הימים האחרונים קיבלו הנחת 50% ונשארו? (" + str(width) + ")"
+        pg.fill("[data-test=sysreq-text-input]", q)
+        assert pg.inner_text("[data-test=sysreq-send]") == "שליחת הבקשה"
+        pg.click("[data-test=sysreq-send]")
+        assert until(lambda: "התשובה תופיע כאן" in pg.inner_text("[data-test=sysreq-status]"))
+        item = pg.locator("[data-test=sysreq-item]", has_text=q)
+        item.wait_for()
+        assert item.locator("[data-test=sysreq-kind]").get_attribute("data-kind") == "data" and "📊 נתונים" in item.inner_text()
+        rid_id = int(item.get_attribute("data-id"))
+        stored = json.load(open(path))["items"][str(rid_id)]
+        assert stored["kind"] == "data"
+        # the kind stays after a send (she may ask several in a row); a change request still shows its own chip
+        assert card.get_attribute("data-kind") == "data"
+        answer = "\n".join(["%d. ביטולים: 12 · קיבלו 50%%: 7 · נשארו: 5 (מקור: יומן הביטולים, 18.11–24.11)" % i for i in range(1, 25)])
+        assert 1000 < len(answer) <= sysreq.REPLY_MAX_DATA
+        assert hq_decide(base, rid_id, "done", answer)["ok"]
+        pg.reload()
+        open_board(pg, base)
+        rep = pg.locator("[data-test=sysreq-item][data-id='%d'] [data-test=sysreq-reply]" % rid_id)
+        rep.wait_for()
+        txt = rep.inner_text()
+        assert txt.count("\n") >= 20 and "24. ביטולים" in txt                   # every line of the answer, on its own line
+        assert pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
+        assert not [e for e in errors if "favicon" not in e], errors
+        browser.close()
+
+
+def test_english_kind_strings(server):
+    base, pwd, path = server
+    with pw.sync_playwright() as p:
+        browser, pg, errors = login(p, base, pwd, "admin2", en=True)
+        open_board(pg, base, en=True)
+        assert "Change something in the system" in pg.inner_text("[data-test=sysreq-k-change]")
+        pg.click("[data-test=sysreq-k-data]")
+        assert "numbers only" in pg.inner_text("[data-test=sysreq-help]")
+        for ch in pg.locator("[data-test=sysreq-kind]").all():
+            assert ch.inner_text() in ("📊 Data", "🛠️ Change")
+        assert not [e for e in errors if "favicon" not in e], errors
+        browser.close()

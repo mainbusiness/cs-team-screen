@@ -249,6 +249,16 @@ def fmt_minutes(m):
     return ("%.1f" % (m / 60.0)).rstrip("0").rstrip(".") + " שעות"
 
 
+def _no_owner(d):
+    """The per-person counts without the owner accounts (team_screen/owners.py, 2026-11-25); the brand totals keep them."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import owners
+    except Exception:  # noqa: BLE001 — the summary never fails on this
+        return d or {}
+    return owners.drop(d)
+
+
 def _top(d, n=4):
     items = sorted((d or {}).items(), key=lambda kv: -kv[1])[:n]
     return ", ".join("%s %d" % (k, v) for k, v in items)
@@ -278,7 +288,7 @@ def compose_weekly(stats, local, days=7):
             continue
         rc, sent, fr, op = s.get("received") or {}, s.get("sent") or {}, s.get("firstResponse") or {}, s.get("open") or {}
         lines.append("התקבלו: %d מיילים · %d וואטסאפ" % (rc.get("email", 0), rc.get("whatsapp", 0)))
-        by = _top(sent.get("byAgent"), 6)
+        by = _top(_no_owner(sent.get("byAgent")), 6)
         lines.append("נשלחו: %d ידנית%s · %d תשובות אוטומטיות · %d ביטולים אוטומטיים" % (sent.get("human", 0), " (%s)" % by if by else "", sent.get("auto_reply", 0), sent.get("auto_cancel", 0)))
         if fr.get("n"):
             lines.append("זמן מענה ראשון: חציון %s · 90%% עד %s (על %d פניות)" % (fmt_minutes(fr.get("medianMin")), fmt_minutes(fr.get("p90Min")), fr["n"]))

@@ -43,6 +43,7 @@ from flask import jsonify, request
 
 import dashboard
 import messages
+import owners
 
 PER_GROUP = 3                 # items per agent per brand
 MAX_PER_AGENT = 9
@@ -453,7 +454,8 @@ def register(app, d):
     def roster():
         all_ = users.all()
         names = {u["username"]: u.get("display_name") or u["username"] for u in all_}
-        agents = {u["username"] for u in all_ if "agent" in (u.get("roles") or []) and not dashboard.is_test_user(u["username"])}
+        agents = {u["username"] for u in all_ if "agent" in (u.get("roles") or []) and not dashboard.is_test_user(u["username"])
+                  and not owners.is_hidden(u["username"])}      # an owner account is never a sampled / per-agent row
         return names, agents
 
     def manager_or_err():

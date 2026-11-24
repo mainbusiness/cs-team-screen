@@ -39,6 +39,7 @@ from flask import g, jsonify, request
 
 import engine_proxy
 import messages
+import owners
 import security
 
 BRAND_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,29}$")
@@ -1040,10 +1041,12 @@ def register(app, d):
         now, me = time.time(), u.get("username") or ""
         with presence_lock:
             room = presence.setdefault((brand, tid), {})
-            was = room.get(me) or {}
-            room[me] = {"at": now, "ed": now if editing else 0.0, "name": (u.get("display_name") or me)[:60]}   # the client says "typed in the last 30 s"
+            if owners.is_hidden(me):                  # an owner account sees who is here, and is never shown to anyone (owners.py)
+                room.pop(me, None)
+            else:
+                room[me] = {"at": now, "ed": now if editing else 0.0, "name": (u.get("display_name") or me)[:60]}   # the client says "typed in the last 30 s"
             others = [{"user": k, "name": v["name"], "editing": now - v["ed"] < PRESENCE_EDIT_S}
-                      for k, v in sorted(room.items()) if k != me and now - v["at"] < PRESENCE_SEEN_S]
+                      for k, v in sorted(room.items()) if k != me and now - v["at"] < PRESENCE_SEEN_S and not owners.is_hidden(k)]
             if len(presence) > 3000:                 # forget rooms nobody looked at for a minute
                 for key in [k for k, r in presence.items() if all(now - v["at"] > 60 for v in r.values())]:
                     presence.pop(key, None)

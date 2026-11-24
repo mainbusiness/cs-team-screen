@@ -44,6 +44,7 @@ import sla
 import snooze
 import sysreq
 import notice
+import owners
 import quality
 from zipfix import routes as zipfix_routes
 from users_store import ROLES, PgUserStore, UserStore, UserStoreError, public_user
@@ -467,7 +468,7 @@ def create_app(overrides=None):
         except ValueError:
             erole = None
         return jsonify({
-            "ok": True, "user": public_user(u), "engine_role": erole,
+            "ok": True, "user": public_user(u, u["username"]), "engine_role": erole,
             "brands": [{"id": b, "connected": b in engines} for b in u.get("brands", [])],
             "can_manage_users": is_manager(u), "is_admin": "admin" in u.get("roles", []), "read_only": erole == "viewer",
             "valid_brands": valid_brands if is_manager(u) else [], "roles": list(ROLES),
@@ -607,14 +608,17 @@ def create_app(overrides=None):
         actor, err = manager()
         if err:
             return err
-        return jsonify({"ok": True, "users": [public_user(x) for x in store.all()], "valid_brands": valid_brands})
+        return jsonify({"ok": True, "users": [public_user(x, actor["username"]) for x in store.all()], "valid_brands": valid_brands})
 
     @app.get("/api/manage/audit")
     def users_audit():
         actor, err = manager()
         if err:
             return err
-        return jsonify({"ok": True, "lines": store.audit_tail(100)})
+        me = actor["username"]          # an owner account's lines (sign-ins, its own actions, changes to it) only to the owner himself
+        lines = [x for x in store.audit_tail(400) if isinstance(x, dict)          # audit() writes dicts only; anything else fails closed
+                 and (owners.is_hidden(me) or not owners.mentions(x))]             # the owner's name anywhere in the line (actor, target, detail)
+        return jsonify({"ok": True, "lines": lines[:100]})
 
     def store_error(e, lang):
         return jsonify({"ok": False, "error": e.code, "msg": messages.proxy_msg(e.code, lang)}), 400
@@ -635,10 +639,12 @@ def create_app(overrides=None):
                                {k: b.get(k) for k in ("display_name", "roles", "brands", "lang") if k in b}, valid_brands)
         except UserStoreError as e:
             return store_error(e, lang)
-        return jsonify({"ok": True, "user": public_user(rec), "temp_password": temp})
+        return jsonify({"ok": True, "user": public_user(rec, actor["username"]), "temp_password": temp})
 
     def guard_target(actor, target_name, all_users, new_roles=None, new_disabled=None):
         """Raises UserStoreError when the actor may not make this change."""
+        if not owners.may_change(actor["username"], target_name):     # an owner account: only the owner himself or an ops account
+            raise UserStoreError("owner_protected")
         target = all_users.get(target_name)
         actor_admin = "admin" in actor["roles"]
         if target and "admin" in target.get("roles", []) and not actor_admin:
@@ -678,11 +684,11 @@ def create_app(overrides=None):
         try:
             rec, changed = store.update(actor["username"], username, m, None, bump_sv=security_change)
         except UserStoreError as e:
-            code = 403 if e.code in ("only_admin_grants_admin", "self_lockout", "last_admin") else 400
+            code = 403 if e.code in ("only_admin_grants_admin", "self_lockout", "last_admin", "owner_protected") else 400
             return jsonify({"ok": False, "error": e.code, "msg": messages.proxy_msg(e.code, lang)}), code
         if changed:
             store.audit(actor["username"], "user_updated", username, changed_fields)
-        return jsonify({"ok": True, "user": public_user(rec), "changed": changed})
+        return jsonify({"ok": True, "user": public_user(rec, actor["username"]), "changed": changed})
 
     @app.post("/api/manage/users/<username>/reset")
     def users_reset(username):
@@ -700,9 +706,9 @@ def create_app(overrides=None):
         try:
             rec, _ = store.update(actor["username"], username, m, "password_reset", bump_sv=True)
         except UserStoreError as e:
-            code = 403 if e.code in ("only_admin_grants_admin", "self_lockout", "last_admin") else 400
+            code = 403 if e.code in ("only_admin_grants_admin", "self_lockout", "last_admin", "owner_protected") else 400
             return jsonify({"ok": False, "error": e.code, "msg": messages.proxy_msg(e.code, lang)}), code
-        return jsonify({"ok": True, "user": public_user(rec), "temp_password": temp})
+        return jsonify({"ok": True, "user": public_user(rec, actor["username"]), "temp_password": temp})
 
     tcache = o.get("TICKET_CACHE") or ticket_cache.TicketCache(
         o.get("TICKET_CACHE_DIR", os.environ.get("TICKET_CACHE_DIR", os.path.join(cache_base, "ticket-cache"))),

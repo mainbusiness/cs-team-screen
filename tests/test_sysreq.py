@@ -282,3 +282,84 @@ def test_csrf_exemption_is_exactly_the_two_machine_routes():
     assert m("/hq/sysreq") and m("/hq/sysreq/12")
     for p in ("/hq/sysreq-x", "/hq/sysreq/", "/hq/sysreq/12/x", "/hq/sysreqs", "/api/sysreq", "/hq/sysreq/abc"):
         assert not m(p), p
+
+
+# ---------------------------------------------------------------- kind: a system change | a data request (2026-11-25)
+
+def test_kind_round_trips_through_the_api_and_the_machine_api(app, admin):
+    c, tok = admin
+    r1 = post(c, tok, body(rid="a" * 32))                                           # no kind = a change (the old screen)
+    r2 = post(c, tok, body(rid="b" * 32, kind="data", text="כמה ביטולי מנוי ברוזלה ב-7 הימים האחרונים קיבלו הנחת 50% ונשארו?"))
+    assert r1.status_code == 200 and r1.get_json()["item"]["kind"] == "change"
+    assert r2.status_code == 200 and r2.get_json()["item"]["kind"] == "data"
+    lst = {x["id"]: x["kind"] for x in c.get("/api/sysreq").get_json()["items"]}
+    assert sorted(lst.values()) == ["change", "data"]
+    hq = {x["rid"]: x["kind"] for x in hq_get(app).get_json()["items"]}
+    assert hq == {"a" * 32: "change", "b" * 32: "data"}
+    assert '"kind": "data"' in audit_text(app)
+
+
+def test_a_bad_kind_is_refused_and_the_same_rid_with_another_kind_is_a_conflict(app, admin):
+    c, tok = admin
+    for bad in ("", "Data", "delete", 1, None, ["data"]):
+        r = post(c, tok, body(kind=bad))
+        assert r.status_code == 400 and r.get_json()["error"] == "sysreq_bad_kind", bad
+    assert post(c, tok, body(kind="change")).status_code == 200
+    assert post(c, tok, body(kind="change")).get_json()["replay"] is True
+    assert post(c, tok, body(kind="data")).get_json()["error"] == "sysreq_rid_conflict"
+
+
+def test_the_reply_cap_is_per_kind(app, admin):
+    c, tok = admin
+    ch = post(c, tok, body(rid="c" * 32)).get_json()["item"]["id"]
+    da = post(c, tok, body(rid="d" * 32, kind="data")).get_json()["item"]["id"]
+    assert hq_set(app, ch, "approved", "x" * (sysreq.REPLY_MAX + 1)).status_code == 400
+    assert hq_set(app, ch, "approved", "x" * sysreq.REPLY_MAX).status_code == 200
+    long = "\n".join(["שורה %d: 12 ביטולים, 7 נשארו" % i for i in range(120)])[:sysreq.REPLY_MAX_DATA]
+    assert len(long) > sysreq.REPLY_MAX
+    r = hq_set(app, da, "done", long)
+    assert r.status_code == 200 and r.get_json()["item"]["guy_reply"] == long
+    assert hq_set(app, da, "done", "x" * (sysreq.REPLY_MAX_DATA + 1)).status_code == 400
+
+
+def test_a_record_from_before_kinds_reads_as_a_change(tmp_path):
+    import json as _j
+    p = tmp_path / "sr.json"
+    p.write_text(_j.dumps({"seq": 1, "items": {"1": {"id": 1, "rid": "e" * 32, "created_at": 1.0, "updated_at": 1.0, "user": "manager",
+                                                       "brand": "all", "ticket": "", "text": TEXT, "status": "done", "guy_reply": "ok"}}}))
+    st = sysreq.SysReqStore(str(p))
+    assert sysreq.public(st.all()[0], {})["kind"] == "change"
+    rec, created = st.create("manager", "all", "", TEXT, "e" * 32)          # its replay (no kind) is still a replay
+    assert created is False
+
+
+def test_the_migration_adds_kind_to_an_existing_table_and_keeps_the_rows():
+    import os as _os
+    pg = _os.environ.get("CS_TEST_PG", "postgresql://cs:cs@127.0.0.1:54329/cs_test")
+    import pgstore
+    schema = "sysreq_mig_%d" % _os.getpid()             # its own schema: never touches the tables another run of the suite is using
+    try:
+        boot = pgstore.DB(pg)
+        boot.x("drop schema if exists %s cascade" % schema)
+        boot.x("create schema %s" % schema)
+    except Exception as e:                                             # noqa: BLE001
+        pytest.fail("the local test Postgres is needed (node /Users/Shared/cs_core_pgtest_start.mjs): %s" % e)
+    class SchemaDB(pgstore.DB):                         # pgstore.DB sets its own `options`: the search_path goes in the same way
+        def _connect(self):
+            import psycopg
+            return psycopg.connect(self.url, autocommit=True, connect_timeout=10, options="-c search_path=%s" % schema)
+    db = SchemaDB(pg)
+    db.x("create table screen_system_requests(id bigserial primary key, rid text not null unique, created_at double precision not null, "
+         "updated_at double precision not null, username text not null, brand text not null, ticket text not null default '', "
+         "text text not null, status text not null, guy_reply text not null default '')")          # the 2026-10-25 shape
+    db.x("insert into screen_system_requests(rid, created_at, updated_at, username, brand, ticket, text, status, guy_reply) "
+         "values (%s, 1, 1, 'manager', 'all', '', %s, 'done', 'ok')", ("f" * 32, TEXT))
+    pgstore.init(db)
+    pgstore.init(db)                                                   # idempotent: a second instance / restart runs it again
+    st = sysreq.PgSysReqStore(db)
+    old = st.all()[0]
+    assert old["kind"] == "change" and old["text"] == TEXT and old["guy_reply"] == "ok"
+    rec, created = st.create("manager", "all", "", TEXT + " נתונים", "9" * 32, "data")
+    assert created and rec["kind"] == "data" and st.since(0)[-1]["kind"] == "data"
+    assert db.q("select table_schema from information_schema.tables where table_name='screen_system_requests' and table_schema=%s", (schema,))
+    boot.x("drop schema %s cascade" % schema)

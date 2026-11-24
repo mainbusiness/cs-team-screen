@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from flask import g, jsonify, request
 
 import engine_proxy
+import owners
 import sla
 
 TZ = ZoneInfo("Asia/Jerusalem")
@@ -222,7 +223,7 @@ def cancel_view(per_brand, users, dates, day, today=None):
     for b in with_data:
         row = (per_brand[b].get("data") or {}).get("days", {}).get(day) or {}
         for u, n in (row.get("by") or {}).items():
-            if is_test_user(u):
+            if is_test_user(u) or owners.is_hidden(u):      # an owner account: counted in the brand's total, never a per-person row
                 continue
             a = agents.setdefault(u, {"user": u, "name": names.get(u, u), "n": 0, "by_brand": {}})
             a["n"] += n
@@ -710,13 +711,13 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
     lo, hi = day_start(days[0]), min(day_start(next_day(days[-1])), max(now, day_start(days[0])))
     evts = []
     for d in [prev_day(days[0])] + days + [next_day(days[-1])]:   # both neighbours: sessions that cross midnight
-        evts.extend(e for e in log.events(d) if e.get("b") in brands and not is_test_user(e.get("u")))
+        evts.extend(e for e in log.events(d) if e.get("b") in brands and not is_test_user(e.get("u")) and not owners.is_hidden(e.get("u")))
     evts.sort(key=lambda e: e["ts"])
     row_of = {(b, r.get("id")): r for b, rs in rows_by_brand.items() for r in rs}
     present = {}
     for d in days:
         for u, mins in log.presence(d).items():
-            if not is_test_user(u):
+            if not is_test_user(u) and not owners.is_hidden(u):          # older rows of an owner account, written before 2026-11-25
                 present.setdefault(u, set()).update(m for m in mins if lo <= m * 60 < hi)
 
     by_user = {}
@@ -724,7 +725,7 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
         by_user.setdefault(e.get("u"), []).append(e)
     names = {u["username"]: (u.get("display_name") or u["username"]) for u in users}
     roster = {u["username"] for u in users if not u.get("disabled") and set(u.get("roles", [])) & {"agent", "admin"}
-              and set(u.get("brands", [])) & set(brands) and not is_test_user(u["username"])}
+              and set(u.get("brands", [])) & set(brands) and not is_test_user(u["username"]) and not owners.is_hidden(u["username"])}
     pie_brand, pie_chan, pie_cat = {}, {}, {}
     heat = {}                     # user -> {day: [24 seconds]}
     hour_total = [0.0] * 24
@@ -806,10 +807,11 @@ def build(log, rows_by_brand, users, brands, end_day, ndays, now, ds_by_brand=No
     by_sender = {}
     for ds in ds_by_brand.values():
         for k, v in ((((ds or {}).get("data") or {}).get("attribution") or {}).get("bySender") or {}).items():
-            by_sender[k] = by_sender.get(k, 0) + int(v or 0)
+            if not owners.is_hidden(k):                     # an owner account: in the brand total only, never a per-person count
+                by_sender[k] = by_sender.get(k, 0) + int(v or 0)
     known = {u["username"] for u in users}
     for k in list(by_sender):
-        if k in known and not is_test_user(k) and k not in {a["user"] for a in agents}:      # a screen user outside the roster (e.g. an admin)
+        if k in known and not is_test_user(k) and not owners.is_hidden(k) and k not in {a["user"] for a in agents}:      # a screen user outside the roster (e.g. an admin)
             agents.append({"user": k, "name": names.get(k, k), "active_s": 0, "screen_s": 0, "shift": None, "breaks_s": 0, "breaks_n": 0,
                            "sends": 0, "resends": 0, "closes": 0, "per_hour": None,
                            "aht_s": None, "handled": 0, "present_s": 0, "occupancy": None, "engine_sends": 0, "engine_closes": 0,
@@ -922,8 +924,9 @@ def register(app, d):
     def presence():
         u = g.get("user")
         p = request.path
-        if u and p.startswith("/api/") and not p.startswith(("/api/dash", "/api/manage", "/api/me")) and "viewer" not in u.get("roles", []):
-            log.touch(u["username"])                  # a read-only viewer is not an agent at work: never on the "online now" list
+        if (u and p.startswith("/api/") and not p.startswith(("/api/dash", "/api/manage", "/api/me")) and "viewer" not in u.get("roles", [])
+                and not owners.is_hidden(u["username"])):
+            log.touch(u["username"])                  # a read-only viewer is not an agent at work: never on the "online now" list; an owner account (owners.py) is never written
 
     def can_see(u):
         """The boards: managers, and the read-only viewer (the owner 2026-11-09). Never a write: every route below that uses it is a GET."""
@@ -1270,6 +1273,8 @@ def register(app, d):
         return jsonify({"ok": True})
 
     def note(u, brand, tid, kind, channel=None):
+        if owners.is_hidden(u.get("username")):        # an owner account leaves no activity trace (owners.py, 2026-11-25)
+            return
         r = cache.cached_rows(brand).get(tid) or {}
         ch = "whatsapp" if (channel == "whatsapp" or is_wa(r)) else "email"
         log.record(u["username"], brand, tid, ch, kind, r.get("category"))

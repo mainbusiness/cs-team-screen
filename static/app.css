@@ -880,6 +880,10 @@ html[dir=rtl] .rd-hint:placeholder-shown { direction: rtl; }       /* an empty d
 .sysreq-card { margin: 18px 0 8px; }
 .dash-pane .sysreq-card h3 { margin-top: 0; }
 .sysreq-help { margin: 0 0 8px; }
+.sysreq-kinds { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.sysreq-kinds .sysreq-k { max-width: 100%; white-space: normal; }
+.sysreq-kinds .sysreq-k.on { background: var(--ink, #222); color: var(--bg, #fff); border-color: var(--ink, #222); }
+.chip.sysreq-kind { font-weight: 400; }
 .sysreq-ta { width: 100%; box-sizing: border-box; min-height: 84px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; resize: vertical; }
 .sysreq-ticket { width: 9em; max-width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
 .sysreq-card .ain-row .sysreq-count { margin-inline-start: auto; }

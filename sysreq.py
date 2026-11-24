@@ -1,13 +1,15 @@
 """sysreq.py — system change requests from the CS managers (Owner, 2026-10-25: "תשים למנהל המנהל בממשק שירות לקוחות שהוא יוכל
 לשלוח העברות לתקן את המערכת עצמה לא רק את התשובות של ה ai . זה יעבור לפה לאישור שלי אבל שהוא יוכל להציע דברים").
 
-A manager proposes a change to the SYSTEM (screen, workflow, buttons, rules, bugs). Nothing here executes anything: the request
+A manager proposes a change to the SYSTEM (screen, workflow, buttons, rules, bugs), or (2026-11-25, `kind` = 'data') asks for DATA
+(a number / a breakdown the worker reads and answers, read-only; the answer may be long: REPLY_MAX_DATA). Nothing here executes anything: the request
 travels to the owner's HQ (the Mac Mini pulls it, CS_Engine/sysreq_sync), the owner approves / rejects there, and the manager reads the status
 and the owner's reply back on the managers' board.
 
   Browser (admins only, the same gate as the AI-notes card; CSRF by app.py like every write):
     GET  /api/sysreq                          -> {ok, items: [...newest first], brands}
-    POST /api/sysreq {rid, text, brand, ticket} -> {ok, item, replay}      rid = 32 hex made by the screen: a replay is a no-op
+    POST /api/sysreq {rid, text, brand, ticket, kind} -> {ok, item, replay}   rid = 32 hex made by the screen: a replay is a no-op;
+                                                                              kind 'change' (default) | 'data'
   Machine (the Mini, no browser session; HMAC token in X-HQ-Token, see verify_token):
     GET  /hq/sysreq?since=<epoch>             -> {ok, now, items: [...updated after since, oldest first]}
     POST /hq/sysreq/<id> {status, reply}      -> {ok, item}
@@ -38,6 +40,17 @@ TRANSITIONS = {
 }
 DECISION = {"approve": "approved", "reject": "rejected", "done": "done"}   # the CLI's verbs
 TEXT_MIN, TEXT_MAX, REPLY_MAX = 10, 2000, 1000
+KINDS = ("change", "data")          # 2026-11-25: a change to the system | a request for data (read-only, answered with numbers)
+REPLY_MAX_DATA = 4000               # a data answer needs room (numbers, a short breakdown, source + period + how it was counted)
+
+
+def kind_of(rec):
+    k = rec.get("kind") if isinstance(rec, dict) else None
+    return k if k in KINDS else "change"            # a record from before 2026-11-25 is a change request
+
+
+def reply_max(kind):
+    return REPLY_MAX_DATA if kind == "data" else REPLY_MAX
 RID_RE = re.compile(r"^[0-9a-f]{32}$")
 TICKET_RE = re.compile(r"^[A-Za-z0-9#_.:/-]{1,80}$")
 BRAND_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,29}$")
@@ -112,15 +125,16 @@ def _now():
 def check_transition(rec, status, reply):
     if status not in STATUSES:
         raise SysReqError("sysreq_bad_status")
-    if reply is not None and (not isinstance(reply, str) or len(reply) > REPLY_MAX):
+    if reply is not None and (not isinstance(reply, str) or len(reply) > reply_max(kind_of(rec))):
         raise SysReqError("sysreq_bad_reply")
     cur = rec.get("status")
     if status != cur and status not in TRANSITIONS.get(cur, set()):
         raise SysReqError("sysreq_bad_transition")
 
 
-def same_request(rec, user, brand, ticket, text):
-    return rec.get("user") == user and rec.get("brand") == brand and rec.get("ticket") == ticket and rec.get("text") == text
+def same_request(rec, user, brand, ticket, text, kind="change"):
+    return (rec.get("user") == user and rec.get("brand") == brand and rec.get("ticket") == ticket and rec.get("text") == text
+            and kind_of(rec) == kind)
 
 
 class SysReqStore:
@@ -167,18 +181,21 @@ class SysReqStore:
                 fcntl.flock(fd, fcntl.LOCK_UN)
                 os.close(fd)
 
-    def create(self, user, brand, ticket, text, rid):
+    def create(self, user, brand, ticket, text, rid, kind="change"):
         """-> (rec, created). The same rid again: the stored record (a replay); the same rid with other content: sysreq_rid_conflict."""
+        if kind not in KINDS:
+            raise SysReqError("sysreq_bad_kind")
+
         def m(d):
             for rec in d["items"].values():
                 if rec.get("rid") == rid:
-                    if not same_request(rec, user, brand, ticket, text):
+                    if not same_request(rec, user, brand, ticket, text, kind):
                         raise SysReqError("sysreq_rid_conflict")
                     return dict(rec), False
             d["seq"] = int(d.get("seq") or 0) + 1
             t = self.clock()
             rec = {"id": d["seq"], "rid": rid, "created_at": t, "updated_at": t, "user": user, "brand": brand, "ticket": ticket,
-                   "text": text, "status": "pending", "guy_reply": ""}
+                   "text": text, "status": "pending", "guy_reply": "", "kind": kind}
             d["items"][str(rec["id"])] = rec
             return dict(rec), True
         return self._mutate(m)
@@ -205,12 +222,12 @@ class SysReqStore:
         return self._mutate(m)
 
 
-COLS = "id, rid, created_at, updated_at, username, brand, ticket, text, status, guy_reply"
+COLS = "id, rid, created_at, updated_at, username, brand, ticket, text, status, guy_reply, kind"
 
 
 def _row(r):
     return {"id": r[0], "rid": r[1], "created_at": r[2], "updated_at": r[3], "user": r[4], "brand": r[5], "ticket": r[6],
-            "text": r[7], "status": r[8], "guy_reply": r[9]}
+            "text": r[7], "status": r[8], "guy_reply": r[9], "kind": r[10]}
 
 
 class PgSysReqStore:
@@ -220,16 +237,19 @@ class PgSysReqStore:
     def __init__(self, db, clock=_now):
         self.db, self.clock = db, clock
 
-    def create(self, user, brand, ticket, text, rid):
+    def create(self, user, brand, ticket, text, rid, kind="change"):
+        if kind not in KINDS:
+            raise SysReqError("sysreq_bad_kind")
+
         def go(c):
             t = self.clock()
-            got = c.execute("insert into screen_system_requests(rid, created_at, updated_at, username, brand, ticket, text, status, guy_reply) "
-                            "values (%s,%s,%s,%s,%s,%s,%s,'pending','') on conflict (rid) do nothing returning " + COLS,
-                            (rid, t, t, user, brand, ticket, text)).fetchone()
+            got = c.execute("insert into screen_system_requests(rid, created_at, updated_at, username, brand, ticket, text, status, guy_reply, kind) "
+                            "values (%s,%s,%s,%s,%s,%s,%s,'pending','',%s) on conflict (rid) do nothing returning " + COLS,
+                            (rid, t, t, user, brand, ticket, text, kind)).fetchone()
             if got:
                 return _row(got), True
             rec = _row(c.execute("select " + COLS + " from screen_system_requests where rid=%s", (rid,)).fetchone())
-            if not same_request(rec, user, brand, ticket, text):
+            if not same_request(rec, user, brand, ticket, text, kind):
                 raise SysReqError("sysreq_rid_conflict")
             return rec, False
         return self.db.run(go, tx=True)
@@ -262,7 +282,7 @@ def public(rec, names):
     """What a manager's screen gets (no rid)."""
     return {"id": rec["id"], "created_at": rec["created_at"], "updated_at": rec["updated_at"], "user": rec["user"],
             "by": names.get(rec["user"]) or rec["user"], "brand": rec["brand"], "ticket": rec["ticket"] or "",
-            "text": rec["text"], "status": rec["status"], "guy_reply": rec["guy_reply"] or ""}
+            "text": rec["text"], "status": rec["status"], "guy_reply": rec["guy_reply"] or "", "kind": kind_of(rec)}
 
 
 def register(app, d):
@@ -303,8 +323,11 @@ def register(app, d):
         if not isinstance(b, dict):
             return d["json_error"]("bad_request", 400, lang)
         rid, text, brand, ticket = b.get("rid"), b.get("text"), b.get("brand"), b.get("ticket")
+        kind = b.get("kind", "change")
         if not isinstance(rid, str) or not RID_RE.match(rid):
             return d["json_error"]("bad_request", 400, lang)
+        if kind not in KINDS:
+            return d["json_error"]("sysreq_bad_kind", 400, lang)
         text = text.strip() if isinstance(text, str) else ""
         if not (TEXT_MIN <= len(text) <= TEXT_MAX):
             return d["json_error"]("sysreq_bad_text", 400, lang)
@@ -314,11 +337,11 @@ def register(app, d):
         if ticket and not TICKET_RE.match(ticket):
             return d["json_error"]("sysreq_bad_ticket", 400, lang)
         try:
-            rec, created = reqs.create(u["username"], brand, ticket, text, rid)
+            rec, created = reqs.create(u["username"], brand, ticket, text, rid, kind)
         except SysReqError as e:
-            return d["json_error"](e.code, 409, lang)
+            return d["json_error"](e.code, 409 if e.code == "sysreq_rid_conflict" else 400, lang)
         if created:
-            users.audit(u["username"], "sysreq_created", str(rec["id"]), {"brand": brand, "ticket": ticket, "chars": len(text)})
+            users.audit(u["username"], "sysreq_created", str(rec["id"]), {"brand": brand, "ticket": ticket, "chars": len(text), "kind": kind})
         return jsonify({"ok": True, "item": public(rec, names()), "replay": not created})
 
     # ---------- machine API (the Mini) ----------

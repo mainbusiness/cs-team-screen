@@ -23,6 +23,8 @@ import threading
 import time
 from datetime import datetime, timezone
 
+import owners
+
 USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{1,31}$")
 BRAND_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,29}$")
 ROLES = ("agent", "admin", "user-manager", "viewer")   # viewer (the owner 2026-11-09): READ-ONLY analyst; always the ONLY role of its user
@@ -314,14 +316,24 @@ class PgUserStore(UserStore):
         return rec, changed
 
 
-def public_user(u):
-    """The shape the browser sees. No hash, no session version."""
-    return {
+CLI = object()     # public_user(u) from the server's command line: the whole record, no viewer
+
+
+def public_user(u, viewer=CLI):
+    """The shape the browser sees. No hash, no session version. `viewer` = the username of who asks (every web route passes it):
+    an owner account's last sign-in / last change are not sent to anyone but the owner (owners.py, 2026-11-25), and `locked`
+    tells the user manager that this viewer may not change it."""
+    out = {
         "username": u["username"], "display_name": u.get("display_name", ""), "roles": u.get("roles", []),
         "brands": u.get("brands", []), "lang": u.get("lang", "he"), "disabled": bool(u.get("disabled")),
         "must_change": bool(u.get("must_change")), "created_at": u.get("created_at"),
         "updated_at": u.get("updated_at"), "last_login": u.get("last_login"),
     }
+    if viewer is not CLI and owners.hidden_from(viewer, u["username"]):
+        del out["updated_at"], out["last_login"]
+        if not owners.may_change(viewer, u["username"]):
+            out["locked"] = True
+    return out
 
 
 def seconds_since(iso):

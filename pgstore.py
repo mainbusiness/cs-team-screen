@@ -54,6 +54,7 @@ create table if not exists screen_system_requests(id bigserial primary key, rid 
                                                   ticket text not null default '', text text not null, status text not null,
                                                   guy_reply text not null default '');
 create index if not exists screen_system_requests_upd on screen_system_requests(updated_at);
+alter table screen_system_requests add column if not exists kind text not null default 'change';
 create table if not exists screen_notice_acks(username text not null, notice_id text not null, acked_at double precision not null,
                                               primary key (username, notice_id));
 create table if not exists screen_quality_days(day text primary key, sample jsonb not null, created_at double precision not null,

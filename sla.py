@@ -25,6 +25,8 @@ from zoneinfo import ZoneInfo
 
 from flask import jsonify
 
+import owners
+
 TZ = ZoneInfo("Asia/Jerusalem")
 OPEN_ST = ("ready", "action", "health", "delay")
 ANSWERED_ST = ("sent", "wa_queued")
@@ -178,7 +180,7 @@ def completed(rows, lo, hi, cfg):
             continue
         st = r.get("status")
         agent = str(r.get("handled_by"))
-        rec = by_agent.setdefault(agent, {"fr": [], "rs": []})
+        rec = {"fr": [], "rs": []} if owners.is_hidden(agent) else by_agent.setdefault(agent, {"fr": [], "rs": []})   # owner: totals only
         if st in ANSWERED_ST:
             v = bh_seconds(b, h, cfg)
             fr.append(v)

@@ -6522,7 +6522,9 @@
    *  - The card is built once; only the status line and the list repaint (the textarea is never rebuilt under the manager's fingers).
    *  - The draft is mirrored to localStorage per user and survives a reload; it is cleared only after the server confirmed the save.
    *  - One rid per content: a retry of the same text after a lost answer is a replay (no duplicate), an edited text gets a new rid.
-   *  - Done / rejected requests older than 14 days leave the list for a collapsed archive line (never deleted). */
+   *  - Done / rejected requests older than 14 days leave the list for a collapsed archive line (never deleted).
+   *  - 2026-11-25 (Guy): two kinds, a toggle at the top: 🛠️ a change to the system (default) | 📊 a request for data (answered read-only,
+   *    with numbers; the answer may be long and keeps its line breaks). The kind is part of the request (and of its rid). */
   const SysReq = (function () {
     const MIN = 10, MAX = 2000, KEEP_DAYS = 14;
     const HE = {
@@ -6534,7 +6536,11 @@
       list: 'הבקשות שנשלחו', none: 'עוד לא נשלחו בקשות.', load_fail: 'לא הצלחנו לטעון את הבקשות: {m}', again: 'לנסות שוב',
       st_pending: '⏳ התקבל', st_approved: '🛠️ בעבודה', st_done: '🔧 בוצע', st_rejected: '❌ נדחה',
       reply: 'עדכון:', meta: '#{id} · {b} · {d} · {who}', ticket_ref: 'פנייה {t}', archive: 'ארכיון — בוצעו / נדחו לפני יותר מ-14 יום ({n})',
-      restored: 'שוחזרה טיוטה שלא נשלחה מהמכשיר הזה.'
+      restored: 'שוחזרה טיוטה שלא נשלחה מהמכשיר הזה.',
+      kind: 'סוג הבקשה', k_change: '🛠️ לשנות משהו במערכת', k_data: '📊 לבקש נתונים', chip_change: '🛠️ שינוי', chip_data: '📊 נתונים',
+      help_data: 'כאן מבקשים נתון או פילוח מהמערכת (מספרים בלבד, בלי פרטי לקוחות). מקבלים כאן תשובה עם המספרים, התקופה ואיך נספר. נתון שחוזרים לבקש אפשר להפוך לאריח קבוע בלוח המנהלים.',
+      ph_data: 'מה רוצים לדעת, על איזה מותג ואיזו תקופה? למשל: "כמה ביטולי מנוי ברוזלה ב-7 הימים האחרונים קיבלו הנחת 50% ונשארו?"',
+      send_data: 'שליחת הבקשה', sent_data: 'נשלח ✓ התשובה תופיע כאן.'
     };
     const EN = {
       title: '🛠️ System change requests', jump: '🛠️ Request a system change',
@@ -6545,28 +6551,44 @@
       list: 'Requests sent', none: 'No requests sent yet.', load_fail: 'Could not load the requests: {m}', again: 'Try again',
       st_pending: '⏳ Received', st_approved: '🛠️ In progress', st_done: '🔧 Done', st_rejected: '❌ Rejected',
       reply: 'Update:', meta: '#{id} · {b} · {d} · {who}', ticket_ref: 'ticket {t}', archive: 'Archive: done / rejected more than 14 days ago ({n})',
-      restored: 'Restored an unsent draft from this device.'
+      restored: 'Restored an unsent draft from this device.',
+      kind: 'Request type', k_change: '🛠️ Change something in the system', k_data: '📊 Ask for data', chip_change: '🛠️ Change', chip_data: '📊 Data',
+      help_data: 'Ask here for a number or a breakdown from the system (numbers only, no customer details). The answer appears here with the numbers, the period and how it was counted. Data you keep asking for can become a permanent tile on the managers\' board.',
+      ph_data: 'What do you want to know, for which brand and which period? E.g. "How many subscription cancels in Rozela in the last 7 days got the 50% discount and stayed?"',
+      send_data: 'Send the request', sent_data: 'Sent ✓ The answer will appear here.'
     };
     const L = LANG === 'en' ? EN : HE;
     function s(k, v) { let x = L[k]; Object.keys(v || {}).forEach(function (a) { x = x.split('{' + a + '}').join(String(v[a])); }); return x; }
-    const st = { items: null, err: null, busy: false, status: null, rid: null, ridFor: '', seq: 0, timer: null };
-    let el = null, ta = null, sel = null, tin = null, btn = null, count = null;
+    const st = { items: null, err: null, busy: false, status: null, rid: null, ridFor: '', seq: 0, timer: null, kind: 'change' };
+    let el = null, ta = null, sel = null, tin = null, btn = null, count = null, help = null, kbtns = {};
     function key() { return 'cs.sysreq.' + ((S.me && S.me.user && S.me.user.username) || '?'); }
-    function saveDraft() { try { localStorage.setItem(key(), JSON.stringify({ text: ta.value, brand: sel.value, ticket: tin.value })); } catch (e) { /* private mode */ } }
+    function saveDraft() { try { localStorage.setItem(key(), JSON.stringify({ text: ta.value, brand: sel.value, ticket: tin.value, kind: st.kind })); } catch (e) { /* private mode */ } }
     function dropDraft() { try { localStorage.removeItem(key()); } catch (e) { /* private mode */ } }
     function newRid() {
       const a = new Uint8Array(16);
       crypto.getRandomValues(a);
       return Array.prototype.map.call(a, function (x) { return (x < 16 ? '0' : '') + x.toString(16); }).join('');
     }
-    function content() { return JSON.stringify([ta.value.trim(), sel.value, tin.value.trim()]); }
+    function content() { return JSON.stringify([ta.value.trim(), sel.value, tin.value.trim(), st.kind]); }
+    function paintKind() {
+      ['change', 'data'].forEach(function (k) { kbtns[k].setAttribute('aria-pressed', String(st.kind === k)); kbtns[k].classList.toggle('on', st.kind === k); });
+      help.textContent = st.kind === 'data' ? L.help_data : L.help;
+      ta.placeholder = st.kind === 'data' ? L.ph_data : L.ph;
+      el.setAttribute('data-kind', st.kind);
+    }
+    function setKind(k) {
+      if (st.busy || st.kind === k) return;
+      st.kind = k;
+      if (st.status && st.status.ok) { st.status = null; paintStatus(); }
+      paintKind(); paintBtn(); saveDraft();
+    }
     function when(sec) { return fmtDate(new Date(sec * 1000).toISOString(), true); }
     function scopeName(b) { return b === 'all' ? L.all : brandName(b); }
     function paintBtn() {
       const n = ta.value.trim().length;
       count.textContent = n < MIN ? s('short', { n: MIN - n }) : s('count', { n: n });
       btn.disabled = st.busy || n < MIN || n > MAX;
-      btn.textContent = st.busy ? L.sending : L.send;
+      btn.textContent = st.busy ? L.sending : (st.kind === 'data' ? L.send_data : L.send);
     }
     function paintStatus() {
       const x = el.querySelector('[data-test=sysreq-status]');
@@ -6578,6 +6600,7 @@
       const node = h('div', { class: 'sysreq-item', 'data-test': 'sysreq-item', 'data-id': String(it.id), 'data-status': it.status },
         h('div', { class: 'sysreq-head' },
           h('span', { class: 'chip sysreq-chip ' + it.status, 'data-test': 'sysreq-chip', text: L['st_' + it.status] || it.status }),
+          h('span', { class: 'chip outline sysreq-kind', 'data-test': 'sysreq-kind', 'data-kind': it.kind === 'data' ? 'data' : 'change', text: it.kind === 'data' ? L.chip_data : L.chip_change }),
           h('span', { class: 'muted small', 'data-test': 'sysreq-meta' }, s('meta', { id: it.id, b: scopeName(it.brand), d: when(it.created_at), who: it.by || it.user }),
             it.ticket ? ' · ' + s('ticket_ref', { t: it.ticket }) : '')),
         h('div', { class: 'sysreq-text', dir: 'auto', 'data-test': 'sysreq-text', text: it.text }));
@@ -6623,10 +6646,11 @@
       const c = content();
       if (!st.rid || st.ridFor !== c) { st.rid = newRid(); st.ridFor = c; }     // the same content again = the same rid (a lost answer is a replay)
       st.busy = true; st.status = null; paintBtn(); paintStatus();
-      const r = await api('/api/sysreq', { rid: st.rid, text: text, brand: sel.value, ticket: tin.value.trim() }, 'POST').catch(function () { return null; });
+      const kind = st.kind;
+      const r = await api('/api/sysreq', { rid: st.rid, text: text, brand: sel.value, ticket: tin.value.trim(), kind: kind }, 'POST').catch(function () { return null; });
       st.busy = false;
       if (r && r.ok && r.item) {
-        st.status = { ok: true, text: L.sent };
+        st.status = { ok: true, text: kind === 'data' ? L.sent_data : L.sent };
         ta.value = ''; tin.value = ''; st.rid = null; st.ridFor = ''; dropDraft();
         if (st.items) st.items = [r.item].concat(st.items.filter(function (x) { return x.id !== r.item.id; }));
         paintList();
@@ -6644,9 +6668,15 @@
       btn = h('button', { type: 'button', class: 'btn primary', 'data-test': 'sysreq-send', onclick: submit });
       [ta, tin].forEach(function (x) { x.addEventListener('input', function () { if (st.status && st.status.ok) { st.status = null; paintStatus(); } saveDraft(); paintBtn(); }); });
       sel.addEventListener('change', saveDraft);
-      el = h('div', { class: 'dash-card sysreq-card', id: 'sysreq', 'data-test': 'sysreq' },
+      ['change', 'data'].forEach(function (k) {
+        kbtns[k] = h('button', { type: 'button', class: 'btn small sysreq-k', 'data-test': 'sysreq-k-' + k, 'aria-pressed': 'false', text: L['k_' + k],
+          onclick: function () { setKind(k); } });
+      });
+      help = h('p', { class: 'muted small sysreq-help', 'data-test': 'sysreq-help', text: L.help });
+      el = h('div', { class: 'dash-card sysreq-card', id: 'sysreq', 'data-test': 'sysreq', 'data-kind': 'change' },
         h('h3', { text: L.title }),
-        h('p', { class: 'muted small sysreq-help', 'data-test': 'sysreq-help', text: L.help }),
+        h('div', { class: 'sysreq-kinds', role: 'group', 'aria-label': L.kind, 'data-test': 'sysreq-kinds' }, kbtns.change, kbtns.data),
+        help,
         ta,
         h('div', { class: 'ain-row' }, h('label', { class: 'small' }, L.brand + ' ', sel), h('label', { class: 'small' }, L.ticket + ' ', tin), count, btn),
         h('div', { class: 'sysreq-status small', role: 'status', 'aria-live': 'polite', 'data-test': 'sysreq-status', hidden: true }),
@@ -6657,9 +6687,10 @@
         ta.value = d.text.slice(0, MAX);
         if (typeof d.ticket === 'string') tin.value = d.ticket.slice(0, 80);
         if (typeof d.brand === 'string' && Array.prototype.some.call(sel.options, function (o) { return o.value === d.brand; })) sel.value = d.brand;
+        if (d.kind === 'data') st.kind = 'data';
         st.status = { ok: true, text: L.restored };
       }
-      paintBtn(); paintStatus(); paintList();
+      paintKind(); paintBtn(); paintStatus(); paintList();
     }
     function mount(slot) {
       if (!el) build();
@@ -9224,8 +9255,8 @@
         h('span', { class: 'chip ' + (u.disabled ? 'bad' : 'ok'), text: u.disabled ? t('u_disabled') : t('u_active') }),
         u.must_change ? h('span', { class: 'chip', text: t('u_must_change') }) : null));
       c.append(h('div', { class: 'small muted' }, h('bdi', { text: u.brands.length ? u.brands.map(brandName).join(' · ') : '—' }), ' · ' + t('lang_' + u.lang) + ' · ' +
-        t('u_last') + ': ', h('bdi', { text: u.last_login ? fmtDate(u.last_login, true) : t('u_never') })));
-      if (blocked) return c;
+        t('u_last') + ': ', h('bdi', { text: !('last_login' in u) ? '—' : u.last_login ? fmtDate(u.last_login, true) : t('u_never') })));
+      if (blocked || u.locked) return c;                // u.locked: the server says this account is not ours to change
       const msg = h('div');
       if (openEdit === u.username) {
         const f = h('form', { class: 'u-form' },
