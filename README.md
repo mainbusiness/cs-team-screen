@@ -25,7 +25,7 @@ Render disk and in each engine's `audit` sheet.
 | `templates/`, `static/` | the SPA (vanilla JS, no build step, strict CSP — no inline script or style) |
 | `wsgi.py`, `render.yaml`, `requirements*.txt` | deploy |
 | `assistant.py` | phase 5: knowledge assistant (`/api/<brand>/assistant`) + English mode (`/translate`, `/translate-out`) |
-| `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key) |
+| `llm.py` | the only Anthropic Messages API client (timeouts, error codes, never logs the key). `Health` remembers an outage retrying cannot fix (spend limit → `assistant_quota`, refused key, no key) until a call succeeds: admin red banner + public `GET /healthz/ai` (1-token probe ≤ every 15 min, 5 while down) read by `../vps_watch` (2026-11-24) |
 | `mock_llm.py` | deterministic fake Claude for local preview only |
 | `ticket_cache.py` | Render-side cache: stale-while-revalidate list + full tickets, prefetch (cap 3), change polling, write-through |
 | `sysreq.py` | system change requests from the managers to the owner (2026-10-25): the card "🛠️ הצעות לשיפור המערכת" on `#/dash` under the AI-notes card (admins only), `GET/POST /api/sysreq`, and the machine API `GET /hq/sysreq?since=` + `POST /hq/sysreq/<id>` for the Mini (HMAC token in `X-HQ-Token`, aud `cs-sysreq`, ≤ 5 min; CSRF-exempt by exact path). Postgres `screen_system_requests`, a JSON file for tests. The Mini side is `../sysreq_sync/` (launchd pull → HQ inbox, CLI `decide`). Nothing executes a request. |

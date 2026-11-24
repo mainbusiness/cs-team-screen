@@ -48,6 +48,9 @@ PROXY = {
     "assistant_timeout": ("העוזר לא ענה בזמן. נסו שאלה קצרה יותר או שוב בעוד רגע.", "The assistant did not answer in time. Try a shorter question."),
     "assistant_unreachable": ("אין חיבור לשירות ה-AI. נסו שוב בעוד רגע.", "Cannot reach the AI service. Try again shortly."),
     "assistant_error": ("תשובה לא תקינה משירות ה-AI. נסו שוב.", "Invalid answer from the AI service. Try again."),
+    # Owner, 2026-11-24: the Anthropic monthly spend limit was reached and this read as "Invalid answer ... Try again".
+    "assistant_quota": ("תקציב ה-AI החודשי נגמר, לכן התרגום והעוזר מושבתים. ניסיון חוזר לא יעזור. לדווח למנהל עכשיו.",
+                        "The monthly AI budget is used up, so translation and the assistant are stopped. Retrying will not help. Tell Manager now."),
     "knowledge_unavailable": ("מאגר הידע של המותג עוד לא זמין במנוע — העוזר לא עונה בלעדיו (כדי לא להמציא מדיניות).",
                               "The brand's knowledge is not available from the engine yet — the assistant will not answer without it."),
     "translate_failed": ("התרגום נכשל. נסו שוב.", "The translation failed. Try again."),

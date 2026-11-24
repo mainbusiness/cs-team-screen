@@ -25,6 +25,7 @@ import os
 import secrets
 import re
 import tempfile
+import threading
 import time
 from urllib.parse import urlparse
 
@@ -148,6 +149,9 @@ def create_app(overrides=None):
         llm_call = mock_llm.MockClaude()
     else:
         llm_call = llm.anthropic_transport(api_key)
+    ai_health = llm.Health()
+    llm_call = ai_health.watch(llm_call)        # every model call reports outages that retrying cannot fix (spend limit, bad key)
+    ai_probe_lock = threading.Lock()
 
     store = PgUserStore(pgdb) if pgdb else UserStore(users_path, audit_path)
     limiter = o.get("LIMITER") or security.LoginLimiter()
@@ -311,6 +315,28 @@ def create_app(overrides=None):
             return "users store unreadable", 500
         return "ok", 200
 
+    AI_PROBE_OK_S, AI_PROBE_DOWN_S = 900, 300
+
+    @app.get("/healthz/ai")
+    def healthz_ai():
+        """Public, for the VPS watcher (Owner, 2026-11-24). A 1-token call at most every 15 min (every 5 while down), so a
+        spend-limit outage is seen at night too, before the team meets it. One probe at a time; others get the last state."""
+        h = ai_health.snapshot()
+        due = AI_PROBE_DOWN_S if h["state"] != "ok" else AI_PROBE_OK_S
+        last = max(ai_health.probed_at, h["ok_at"] or 0)
+        if time.time() - last >= due and ai_probe_lock.acquire(blocking=False):
+            try:
+                ai_health.probed_at = time.time()
+                llm_call({"model": assistant.TRANSLATE_MODEL, "max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]})
+            except llm.LLMError:
+                pass
+            except Exception:
+                log.exception("healthz/ai probe")
+            finally:
+                ai_probe_lock.release()
+            h = ai_health.snapshot()
+        return jsonify(dict(h, ok=True))
+
     @app.get("/favicon.ico")
     def favicon():
         resp = send_from_directory(app.static_folder, "favicon.ico", mimetype="image/x-icon", max_age=7 * 86400)
@@ -433,6 +459,9 @@ def create_app(overrides=None):
         warnings = []
         if bootstrap_env_present and "admin" in u.get("roles", []):
             warnings.append("bootstrap_env")
+        ai_state = ai_health.snapshot()["state"]
+        if ai_state != "ok" and "admin" in u.get("roles", []):
+            warnings.append("ai_" + ai_state)          # ai_quota / ai_misconfigured / ai_off: a red banner for admins
         try:
             erole = security.engine_role(u.get("roles", []))
         except ValueError:
