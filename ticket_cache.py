@@ -499,7 +499,10 @@ class TicketCache:
                     prev_v = self._int(data.get("version"))
                     if v_new is not None and (prev_v is None or v_new >= prev_v):
                         data["version"] = v_new
-                    data["serverTime"] = out.get("serverTime", data.get("serverTime"))
+                    # the engine's apiChanges carries NO serverTime: keeping the old value froze the list's "עודכן לפני" at the last
+                    # full apiBoot (up to FULL_RELOAD_S = 30 min) while the list really synced every 10 s (Owner, 2026-11-26: "one
+                    # mail every 10 minutes"). A feed read that just succeeded IS the moment the list was last vouched for.
+                    data["serverTime"] = out.get("serverTime") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                     full_at = cur.get("full_at", cur["at"])
                     if all(k in out for k in ("dryRun", "cancelEnabled")):    # an engine that sends its switches with the feed
                         self.feed_switches.add(brand)

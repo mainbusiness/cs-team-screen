@@ -258,6 +258,18 @@ def test_changes_patch_rows_and_fall_back_to_boot(app, pw_hash, transport, monke
     assert "apiChanges" not in fns(transport)                           # remembered: engine has no apiChanges yet
 
 
+def test_feed_sync_moves_the_updated_time(app, pw_hash, transport, monkeypatch):
+    """The REAL engine's apiChanges has no serverTime (the mock engine's does — that hid this). The list's "עודכן לפני"
+    must follow the 10 s feed sync, not stay at the last full apiBoot (2026-11-26: showed "7 min ago" on a fresh list)."""
+    monkeypatch.setattr(ticket_cache, "CHANGES_SHARED_S", -1)
+    transport.reply = make_reply()
+    c, tok = logged_in(app, pw_hash, "noa", ["agent"], ["rozela"])
+    assert post(c, tok, "/api/rozela/list", {}).get_json()["serverTime"] == "2026-10-05T10:00:00Z"   # the boot's time
+    j = post(c, tok, "/api/rozela/changes", {"since": 7}).get_json()
+    assert j["via"] == "feed" and j["serverTime"] and j["serverTime"] > "2026-10-05T10:00:00Z"
+    assert time.time() - time.mktime(time.strptime(j["serverTime"], "%Y-%m-%dT%H:%M:%SZ")) + time.timezone < 60
+
+
 def test_changes_reset_and_removed(app, pw_hash, transport, monkeypatch):
     monkeypatch.setattr(ticket_cache, "CHANGES_SHARED_S", -1)      # every call reads the feed here
     transport.reply = make_reply(changes="reset")
